@@ -38,6 +38,11 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
       );
+      // Replace title template variable with VITE_APP_TITLE env var
+      template = template.replace(
+        `{{project_title}}`,
+        process.env.VITE_APP_TITLE ?? "Truth Desk"
+      );
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {

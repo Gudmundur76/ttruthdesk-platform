@@ -152,9 +152,9 @@ export default function Home() {
             className="max-w-3xl"
           >
             <motion.div custom={0} variants={fadeUp} className="mb-5">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                Molecular Evidence Intelligence
+                Multi-Vertical Evidence Intelligence
               </span>
             </motion.div>
             <motion.h1
@@ -162,16 +162,16 @@ export default function Home() {
               variants={fadeUp}
               className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 leading-tight mb-6"
             >
-              Verify biotech claims
+              Verify scientific claims
               <br />
-              <span className="text-blue-800">against the Protein Data Bank.</span>
+              <span className="text-blue-800">against authoritative databases.</span>
             </motion.h1>
             <motion.p
               custom={2}
               variants={fadeUp}
               className="text-lg text-slate-600 leading-relaxed mb-8 max-w-2xl"
             >
-              Protein Truth Desk is an autonomous molecular evidence auditing platform. Upload any biotech document — pitch deck, abstract, whitepaper, or patent — and receive a structured, traceable audit report with every molecular claim verified against authoritative structural biology databases.
+              Truth Desk is an autonomous multi-vertical evidence auditing platform. Upload any scientific document — pitch deck, abstract, whitepaper, or patent — and receive a structured, traceable audit report with every claim verified against authoritative databases including the Protein Data Bank, PubChem, and domain-specific evidence sources.
             </motion.p>
             <motion.div custom={3} variants={fadeUp} className="flex flex-wrap gap-3">
               {isAuthenticated ? (

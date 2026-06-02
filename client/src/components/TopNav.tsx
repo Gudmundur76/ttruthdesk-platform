@@ -15,6 +15,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 const NAV_LINKS = [
+  { href: "/verticals", label: "Verticals", public: true },
   { href: "/registry", label: "Registry", public: true },
   { href: "/graph", label: "Graph", public: true },
   { href: "/dashboard", label: "Dashboard", public: false },
@@ -42,8 +43,8 @@ export function TopNav() {
               <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18" />
             </svg>
           </div>
-          <span className="font-semibold text-sm text-slate-900 tracking-tight">
-            Protein Truth Desk
+          <span className="font-semibold text-sm text-slate-900 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            Truth Desk
           </span>
         </Link>
 

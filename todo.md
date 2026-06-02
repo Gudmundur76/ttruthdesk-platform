@@ -117,3 +117,13 @@
 - [ ] Wire PayPal checkout on Pricing page — DEFERRED (PayPal connector OAuth needs to be authorized in Manus UI first)
 - [ ] Add PayPal order confirmation page/modal — DEFERRED
 - [x] Save checkpoint
+
+## Phase 13: Truth Desk Branding + Verticals Page
+
+- [x] Update site title to "Truth Desk" (working name) in index.html, VITE_APP_TITLE, and TopNav logo
+- [x] Update landing page hero copy to reflect multi-vertical platform vision
+- [x] Update meta description and OG tags in index.html; add Space Grotesk + Inter fonts
+- [x] Build /verticals page: two vertical cards (Structural Biology, Salmon Biotech) with live claim/doc counts, status badges, and "Request a new vertical" CTA; upcoming verticals section
+- [x] Add tRPC procedure verticals.stats returning per-domain document and claim counts
+- [x] Register /verticals route in App.tsx and add nav link to TopNav (first public nav item)
+- [x] Save checkpoint (58 tests passing, TypeScript clean)

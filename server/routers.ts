@@ -21,6 +21,7 @@ import {
   getAllMonitoringFeed,
   insertMonitoringItems,
   getGraphData,
+  getVerticalStats,
 } from "./db";
 import { extractClaims } from "./claimExtractor";
 import { verdictForClaim } from "./pdbAdapter";
@@ -515,6 +516,12 @@ export const appRouter = router({
   graph: router({
     data: publicProcedure.query(async () => {
       return getGraphData();
+    }),
+  }),
+  // ─── Verticals ────────────────────────────────────────────────────────────
+  verticals: router({
+    stats: publicProcedure.query(async () => {
+      return getVerticalStats();
     }),
   }),
   // ─── LLM text extraction from PDF text ────────────────────────────────────

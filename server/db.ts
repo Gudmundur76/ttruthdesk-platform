@@ -395,3 +395,61 @@ export async function getGraphData() {
     .limit(2000);
   return { documents: docs, claims: claimRows };
 }
+
+/**
+ * Return per-domain document and claim counts for the /verticals page.
+ */
+export async function getVerticalStats() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const docs = await db
+    .select({
+      id: documents.id,
+      verticalDomain: documents.verticalDomain,
+      status: documents.status,
+    })
+    .from(documents);
+
+  const claimRows = await db
+    .select({
+      documentId: claims.documentId,
+      verdict: claims.verdict,
+    })
+    .from(claims);
+
+  // Build a map of documentId → verticalDomain
+  const docDomainMap = new Map<number, string>();
+  for (const d of docs) {
+    docDomainMap.set(d.id as unknown as number, d.verticalDomain ?? "unknown");
+  }
+
+  // Aggregate
+  const stats = new Map<
+    string,
+    { domain: string; totalDocs: number; completedDocs: number; totalClaims: number; supportedClaims: number }
+  >();
+
+  for (const d of docs) {
+    const domain = d.verticalDomain ?? "unknown";
+    if (!stats.has(domain)) {
+      stats.set(domain, { domain, totalDocs: 0, completedDocs: 0, totalClaims: 0, supportedClaims: 0 });
+    }
+    const s = stats.get(domain)!;
+    s.totalDocs++;
+    if (d.status === "complete") s.completedDocs++;
+  }
+
+  for (const c of claimRows) {
+    // find domain via document
+    const domain = docDomainMap.get(c.documentId) ?? "unknown";
+    if (!stats.has(domain)) {
+      stats.set(domain, { domain, totalDocs: 0, completedDocs: 0, totalClaims: 0, supportedClaims: 0 });
+    }
+    const s = stats.get(domain)!;
+    s.totalClaims++;
+    if (c.verdict === "Supported" || c.verdict === "Partially Supported") s.supportedClaims++;
+  }
+
+  return Array.from(stats.values());
+}
