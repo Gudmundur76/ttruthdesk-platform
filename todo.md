@@ -84,9 +84,17 @@
 - [x] Register `/api/public/verify-claim` in `server/_core/index.ts`
 - [x] 45 Vitest tests passing, TypeScript clean, all endpoints HTTP 200
 - [x] Save checkpoint
-- [ ] Stripe integration — DEFERRED (add when ready)
+- [x] Stripe integration — DEFERRED by user request (add when Stripe account is ready)
 
 ## Phase 9 Gap Resolution
 
 - [x] Add Vitest coverage for `POST /api/public/verify-claim` (13 tests: rate limiter, input validation, response shape contract) — 58 total tests passing
 - [x] Save Phase 9 checkpoint
+
+## Phase 10: Knowledge Graph Seeding
+
+- [x] Build curated seed list of 25 open-access PDB-rich papers (deCODE, landmark structural biology, diverse proteins)
+- [x] Build server/seedKnowledgeGraph.ts — one-time seeding script that fetches each paper via PubMed E-utilities and submits through the audit pipeline
+- [x] Run the seeding script and verify documents appear in the DB
+- [x] Verify seeded reports appear in /registry and /reports/:id public pages
+- [x] Save checkpoint
