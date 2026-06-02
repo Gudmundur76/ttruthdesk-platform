@@ -3,67 +3,51 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Tests for the discovery agent deduplication, quality gate signal density,
  * and discovery loop candidate filtering logic.
+ * Uses the real exported helpers from production code.
  */
 import { describe, it, expect } from "vitest";
+import { computeSignalDensity, CLAIM_SIGNALS } from "./discoveryLoopJob";
 
-// ─── Signal density helper (extracted from discoveryLoopJob.ts for testing) ──
+// ─── Signal density helper tests (real production function) ──────────────────
 
-const CLAIM_SIGNALS = [
-  /\bPDB\b/i,
-  /\b[1-9][A-Z0-9]{3}\b/,
-  /\bcrystal structure\b/i,
-  /\bcryo-?EM\b/i,
-  /\bX-ray\b/i,
-  /\bresolution\b.*\bÅ\b/i,
-  /\bbinding affinity\b/i,
-  /\bIC50\b/i,
-  /\bKd\b/,
-  /\bKi\b/,
-  /\bomega-3\b/i,
-  /\bastaxanthin\b/i,
-  /\bcollagen\b/i,
-  /\bEPA\b/,
-  /\bDHA\b/,
-  /\bmarine peptide\b/i,
-];
-
-function signalDensity(text: string): number {
-  return CLAIM_SIGNALS.filter((re) => re.test(text)).length;
-}
-
-// ─── Quality gate tests ───────────────────────────────────────────────────────
-
-describe("signalDensity quality gate", () => {
+describe("computeSignalDensity quality gate", () => {
   it("returns 0 for a generic abstract with no molecular signals", () => {
     const text = "This study investigates the role of diet in cardiovascular health.";
-    expect(signalDensity(text)).toBe(0);
+    expect(computeSignalDensity(text)).toBe(0);
   });
 
   it("returns 1 for a text with only one signal", () => {
     const text = "The crystal structure of the protein was determined.";
-    expect(signalDensity(text)).toBe(1);
+    expect(computeSignalDensity(text)).toBe(1);
   });
 
   it("returns >= 2 for a claim-dense structural biology abstract", () => {
     const text =
       "We solved the crystal structure of lysozyme (PDB: 1LYZ) at 1.8 Å resolution using X-ray crystallography.";
-    expect(signalDensity(text)).toBeGreaterThanOrEqual(2);
+    expect(computeSignalDensity(text)).toBeGreaterThanOrEqual(2);
   });
 
   it("returns >= 2 for a salmon biotech abstract", () => {
     const text =
       "Salmon-derived collagen peptides showed high DHA and omega-3 content with IC50 values below 10 μM.";
-    expect(signalDensity(text)).toBeGreaterThanOrEqual(2);
+    expect(computeSignalDensity(text)).toBeGreaterThanOrEqual(2);
   });
 
-  it("correctly identifies PDB ID pattern", () => {
-    expect(signalDensity("Structure 1ABC was deposited.")).toBeGreaterThan(0);
-    expect(signalDensity("Structure 0ABC was deposited.")).toBe(0); // must start with 1-9
+  it("correctly identifies PDB ID pattern (must start with 1-9)", () => {
+    expect(computeSignalDensity("Structure 1ABC was deposited.")).toBeGreaterThan(0);
+    expect(computeSignalDensity("Structure 0ABC was deposited.")).toBe(0);
   });
 
   it("passes the quality gate threshold (>= 2) for cryo-EM papers", () => {
-    const text = "Cryo-EM structure of the ribosome determined at 3.2 Å resolution with binding affinity measurements.";
-    expect(signalDensity(text)).toBeGreaterThanOrEqual(2);
+    const text =
+      "Cryo-EM structure of the ribosome determined at 3.2 Å resolution with binding affinity measurements.";
+    expect(computeSignalDensity(text)).toBeGreaterThanOrEqual(2);
+  });
+
+  it("CLAIM_SIGNALS array is non-empty and contains expected patterns", () => {
+    expect(CLAIM_SIGNALS.length).toBeGreaterThan(10);
+    expect(CLAIM_SIGNALS.some((re) => re.test("crystal structure"))).toBe(true);
+    expect(CLAIM_SIGNALS.some((re) => re.test("astaxanthin"))).toBe(true);
   });
 });
 

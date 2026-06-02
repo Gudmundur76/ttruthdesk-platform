@@ -74,10 +74,19 @@
 - [x] Add Vitest tests for discovery agent deduplication and quality gate logic (11 tests, 44 total passing)
 - [x] Save checkpoint
 
-## Phase 9: Follow-on Quality &amp; Hardening
+## Phase 9: Agent-Callable API, Quality Gate Refactor, PubChem, Confidence Display
 
-- [ ] Refactor signal-density quality gate into an exported helper in `server/discoveryLoopJob.ts` and update tests to call the real function
-- [ ] Add real PubChem CID lookup to `server/verticalAdapters/salmonBiotech.ts` (replace mock evidence with live PubChem REST API calls)
-- [ ] Connect Stripe to self-serve audit flow (close the revenue loop)
-- [ ] Expose `POST /api/public/verify-claim` agent-callable single-claim verification endpoint
-- [ ] Add confidence score display to AuditReport.tsx claim table
+- [x] Refactor signal-density quality gate into exported `computeSignalDensity(text)` helper in `server/discoveryLoopJob.ts`
+- [x] Update `server/discoveryAgent.test.ts` to call the real exported helper instead of a local copy (45 tests passing)
+- [x] Add real PubChem REST API lookup to `server/verticalAdapters/salmonBiotech.ts` (live CID → compound properties + synonyms + name search)
+- [x] Build `POST /api/public/verify-claim` — public, unauthenticated, rate-limited (10 req/min) endpoint returning structured JSON verdict
+- [x] Add confidence score colour-coded badge to each claim card in `AuditReport.tsx`
+- [x] Register `/api/public/verify-claim` in `server/_core/index.ts`
+- [x] 45 Vitest tests passing, TypeScript clean, all endpoints HTTP 200
+- [x] Save checkpoint
+- [ ] Stripe integration — DEFERRED (add when ready)
+
+## Phase 9 Gap Resolution
+
+- [x] Add Vitest coverage for `POST /api/public/verify-claim` (13 tests: rate limiter, input validation, response shape contract) — 58 total tests passing
+- [x] Save Phase 9 checkpoint

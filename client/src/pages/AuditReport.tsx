@@ -95,6 +95,7 @@ type ClaimRow = {
   verdictRationale: string | null;
   pdbEvidenceUrl: string | null;
   overriddenVerdict: VerdictType | null;
+  confidenceScore: number | null;
 };
 
 function getFinalVerdict(claim: ClaimRow): VerdictType {
@@ -357,6 +358,18 @@ export default function AuditReport() {
                             <span className="text-xs text-slate-400 italic">reviewer override</span>
                           )}
                           <span className="text-xs text-slate-400 font-mono uppercase">{claim.claimType}</span>
+                          {claim.confidenceScore != null && (
+                            <span
+                              className="inline-flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 rounded"
+                              style={{
+                                background: claim.confidenceScore >= 0.75 ? "#dcfce7" : claim.confidenceScore >= 0.5 ? "#fef9c3" : "#fee2e2",
+                                color: claim.confidenceScore >= 0.75 ? "#166534" : claim.confidenceScore >= 0.5 ? "#854d0e" : "#991b1b",
+                              }}
+                              title="Confidence score (0–1)"
+                            >
+                              {(claim.confidenceScore * 100).toFixed(0)}% conf
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-slate-700 leading-relaxed">{claim.claimText}</p>
                       </div>

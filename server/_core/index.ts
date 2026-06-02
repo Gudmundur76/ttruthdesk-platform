@@ -14,6 +14,7 @@ import { handleDiscoveryLoop } from "../discoveryLoopJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
+import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -50,6 +51,8 @@ async function startServer() {
   // Public machine-readable claims registry (no auth required)
   registerClaimsRoutes(app);
 
+  // Agent-callable single-claim verification endpoint
+  registerVerifyClaimRoute(app);
   // AI Engine Optimisation: /llms.txt
   registerLlmsRoute(app);
   registerSitemapRoute(app);

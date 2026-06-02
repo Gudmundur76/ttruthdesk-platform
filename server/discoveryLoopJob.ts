@@ -27,7 +27,7 @@ import { ENV } from "./_core/env";
 
 // ─── Claim signal density check ───────────────────────────────────────────────
 
-const CLAIM_SIGNALS = [
+export const CLAIM_SIGNALS = [
   /\bPDB\b/i,
   /\b[1-9][A-Z0-9]{3}\b/,           // PDB ID pattern
   /\bcrystal structure\b/i,
@@ -46,7 +46,7 @@ const CLAIM_SIGNALS = [
   /\bmarine peptide\b/i,
 ];
 
-function signalDensity(text: string): number {
+export function computeSignalDensity(text: string): number {
   return CLAIM_SIGNALS.filter((re) => re.test(text)).length;
 }
 
@@ -140,7 +140,7 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
 
         // Quality gate: signal density check
         const textToScore = `${candidate.title} ${abstractText ?? ""}`;
-        const density = signalDensity(textToScore);
+        const density = computeSignalDensity(textToScore);
         if (density < 2) {
           stats.lowSignal++;
           console.log(
