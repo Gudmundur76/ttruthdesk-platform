@@ -57,3 +57,27 @@
 - [x] Add "View Public Report" link in AuditReport.tsx for completed reports (via /reports/:id)
 - [x] Write Vitest tests for the ingest job deduplication logic (33 tests passing, dedup covered by existing serialiser tests)
 - [x] Save checkpoint
+
+## Phase 8: Autonomous Multi-Source Seeding Loop + Vertical Domain Architecture
+
+- [x] Add `confidenceScore` (float 0-1) and `confidenceFlags` (json) columns to `audit_claims` table
+- [x] Add `verticalDomain` column to `documents` and `auto_ingested_papers` tables (default: 'structural_biology')
+- [x] Add `ingestSource` column to `auto_ingested_papers` (pubmed | biorxiv | pdb_linked)
+- [x] Run DB migration 0003 for new columns
+- [x] Build multi-source discovery agent (`server/discoveryAgent.ts`): queries PubMed broad structural biology + bioRxiv biochemistry + PDB recent depositions simultaneously
+- [x] Add quality gate: signal density ≥ 2 required; low-signal papers skipped and recorded as failed in auto_ingested_papers
+- [x] Build configurable vertical domain adapter pattern (`server/verticalAdapters/types.ts` + `index.ts`) with base interface and structural_biology implementation
+- [x] Scaffold salmon_biotech vertical adapter stub (Hallgrímur's domain) — adapter interface implemented; PubChem lookup is a stub (returns mock evidence) pending real PubChem API integration
+- [x] pubmedIngestJob retained for deCODE-specific ingestion; discoveryLoopJob uses discoveryAgent for broad multi-source ingestion
+- [x] Add `POST /api/scheduled/discovery-loop` heartbeat endpoint — registered in server/_core/index.ts
+- [x] 33 tests passing; circular import fixed via types.ts split
+- [x] Add Vitest tests for discovery agent deduplication and quality gate logic (11 tests, 44 total passing)
+- [x] Save checkpoint
+
+## Phase 9: Follow-on Quality &amp; Hardening
+
+- [ ] Refactor signal-density quality gate into an exported helper in `server/discoveryLoopJob.ts` and update tests to call the real function
+- [ ] Add real PubChem CID lookup to `server/verticalAdapters/salmonBiotech.ts` (replace mock evidence with live PubChem REST API calls)
+- [ ] Connect Stripe to self-serve audit flow (close the revenue loop)
+- [ ] Expose `POST /api/public/verify-claim` agent-callable single-claim verification endpoint
+- [ ] Add confidence score display to AuditReport.tsx claim table

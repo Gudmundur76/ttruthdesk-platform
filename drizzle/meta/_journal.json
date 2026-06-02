@@ -22,6 +22,13 @@
       "when": 1780400666342,
       "tag": "0002_violet_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1780403996993,
+      "tag": "0003_eminent_molly_hayes",
+      "breakpoints": true
     }
   ]
 }

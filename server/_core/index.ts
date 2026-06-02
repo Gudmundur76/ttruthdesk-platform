@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { monitoringJobHandler } from "../monitoringJob";
 import { pubmedIngestJobHandler } from "../pubmedIngestJob";
+import { handleDiscoveryLoop } from "../discoveryLoopJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
@@ -44,6 +45,7 @@ async function startServer() {
   // Scheduled job endpoints (must be before Vite/static fallthrough)
   app.post("/api/scheduled/monitoring", monitoringJobHandler);
   app.post("/api/scheduled/pubmed-ingest", pubmedIngestJobHandler);
+  app.post("/api/scheduled/discovery-loop", handleDiscoveryLoop);
 
   // Public machine-readable claims registry (no auth required)
   registerClaimsRoutes(app);

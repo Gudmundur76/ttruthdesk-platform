@@ -48,6 +48,7 @@ export const documents = mysqlTable("documents", {
     .notNull(),
   errorMessage: text("errorMessage"),
   claimCount: int("claimCount").default(0).notNull(),
+  verticalDomain: varchar("verticalDomain", { length: 64 }).default("structural_biology").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -92,6 +93,9 @@ export const claims = mysqlTable("claims", {
   pdbEvidenceRaw: json("pdbEvidenceRaw"),
   pdbEvidenceUrl: varchar("pdbEvidenceUrl", { length: 2048 }),
   pdbEvidenceCheckedAt: timestamp("pdbEvidenceCheckedAt"),
+  // Confidence scoring
+  confidenceScore: float("confidenceScore"),  // 0.0–1.0; null = not yet scored
+  confidenceFlags: json("confidenceFlags"),   // array of flag strings explaining low confidence
   // Review
   reviewedBy: int("reviewedBy"),
   reviewedAt: timestamp("reviewedAt"),
@@ -203,6 +207,8 @@ export const autoIngestedPapers = mysqlTable("auto_ingested_papers", {
   ]).default("fetched").notNull(),
   errorMessage: text("errorMessage"),
   isPublic: boolean("isPublic").default(true).notNull(),
+  verticalDomain: varchar("verticalDomain", { length: 64 }).default("structural_biology").notNull(),
+  ingestSource: mysqlEnum("ingestSource", ["pubmed", "biorxiv", "pdb_linked"]).default("pubmed").notNull(),
   ingestedAt: timestamp("ingestedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
