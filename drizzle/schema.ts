@@ -1,17 +1,18 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  float,
+  boolean,
+  json,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
+// ─── Users ────────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +26,158 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// ─── Documents ────────────────────────────────────────────────────────────────
+export const documents = mysqlTable("documents", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 512 }).notNull(),
+  sourceType: mysqlEnum("sourceType", ["upload", "paste"]).notNull(),
+  originalFileName: varchar("originalFileName", { length: 512 }),
+  storageKey: varchar("storageKey", { length: 1024 }),
+  storageUrl: varchar("storageUrl", { length: 2048 }),
+  rawText: text("rawText"),
+  status: mysqlEnum("status", [
+    "pending",
+    "extracting",
+    "validating",
+    "generating_report",
+    "complete",
+    "failed",
+  ])
+    .default("pending")
+    .notNull(),
+  errorMessage: text("errorMessage"),
+  claimCount: int("claimCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Document = typeof documents.$inferSelect;
+export type InsertDocument = typeof documents.$inferInsert;
+
+// ─── Claims ───────────────────────────────────────────────────────────────────
+export const claims = mysqlTable("claims", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId").notNull(),
+  claimText: text("claimText").notNull(),
+  claimType: mysqlEnum("claimType", [
+    "pdb_id",
+    "protein_name",
+    "experimental_method",
+    "resolution",
+    "organism",
+    "ligand",
+    "general_molecular",
+  ]).notNull(),
+  extractedValue: varchar("extractedValue", { length: 512 }),
+  // PDB-specific fields
+  pdbId: varchar("pdbId", { length: 16 }),
+  proteinName: varchar("proteinName", { length: 512 }),
+  experimentalMethod: varchar("experimentalMethod", { length: 256 }),
+  resolution: float("resolution"),
+  organism: varchar("organism", { length: 512 }),
+  ligand: varchar("ligand", { length: 512 }),
+  // Verdict
+  verdict: mysqlEnum("verdict", [
+    "Supported",
+    "Contradicted",
+    "Partially Supported",
+    "Ambiguous",
+    "Insufficient Evidence",
+    "Out of Scope",
+    "Needs Expert Review",
+  ]),
+  verdictRationale: text("verdictRationale"),
+  // PDB evidence
+  pdbEvidenceRaw: json("pdbEvidenceRaw"),
+  pdbEvidenceUrl: varchar("pdbEvidenceUrl", { length: 2048 }),
+  pdbEvidenceCheckedAt: timestamp("pdbEvidenceCheckedAt"),
+  // Review
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewNotes: text("reviewNotes"),
+  overriddenVerdict: mysqlEnum("overriddenVerdict", [
+    "Supported",
+    "Contradicted",
+    "Partially Supported",
+    "Ambiguous",
+    "Insufficient Evidence",
+    "Out of Scope",
+    "Needs Expert Review",
+  ]),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Claim = typeof claims.$inferSelect;
+export type InsertClaim = typeof claims.$inferInsert;
+
+// ─── Audit Reports ────────────────────────────────────────────────────────────
+export const auditReports = mysqlTable("audit_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId").notNull().unique(),
+  userId: int("userId").notNull(),
+  htmlStorageKey: varchar("htmlStorageKey", { length: 1024 }),
+  htmlStorageUrl: varchar("htmlStorageUrl", { length: 2048 }),
+  pdfStorageKey: varchar("pdfStorageKey", { length: 1024 }),
+  pdfStorageUrl: varchar("pdfStorageUrl", { length: 2048 }),
+  verdictSummary: json("verdictSummary"), // { Supported: n, Contradicted: n, ... }
+  highRiskCount: int("highRiskCount").default(0).notNull(),
+  totalClaims: int("totalClaims").default(0).notNull(),
+  notifiedCustomer: boolean("notifiedCustomer").default(false).notNull(),
+  generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AuditReport = typeof auditReports.$inferSelect;
+export type InsertAuditReport = typeof auditReports.$inferInsert;
+
+// ─── Monitoring Feed ──────────────────────────────────────────────────────────
+export const monitoringFeed = mysqlTable("monitoring_feed", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId").notNull(),
+  source: mysqlEnum("source", ["pubmed", "biorxiv", "patent"]).notNull(),
+  title: varchar("title", { length: 1024 }).notNull(),
+  summary: text("summary"),
+  url: varchar("url", { length: 2048 }),
+  relevanceScore: float("relevanceScore"),
+  publishedAt: timestamp("publishedAt"),
+  discoveredAt: timestamp("discoveredAt").defaultNow().notNull(),
+});
+
+export type MonitoringFeedItem = typeof monitoringFeed.$inferSelect;
+export type InsertMonitoringFeedItem = typeof monitoringFeed.$inferInsert;
+
+// ─── Audit Requests (Intake / Pricing) ───────────────────────────────────────
+export const auditRequests = mysqlTable("audit_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  tier: mysqlEnum("tier", ["starter", "diligence", "platform_pilot"]).notNull(),
+  contactName: varchar("contactName", { length: 256 }).notNull(),
+  contactEmail: varchar("contactEmail", { length: 320 }).notNull(),
+  organization: varchar("organization", { length: 256 }),
+  documentDescription: text("documentDescription").notNull(),
+  additionalNotes: text("additionalNotes"),
+  status: mysqlEnum("status", ["new", "in_review", "in_progress", "complete", "declined"])
+    .default("new")
+    .notNull(),
+  ownerNotified: boolean("ownerNotified").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AuditRequest = typeof auditRequests.$inferSelect;
+export type InsertAuditRequest = typeof auditRequests.$inferInsert;
+
+// ─── Monitoring Job Config ────────────────────────────────────────────────────
+export const monitoringJobs = mysqlTable("monitoring_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId").notNull().unique(),
+  scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  lastRunAt: timestamp("lastRunAt"),
+  nextRunAt: timestamp("nextRunAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MonitoringJob = typeof monitoringJobs.$inferSelect;
