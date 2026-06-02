@@ -156,3 +156,11 @@
 - [x] Extend PMC feed job to support `lookbackDays: 365` (bulk seed) and `allVerticals: true` flag
 - [x] `POST /api/admin/bulk-seed` registered — delegates to pmcFeedJobHandler with allVerticals=true
 - [x] Run tests (80 passing) and save checkpoint
+
+## Phase 16: Xero-Inspired Hero Redesign
+
+- [x] Rewrite Home.tsx with dark hero card (#0d0b12), animated beam pipeline (Ingest → Verify → Report), gradient arc, neumorphic nodes, verdict preview, evidence sources row, features, pricing, footer
+- [x] Add all td-* CSS classes to index.css (plain CSS, no Tailwind in hero per design spec)
+- [x] Fix gradient ref to point to the actual SVG linearGradient element
+- [x] TypeScript clean, 80 tests passing
+- [x] Save checkpoint
