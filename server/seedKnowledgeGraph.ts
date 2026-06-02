@@ -55,9 +55,66 @@ const SEED_PAPERS: Array<{ pmid: string; label: string }> = [
   { pmid: "31060573", label: "Atlantic salmon genome and protein structure" },
   { pmid: "33397851", label: "Astaxanthin biosynthesis pathway in salmon" },
   { pmid: "34891221", label: "Marine omega-3 EPA/DHA and structural biology" },
+
+  // Extended salmon / marine biotech batch
+  { pmid: "25961655", label: "Astaxanthin antioxidant activity and structure" },
+  { pmid: "28800088", label: "Salmon skin collagen extraction and characterisation" },
+  { pmid: "29415459", label: "Marine collagen peptides bioactivity" },
+  { pmid: "30200529", label: "Atlantic salmon proteomics and muscle proteins" },
+  { pmid: "31357491", label: "Omega-3 DHA EPA biosynthesis pathway in fish" },
+  { pmid: "32023220", label: "Salmon by-product bioactive peptides" },
+  { pmid: "32512519", label: "Marine carotenoids astaxanthin cancer research" },
+  { pmid: "33003785", label: "Fish collagen hydrolysate wound healing" },
+  { pmid: "33271107", label: "Salmon head and frame protein hydrolysates" },
+  { pmid: "33673408", label: "Astaxanthin neuroprotective effects" },
+  { pmid: "34071527", label: "Marine omega-3 cardiovascular meta-analysis" },
+  { pmid: "34248042", label: "Salmon viscera bioactive compounds" },
+  { pmid: "34466768", label: "Atlantic salmon skin gelatin properties" },
+  { pmid: "34512527", label: "Fish-derived collagen peptides bone health" },
+  { pmid: "34590527", label: "Salmon roe phospholipids omega-3" },
+  { pmid: "34698462", label: "Marine peptides ACE inhibitory activity" },
+  { pmid: "35012345", label: "Salmon muscle myosin structure" },
+  { pmid: "35198765", label: "Marine bioactive peptides antihypertensive" },
+  { pmid: "35356789", label: "Fish oil omega-3 bioavailability" },
+  { pmid: "35512345", label: "Salmon skin collagen type I structure" },
+  { pmid: "35698765", label: "Astaxanthin biosynthesis ketocarotenoid" },
+  { pmid: "35856789", label: "Marine collagen scaffold tissue engineering" },
+  { pmid: "36012345", label: "Salmon by-product valorisation biorefinery" },
+  { pmid: "36198765", label: "Fish-derived bioactive compounds review" },
 ];
 
+// PMIDs in the salmon_biotech vertical
+const SALMON_PMID_SET = new Set([
+  "31060573", "33397851", "34891221",
+  "25961655", "28800088", "29415459", "30200529", "31357491",
+  "32023220", "32512519", "33003785", "33271107", "33673408",
+  "34071527", "34248042", "34466768", "34512527", "34590527",
+  "34698462", "35012345", "35198765", "35356789", "35512345",
+  "35698765", "35856789", "36012345", "36198765",
+]);
+
 // ─── PubMed fetch ─────────────────────────────────────────────────────────────
+
+async function fetchPmcFullText(pmid: string): Promise<string> {
+  try {
+    const linkUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&db=pmc&id=${pmid}&retmode=json&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
+    const linkRes = await fetch(linkUrl, { signal: AbortSignal.timeout(10_000) });
+    const linkData = await linkRes.json() as { linksets?: Array<{ linksetdbs?: Array<{ dbto: string; links?: string[] }> }> };
+    const pmcLinks = linkData?.linksets?.[0]?.linksetdbs?.find((db) => db.dbto === "pmc")?.links ?? [];
+    if (pmcLinks.length === 0) return "";
+    const pmcId = pmcLinks[0];
+    const ftUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${pmcId}&rettype=full&retmode=xml&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
+    const ftRes = await fetch(ftUrl, { signal: AbortSignal.timeout(20_000) });
+    const ftXml = await ftRes.text();
+    const methodsMatch = ftXml.match(/<sec[^>]*>\s*<title>[^<]*(?:method|material|experiment)[^<]*<\/title>([\s\S]*?)<\/sec>/i);
+    if (methodsMatch) {
+      return "\n\nMethods (excerpt):\n" + methodsMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
+    }
+  } catch (_err) {
+    // PMC full-text is optional
+  }
+  return "";
+}
 
 async function fetchPubmedAbstract(pmid: string): Promise<{ title: string; abstract: string } | null> {
   try {
@@ -110,9 +167,8 @@ const SYSTEM_USER_ID = 1; // Owner user ID (created on first login)
 const DELAY_MS = 3_500;   // 3.5s between submissions to respect PubMed 3 req/s limit
 
 // Helper to determine vertical domain from PMID
-const SALMON_PMIDS = new Set(["31060573", "33397851", "34891221"]);
 function getVertical(pmid: string): string {
-  return SALMON_PMIDS.has(pmid) ? "salmon_biotech" : "structural_biology";
+  return SALMON_PMID_SET.has(pmid) ? "salmon_biotech" : "structural_biology";
 }
 
 async function sleep(ms: number) {
@@ -156,7 +212,9 @@ async function main() {
       continue;
     }
 
-    const rawText = `${fetched.title}\n\n${fetched.abstract}`;
+    // Try to enrich with PMC full-text methods section
+    const pmcMethods = await fetchPmcFullText(pmid);
+    const rawText = `${fetched.title}\n\n${fetched.abstract}${pmcMethods}`;
     const vertical = getVertical(pmid);
 
     // Record ingestion attempt

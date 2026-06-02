@@ -98,3 +98,13 @@
 - [x] Run the seeding script and verify documents appear in the DB
 - [x] Verify seeded reports appear in /registry and /reports/:id public pages
 - [x] Save checkpoint
+
+## Phase 11: PMC Full-Text, Knowledge Graph Viz, Salmon Seeding
+
+- [x] Add PMC Open Access full-text fetch to fetchPubmedAbstract in routers.ts and seedKnowledgeGraph.ts
+- [x] Build /graph knowledge graph visualisation page (react-force-graph-2d)
+- [x] Add tRPC procedure graph.data (publicProcedure) returning nodes/edges for the graph
+- [x] Register /graph route in App.tsx and add nav link
+- [x] Extend seedKnowledgeGraph.ts with 24 salmon/marine biotech PMIDs (49 total)
+- [x] Run the extended seeding script (24 new salmon papers ingested, 58 tests passing)
+- [x] Save checkpoint

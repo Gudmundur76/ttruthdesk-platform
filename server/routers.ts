@@ -20,6 +20,7 @@ import {
   getMonitoringFeedByDocument,
   getAllMonitoringFeed,
   insertMonitoringItems,
+  getGraphData,
 } from "./db";
 import { extractClaims } from "./claimExtractor";
 import { verdictForClaim } from "./pdbAdapter";
@@ -271,6 +272,28 @@ export const appRouter = router({
               pmid ? `PMID: ${pmid}` : "",
             ].filter(Boolean).join(" · ");
 
+                        // ── PMC Open Access full-text fetch ──────────────────────────
+            let methodsText = "";
+            try {
+              // Check if this PMID has a PMC full-text record
+              const pmcSearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&db=pmc&id=${pmid}&retmode=json&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
+              const pmcLinkRes = await fetch(pmcSearchUrl);
+              const pmcLinkData = await pmcLinkRes.json() as { linksets?: Array<{ linksetdbs?: Array<{ dbto: string; links?: string[] }> }> };
+              const pmcLinks = pmcLinkData?.linksets?.[0]?.linksetdbs?.find((db) => db.dbto === "pmc")?.links ?? [];
+              if (pmcLinks.length > 0) {
+                const pmcId = pmcLinks[0];
+                const ftUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${pmcId}&rettype=full&retmode=xml&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
+                const ftRes = await fetch(ftUrl);
+                const ftXml = await ftRes.text();
+                // Extract Methods section text
+                const methodsMatch = ftXml.match(/<sec[^>]*>\s*<title>[^<]*(?:method|material|experiment)[^<]*<\/title>([\s\S]*?)<\/sec>/i);
+                if (methodsMatch) {
+                  methodsText = methodsMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
+                }
+              }
+            } catch (_pmcErr) {
+              // PMC full-text is optional — silently continue with abstract only
+            }
             const fullText = [
               `Title: ${title}`,
               citation ? `Citation: ${citation}` : "",
@@ -278,8 +301,8 @@ export const appRouter = router({
               abstractTexts.length > 0
                 ? abstractTexts.join("\n\n")
                 : "[Abstract not available — please paste the text manually]",
-            ].filter((l) => l !== undefined).join("\n");
-
+              methodsText ? `\nMethods (excerpt):\n${methodsText}` : "",
+            ].filter((l) => l !== undefined && l !== "").join("\n");
             return { title, text: fullText, pmid, doi: doi ?? null, citation };
           }
         } catch (err) {
@@ -488,6 +511,12 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Knowledge Graph ─────────────────────────────────────────────────────
+  graph: router({
+    data: publicProcedure.query(async () => {
+      return getGraphData();
+    }),
+  }),
   // ─── LLM text extraction from PDF text ────────────────────────────────────
   extractText: protectedProcedure
     .input(z.object({ text: z.string() }))

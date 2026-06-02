@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 const NAV_LINKS = [
   { href: "/registry", label: "Registry", public: true },
+  { href: "/graph", label: "Graph", public: true },
   { href: "/dashboard", label: "Dashboard", public: false },
   { href: "/monitoring", label: "Monitoring", public: false },
   { href: "/pricing", label: "Request Audit", public: true },

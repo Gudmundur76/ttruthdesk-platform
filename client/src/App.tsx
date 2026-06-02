@@ -12,6 +12,7 @@ import MonitoringFeed from "./pages/MonitoringFeed";
 import Pricing from "./pages/Pricing";
 import Registry from "@/pages/Registry";
 import PublicReport from "@/pages/PublicReport";
+import Graph from "@/pages/Graph";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/registry" component={Registry} />
       <Route path="/reports/:id" component={PublicReport} />
+      <Route path="/graph" component={Graph} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

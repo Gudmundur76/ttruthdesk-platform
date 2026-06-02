@@ -359,3 +359,39 @@ export async function getRecentVerifiedClaims(limit = 200) {
   // Filter in JS to keep the query simple (verdict is nullable)
   return rows.filter((r) => r.claim.verdict !== null);
 }
+
+/**
+ * Fetch graph data: all completed documents with their claims for the
+ * knowledge graph visualisation.  Returns a lightweight shape to avoid
+ * sending full rawText over the wire.
+ */
+export async function getGraphData() {
+  const db = await getDb();
+  if (!db) return { documents: [], claims: [] };
+  const docs = await db
+    .select({
+      id: documents.id,
+      title: documents.title,
+      status: documents.status,
+      verticalDomain: documents.verticalDomain,
+      createdAt: documents.createdAt,
+    })
+    .from(documents)
+    .where(eq(documents.status, "complete"))
+    .orderBy(desc(documents.createdAt))
+    .limit(200);
+  const claimRows = await db
+    .select({
+      id: claims.id,
+      documentId: claims.documentId,
+      claimType: claims.claimType,
+      claimText: claims.claimText,
+      verdict: claims.verdict,
+      pdbId: claims.pdbId,
+      confidenceScore: claims.confidenceScore,
+    })
+    .from(claims)
+    .orderBy(desc(claims.createdAt))
+    .limit(2000);
+  return { documents: docs, claims: claimRows };
+}
