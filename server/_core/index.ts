@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { monitoringJobHandler } from "../monitoringJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
+import { registerLlmsRoute } from "../llmsRoute";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,6 +44,9 @@ async function startServer() {
 
   // Public machine-readable claims registry (no auth required)
   registerClaimsRoutes(app);
+
+  // AI Engine Optimisation: /llms.txt
+  registerLlmsRoute(app);
 
   // tRPC API
   app.use(

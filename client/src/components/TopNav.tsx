@@ -15,9 +15,10 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/monitoring", label: "Monitoring" },
-  { href: "/pricing", label: "Request Audit" },
+  { href: "/registry", label: "Registry", public: true },
+  { href: "/dashboard", label: "Dashboard", public: false },
+  { href: "/monitoring", label: "Monitoring", public: false },
+  { href: "/pricing", label: "Request Audit", public: true },
 ];
 
 export function TopNav() {
@@ -45,25 +46,23 @@ export function TopNav() {
           </span>
         </Link>
 
-        {/* Nav links */}
-        {isAuthenticated && (
-          <nav className="hidden md:flex items-center gap-1">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  location === link.href || location.startsWith(link.href + "/")
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-        )}
+        {/* Nav links — public links always visible, auth-only links gated */}
+        <nav className="hidden md:flex items-center gap-1">
+          {NAV_LINKS.filter((l) => l.public || isAuthenticated).map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                location === link.href || location.startsWith(link.href + "/")
+                  ? "bg-slate-100 text-slate-900"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
 
         {/* Auth */}
         <div className="flex items-center gap-2">

@@ -37,3 +37,11 @@
 - [x] Add ClaimsJsonBadge in AuditReport.tsx with copy-to-clipboard
 - [x] Write Vitest tests for the serialiser (16 tests passing)
 - [x] Save checkpoint
+
+## Phase 6: PubMed Fetch, llms.txt, Public Registry
+- [x] Add PubMed/DOI fetch endpoint (server): given a PMID or DOI, fetch title + structured abstract (all labelled sections incl. Methods if present) via PubMed E-utilities XML + Europe PMC fallback. Full-text retrieval not implemented (requires PMC Open Access API and is out of scope for v1).
+- [x] Add "Fetch from PubMed / DOI" tab to Submit page (client) — default tab
+- [x] Add /llms.txt static route describing the platform and linking to /api/public/claims.json
+- [x] Add public /registry page showing live verified claims from /api/public/claims.json
+- [x] Register /registry route in App.tsx and add link in TopNav (public, visible without login)
+- [x] Save checkpoint

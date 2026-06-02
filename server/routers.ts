@@ -189,6 +189,134 @@ export const appRouter = router({
         runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(console.error);
         return { documentId: docId };
       }),
+
+    /**
+     * Fetch a public academic paper by PMID, DOI, or PubMed URL.
+     * Returns the title + concatenated abstract/methods text ready to submit.
+     * Uses PubMed E-utilities (free, no API key required) with Europe PMC as fallback.
+     */
+    fetchFromPubmed: protectedProcedure
+      .input(
+        z.object({
+          query: z.string().min(1).max(512).describe("PMID, DOI, or PubMed URL"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const raw = input.query.trim();
+
+        // ── Normalise to PMID or DOI ──────────────────────────────────────────
+        let pmid: string | null = null;
+        let doi: string | null = null;
+
+        // PubMed URL: https://pubmed.ncbi.nlm.nih.gov/12345678/
+        const pmidFromUrl = raw.match(/pubmed\.ncbi\.nlm\.nih\.gov\/([0-9]+)/i);
+        if (pmidFromUrl) pmid = pmidFromUrl[1];
+
+        // Bare PMID (all digits)
+        if (!pmid && /^[0-9]{4,12}$/.test(raw)) pmid = raw;
+
+        // DOI: 10.xxxx/... or https://doi.org/10.xxxx/...
+        const doiMatch = raw.match(/(10\.[0-9]{4,}\/.+)/i);
+        if (!pmid && doiMatch) doi = doiMatch[1].replace(/\/$/, "");
+
+        if (!pmid && !doi) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Please enter a valid PubMed ID (e.g. 37234567), DOI (e.g. 10.1038/s41586-023-06415-8), or PubMed URL.",
+          });
+        }
+
+        // ── Fetch via PubMed E-utilities ──────────────────────────────────────
+        try {
+          // If we have a DOI, resolve to PMID first via E-search
+          if (!pmid && doi) {
+            const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(doi)}[doi]&retmode=json&retmax=1&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
+            const searchRes = await fetch(searchUrl);
+            const searchData = await searchRes.json() as { esearchresult?: { idlist?: string[] } };
+            const ids = searchData?.esearchresult?.idlist ?? [];
+            if (ids.length > 0) pmid = ids[0];
+          }
+
+          if (pmid) {
+            // Fetch full abstract + metadata via efetch
+            const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&rettype=abstract&retmode=xml&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
+            const fetchRes = await fetch(fetchUrl);
+            const xml = await fetchRes.text();
+
+            // Extract title
+            const titleMatch = xml.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/);
+            const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : "Untitled Paper";
+
+            // Extract abstract sections
+            const abstractTexts: string[] = [];
+            const abstractMatches = Array.from(xml.matchAll(/<AbstractText(?:[^>]* Label="([^"]*)"|[^>]*)>([\s\S]*?)<\/AbstractText>/g));
+            for (const m of abstractMatches) {
+              const label = m[1] ? `${m[1]}: ` : "";
+              const text = m[2].replace(/<[^>]+>/g, "").trim();
+              if (text) abstractTexts.push(label + text);
+            }
+
+            // Extract author list
+            const authorMatches = Array.from(xml.matchAll(/<LastName>([^<]+)<\/LastName>/g));
+            const authors = authorMatches.slice(0, 6).map((m) => m[1]).join(", ");
+            const authorSuffix = authorMatches.length > 6 ? " et al." : "";
+
+            // Extract journal + year
+            const journalMatch = xml.match(/<ISOAbbreviation>([^<]+)<\/ISOAbbreviation>/);
+            const yearMatch = xml.match(/<PubDate>[\s\S]*?<Year>([0-9]{4})<\/Year>/);
+            const citation = [
+              authors ? `${authors}${authorSuffix}` : "",
+              journalMatch ? journalMatch[1] : "",
+              yearMatch ? `(${yearMatch[1]})` : "",
+              pmid ? `PMID: ${pmid}` : "",
+            ].filter(Boolean).join(" · ");
+
+            const fullText = [
+              `Title: ${title}`,
+              citation ? `Citation: ${citation}` : "",
+              "",
+              abstractTexts.length > 0
+                ? abstractTexts.join("\n\n")
+                : "[Abstract not available — please paste the text manually]",
+            ].filter((l) => l !== undefined).join("\n");
+
+            return { title, text: fullText, pmid, doi: doi ?? null, citation };
+          }
+        } catch (err) {
+          console.error("PubMed fetch error:", err);
+        }
+
+        // ── Europe PMC fallback ───────────────────────────────────────────────
+        try {
+          const identifier = doi ?? pmid;
+          if (identifier) {
+            const epmc = await fetch(
+              `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(doi ? `DOI:${doi}` : `EXT_ID:${pmid}`)}&format=json&resultType=core&pageSize=1`
+            );
+            const epmcData = await epmc.json() as { resultList?: { result?: Array<{ title?: string; abstractText?: string; authorString?: string; journalAbbreviation?: string; pubYear?: string; doi?: string }> } };
+            const result = epmcData?.resultList?.result?.[0];
+            if (result) {
+              const title = result.title ?? "Untitled Paper";
+              const text = [
+                `Title: ${title}`,
+                result.authorString ? `Authors: ${result.authorString}` : "",
+                result.journalAbbreviation ? `Journal: ${result.journalAbbreviation} (${result.pubYear ?? ""})` : "",
+                result.doi ? `DOI: ${result.doi}` : "",
+                "",
+                result.abstractText ?? "[Abstract not available — please paste the text manually]",
+              ].filter(Boolean).join("\n");
+              return { title, text, pmid: pmid ?? null, doi: result.doi ?? doi ?? null, citation: `${result.authorString ?? ""} · ${result.journalAbbreviation ?? ""} (${result.pubYear ?? ""})` };
+            }
+          }
+        } catch (err) {
+          console.error("Europe PMC fallback error:", err);
+        }
+
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Could not retrieve this paper. It may not be indexed in PubMed or Europe PMC. Please paste the text manually.",
+        });
+      }),
   }),
 
   // ─── Claims ─────────────────────────────────────────────────────────────────

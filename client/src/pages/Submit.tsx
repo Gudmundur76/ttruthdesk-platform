@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,45 @@ export default function Submit() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // ── PubMed fetch state ───────────────────────────────────────────────────────────────────
+  const [pmQuery, setPmQuery] = useState("");
+  const [pmFetched, setPmFetched] = useState<{ title: string; text: string; citation: string } | null>(null);
+
+  const fetchPubmed = trpc.documents.fetchFromPubmed.useMutation({
+    onSuccess: (data) => {
+      setPmFetched(data);
+      toast.success("Paper fetched — review and submit below");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const submitPubmed = trpc.documents.submitText.useMutation({
+    onSuccess: (data) => {
+      toast.success("Document submitted — analysis running");
+      navigate(`/audit/${data.documentId}`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handlePubmedFetch = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!pmQuery.trim()) return;
+      setPmFetched(null);
+      fetchPubmed.mutate({ query: pmQuery.trim() });
+    },
+    [pmQuery, fetchPubmed]
+  );
+
+  const handlePubmedSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!pmFetched) return;
+      submitPubmed.mutate({ title: pmFetched.title, text: pmFetched.text });
+    },
+    [pmFetched, submitPubmed]
+  );
 
   const uploadDoc = trpc.storage.uploadDocument.useMutation();
   const submitFile = trpc.documents.submitFile.useMutation({
@@ -130,11 +169,90 @@ export default function Submit() {
             />
           </div>
 
-          <Tabs defaultValue="paste">
+          <Tabs defaultValue="pubmed">
             <TabsList className="mb-5 w-full">
+              <TabsTrigger value="pubmed" className="flex-1">PubMed / DOI</TabsTrigger>
               <TabsTrigger value="paste" className="flex-1">Paste Text</TabsTrigger>
               <TabsTrigger value="upload" className="flex-1">Upload File</TabsTrigger>
             </TabsList>
+
+            {/* ── PubMed / DOI tab ─────────────────────────────────────────────────────────────────── */}
+            <TabsContent value="pubmed">
+              <form onSubmit={handlePubmedFetch} className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">PubMed ID, DOI, or PubMed URL</Label>
+                  <div className="mt-1.5 flex gap-2">
+                    <Input
+                      value={pmQuery}
+                      onChange={(e) => { setPmQuery(e.target.value); setPmFetched(null); }}
+                      placeholder="e.g. 37234567 · 10.1038/s41586-023-06415-8 · pubmed.ncbi.nlm.nih.gov/37234567"
+                      className="flex-1 font-mono text-sm"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={!pmQuery.trim() || fetchPubmed.isPending}
+                      variant="outline"
+                      className="shrink-0"
+                    >
+                      {fetchPubmed.isPending ? (
+                        <span className="flex items-center gap-1.5">
+                          <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                          </svg>
+                          Fetching…
+                        </span>
+                      ) : "Fetch Paper"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1.5">Fetches the abstract and methods section from PubMed or Europe PMC. Open-access papers only.</p>
+                </div>
+              </form>
+
+              {pmFetched && (
+                <form onSubmit={handlePubmedSubmit} className="mt-5 space-y-4">
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">Paper retrieved</p>
+                    <p className="text-sm font-semibold text-slate-900 leading-snug mb-1">{pmFetched.title}</p>
+                    {pmFetched.citation && (
+                      <p className="text-xs text-slate-500 font-mono">{pmFetched.citation}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700">Document title (editable)</Label>
+                    <Input
+                      value={pmFetched.title}
+                      onChange={(e) => setPmFetched({ ...pmFetched, title: e.target.value })}
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700">Fetched text (editable)</Label>
+                    <Textarea
+                      value={pmFetched.text}
+                      onChange={(e) => setPmFetched({ ...pmFetched, text: e.target.value })}
+                      rows={10}
+                      className="mt-1.5 font-mono text-xs"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={submitPubmed.isPending}
+                    className="w-full bg-slate-900 hover:bg-slate-800"
+                  >
+                    {submitPubmed.isPending ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        Submitting…
+                      </span>
+                    ) : "Submit for Analysis →"}
+                  </Button>
+                </form>
+              )}
+            </TabsContent>
 
             <TabsContent value="paste">
               <form onSubmit={handleTextSubmit} className="space-y-4">
