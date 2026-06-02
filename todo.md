@@ -22,7 +22,7 @@
 - [x] /api/scheduled/monitoring endpoint + DB write for new findings
 - [x] Audit request intake form: tier selection, contact info, document description, owner notification on submit
 - [x] Owner email notification on new audit request submission
-- [ ] Customer email notification when report is ready (verdict summary + high-risk claims) — in reportGenerator.ts
+- [x] Owner notification when report is ready (verdict summary + high-risk claims count) — via notifyOwner in runAnalysisPipeline
 - [x] App.tsx routes registered: /, /submit, /dashboard, /audit/:id, /monitoring, /pricing
 
 ## Phase 4: Polish, Tests, Checkpoint

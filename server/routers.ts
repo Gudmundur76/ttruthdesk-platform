@@ -106,6 +106,13 @@ async function runAnalysisPipeline(documentId: number, rawText: string, userId: 
     });
 
     await updateDocumentStatus(documentId, "complete", { claimCount: finalClaims.length });
+    // Notify owner that report is ready
+    const supportedCount = (summary as Record<string, number>)["Supported"] ?? 0;
+    const contradictedCount = (summary as Record<string, number>)["Contradicted"] ?? 0;
+    await notifyOwner({
+      title: `Audit Report Ready: ${doc?.title ?? "Untitled"}`,
+      content: `Document audit complete.\n\nClaims: ${finalClaims.length} total\nSupported: ${supportedCount}\nContradicted: ${contradictedCount}\nHigh-risk: ${highRisk}\n\nReport: ${htmlUrl}`,
+    }).catch(() => {/* non-fatal */});
   } catch (err) {
     console.error("[Pipeline] Error:", err);
     await updateDocumentStatus(documentId, "failed", {
