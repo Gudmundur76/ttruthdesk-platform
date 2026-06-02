@@ -36,10 +36,12 @@ describe("VERTICAL_FEED_CONFIGS", () => {
     }
   });
 
-  it("each meshQuery contains the pmc open access filter", () => {
+  it("each meshQuery contains the correct PMC Open Access filter (free full text[sb])", () => {
+    // NOTE: "pmc open access[filter]" is NOT a valid PubMed filter and returns 0 results.
+    // The correct PMC OA subset builder tag is "free full text[sb]".
     for (const cfg of VERTICAL_FEED_CONFIGS) {
       for (const q of cfg.meshQueries) {
-        expect(q.toLowerCase()).toContain("pmc open access");
+        expect(q.toLowerCase()).toContain("free full text[sb]");
       }
     }
   });
