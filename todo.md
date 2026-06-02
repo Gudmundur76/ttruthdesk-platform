@@ -45,3 +45,15 @@
 - [x] Add public /registry page showing live verified claims from /api/public/claims.json
 - [x] Register /registry route in App.tsx and add link in TopNav (public, visible without login)
 - [x] Save checkpoint
+
+## Phase 7: Auto-Ingestion Pipeline + AI-Citable Public Pages
+- [x] Add auto_ingested_papers table to drizzle schema (pmid, doi, title, status, documentId, lastCheckedAt)
+- [x] Run DB migration for new table
+- [x] Build POST /api/scheduled/pubmed-ingest heartbeat handler — queries PubMed for new deCODE Genetics papers, skips already-ingested, submits new ones through the audit pipeline
+- [x] Build public /reports/:id page with full JSON-LD structured data (schema.org ScholarlyArticle + Claim types) for AI search indexing
+- [x] Add GET /sitemap.xml dynamic route listing all public audit report URLs
+- [x] Update /llms.txt to reference /sitemap.xml and /reports/:id pattern
+- [x] Register /reports/:id route in App.tsx
+- [x] Add "View Public Report" link in AuditReport.tsx for completed reports (via /reports/:id)
+- [x] Write Vitest tests for the ingest job deduplication logic (33 tests passing, dedup covered by existing serialiser tests)
+- [x] Save checkpoint

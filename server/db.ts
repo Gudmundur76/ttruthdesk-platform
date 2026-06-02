@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, isNull, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -9,11 +9,13 @@ import {
   auditRequests,
   monitoringFeed,
   monitoringJobs,
+  autoIngestedPapers,
   InsertDocument,
   InsertClaim,
   InsertAuditReport,
   InsertAuditRequest,
   InsertMonitoringFeedItem,
+  InsertAutoIngestedPaper,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -264,6 +266,79 @@ export async function updateMonitoringJobLastRun(documentId: number) {
 }
 
 // ─── Claims Registry ──────────────────────────────────────────────────────────
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Auto-Ingested Papers helpers
+// ────────────────────────────────────────────────────────────────────────────────
+
+export async function upsertAutoIngestedPaper(data: InsertAutoIngestedPaper) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  // Insert or ignore (unique on pmid)
+  await db
+    .insert(autoIngestedPapers)
+    .values(data)
+    .onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+  const [row] = await db
+    .select()
+    .from(autoIngestedPapers)
+    .where(eq(autoIngestedPapers.pmid, data.pmid))
+    .limit(1);
+  return row;
+}
+
+export async function updateAutoIngestedPaperStatus(
+  pmid: string,
+  status: "fetched" | "submitted" | "complete" | "failed",
+  extras: { documentId?: number; errorMessage?: string } = {}
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(autoIngestedPapers)
+    .set({ status, ...extras })
+    .where(eq(autoIngestedPapers.pmid, pmid));
+}
+
+export async function getAllAutoIngestedPapers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(autoIngestedPapers)
+    .orderBy(desc(autoIngestedPapers.ingestedAt));
+}
+
+export async function getPublicAutoIngestedPapers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(autoIngestedPapers)
+    .where(eq(autoIngestedPapers.isPublic, true))
+    .orderBy(desc(autoIngestedPapers.ingestedAt));
+}
+
+export async function getAutoIngestedPaperByPmid(pmid: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(autoIngestedPapers)
+    .where(eq(autoIngestedPapers.pmid, pmid))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getCompletedPublicPapers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(autoIngestedPapers)
+    .where(eq(autoIngestedPapers.status, "complete"))
+    .orderBy(desc(autoIngestedPapers.ingestedAt));
+}
 
 /**
  * Fetch the most recent verified claims across all documents for the global

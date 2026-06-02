@@ -15,6 +15,13 @@
       "when": 1780365780485,
       "tag": "0001_panoramic_quentin_quire",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1780400666342,
+      "tag": "0002_violet_shard",
+      "breakpoints": true
     }
   ]
 }

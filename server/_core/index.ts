@@ -9,8 +9,10 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { monitoringJobHandler } from "../monitoringJob";
+import { pubmedIngestJobHandler } from "../pubmedIngestJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
+import { registerSitemapRoute } from "../sitemapRoute";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -41,12 +43,14 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Scheduled job endpoints (must be before Vite/static fallthrough)
   app.post("/api/scheduled/monitoring", monitoringJobHandler);
+  app.post("/api/scheduled/pubmed-ingest", pubmedIngestJobHandler);
 
   // Public machine-readable claims registry (no auth required)
   registerClaimsRoutes(app);
 
   // AI Engine Optimisation: /llms.txt
   registerLlmsRoute(app);
+  registerSitemapRoute(app);
 
   // tRPC API
   app.use(

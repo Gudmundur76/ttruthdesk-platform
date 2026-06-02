@@ -47,6 +47,24 @@ Per-document claims registry:
 JSON Schema (self-describing):
   GET /api/public/schemas/claims.schema.json
 
+Sitemap (all public audit report URLs):
+  GET /sitemap.xml
+
+## Public audit report pages
+
+Each completed audit report has a public human-readable page with full
+JSON-LD structured data (schema.org ScholarlyArticle + Claim types):
+  /reports/{id}
+
+These pages are indexed in /sitemap.xml and are designed to be discovered
+and cited by AI search engines (ChatGPT, Perplexity, Google AI Overview).
+
+## Automated ingestion
+
+The platform automatically ingests new papers from deCODE Genetics and
+other Icelandic biotech institutions via a weekly PubMed scan. Each paper
+is audited and published to the Registry and /reports/{id} automatically.
+
 ## Standard
 
 All claim records follow the Protein Truth Desk Verifiable Claims Standard v1.0,
@@ -64,12 +82,17 @@ Each claim record includes:
 ## License
 
 All claim registry data is published under CC BY 4.0.
-Attribution: Protein Truth Desk (https://protein-truth-desk.manus.space)
+Attribution: Protein Truth Desk (https://protein-desk-5r5rzpyg.manus.space)
 
 ## Contact
 
 For API access, partnership, or audit requests:
   /pricing — Request a professional audit
+
+## Registry
+
+Browse all publicly available audit reports:
+  /registry
 
 ## Provenance
 

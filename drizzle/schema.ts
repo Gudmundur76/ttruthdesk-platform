@@ -181,3 +181,31 @@ export const monitoringJobs = mysqlTable("monitoring_jobs", {
 });
 
 export type MonitoringJob = typeof monitoringJobs.$inferSelect;
+
+// ─── Auto-Ingested Papers ─────────────────────────────────────────────────────
+// Tracks papers automatically fetched from PubMed (e.g. deCODE Genetics)
+// so we never re-ingest the same paper twice.
+export const autoIngestedPapers = mysqlTable("auto_ingested_papers", {
+  id: int("id").autoincrement().primaryKey(),
+  pmid: varchar("pmid", { length: 32 }).notNull().unique(),
+  doi: varchar("doi", { length: 512 }),
+  title: varchar("title", { length: 1024 }).notNull(),
+  authors: text("authors"),
+  journal: varchar("journal", { length: 512 }),
+  pubYear: varchar("pubYear", { length: 8 }),
+  searchQuery: varchar("searchQuery", { length: 512 }).notNull(),
+  documentId: int("documentId"),          // set once audit pipeline completes
+  status: mysqlEnum("status", [
+    "fetched",       // fetched from PubMed, not yet submitted
+    "submitted",     // submitted to audit pipeline
+    "complete",      // audit report generated
+    "failed",        // pipeline error
+  ]).default("fetched").notNull(),
+  errorMessage: text("errorMessage"),
+  isPublic: boolean("isPublic").default(true).notNull(),
+  ingestedAt: timestamp("ingestedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AutoIngestedPaper = typeof autoIngestedPapers.$inferSelect;
+export type InsertAutoIngestedPaper = typeof autoIngestedPapers.$inferInsert;
