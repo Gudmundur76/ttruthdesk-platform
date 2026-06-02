@@ -417,10 +417,14 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
     return;
   }
 
-  // Allow caller to override lookback window (e.g. for backfill runs)
+  // Allow caller to override lookback window.
+  // Normal nightly runs: capped at 30 days.
+  // Bulk seed runs (allVerticals=true): capped at 365 days.
+  const isBulkSeed = req.body?.allVerticals === true;
+  const maxLookback = isBulkSeed ? 365 : 30;
   const lookbackDays =
     typeof req.body?.lookbackDays === "number"
-      ? Math.min(Math.max(1, req.body.lookbackDays), 30)
+      ? Math.min(Math.max(1, req.body.lookbackDays), maxLookback)
       : DEFAULT_LOOKBACK_DAYS;
 
   // Allow caller to restrict to a single vertical (useful for testing)

@@ -15,7 +15,7 @@ import {
   upsertAuditReport,
   updateClaimVerdict,
 } from "./db";
-import { extractClaims } from "./claimExtractor";
+import { extractClaims, getActiveLLMProvider } from "./claimExtractor";
 import { verdictForClaim } from "./pdbAdapter";
 import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./reportGenerator";
 import { storagePut } from "./storage";
@@ -28,7 +28,8 @@ export async function runAnalysisPipeline(
 ): Promise<void> {
   try {
     // 1. Extract claims
-    await updateDocumentStatus(documentId, "extracting");
+    const llmProvider = getActiveLLMProvider();
+    await updateDocumentStatus(documentId, "extracting", { llmProvider });
     const extracted = await extractClaims(rawText);
     // 2. Insert claims into DB
     const claimInserts = extracted.map((c) => ({
@@ -96,7 +97,14 @@ export async function runAnalysisPipeline(
       highRiskCount: highRisk,
       totalClaims: finalClaims.length,
     });
-    await updateDocumentStatus(documentId, "complete", { claimCount: finalClaims.length });
+    // Mark quality tier: kimi = verified, everything else = draft (needs quality pass)
+    const qualityTier = llmProvider === "kimi" ? "verified" : "draft";
+    await updateDocumentStatus(documentId, "complete", {
+      claimCount: finalClaims.length,
+      llmProvider,
+      qualityTier,
+      needsReview: qualityTier !== "verified",
+    });
     // Notify owner that report is ready
     const supportedCount = (summary as Record<string, number>)["Supported"] ?? 0;
     const contradictedCount = (summary as Record<string, number>)["Contradicted"] ?? 0;
@@ -110,6 +118,8 @@ export async function runAnalysisPipeline(
     console.error("[Pipeline] Error:", err);
     await updateDocumentStatus(documentId, "failed", {
       errorMessage: String(err).substring(0, 500),
+      // Preserve provider info even on failure so quality pass can skip or retry
+      llmProvider: getActiveLLMProvider(),
     });
   }
 }

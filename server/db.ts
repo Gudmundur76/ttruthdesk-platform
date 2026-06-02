@@ -95,7 +95,13 @@ export async function getDocumentsByUser(userId: number) {
 export async function updateDocumentStatus(
   id: number,
   status: "pending" | "extracting" | "validating" | "generating_report" | "complete" | "failed",
-  extra?: { claimCount?: number; errorMessage?: string }
+  extra?: {
+    claimCount?: number;
+    errorMessage?: string;
+    llmProvider?: string;
+    qualityTier?: "draft" | "verified";
+    needsReview?: boolean;
+  }
 ) {
   const db = await getDb();
   if (!db) return;
@@ -105,7 +111,24 @@ export async function updateDocumentStatus(
     .where(eq(documents.id, id));
 }
 
+export async function getDraftDocuments(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(documents)
+    .where(eq(documents.qualityTier, "draft"))
+    .orderBy(documents.createdAt)
+    .limit(limit);
+}
+
 // ─── Claims ───────────────────────────────────────────────────────────────────
+export async function deleteClaimsByDocument(documentId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(claims).where(eq(claims.documentId, documentId));
+}
+
 export async function insertClaims(claimList: InsertClaim[]) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");

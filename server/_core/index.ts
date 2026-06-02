@@ -12,6 +12,7 @@ import { monitoringJobHandler } from "../monitoringJob";
 import { pubmedIngestJobHandler } from "../pubmedIngestJob";
 import { handleDiscoveryLoop } from "../discoveryLoopJob";
 import { pmcFeedJobHandler } from "../pmcFeedJob";
+import { qualityPassJobHandler } from "../qualityPassJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
@@ -49,6 +50,17 @@ async function startServer() {
   app.post("/api/scheduled/pubmed-ingest", pubmedIngestJobHandler);
   app.post("/api/scheduled/discovery-loop", handleDiscoveryLoop);
   app.post("/api/scheduled/pmc-feed", pmcFeedJobHandler);
+  app.post("/api/scheduled/quality-pass", qualityPassJobHandler);
+  // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
+  app.post("/api/admin/bulk-seed", async (req, res) => {
+    // Delegate to pmcFeedJobHandler with allVerticals=true and extended lookback
+    req.body = {
+      ...req.body,
+      allVerticals: true,
+      lookbackDays: Math.min(parseInt(String(req.body?.lookbackDays ?? "90"), 10) || 90, 365),
+    };
+    return pmcFeedJobHandler(req, res);
+  });
 
   // Public machine-readable claims registry (no auth required)
   registerClaimsRoutes(app);

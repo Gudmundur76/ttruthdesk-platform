@@ -143,3 +143,16 @@
 - [x] Add PMC OA full-text fetch to pmcFeedJob: for papers with a PMCID, fetch structured XML via PMC OA service and append Methods/Results sections to rawText
 - [x] Add explicit PMID deduplication unit test in pmcFeedJob.test.ts (4 new tests, 80 total passing)
 - [x] Save Phase 14 checkpoint
+
+## Phase 15: Two-Pass Corpus Strategy
+
+- [x] Add `llmProvider`, `qualityTier` (draft/verified), `needsReview` columns to documents table in drizzle/schema.ts
+- [x] Generate and apply DB migration for quality tier columns (migration 0004 applied)
+- [x] Build `server/_core/multiLLM.ts` — unified LLM router supporting manus_builtin, freellmapi, and kimi providers
+- [x] Add `LLM_PROVIDER`, `FREELM_API_URL`, `FREELM_API_KEY`, `KIMI_API_KEY` to ENV config in env.ts
+- [x] Update analysisPipeline.ts and claimExtractor.ts to write llmProvider and qualityTier on every document processed
+- [x] Build `server/qualityPassJob.ts` — re-processes draft documents with Kimi K2, updates qualityTier to verified
+- [x] Register `POST /api/scheduled/quality-pass` and `POST /api/admin/bulk-seed` endpoints in index.ts
+- [x] Extend PMC feed job to support `lookbackDays: 365` (bulk seed) and `allVerticals: true` flag
+- [x] `POST /api/admin/bulk-seed` registered — delegates to pmcFeedJobHandler with allVerticals=true
+- [x] Run tests (80 passing) and save checkpoint

@@ -7,4 +7,10 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // Two-pass corpus LLM provider config
+  // Options: "manus_builtin" | "freellmapi" | "kimi"
+  llmProvider: (process.env.LLM_PROVIDER ?? "manus_builtin") as "manus_builtin" | "freellmapi" | "kimi",
+  freeLLMApiUrl: process.env.FREELM_API_URL ?? "http://localhost:3001/v1",
+  freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
+  kimiApiKey: process.env.KIMI_API_KEY ?? "",
 };

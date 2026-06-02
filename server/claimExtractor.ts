@@ -3,7 +3,7 @@
  * Uses the built-in LLM to extract structured molecular claims from biotech documents.
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeMultiLLM, getActiveLLMProvider } from "./_core/multiLLM";
 
 export interface ExtractedClaim {
   claimText: string;
@@ -54,7 +54,7 @@ export async function extractClaims(documentText: string): Promise<ExtractedClai
   // Truncate very long documents to avoid token limits
   const truncated = documentText.length > 12000 ? documentText.substring(0, 12000) + "\n[Document truncated for analysis]" : documentText;
 
-  const response = await invokeLLM({
+  const response = await invokeMultiLLM({
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       {
@@ -134,3 +134,6 @@ export async function extractClaims(documentText: string): Promise<ExtractedClai
     }
   }
 }
+
+/** Returns the LLM provider name used by the last extractClaims call. */
+export { getActiveLLMProvider };
