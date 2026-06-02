@@ -108,3 +108,12 @@
 - [x] Extend seedKnowledgeGraph.ts with 24 salmon/marine biotech PMIDs (49 total)
 - [x] Run the extended seeding script (24 new salmon papers ingested, 58 tests passing)
 - [x] Save checkpoint
+
+## Phase 12: Graph Filter Panel, Embed Widget, PayPal Checkout
+
+- [x] Add filter/search sidebar to /graph: filter by vertical domain, verdict, date range; node search by label
+- [x] Add embed mode to /graph (?embed=1 hides nav/legend overlays, full-canvas for iframe embedding)
+- [x] Add embed snippet copy button on /graph page (shows iframe code for laxey.is integration)
+- [ ] Wire PayPal checkout on Pricing page — DEFERRED (PayPal connector OAuth needs to be authorized in Manus UI first)
+- [ ] Add PayPal order confirmation page/modal — DEFERRED
+- [x] Save checkpoint
