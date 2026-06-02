@@ -28,3 +28,12 @@
 ## Phase 4: Polish, Tests, Checkpoint
 - [x] Write Vitest unit tests for verdict engine and PDB adapter (16 tests passing)
 - [x] Save checkpoint and deliver
+
+## Phase 5: claims.json Verifiable Claims Registry
+- [x] Add claimsRegistrySerializer.ts — serialise audit report claims into grow.contact-style ClaimRecord JSON
+- [x] Add GET /api/public/documents/:id/claims.json Express route (public, no auth)
+- [x] Add GET /api/public/claims.json global registry route (latest N verified claims across all documents)
+- [x] Add tRPC procedure reports.claimsJson for frontend consumption (served as plain Express route instead)
+- [x] Add ClaimsJsonBadge in AuditReport.tsx with copy-to-clipboard
+- [x] Write Vitest tests for the serialiser (16 tests passing)
+- [x] Save checkpoint

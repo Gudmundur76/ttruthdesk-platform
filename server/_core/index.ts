@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { monitoringJobHandler } from "../monitoringJob";
+import { registerClaimsRoutes } from "../claimsRoutes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,6 +40,9 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Scheduled job endpoints (must be before Vite/static fallthrough)
   app.post("/api/scheduled/monitoring", monitoringJobHandler);
+
+  // Public machine-readable claims registry (no auth required)
+  registerClaimsRoutes(app);
 
   // tRPC API
   app.use(

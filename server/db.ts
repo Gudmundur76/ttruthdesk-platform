@@ -262,3 +262,25 @@ export async function updateMonitoringJobLastRun(documentId: number) {
     .set({ lastRunAt: new Date() })
     .where(eq(monitoringJobs.documentId, documentId));
 }
+
+// ─── Claims Registry ──────────────────────────────────────────────────────────
+
+/**
+ * Fetch the most recent verified claims across all documents for the global
+ * claims.json registry.  Only claims that have a verdict are included.
+ */
+export async function getRecentVerifiedClaims(limit = 200) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      claim: claims,
+      documentId: claims.documentId,
+    })
+    .from(claims)
+    .where(eq(claims.verdict, claims.verdict)) // all rows with non-null verdict handled below
+    .orderBy(desc(claims.createdAt))
+    .limit(limit);
+  // Filter in JS to keep the query simple (verdict is nullable)
+  return rows.filter((r) => r.claim.verdict !== null);
+}

@@ -6,7 +6,53 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
+// ─── ClaimsJsonBadge ─────────────────────────────────────────────────────────
+function ClaimsJsonBadge({ documentId }: { documentId: number }) {
+  const [copied, setCopied] = useState(false);
+  const url = `/api/public/documents/${documentId}/claims.json`;
+  const fullUrl = `${window.location.origin}${url}`;
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [fullUrl]);
+
+  return (
+    <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-600 shrink-0">
+        <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
+      </svg>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs font-mono text-emerald-700 hover:underline"
+      >
+        claims.json
+      </a>
+      <button
+        onClick={handleCopy}
+        title="Copy URL"
+        className="ml-0.5 text-emerald-500 hover:text-emerald-700 transition-colors"
+      >
+        {copied ? (
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        ) : (
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+}
 
 type VerdictType =
   | "Supported"
@@ -235,7 +281,13 @@ export default function AuditReport() {
           </div>
         )}
 
-        {/* Report file links */}
+        {/* Report file links + claims.json badge */}
+        {isComplete && (
+          <div className="bg-slate-50 rounded-xl border border-border p-4 mb-6 flex flex-wrap gap-3 items-center">
+            <p className="text-sm font-medium text-slate-700 w-full mb-1">Machine-readable output</p>
+            <ClaimsJsonBadge documentId={docId} />
+          </div>
+        )}
         {auditReport && (auditReport.htmlStorageUrl || auditReport.pdfStorageUrl) && (
           <div className="bg-slate-50 rounded-xl border border-border p-4 mb-6 flex flex-wrap gap-3 items-center">
             <p className="text-sm font-medium text-slate-700 w-full mb-1">Stored report files</p>
