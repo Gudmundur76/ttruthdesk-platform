@@ -127,3 +127,19 @@
 - [x] Add tRPC procedure verticals.stats returning per-domain document and claim counts
 - [x] Register /verticals route in App.tsx and add nav link to TopNav (first public nav item)
 - [x] Save checkpoint (58 tests passing, TypeScript clean)
+
+## Phase 14: PMC Open Access Bulk Feed Connector
+
+- [x] Research PMC OA E-utilities API (esearch + efetch) for daily new-papers query by MeSH term
+- [x] Add `pmcFeedJob.ts`: nightly job that queries PMC OA for each vertical's MeSH terms, fetches abstracts + full-text where available, filters by signal density, deduplicates against auto_ingested_papers, queues new papers through runAnalysisPipeline
+- [x] Add MeSH term config per vertical domain (structural_biology: 5 queries, salmon_biotech: 7 queries) in VERTICAL_FEED_CONFIGS
+- [x] Register `POST /api/scheduled/pmc-feed` heartbeat endpoint in server/_core/index.ts
+- [x] Add Vitest tests for deduplication logic and MeSH query builder (18 tests, 76 total passing)
+- [x] Save checkpoint
+
+## Phase 14 Gap Resolution
+
+- [x] Extract VERTICAL_FEED_CONFIGS into server/verticalFeedConfig.ts (shared, importable outside pmcFeedJob)
+- [x] Add PMC OA full-text fetch to pmcFeedJob: for papers with a PMCID, fetch structured XML via PMC OA service and append Methods/Results sections to rawText
+- [x] Add explicit PMID deduplication unit test in pmcFeedJob.test.ts (4 new tests, 80 total passing)
+- [x] Save Phase 14 checkpoint

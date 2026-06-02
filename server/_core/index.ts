@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { monitoringJobHandler } from "../monitoringJob";
 import { pubmedIngestJobHandler } from "../pubmedIngestJob";
 import { handleDiscoveryLoop } from "../discoveryLoopJob";
+import { pmcFeedJobHandler } from "../pmcFeedJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
@@ -47,6 +48,7 @@ async function startServer() {
   app.post("/api/scheduled/monitoring", monitoringJobHandler);
   app.post("/api/scheduled/pubmed-ingest", pubmedIngestJobHandler);
   app.post("/api/scheduled/discovery-loop", handleDiscoveryLoop);
+  app.post("/api/scheduled/pmc-feed", pmcFeedJobHandler);
 
   // Public machine-readable claims registry (no auth required)
   registerClaimsRoutes(app);
