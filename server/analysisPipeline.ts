@@ -23,6 +23,7 @@ import { notifyOwner } from "./_core/notification";
 import { compileDocumentToWiki } from "./wikiCompiler";
 import { generatePdfReport } from "./pdfReportGenerator";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
+import { dispatchHighRiskAlert } from "./alertDispatcher";
 import { notifyIndexNow, notifyIndexNowBatch, claimUrl, reportUrl } from "./seo/indexNow";
 
 export async function runAnalysisPipeline(
@@ -156,6 +157,19 @@ export async function runAnalysisPipeline(
             featuresUsed: prediction.factors as unknown as Record<string, unknown>,
             validationResult: "pending",
           });
+          // Dispatch high-risk alert if probability >= 0.70
+          if (prediction.probabilityContradicted >= 0.70) {
+            dispatchHighRiskAlert({
+              claimId: claim.id,
+              claimText: claim.claimText,
+              documentId,
+              documentTitle: doc?.title ?? "Untitled",
+              verdict: claim.verdict ?? "Unknown",
+              contradictionProbability: prediction.probabilityContradicted,
+              confidenceScore: claim.confidenceScore ?? null,
+              reportUrl: reportUrl(documentId),
+            }).catch((e) => console.warn("[Pipeline] Alert dispatch error (non-fatal):", e));
+          }
         }
         console.log(`[Pipeline] Predictions saved for ${finalClaims.length} claims in doc ${documentId}`);
       } catch (predErr) {

@@ -378,13 +378,13 @@
 
 ## Phase 37: Contradiction Alert Webhooks
 
-- [ ] Add webhookAlerts table to drizzle/schema.ts (id, userId, url, secret, eventTypes json, active, createdAt)
+- [x] Add webhookAlerts table to drizzle/schema.ts (id, userId, url, secret, eventTypes json, active, createdAt)
 - [ ] Generate and apply DB migration 0012 for webhookAlerts table
 - [ ] Add DB helpers: insertWebhookAlert, getWebhookAlertsByUser, deleteWebhookAlert, getActiveWebhookAlerts
 - [ ] Build server/alertDispatcher.ts: dispatchHighRiskAlert(claim, prediction) — Telegram message + HMAC-signed webhook POST
 - [ ] Wire dispatchHighRiskAlert into analysisPipeline.ts when prediction.contradictionProbability >= 0.70
 - [ ] Add tRPC procedures: alerts.list, alerts.create, alerts.delete (all protectedProcedure)
-- [ ] Build /settings/alerts page with webhook URL form, secret display, and delete button
+- [x] Build /settings/alerts page with webhook URL form, secret display, and delete button
 - [ ] Add Alerts nav item to DashboardLayout sidebar
 - [ ] Write Vitest tests for alertDispatcher.ts
 

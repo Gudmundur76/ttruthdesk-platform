@@ -15,6 +15,7 @@ import { pubmedIngestJobHandler } from "../pubmedIngestJob";
 import { handleDiscoveryLoop } from "../discoveryLoopJob";
 import { pmcFeedJobHandler } from "../pmcFeedJob";
 import { qualityPassJobHandler } from "../qualityPassJob";
+import { predictionBackfillHandler } from "../predictionBackfillJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
@@ -510,6 +511,7 @@ async function startServer() {
   app.post("/api/scheduled/discovery-loop", handleDiscoveryLoop);
   app.post("/api/scheduled/pmc-feed", pmcFeedJobHandler);
   app.post("/api/scheduled/quality-pass", qualityPassJobHandler);
+  app.post("/api/scheduled/backfill-predictions", predictionBackfillHandler);
   // Wiki lint: cross-document contradiction detection
   app.post("/api/scheduled/wiki-lint", async (_req, res) => {
     try {

@@ -412,3 +412,23 @@ export const predictionModels = mysqlTable("prediction_models", {
 }));
 export type PredictionModel = typeof predictionModels.$inferSelect;
 export type InsertPredictionModel = typeof predictionModels.$inferInsert;
+
+// ─── Webhook Alert Subscriptions ──────────────────────────────────────────────
+// Users register webhook URLs to receive real-time alerts when a claim is
+// flagged as high-risk (contradictionProbability >= 0.70).
+export const webhookAlerts = mysqlTable("webhook_alerts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  url: varchar("url", { length: 2048 }).notNull(),
+  secret: varchar("secret", { length: 128 }).notNull(),
+  label: varchar("label", { length: 128 }),
+  eventTypes: json("eventTypes").notNull(),
+  active: boolean("active").notNull().default(true),
+  lastFiredAt: timestamp("lastFiredAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  userIdx: index("wa_user_idx").on(t.userId),
+  activeIdx: index("wa_active_idx").on(t.active),
+}));
+export type WebhookAlert = typeof webhookAlerts.$inferSelect;
+export type InsertWebhookAlert = typeof webhookAlerts.$inferInsert;

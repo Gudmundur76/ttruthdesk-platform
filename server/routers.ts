@@ -746,6 +746,42 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
         return { success: true };
       }),
   }),
+
+  // ─── Webhook Alerts ────────────────────────────────────────────────────────
+  alerts: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const { getWebhookAlertsByUser } = await import("./db");
+      return getWebhookAlertsByUser(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({
+        url: z.string().url("Must be a valid URL"),
+        label: z.string().max(128).optional(),
+        eventTypes: z.array(z.string()).default(["high_risk_claim"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const crypto = await import("crypto");
+        const secret = crypto.randomBytes(32).toString("hex");
+        const { insertWebhookAlert } = await import("./db");
+        await insertWebhookAlert({
+          userId: ctx.user.id,
+          url: input.url,
+          secret,
+          label: input.label,
+          eventTypes: input.eventTypes,
+        });
+        return { success: true, secret };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deleteWebhookAlert } = await import("./db");
+        await deleteWebhookAlert(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

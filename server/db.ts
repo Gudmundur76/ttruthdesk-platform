@@ -31,6 +31,8 @@ import {
   InsertPredictionFeature,
   InsertPredictionModel,
   PredictionModel,
+  webhookAlerts,
+  WebhookAlert,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1046,4 +1048,62 @@ export async function getVerifiedClaimsForSitemap(limit = 5000) {
     .where(sql`${claims.verdict} IS NOT NULL AND ${claims.verdict} != ''`)
     .orderBy(desc(claims.updatedAt))
     .limit(limit);
+}
+
+// ─── Webhook Alert helpers ────────────────────────────────────────────────────
+export async function insertWebhookAlert(data: {
+  userId: number;
+  url: string;
+  secret: string;
+  label?: string;
+  eventTypes: string[];
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(webhookAlerts).values({
+    userId: data.userId,
+    url: data.url,
+    secret: data.secret,
+    label: data.label ?? null,
+    eventTypes: data.eventTypes,
+    active: true,
+  });
+  return result;
+}
+
+export async function getWebhookAlertsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(webhookAlerts)
+    .where(eq(webhookAlerts.userId, userId))
+    .orderBy(desc(webhookAlerts.createdAt));
+}
+
+export async function deleteWebhookAlert(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(webhookAlerts)
+    .where(and(eq(webhookAlerts.id, id), eq(webhookAlerts.userId, userId)));
+}
+
+export async function getActiveWebhookAlerts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(webhookAlerts)
+    .where(eq(webhookAlerts.active, true))
+    .orderBy(desc(webhookAlerts.createdAt));
+}
+
+export async function updateWebhookAlertLastFired(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(webhookAlerts)
+    .set({ lastFiredAt: new Date() })
+    .where(eq(webhookAlerts.id, id));
 }
