@@ -8,6 +8,41 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useState, useCallback } from "react";
 
+// ─── ClaimTrajectoryBadge ─────────────────────────────────────────────────────
+function ClaimTrajectoryBadge({ claimId }: { claimId: number }) {
+  const { data: pred } = trpc.predictions.forClaim.useQuery({ claimId }, {
+    staleTime: 5 * 60 * 1000,
+  });
+  if (!pred) return null;
+  const p = pred as { trajectory?: string; confidence?: number };
+  if (!p.trajectory) return null;
+  const colors: Record<string, string> = {
+    STABLE: "text-blue-700 bg-blue-50 border-blue-200",
+    LIKELY_CONFIRMED: "text-green-700 bg-green-50 border-green-200",
+    LIKELY_RETRACTED: "text-red-700 bg-red-50 border-red-200",
+    UNDER_SCRUTINY: "text-amber-700 bg-amber-50 border-amber-200",
+    INSUFFICIENT_DATA: "text-slate-400 bg-slate-50 border-slate-200",
+  };
+  const labels: Record<string, string> = {
+    STABLE: "Stable",
+    LIKELY_CONFIRMED: "Likely Confirmed",
+    LIKELY_RETRACTED: "Likely Retracted",
+    UNDER_SCRUTINY: "Under Scrutiny",
+    INSUFFICIENT_DATA: "Insufficient Data",
+  };
+  const color = colors[p.trajectory] ?? colors.INSUFFICIENT_DATA;
+  const label = labels[p.trajectory] ?? p.trajectory;
+  const conf = p.confidence != null ? Math.round(p.confidence * 100) : null;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 rounded border ${color}`}
+      title={`Ground Signal trajectory prediction${conf != null ? ` (${conf}% confidence)` : ""}`}
+    >
+      ▲ {label}{conf != null ? ` · ${conf}%` : ""}
+    </span>
+  );
+}
+
 // ─── ClaimsJsonBadge ─────────────────────────────────────────────────────────
 function ClaimsJsonBadge({ documentId }: { documentId: number }) {
   const [copied, setCopied] = useState(false);
@@ -343,6 +378,7 @@ function AuditReportContent() {
                             {(claim.confidenceScore * 100).toFixed(0)}% conf
                           </span>
                         )}
+                        {isAuthenticated && <ClaimTrajectoryBadge claimId={claim.id} />}
                       </div>
                       <p className="text-sm text-slate-700 leading-relaxed">{claim.claimText}</p>
                     </div>

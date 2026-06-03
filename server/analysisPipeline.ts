@@ -22,6 +22,7 @@ import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { compileDocumentToWiki } from "./wikiCompiler";
 import { generatePdfReport } from "./pdfReportGenerator";
+import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -134,6 +135,28 @@ export async function runAnalysisPipeline(
     compileDocumentToWiki(documentId).catch((err) =>
       console.error("[Pipeline] Wiki compilation error:", err)
     );
+    // Compute claim trajectory predictions (non-fatal, fire-and-forget)
+    (async () => {
+      try {
+        for (const claim of finalClaims) {
+          if (!claim.verdict) continue;
+          const prediction = await computeClaimTrajectory(claim.id, userId);
+          await savePrediction({
+            modelType: "claim_trajectory",
+            targetClaimId: claim.id,
+            targetEntityId: null,
+            targetUserId: userId,
+            prediction: prediction as unknown as Record<string, unknown>,
+            baseRate: prediction.baseRate,
+            featuresUsed: prediction.factors as unknown as Record<string, unknown>,
+            validationResult: "pending",
+          });
+        }
+        console.log(`[Pipeline] Predictions saved for ${finalClaims.length} claims in doc ${documentId}`);
+      } catch (predErr) {
+        console.warn("[Pipeline] Prediction engine error (non-fatal):", predErr);
+      }
+    })();
   } catch (err) {
     console.error("[Pipeline] Error:", err);
     await updateDocumentStatus(documentId, "failed", {

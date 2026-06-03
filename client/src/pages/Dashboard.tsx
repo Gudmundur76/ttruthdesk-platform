@@ -28,6 +28,37 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function AuthorReliabilityBadge() {
+  const { data: reliability } = trpc.predictions.authorReliability.useQuery();
+  if (!reliability) return null;
+  const tierColors: Record<string, string> = {
+    HIGH: "text-green-700 bg-green-50 border-green-200",
+    AVERAGE: "text-amber-700 bg-amber-50 border-amber-200",
+    LOW: "text-red-700 bg-red-50 border-red-200",
+    INSUFFICIENT_DATA: "text-slate-500 bg-slate-50 border-slate-200",
+  };
+  const tierLabels: Record<string, string> = {
+    HIGH: "High Reliability",
+    AVERAGE: "Average Reliability",
+    LOW: "Low Reliability",
+    INSUFFICIENT_DATA: "Reliability: Insufficient Data",
+  };
+  const color = tierColors[reliability.reliabilityTier] ?? tierColors.INSUFFICIENT_DATA;
+  const label = tierLabels[reliability.reliabilityTier] ?? "Reliability";
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${color}`}
+      title={`Contradiction rate: ${Math.round(reliability.contradictionRate * 100)}% vs field avg ${Math.round(reliability.fieldAverageRate * 100)}% (${reliability.totalClaimsAudited} claims audited)`}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+      {label}
+      {reliability.totalClaimsAudited >= 3 && (
+        <span className="opacity-70">· {Math.round(reliability.contradictionRate * 100)}% contradiction rate</span>
+      )}
+    </div>
+  );
+}
+
 function DashboardContent() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [, navigate] = useLocation();
@@ -48,11 +79,14 @@ function DashboardContent() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900">My Audits</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            {docs
-              ? `${docs.length} document${docs.length !== 1 ? "s" : ""} submitted`
-              : "Loading…"}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-slate-500 text-sm">
+              {docs
+                ? `${docs.length} document${docs.length !== 1 ? "s" : ""} submitted`
+                : "Loading…"}
+            </p>
+            {isAuthenticated && <AuthorReliabilityBadge />}
+          </div>
         </div>
         <Button asChild className="bg-slate-900 hover:bg-slate-800">
           <Link href="/submit">+ New Audit</Link>

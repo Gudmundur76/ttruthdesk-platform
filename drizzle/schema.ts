@@ -360,3 +360,55 @@ export const userSubscriptions = mysqlTable("user_subscriptions", {
 
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;
+
+// ─── Prediction Engine (Ground Signal — Layer 4) ──────────────────────────────
+
+export const predictionFeatures = mysqlTable("prediction_features", {
+  id: int("id").autoincrement().primaryKey(),
+  entityId: int("entityId"), // graph_entities.id — null means global/author-level feature
+  userId: int("userId"),     // users.id — for author_contradiction_history features
+  featureType: mysqlEnum("featureType", [
+    "contradiction_rate",
+    "claim_velocity",
+    "author_contradiction_history",
+    "method_reliability",
+    "temporal_drift",
+    "network_centrality",
+    "evidence_strength_distribution",
+  ]).notNull(),
+  value: float("value").notNull(),
+  sampleSize: int("sampleSize").notNull().default(0),
+  computedAt: timestamp("computedAt").defaultNow().notNull(),
+}, (t) => ({
+  entityFeatureIdx: index("pf_entity_feature_idx").on(t.entityId, t.featureType),
+  userFeatureIdx: index("pf_user_feature_idx").on(t.userId, t.featureType),
+}));
+export type PredictionFeature = typeof predictionFeatures.$inferSelect;
+export type InsertPredictionFeature = typeof predictionFeatures.$inferInsert;
+
+export const predictionModels = mysqlTable("prediction_models", {
+  id: int("id").autoincrement().primaryKey(),
+  modelType: mysqlEnum("modelType", [
+    "claim_trajectory",
+    "author_reliability",
+    "consensus_velocity",
+    "market_signal",
+    "citation_decay",
+  ]).notNull(),
+  targetEntityId: int("targetEntityId"),  // graph_entities.id
+  targetClaimId: int("targetClaimId"),    // claims.id
+  targetUserId: int("targetUserId"),      // users.id (for author_reliability)
+  prediction: json("prediction").notNull(), // { probability, confidenceInterval, rationale, factors[] }
+  baseRate: float("baseRate"),
+  featuresUsed: json("featuresUsed"),     // which features informed this prediction
+  validatedAt: timestamp("validatedAt"),  // when actual verdict came in
+  validationResult: mysqlEnum("validationResult", ["correct", "incorrect", "pending"]).default("pending"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  claimIdx: index("pm_claim_idx").on(t.targetClaimId),
+  entityIdx: index("pm_entity_idx").on(t.targetEntityId),
+  userIdx: index("pm_user_idx").on(t.targetUserId),
+  typeIdx: index("pm_type_idx").on(t.modelType),
+}));
+export type PredictionModel = typeof predictionModels.$inferSelect;
+export type InsertPredictionModel = typeof predictionModels.$inferInsert;

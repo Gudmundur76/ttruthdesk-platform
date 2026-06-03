@@ -316,17 +316,9 @@
 
 ## Phase 33: Revenue Unblock — Stripe Checkout + PDF Verification + Auth Guard
 
-- [ ] Add user_subscriptions table to drizzle/schema.ts (userId, tier, auditLimit, auditsUsed, stripeCustomerId, stripeSessionId, activatedAt)
-- [ ] Generate and apply DB migration 0010 for user_subscriptions
-- [ ] Add DB helpers: upsertSubscription, getSubscriptionByUser, incrementAuditsUsed
-- [ ] Add Stripe secret to ENV (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_STARTER, STRIPE_PRICE_DILIGENCE, STRIPE_PRICE_PLATFORM)
-- [ ] Add checkout router to routers.ts: checkout.createSession (protectedProcedure), checkout.getStatus (protectedProcedure)
-- [ ] Add POST /api/stripe/webhook Express route (raw body, signature verification, handle checkout.session.completed)
-- [ ] Wire Pricing page "Get Started" buttons to trpc.checkout.createSession → redirect to Stripe
-- [ ] Add tier limit gate in trpc.documents.submitText and submitFile: check auditsUsed < auditLimit, throw if exceeded
-- [ ] Add "Upgrade" CTA on Dashboard when user is at tier limit
-- [ ] Add sign-in redirect guard to Dashboard.tsx and AuditReport.tsx (useEffect: if !isAuthenticated && !isLoading → open MagicLinkDialog)
-- [ ] Write tests, save checkpoint, push to GitHub
+- [x] SUPERSEDED by Phase 33 Week 1 (PayPal replaces Stripe — user has no Stripe account)
+- [x] user_subscriptions, checkout router, Pricing page, auth guards all implemented via PayPal Orders API
+- [x] See Phase 33 Week 1 section below for full completion record
 
 ## Phase 33: Week 1 Revenue Sprint — DB Fixes + PDF Pipeline + PayPal Checkout
 
@@ -343,3 +335,20 @@
 - [x] Add sign-in redirect guard to Dashboard.tsx and AuditReport.tsx (loading: authLoading, redirect to / if !isAuthenticated)
 - [x] Write 15 Vitest tests: PLANS constant, limit math, createPayPalOrder error handling, schema fields — 203 total passing
 - [x] Save checkpoint and push to GitHub
+
+## Phase 34: Ground Signal — Prediction Engine (Layer 4)
+
+- [x] Add predictionFeatures table to drizzle/schema.ts (entityId, featureType enum, value, sampleSize, computedAt)
+- [x] Add predictionModels table to drizzle/schema.ts (modelType enum, targetEntityId, targetClaimId, prediction json, baseRate, featuresUsed json, validatedAt, validationResult enum)
+- [x] Generate and apply DB migration 0011 for prediction tables
+- [x] Add DB helpers: upsertPredictionFeature, getPredictionFeaturesByEntity, insertPredictionModel, getPredictionsByEntity, getPredictionsByClaim, updatePredictionValidation
+- [x] Build server/predictionEngine.ts: computeClaimTrajectory (SQL feature queries + heuristic scoring), computeAuthorReliability, computeConsensusVelocity
+- [x] Build server/featureComputationJob.ts: nightly cron that precomputes features for all active entities (contradiction_rate, claim_velocity, author_contradiction_history, method_reliability)
+- [x] Register POST /api/scheduled/compute-features heartbeat endpoint in index.ts
+- [x] Hook computeClaimTrajectory into analysisPipeline.ts — generate prediction for each extracted claim after verdict assignment
+- [x] Add trpc.predictions.claimTrajectory procedure (publicProcedure, input: claimId)
+- [x] Add trpc.predictions.authorReliability procedure (publicProcedure, input: userId)
+- [x] Add trpc.predictions.entityStats procedure (publicProcedure, input: entityId)
+- [x] Add prediction risk badge to AuditReport.tsx claim table (show contradiction probability for each claim)
+- [x] Add prediction summary card to Dashboard.tsx (high-risk claims count, author reliability score)
+- [x] Write tests, save checkpoint, push to GitHub

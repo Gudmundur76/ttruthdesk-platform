@@ -26,6 +26,11 @@ import {
   InsertGraphRelation,
   GraphEntity,
   GraphRelation,
+  predictionFeatures,
+  predictionModels,
+  InsertPredictionFeature,
+  InsertPredictionModel,
+  PredictionModel,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -833,6 +838,61 @@ export async function getEntityClaimSummary(entityName: string): Promise<{
     }
   }
   return { supported, contradicted, ambiguous, total: rows.length, lastUpdated };
+}
+
+// ─── Prediction helpers ──────────────────────────────────────────────────────
+
+export async function savePredictionModel(data: InsertPredictionModel): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const [result] = await db.insert(predictionModels).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function getPredictionsByClaimId(claimId: number): Promise<PredictionModel[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(predictionModels)
+    .where(eq(predictionModels.targetClaimId, claimId))
+    .orderBy(desc(predictionModels.createdAt))
+    .limit(5);
+}
+
+export async function getLatestAuthorReliabilityPrediction(userId: number): Promise<PredictionModel | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(predictionModels)
+    .where(
+      and(
+        eq(predictionModels.targetUserId, userId),
+        eq(predictionModels.modelType, "author_reliability")
+      )
+    )
+    .orderBy(desc(predictionModels.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function savePredictionFeature(data: InsertPredictionFeature): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(predictionFeatures).values(data);
+}
+
+export async function updatePredictionModelValidation(
+  predictionId: number,
+  result: "correct" | "incorrect"
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(predictionModels)
+    .set({ validationResult: result, validatedAt: new Date() })
+    .where(eq(predictionModels.id, predictionId));
 }
 
 // ─── Backfill helpers ─────────────────────────────────────────────────────────

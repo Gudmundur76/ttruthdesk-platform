@@ -635,62 +635,78 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
 
   // ─── Checkout (PayPal) ───────────────────────────────────────────────────────
   checkout: router({
-  plans: publicProcedure.query(() => {
-    return Object.entries(PLANS).map(([tier, plan]) => ({
-      tier,
-      label: plan.label,
-      amountUsd: plan.amountUsd,
-      auditsLimit: plan.auditsLimit,
-      description: plan.description,
-    }));
-  }),
-
-  createOrder: protectedProcedure
-    .input(
-      z.object({
-        planTier: z.enum(["starter", "diligence", "platform"]),
-        returnUrl: z.string().url(),
-        cancelUrl: z.string().url(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const result = await createPayPalOrder(
-        input.planTier as PlanTier,
-        ctx.user.id,
-        input.returnUrl,
-        input.cancelUrl
-      );
-      return result;
+    plans: publicProcedure.query(() => {
+      return Object.entries(PLANS).map(([tier, plan]) => ({
+        tier,
+        label: plan.label,
+        amountUsd: plan.amountUsd,
+        auditsLimit: plan.auditsLimit,
+        description: plan.description,
+      }));
     }),
-
-  captureOrder: protectedProcedure
-    .input(z.object({ orderId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      const sub = await capturePayPalOrder(input.orderId, ctx.user.id);
+    createOrder: protectedProcedure
+      .input(
+        z.object({
+          planTier: z.enum(["starter", "diligence", "platform"]),
+          returnUrl: z.string().url(),
+          cancelUrl: z.string().url(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const result = await createPayPalOrder(
+          input.planTier as PlanTier,
+          ctx.user.id,
+          input.returnUrl,
+          input.cancelUrl
+        );
+        return result;
+      }),
+    captureOrder: protectedProcedure
+      .input(z.object({ orderId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const sub = await capturePayPalOrder(input.orderId, ctx.user.id);
+        return {
+          success: true,
+          planTier: sub.planTier,
+          auditsLimit: sub.auditsLimit,
+          activatedAt: sub.activatedAt,
+        };
+      }),
+    getSubscription: protectedProcedure.query(async ({ ctx }) => {
+      const sub = await getActiveSubscription(ctx.user.id);
+      if (!sub) return null;
       return {
-        success: true,
         planTier: sub.planTier,
         auditsLimit: sub.auditsLimit,
+        auditsUsed: sub.auditsUsed,
+        remaining: sub.auditsLimit === -1 ? -1 : sub.auditsLimit - sub.auditsUsed,
         activatedAt: sub.activatedAt,
+        expiresAt: sub.expiresAt,
       };
     }),
-
-  getSubscription: protectedProcedure.query(async ({ ctx }) => {
-    const sub = await getActiveSubscription(ctx.user.id);
-    if (!sub) return null;
-    return {
-      planTier: sub.planTier,
-      auditsLimit: sub.auditsLimit,
-      auditsUsed: sub.auditsUsed,
-      remaining: sub.auditsLimit === -1 ? -1 : sub.auditsLimit - sub.auditsUsed,
-      activatedAt: sub.activatedAt,
-      expiresAt: sub.expiresAt,
-    };
+    auditLimit: protectedProcedure.query(async ({ ctx }) => {
+      return checkPayPalAuditLimit(ctx.user.id);
+    }),
   }),
 
-  auditLimit: protectedProcedure.query(async ({ ctx }) => {
-    return checkPayPalAuditLimit(ctx.user.id);
-  }),
+  // ─── Predictions (Ground Signal) ─────────────────────────────────────────────
+  predictions: router({
+    forClaim: protectedProcedure
+      .input(z.object({ claimId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const { getPredictionsByClaimId } = await import("./db");
+        const { computeClaimTrajectory } = await import("./predictionEngine");
+        const stored = await getPredictionsByClaimId(input.claimId);
+        if (stored.length > 0) {
+          return stored[0].prediction as Awaited<ReturnType<typeof computeClaimTrajectory>>;
+        }
+        return computeClaimTrajectory(input.claimId, ctx.user.id);
+      }),
+
+    authorReliability: protectedProcedure.query(async ({ ctx }) => {
+      const { computeAuthorReliability } = await import("./predictionEngine");
+      return computeAuthorReliability(ctx.user.id);
+    }),
   }),
 });
 
