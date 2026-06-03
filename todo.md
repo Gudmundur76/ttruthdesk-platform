@@ -164,3 +164,13 @@
 - [x] Fix gradient ref to point to the actual SVG linearGradient element
 - [x] TypeScript clean, 80 tests passing
 - [x] Save checkpoint
+
+## Phase 17: Agent Readability Score (32→90+)
+
+- [ ] Fix Semantic HTML: add `<main>`, `<nav>`, `<header>`, `<footer>`, `<section>` landmark tags and h1/h2 hierarchy to Home.tsx and all public pages (Verticals, Registry, Graph)
+- [ ] Add JSON-LD: WebSite + SoftwareApplication schema in index.html; FAQPage + ItemList in Home.tsx
+- [ ] Fix Citability: ensure every public page has substantive visible text (>200 words) accessible to crawlers without JS
+- [ ] Fix Speed: lazy-load react-force-graph-2d (dynamic import on /graph only), enable gzip/brotli compression on Express server, reduce initial bundle below 150kb
+- [ ] Add Protocol Discovery: serve `/.well-known/mcp.json` (MCP card), add `Link: </.well-known/mcp.json>; rel="mcp"` response header, add `<meta name="content-signal">` tag, add `/api/md` markdown negotiation endpoint
+- [ ] Update /llms.txt to reference mcp.json and markdown endpoint
+- [ ] Run tests and save checkpoint
