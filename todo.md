@@ -293,3 +293,13 @@
 - [x] Wire postContradictionAlert into wikiLinter.ts — fires after each new contradicts edge is written
 - [x] Write 20 Vitest tests: MCP tool card shape, backfill logic, Telegram alert format, Link header format — 172 total passing
 - [x] Save checkpoint and push to GitHub
+
+## Phase 31: Batch-Parallel Wiki Backfill
+
+- [x] Add wikiCompiledAt timestamp column to documents table in drizzle/schema.ts
+- [x] Generate migration 0009 (0009_glamorous_blonde_phantom.sql) and apply via webdev_execute_sql
+- [x] Rewrite backfillWikiRoute.ts: BATCH_SIZE=15 parallel workers, skip wikiCompiledAt!=null, 2-retry exponential backoff (1s/2s), 500ms batch cooldown, fire-and-forget POST /api/admin/backfill-wiki, sync variant, status endpoint
+- [x] Add trpc.admin.backfillWiki mutation (fire-and-forget, background run, returns status:started)
+- [x] Add trpc.admin.backfillStatus query (returns completedDocuments, wikiCompiled, wikiPending, percentComplete)
+- [x] Write 15 Vitest tests: batch logic, skip logic, retry logic, speed math, wikiCompiledAt field — 173 total passing
+- [x] Save checkpoint and push to GitHub

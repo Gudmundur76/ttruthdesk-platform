@@ -576,6 +576,54 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       // Simple pass-through — text is already extracted client-side
       return { text: input.text };
     }),
+
+  // ─── Admin ──────────────────────────────────────────────────────────────────────────
+  admin: router({
+    /**
+     * Fire-and-forget wiki backfill.
+     * Returns { status: "started" } immediately and runs in the background.
+     * Progress is logged to the server console and Telegram (if configured).
+     */
+    backfillWiki: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
+        }
+        const origin = process.env.VITE_APP_URL ?? "https://protein-desk-5r5rzpyg.manus.space";
+        const { runBackfillWiki } = await import("./backfillWikiRoute");
+        // Fire-and-forget — return immediately so the HTTP connection doesn't time out
+        runBackfillWiki(origin, (msg) => {
+          console.log(`[BackfillWiki/tRPC] ${msg}`);
+        }).catch(console.error);
+        return {
+          status: "started" as const,
+          message: "Backfill running in background. Check server logs or Telegram for progress.",
+        };
+      }),
+
+    /**
+     * Returns how many completed documents have been wiki-compiled vs. pending.
+     */
+    backfillStatus: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { getAllCompletedDocuments } = await import("./db");
+        const allCompleted = await getAllCompletedDocuments(2000);
+        const compiled = allCompleted.filter((d) => !!d.wikiCompiledAt).length;
+        const pending = allCompleted.length - compiled;
+        return {
+          completedDocuments: allCompleted.length,
+          wikiCompiled: compiled,
+          wikiPending: pending,
+          percentComplete:
+            allCompleted.length > 0 ? Math.round((compiled / allCompleted.length) * 100) : 0,
+        };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

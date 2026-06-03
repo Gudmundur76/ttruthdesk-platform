@@ -55,6 +55,7 @@ export const documents = mysqlTable("documents", {
   llmProvider: varchar("llmProvider", { length: 64 }).default("manus_builtin").notNull(),
   qualityTier: mysqlEnum("qualityTier", ["draft", "verified"]).default("draft").notNull(),
   needsReview: boolean("needsReview").default(true).notNull(),
+  wikiCompiledAt: timestamp("wikiCompiledAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
