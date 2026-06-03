@@ -209,9 +209,9 @@
 
 ## Phase 22: Bulk Seed All Verticals (Free LLM, Quality + Speed)
 
-- [ ] Audit current free LLM config (multiLLM.ts, env.ts) and vertical feed configs
-- [ ] Optimise bulk seed: parallel pipeline workers, free LLM routing for all verticals, concurrency cap to avoid rate limits
-- [ ] Trigger bulk seed for structural_biology and salmon_biotech via /api/admin/bulk-seed
-- [ ] Run quality-pass job to re-process draft documents to verified tier
-- [ ] Verify seeded documents appear in /registry and /graph
-- [ ] Save checkpoint
+- [x] Audit current free LLM config (multiLLM.ts, env.ts) and vertical feed configs
+- [x] Optimise bulk seed: parallel pipeline workers, free LLM routing for all verticals, concurrency cap to avoid rate limits
+- [x] Trigger bulk seed for structural_biology and salmon_biotech via /api/admin/bulk-seed
+- [x] Run quality-pass job to re-process draft documents to verified tier (all 106 failed docs reprocessed via manus_builtin)
+- [x] Verify seeded documents appear in /registry and /graph
+- [x] Save checkpoint (cbc0b5b7)

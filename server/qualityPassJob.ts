@@ -42,22 +42,33 @@ export async function runQualityPass(options: {
   batchSize?: number;
   delayMs?: number;
 }): Promise<QualityPassResult> {
-  const { batchSize = 20, delayMs = 2000 } = options;
+  // Default delay of 8s between docs to avoid free-tier rate limits across all three OpenRouter providers.
+  // During off-peak hours this can be reduced to 3000ms.
+  const { batchSize = 20, delayMs = 8000 } = options;
   const result: QualityPassResult = { processed: 0, skipped: 0, failed: 0, errors: [] };
 
-  // Verify Kimi API key is available — quality pass requires premium model
-  if (!ENV.kimiApiKey) {
+  // Verify a quality LLM is available — prefer OpenRouter (Kimi K2.6 free) or fall back to direct Kimi API
+  const hasOpenRouter = !!ENV.openRouterApiKey;
+  const hasKimi = !!ENV.kimiApiKey;
+
+  if (!hasOpenRouter && !hasKimi) {
     result.errors.push(
-      "KIMI_API_KEY is not set. Quality pass requires the Kimi K2 API. " +
-      "Set LLM_PROVIDER=kimi and KIMI_API_KEY in environment variables."
+      "Neither OPENROUTER_API_KEY nor KIMI_API_KEY is set. " +
+      "Quality pass requires a premium model. " +
+      "Set LLM_PROVIDER=openrouter + OPENROUTER_API_KEY (free) or LLM_PROVIDER=kimi + KIMI_API_KEY."
     );
     return result;
   }
 
-  // Temporarily override the provider to kimi for this job
-  // We do this by setting the env value directly (safe in Node.js single-process)
+  // Temporarily override the provider to use the best available quality model
   const previousProvider = ENV.llmProvider;
-  (ENV as { llmProvider: string }).llmProvider = "kimi";
+  if (hasOpenRouter) {
+    (ENV as { llmProvider: string }).llmProvider = "openrouter";
+    console.log("[QualityPass] Using OpenRouter → moonshotai/kimi-k2.6:free");
+  } else {
+    (ENV as { llmProvider: string }).llmProvider = "kimi";
+    console.log("[QualityPass] Using direct Kimi API");
+  }
 
   try {
     const draftDocs = await getDraftDocuments(batchSize);
@@ -67,7 +78,8 @@ export async function runQualityPass(options: {
       return result;
     }
 
-    console.log(`[QualityPass] Processing ${draftDocs.length} draft documents with Kimi K2...`);
+    const modelLabel = hasOpenRouter ? "OpenRouter/Kimi K2.6 (free)" : "Kimi K2 direct";
+    console.log(`[QualityPass] Processing ${draftDocs.length} draft documents with ${modelLabel}...`);
 
     for (const doc of draftDocs) {
       // Skip documents that are not complete (still processing)
