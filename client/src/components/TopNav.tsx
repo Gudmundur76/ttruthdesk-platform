@@ -1,5 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { useState } from "react";
+import { MagicLinkDialog } from "@/components/MagicLinkDialog";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +27,7 @@ const NAV_LINKS = [
 export function TopNav() {
   const { user, isAuthenticated } = useAuth();
   const [location] = useLocation();
+  const [showSignIn, setShowSignIn] = useState(false);
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
       window.location.href = "/";
@@ -194,27 +197,31 @@ export function TopNav() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <a
-              href={getLoginUrl()}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "7px 18px",
-                borderRadius: 8,
-                fontSize: 13.5,
-                fontWeight: 600,
-                fontFamily: "'Space Grotesk', sans-serif",
-                background: "linear-gradient(135deg, #c026d3 0%, #7c3aed 100%)",
-                color: "white",
-                textDecoration: "none",
-                boxShadow: "0 0 18px rgba(192,38,211,0.35)",
-                transition: "box-shadow 0.2s, opacity 0.2s",
-                letterSpacing: "-0.01em",
-              }}
-              className="hover:opacity-90 hover:!shadow-[0_0_28px_rgba(192,38,211,0.55)]"
-            >
-              Sign in
-            </a>
+            <>
+              <button
+                onClick={() => setShowSignIn(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "7px 18px",
+                  borderRadius: 8,
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  background: "linear-gradient(135deg, #c026d3 0%, #7c3aed 100%)",
+                  color: "white",
+                  border: "none",
+                  cursor: "pointer",
+                  boxShadow: "0 0 18px rgba(192,38,211,0.35)",
+                  transition: "box-shadow 0.2s, opacity 0.2s",
+                  letterSpacing: "-0.01em",
+                }}
+                className="hover:opacity-90 hover:!shadow-[0_0_28px_rgba(192,38,211,0.55)]"
+              >
+                Sign in
+              </button>
+              <MagicLinkDialog open={showSignIn} onOpenChange={setShowSignIn} />
+            </>
           )}
         </div>
       </div>

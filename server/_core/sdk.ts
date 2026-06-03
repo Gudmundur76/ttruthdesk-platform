@@ -275,6 +275,15 @@ class SDKServer {
       return buildCronUser(userInfo);
     }
 
+    // Magic-link email users have openId prefixed with "email_"
+    if (session.openId.startsWith(EMAIL_OPEN_ID_PREFIX)) {
+      const emailUserId = parseInt(session.openId.slice(EMAIL_OPEN_ID_PREFIX.length), 10);
+      const emailUser = await db.getEmailUserById(emailUserId);
+      if (!emailUser) throw ForbiddenError("Email user not found");
+      // Map emailUser to the User shape expected by tRPC context
+      return buildEmailUser(emailUser);
+    }
+
     const sessionUserId = session.openId;
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
@@ -311,12 +320,28 @@ class SDKServer {
 }
 
 const CRON_OPEN_ID_PREFIX = "cron_";
+const EMAIL_OPEN_ID_PREFIX = "email_";
 
 /** Result of `sdk.authenticateRequest`. Cron callbacks set `isCron=true` and `taskUid`; see `references/periodic-updates.md`. */
 export type AuthenticatedUser = User & {
   taskUid?: string;
   isCron?: boolean;
 };
+
+function buildEmailUser(emailUser: { id: number; email: string; name: string | null; role: "user" | "admin"; createdAt: Date; lastSignedIn: Date }): AuthenticatedUser {
+  const now = new Date();
+  return {
+    id: emailUser.id,
+    openId: `email_${emailUser.id}`,
+    name: emailUser.name ?? emailUser.email,
+    email: emailUser.email,
+    loginMethod: "magic_link",
+    role: emailUser.role,
+    createdAt: emailUser.createdAt,
+    updatedAt: now,
+    lastSignedIn: emailUser.lastSignedIn,
+  } as AuthenticatedUser;
+}
 
 function buildCronUser(
   userInfo: GetUserInfoWithJwtResponse

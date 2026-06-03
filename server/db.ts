@@ -1,4 +1,4 @@
-import { eq, desc, isNull, isNotNull } from "drizzle-orm";
+import { eq, desc, isNull, isNotNull, and, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -16,6 +16,10 @@ import {
   InsertAuditRequest,
   InsertMonitoringFeedItem,
   InsertAutoIngestedPaper,
+  magicLinkTokens,
+  emailUsers,
+  InsertMagicLinkToken,
+  InsertEmailUser,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -68,6 +72,74 @@ export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// ─── Magic Link Tokens ───────────────────────────────────────────────────────
+export async function createMagicLinkToken(data: InsertMagicLinkToken): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(magicLinkTokens).values(data);
+}
+
+export async function findValidMagicLinkToken(tokenHash: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(magicLinkTokens)
+    .where(
+      and(
+        eq(magicLinkTokens.tokenHash, tokenHash),
+        isNull(magicLinkTokens.usedAt),
+        gt(magicLinkTokens.expiresAt, new Date()),
+      )
+    )
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function markMagicLinkTokenUsed(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, id));
+}
+
+/** Count tokens created for this email in the last windowMs milliseconds (rate limiting) */
+export async function countRecentMagicLinkRequests(email: string, windowMs: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const since = new Date(Date.now() - windowMs);
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(magicLinkTokens)
+    .where(and(eq(magicLinkTokens.email, email), gt(magicLinkTokens.createdAt, since)));
+  return Number(result[0]?.count ?? 0);
+}
+
+// ─── Email Users ──────────────────────────────────────────────────────────────
+export async function upsertEmailUser(email: string, name?: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db
+    .insert(emailUsers)
+    .values({ email, name: name ?? null, lastSignedIn: new Date() })
+    .onDuplicateKeyUpdate({ set: { lastSignedIn: new Date() } });
+  const result = await db.select().from(emailUsers).where(eq(emailUsers.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getEmailUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(emailUsers).where(eq(emailUsers.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getEmailUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(emailUsers).where(eq(emailUsers.id, id)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 

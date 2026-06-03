@@ -219,3 +219,33 @@ export const autoIngestedPapers = mysqlTable("auto_ingested_papers", {
 
 export type AutoIngestedPaper = typeof autoIngestedPapers.$inferSelect;
 export type InsertAutoIngestedPaper = typeof autoIngestedPapers.$inferInsert;
+
+// ─── Magic Link Tokens ────────────────────────────────────────────────────────
+// tokenHash: SHA-256 of the raw token (never store raw token)
+// usedAt: set on first use — subsequent uses are rejected
+// rateLimitKey: email + floor(createdAt / 10min) — used to enforce max 3/10min
+export const magicLinkTokens = mysqlTable("magic_link_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
+export type InsertMagicLinkToken = typeof magicLinkTokens.$inferInsert;
+
+// ─── Email Users ──────────────────────────────────────────────────────────────
+// Separate from Manus OAuth users — email-only accounts created via magic link
+export const emailUsers = mysqlTable("email_users", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  name: varchar("name", { length: 255 }),
+  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+});
+
+export type EmailUser = typeof emailUsers.$inferSelect;
+export type InsertEmailUser = typeof emailUsers.$inferInsert;

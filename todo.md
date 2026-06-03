@@ -184,3 +184,16 @@
 - [x] Add GET /mcp SSE endpoint (MCP streamable HTTP transport, protocol version 2024-11-05)
 - [x] Add POST /mcp JSON-RPC endpoint (initialize, tools/list, resources/list methods)
 - [x] 80 tests passing, TypeScript clean
+
+## Phase 20: Secure Magic Link Authentication
+
+- [x] Add magic_link_tokens and email_users tables to drizzle/schema.ts
+- [x] Generate and apply DB migration 0005 for new tables
+- [x] Add DB helpers: createMagicLinkToken, findValidMagicLinkToken, markMagicLinkTokenUsed, countRecentMagicLinkRequests, upsertEmailUser, getEmailUserByEmail, getEmailUserById
+- [x] Build server/magicLink.ts: POST /api/auth/magic-link/request (rate-limited, hashed token, email send) and GET /api/auth/magic-link/verify (single-use, session cookie creation)
+- [x] Register magic link routes in server/_core/index.ts
+- [x] Add email_ prefix handling in sdk.ts authenticateRequest (buildEmailUser maps emailUsers row to User shape)
+- [x] Build client/src/components/MagicLinkDialog.tsx (email input → sent confirmation, 2-step flow)
+- [x] Replace Manus OAuth sign-in link in TopNav.tsx with MagicLinkDialog trigger button
+- [x] Write 15 Vitest tests for magic link security properties (token generation, hashing, expiry, rate limiting, email validation, openId prefix)
+- [x] 95 tests passing, TypeScript clean
