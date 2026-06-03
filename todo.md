@@ -197,3 +197,12 @@
 - [x] Replace Manus OAuth sign-in link in TopNav.tsx with MagicLinkDialog trigger button
 - [x] Write 15 Vitest tests for magic link security properties (token generation, hashing, expiry, rate limiting, email validation, openId prefix)
 - [x] 95 tests passing, TypeScript clean
+
+## Phase 21: E2E Tests (Playwright) + Load Tests (k6)
+
+- [x] Install Playwright and configure playwright.config.ts targeting the dev server
+- [x] Write E2E tests: homepage loads, nav links present, sign-in dialog opens, registry page renders claims, graph page renders, audit request form submits
+- [x] Install k6 and write load test scripts for /api/public/verify-claim, /api/public/claims.json, rate limiter behaviour
+- [x] Run E2E suite against dev server and capture results
+- [x] Run k6 load tests and capture throughput/latency/error rate results
+- [x] Save checkpoint and deliver test report
