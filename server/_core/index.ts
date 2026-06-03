@@ -22,6 +22,7 @@ import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
 import { startTelegramBot } from "../telegramBot";
+import { runWikiLint } from "../wikiLinter";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -438,6 +439,16 @@ async function startServer() {
   app.post("/api/scheduled/discovery-loop", handleDiscoveryLoop);
   app.post("/api/scheduled/pmc-feed", pmcFeedJobHandler);
   app.post("/api/scheduled/quality-pass", qualityPassJobHandler);
+  // Wiki lint: cross-document contradiction detection
+  app.post("/api/scheduled/wiki-lint", async (_req, res) => {
+    try {
+      const report = await runWikiLint();
+      res.json({ ok: true, ...report });
+    } catch (err) {
+      console.error("[WikiLint] Error:", err);
+      res.status(500).json({ ok: false, error: String(err) });
+    }
+  });
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
   // Admin re-process: re-runs the analysis pipeline on all failed documents
   app.post("/api/admin/reprocess-failed", async (req, res) => {

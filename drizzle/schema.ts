@@ -9,6 +9,7 @@ import {
   boolean,
   json,
   index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -268,3 +269,69 @@ export const emailUsers = mysqlTable("email_users", {
 
 export type EmailUser = typeof emailUsers.$inferSelect;
 export type InsertEmailUser = typeof emailUsers.$inferInsert;
+
+// ─── Knowledge Graph ──────────────────────────────────────────────────────────
+// Karpathy-style persistent entity graph.
+// Each unique scientific entity (protein, PDB ID, method, organism, ligand,
+// author, concept, document) gets a canonical node. Relations between nodes
+// are typed edges (cites, contradicts, validates, homologous_to, …).
+// Wiki markdown pages for each entity are stored in S3 and referenced by
+// wikiPagePath.
+
+export const graphEntities = mysqlTable("graph_entities", {
+  id: int("id").autoincrement().primaryKey(),
+  entityType: mysqlEnum("entityType", [
+    "protein",
+    "pdb_id",
+    "method",
+    "organism",
+    "ligand",
+    "author",
+    "concept",
+    "document",
+  ]).notNull(),
+  canonicalName: varchar("canonicalName", { length: 512 }).notNull(),
+  wikiPagePath: varchar("wikiPagePath", { length: 1024 }),  // S3 key, e.g. wiki/pdb_id_1LYZ.md
+  firstSeenDocumentId: int("firstSeenDocumentId"),
+  metadata: json("metadata"),  // { pdbUrl, uniprotId, aliases, … }
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  entityTypeNameIdx: index("entity_type_name_idx").on(t.entityType, t.canonicalName),
+  entityCanonicalUnique: uniqueIndex("entity_canonical_unique").on(t.entityType, t.canonicalName),
+}));
+
+export type GraphEntity = typeof graphEntities.$inferSelect;
+export type InsertGraphEntity = typeof graphEntities.$inferInsert;
+
+export const graphRelations = mysqlTable("graph_relations", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceEntityId: int("sourceEntityId").notNull(),
+  targetEntityId: int("targetEntityId").notNull(),
+  relationType: mysqlEnum("relationType", [
+    "cites",           // document → entity
+    "contradicts",     // claim → claim / entity → entity
+    "validates",       // evidence → claim
+    "homologous_to",   // protein → protein
+    "binds",           // protein → ligand
+    "expressed_in",    // protein → organism
+    "uses_method",     // document → method
+    "authored_by",     // document → author
+    "related_to",      // generic
+  ]).notNull(),
+  evidenceDocumentId: int("evidenceDocumentId"),  // which doc created this edge
+  confidenceScore: float("confidenceScore"),       // LLM-assigned 0.0–1.0
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  relationSourceIdx: index("relation_source_idx").on(t.sourceEntityId),
+  relationTargetIdx: index("relation_target_idx").on(t.targetEntityId),
+  relationTypeIdx: index("relation_type_idx").on(t.relationType),
+  relationUnique: uniqueIndex("relation_unique").on(
+    t.sourceEntityId,
+    t.targetEntityId,
+    t.relationType,
+  ),
+}));
+
+export type GraphRelation = typeof graphRelations.$inferSelect;
+export type InsertGraphRelation = typeof graphRelations.$inferInsert;

@@ -23,7 +23,12 @@ import {
   getGraphData,
   getVerticalStats,
   getRecentAuditRequestsByEmail,
+  getAllGraphEntities,
+  getAllGraphRelations,
+  getContradictionRelations,
 } from "./db";
+import { invokeLLM } from "./_core/llm";
+import { fetchWikiPage } from "./wikiCompiler";
 import { checkAuditLimit } from "./academicDomains";
 import { getEmailUserById, incrementEmailUserAuditCount } from "./db";
 import { notifyOwner } from "./_core/notification";
@@ -464,6 +469,99 @@ export const appRouter = router({
     data: publicProcedure.query(async () => {
       return getGraphData();
     }),
+
+    entities: publicProcedure.query(async () => {
+      const [entities, relations] = await Promise.all([
+        getAllGraphEntities(500),
+        getAllGraphRelations(2000),
+      ]);
+      // Attach relation counts to each entity
+      const relCount = new Map<number, number>();
+      for (const r of relations) {
+        relCount.set(r.sourceEntityId, (relCount.get(r.sourceEntityId) ?? 0) + 1);
+        relCount.set(r.targetEntityId, (relCount.get(r.targetEntityId) ?? 0) + 1);
+      }
+      return entities.map((e) => ({ ...e, relationCount: relCount.get(e.id) ?? 0 }));
+    }),
+
+    relations: publicProcedure.query(async () => {
+      return getAllGraphRelations(2000);
+    }),
+
+    contradictions: publicProcedure.query(async () => {
+      return getContradictionRelations(100);
+    }),
+
+    query: publicProcedure
+      .input(z.object({ question: z.string().min(3).max(500) }))
+      .mutation(async ({ input }) => {
+        // Step 1: Fetch graph context
+        const [entities, relations, contradictions] = await Promise.all([
+          getAllGraphEntities(200),
+          getAllGraphRelations(500),
+          getContradictionRelations(50),
+        ]);
+
+        const entityIndex = entities
+          .map((e) => `[${e.id}] ${e.entityType}: ${e.canonicalName}`)
+          .join("\n");
+
+        const relationIndex = relations
+          .slice(0, 200)
+          .map((r) => {
+            const src = entities.find((e) => e.id === r.sourceEntityId);
+            const tgt = entities.find((e) => e.id === r.targetEntityId);
+            return `${src?.canonicalName ?? r.sourceEntityId} --[${r.relationType}]--> ${tgt?.canonicalName ?? r.targetEntityId}`;
+          })
+          .join("\n");
+
+        const contradictionIndex = contradictions
+          .slice(0, 20)
+          .map((r) => {
+            const src = entities.find((e) => e.id === r.sourceEntityId);
+            return `CONTRADICTION: ${src?.canonicalName ?? r.sourceEntityId} (confidence: ${r.confidenceScore ?? "?"})` ;
+          })
+          .join("\n");
+
+        const systemPrompt = `You are the Truth Desk knowledge graph assistant. You answer questions about scientific claims, proteins, PDB structures, and experimental methods using the graph context below.
+
+Graph entities (${entities.length} total):
+${entityIndex.slice(0, 3000)}
+
+Graph relations (${relations.length} total):
+${relationIndex.slice(0, 2000)}
+
+${contradictionIndex ? `Known contradictions:\n${contradictionIndex}` : ""}
+
+Answer the user's question concisely. Cite entity IDs like [42] when referencing specific entities. If you find contradictions relevant to the question, highlight them.`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: input.question },
+          ],
+        });
+
+        const answer = response?.choices?.[0]?.message?.content ?? "No answer available.";
+        return {
+          answer: typeof answer === "string" ? answer : JSON.stringify(answer),
+          entityCount: entities.length,
+          relationCount: relations.length,
+          contradictionCount: contradictions.length,
+        };
+      }),
+  }),
+
+  // ─── Wiki ──────────────────────────────────────────────────────────────────
+  wiki: router({
+    getPage: publicProcedure
+      .input(z.object({ entityType: z.string(), canonicalName: z.string() }))
+      .query(async ({ input }) => {
+        const { wikiKey } = await import("./wikiCompiler");
+        const s3Key = wikiKey(input.entityType, input.canonicalName);
+        const content = await fetchWikiPage(s3Key).catch(() => "");
+        return { content, s3Key };
+      }),
   }),
   // ─── Verticals ────────────────────────────────────────────────────────────
   verticals: router({

@@ -20,6 +20,7 @@ import { verdictForClaim } from "./pdbAdapter";
 import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./reportGenerator";
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
+import { compileDocumentToWiki } from "./wikiCompiler";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -114,6 +115,10 @@ export async function runAnalysisPipeline(
     }).catch(() => {
       /* non-fatal */
     });
+    // Compile wiki pages and update knowledge graph (non-fatal)
+    compileDocumentToWiki(documentId).catch((err) =>
+      console.error("[Pipeline] Wiki compilation error:", err)
+    );
   } catch (err) {
     console.error("[Pipeline] Error:", err);
     await updateDocumentStatus(documentId, "failed", {

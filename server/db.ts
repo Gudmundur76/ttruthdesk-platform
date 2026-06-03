@@ -20,6 +20,12 @@ import {
   emailUsers,
   InsertMagicLinkToken,
   InsertEmailUser,
+  graphEntities,
+  graphRelations,
+  InsertGraphEntity,
+  InsertGraphRelation,
+  GraphEntity,
+  GraphRelation,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -616,4 +622,159 @@ export async function getVerticalStats() {
   }
 
   return Array.from(stats.values());
+}
+
+// ─── Graph Entities ───────────────────────────────────────────────────────────
+
+export async function upsertGraphEntity(
+  data: InsertGraphEntity
+): Promise<GraphEntity> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db
+    .insert(graphEntities)
+    .values(data)
+    .onDuplicateKeyUpdate({
+      set: {
+        wikiPagePath: data.wikiPagePath ?? null,
+        metadata: data.metadata ?? null,
+        updatedAt: new Date(),
+      },
+    });
+  const [row] = await db
+    .select()
+    .from(graphEntities)
+    .where(
+      and(
+        eq(graphEntities.entityType, data.entityType),
+        eq(graphEntities.canonicalName, data.canonicalName)
+      )
+    )
+    .limit(1);
+  return row;
+}
+
+export async function getGraphEntityByTypeAndName(
+  entityType: GraphEntity["entityType"],
+  canonicalName: string
+): Promise<GraphEntity | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(graphEntities)
+    .where(
+      and(
+        eq(graphEntities.entityType, entityType),
+        eq(graphEntities.canonicalName, canonicalName)
+      )
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getAllGraphEntities(limit = 500): Promise<GraphEntity[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(graphEntities)
+    .orderBy(desc(graphEntities.createdAt))
+    .limit(limit);
+}
+
+export async function getGraphEntitiesByType(
+  entityType: GraphEntity["entityType"],
+  limit = 200
+): Promise<GraphEntity[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(graphEntities)
+    .where(eq(graphEntities.entityType, entityType))
+    .orderBy(graphEntities.canonicalName)
+    .limit(limit);
+}
+
+// ─── Graph Relations ──────────────────────────────────────────────────────────
+
+export async function upsertGraphRelation(
+  data: InsertGraphRelation
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(graphRelations)
+    .values(data)
+    .onDuplicateKeyUpdate({
+      set: {
+        confidenceScore: data.confidenceScore ?? null,
+        evidenceDocumentId: data.evidenceDocumentId ?? null,
+      },
+    });
+}
+
+export async function getRelationsBySourceEntity(
+  sourceEntityId: number
+): Promise<GraphRelation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(graphRelations)
+    .where(eq(graphRelations.sourceEntityId, sourceEntityId))
+    .orderBy(desc(graphRelations.createdAt));
+}
+
+export async function getRelationsByTargetEntity(
+  targetEntityId: number
+): Promise<GraphRelation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(graphRelations)
+    .where(eq(graphRelations.targetEntityId, targetEntityId))
+    .orderBy(desc(graphRelations.createdAt));
+}
+
+export async function getAllGraphRelations(limit = 2000): Promise<GraphRelation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(graphRelations)
+    .orderBy(desc(graphRelations.createdAt))
+    .limit(limit);
+}
+
+export async function getContradictionRelations(limit = 100): Promise<GraphRelation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(graphRelations)
+    .where(eq(graphRelations.relationType, "contradicts"))
+    .orderBy(desc(graphRelations.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Find entities that have more than one claim of a given type — these are
+ * candidates for the lint cycle to check for contradictions.
+ */
+export async function getEntitiesWithMultipleClaims(
+  entityType: GraphEntity["entityType"] = "pdb_id",
+  limit = 50
+): Promise<GraphEntity[]> {
+  const db = await getDb();
+  if (!db) return [];
+  // Return all entities of this type; the caller filters by claim count
+  return db
+    .select()
+    .from(graphEntities)
+    .where(eq(graphEntities.entityType, entityType))
+    .orderBy(graphEntities.canonicalName)
+    .limit(limit);
 }

@@ -3,6 +3,7 @@ import ForceGraph2D from "react-force-graph-2d";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { GraphQueryBox } from "@/components/GraphQueryBox";
 
 // ─── Colour maps ─────────────────────────────────────────────────────────────
 
@@ -63,10 +64,25 @@ const EMBED_SNIPPET = (origin: string) =>
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const ENTITY_TYPE_COLOR: Record<string, string> = {
+  protein: "#a78bfa",
+  pdb_id: "#38bdf8",
+  method: "#fb923c",
+  organism: "#4ade80",
+  ligand: "#f472b6",
+  author: "#facc15",
+  concept: "#94a3b8",
+  document: "#3b82f6",
+};
+
 export default function Graph() {
   const { data, isLoading, isError } = trpc.graph.data.useQuery();
+  const { data: entityData } = trpc.graph.entities.useQuery();
+  const { data: relationData } = trpc.graph.relations.useQuery();
+  const { data: contradictionData } = trpc.graph.contradictions.useQuery();
   const fgRef = useRef<{ centerAt: (x: number, y: number, ms: number) => void; zoom: (k: number, ms: number) => void } | null>(null);
   const isEmbed = useEmbedMode();
+  const [, navigate] = useLocation();
 
   // ── Filter state ────────────────────────────────────────────────────────────
   const [search, setSearch] = useState("");
@@ -74,6 +90,7 @@ export default function Graph() {
   const [verdictFilter, setVerdictFilter] = useState<string>("all");
   const [sidebarOpen, setSidebarOpen] = useState(!isEmbed);
   const [embedCopied, setEmbedCopied] = useState(false);
+  const [showQueryBox, setShowQueryBox] = useState(false);
 
   // ── Build graph data ────────────────────────────────────────────────────────
   const { nodes, links } = useMemo(() => {
@@ -120,8 +137,50 @@ export default function Graph() {
       }
     }
 
+    // Overlay knowledge graph entities (from graph_entities table)
+    if (entityData) {
+      const contradictIds = new Set<number>();
+      if (contradictionData) {
+        for (const c of contradictionData) {
+          contradictIds.add(c.sourceEntityId);
+          contradictIds.add(c.targetEntityId);
+        }
+      }
+      for (const entity of entityData) {
+        if (entity.entityType === "document") continue; // already added above
+        const nid = `entity-${entity.id}`;
+        if (!nodeMap.has(nid)) {
+          nodeMap.set(nid, {
+            id: nid,
+            label: entity.canonicalName.length > 30 ? entity.canonicalName.slice(0, 30) + "…" : entity.canonicalName,
+            type: "pdb" as const,
+            color: contradictIds.has(entity.id)
+              ? "#ef4444"
+              : (ENTITY_TYPE_COLOR[entity.entityType] ?? "#94a3b8"),
+            size: contradictIds.has(entity.id) ? 7 : 4,
+            meta: { entityId: entity.id, entityType: entity.entityType, canonicalName: entity.canonicalName },
+          });
+        }
+      }
+      // Add typed relation links
+      if (relationData) {
+        for (const rel of relationData) {
+          const srcNid = `entity-${rel.sourceEntityId}`;
+          const tgtNid = `entity-${rel.targetEntityId}`;
+          if (nodeMap.has(srcNid) && nodeMap.has(tgtNid) && srcNid !== tgtNid) {
+            const isContradiction = rel.relationType === "contradicts";
+            linkList.push({
+              source: srcNid,
+              target: tgtNid,
+              color: isContradiction ? "#ef444488" : "#38bdf844",
+            });
+          }
+        }
+      }
+    }
+
     return { nodes: Array.from(nodeMap.values()), links: linkList };
-  }, [data]);
+  }, [data, entityData, relationData, contradictionData]);
 
   // ── Apply filters ───────────────────────────────────────────────────────────
   const { filteredNodes, filteredLinks } = useMemo(() => {
@@ -156,11 +215,15 @@ export default function Graph() {
 
   const handleNodeClick = useCallback((node: GNode) => {
     if (node.type === "document" && node.meta?.id) {
-      window.open(`/reports/${node.meta.id}`, "_blank");
+      navigate(`/reports/${node.meta.id}`);
+    } else if (node.meta?.entityId && node.meta?.entityType && node.meta?.canonicalName) {
+      // Knowledge graph entity node → wiki page
+      const slug = encodeURIComponent(String(node.meta.canonicalName).replace(/ /g, "_"));
+      navigate(`/wiki/${node.meta.entityType}/${slug}`);
     } else if (node.type === "pdb" && node.meta?.pdbId) {
       window.open(`https://www.rcsb.org/structure/${node.meta.pdbId}`, "_blank");
     }
-  }, []);
+  }, [navigate]);
 
   const handleZoomToFit = useCallback(() => {
     if (fgRef.current) {
@@ -300,6 +363,23 @@ export default function Graph() {
               </button>
             )}
 
+            {/* Entity type legend */}
+            <div className="pt-2 border-t border-white/10">
+              <label className="text-slate-400 text-[10px] uppercase tracking-wider block mb-1.5">Entity types</label>
+              <div className="space-y-1">
+                {Object.entries(ENTITY_TYPE_COLOR).map(([type, color]) => (
+                  <div key={type} className="flex items-center gap-2 text-[10px] text-slate-400">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                    {type.replace(/_/g, " ")}
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 text-[10px] text-red-400">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-500" />
+                  contradiction
+                </div>
+              </div>
+            </div>
+
             {/* Embed snippet */}
             <div className="pt-2 border-t border-white/10">
               <label className="text-slate-400 text-[10px] uppercase tracking-wider block mb-1.5">Embed this graph</label>
@@ -335,11 +415,33 @@ export default function Graph() {
       {!isEmbed && (
         <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
           <button
+            onClick={() => setShowQueryBox((v) => !v)}
+            className={cn(
+              "text-xs transition-colors px-3 py-1.5 rounded-md backdrop-blur-sm",
+              showQueryBox
+                ? "bg-blue-600/30 text-blue-300 border border-blue-500/40"
+                : "text-slate-300 bg-white/10 hover:bg-white/20"
+            )}
+          >
+            Ask Graph
+          </button>
+          <button
             onClick={handleZoomToFit}
             className="text-xs text-slate-300 bg-white/10 hover:bg-white/20 transition-colors px-3 py-1.5 rounded-md backdrop-blur-sm"
           >
             Reset view
           </button>
+        </div>
+      )}
+
+      {/* ── Graph query overlay ─────────────────────────────────────────────── */}
+      {!isEmbed && showQueryBox && (
+        <div className="absolute top-14 right-4 z-30 w-[420px] max-w-[calc(100vw-2rem)]">
+          <GraphQueryBox
+            entityCount={entityData?.length ?? 0}
+            relationCount={0}
+            contradictionCount={contradictionData?.length ?? 0}
+          />
         </div>
       )}
 

@@ -243,3 +243,23 @@
 - [x] Build Telegram bot (grammy): /start, /audit <PMID>, /monitor <PMID>, /status commands; daily digest via postDailyDigest(channelId); TELEGRAM_BOT_TOKEN + TELEGRAM_CHANNEL_ID in ENV
 - [x] Register Telegram bot startup in index.ts (no-op if TELEGRAM_BOT_TOKEN not set)
 - [x] Run tests, push to GitHub, save checkpoint
+
+## Phase 28: Karpathy-Style LLM Knowledge Graph
+
+- [x] Add graphEntities and graphRelations tables to drizzle/schema.ts with indexes and unique constraints
+- [x] Generate and apply DB migration 0008 for new tables
+- [x] Add DB helpers: upsertGraphEntity, getGraphEntityByTypeAndName, upsertGraphRelation, getRelationsBySourceEntity, getAllGraphEntities, getAllGraphRelations, getContradictionRelations, getEntitiesWithMultipleClaims
+- [x] Build server/wikiCompiler.ts — post-pipeline step: extract entities from claims, fetch/create S3 wiki pages, LLM-compile new claims into wiki, update graph edges
+- [x] Hook wikiCompiler into runAnalysisPipeline as final step (non-fatal, fire-and-forget)
+- [x] Build server/wikiLinter.ts — scheduled cron: LLM lint wiki pages for contradictions, write contradicts edges to graphRelations
+- [x] Register POST /api/scheduled/wiki-lint heartbeat endpoint in index.ts
+- [x] Add trpc.graph.query procedure (publicProcedure) — NL question → entity/relation context → LLM synthesized answer
+- [x] Add trpc.wiki.getPage procedure — fetch wiki markdown from S3 by entityType + canonicalName
+- [x] Add trpc.graph.entities procedure — list all graph entities with relation counts
+- [x] Add trpc.graph.relations and trpc.graph.contradictions procedures
+- [x] Build client/src/pages/WikiPage.tsx — render wiki markdown via Streamdown, show related entities, contradiction alerts
+- [x] Build client/src/components/GraphQueryBox.tsx — NL query input, answer with traversal citations
+- [x] Update /graph page — add entity nodes from graphEntities, typed edges from graphRelations, contradiction edges highlighted in red, Ask Graph overlay button
+- [x] Register /wiki/:entityType/:entitySlug route in App.tsx
+- [x] Write Vitest tests: 16 wikiCompiler tests + 5 wikiLinter tests = 137 total passing
+- [x] Save checkpoint and push to GitHub

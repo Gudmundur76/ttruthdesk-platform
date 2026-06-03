@@ -57,6 +57,13 @@
       "when": 1780497784750,
       "tag": "0007_salty_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1780499622693,
+      "tag": "0008_third_captain_britain",
+      "breakpoints": true
     }
   ]
 }
