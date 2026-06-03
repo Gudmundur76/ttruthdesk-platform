@@ -1,5 +1,5 @@
 import { useParams, useLocation } from "wouter";
-import { TopNav } from "@/components/TopNav";
+import DashboardLayout from "@/components/DashboardLayout";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -26,28 +26,14 @@ function ClaimsJsonBadge({ documentId }: { documentId: number }) {
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-600 shrink-0">
         <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
       </svg>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs font-mono text-emerald-700 hover:underline"
-      >
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-emerald-700 hover:underline">
         claims.json
       </a>
-      <button
-        onClick={handleCopy}
-        title="Copy URL"
-        className="ml-0.5 text-emerald-500 hover:text-emerald-700 transition-colors"
-      >
+      <button onClick={handleCopy} title="Copy URL" className="ml-0.5 text-emerald-500 hover:text-emerald-700 transition-colors">
         {copied ? (
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         ) : (
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         )}
       </button>
     </div>
@@ -116,19 +102,14 @@ function VerdictBar({ claims }: { claims: ClaimRow[] }) {
         if (!count) return null;
         const pct = (count / total) * 100;
         return (
-          <div
-            key={v}
-            className={`${VERDICT_COLORS[v]} transition-all`}
-            style={{ width: `${pct}%` }}
-            title={`${v}: ${count}`}
-          />
+          <div key={v} className={`${VERDICT_COLORS[v]} transition-all`} style={{ width: `${pct}%` }} title={`${v}: ${count}`} />
         );
       })}
     </div>
   );
 }
 
-export default function AuditReport() {
+function AuditReportContent() {
   const params = useParams<{ id: string }>();
   const docId = parseInt(params.id ?? "0");
   const { isAuthenticated } = useAuth();
@@ -139,12 +120,10 @@ export default function AuditReport() {
 
   const { data: doc, isLoading: docLoading } = trpc.documents.get.useQuery(
     { id: docId },
-    { enabled: isAuthenticated && !!docId }
+    { enabled: isAuthenticated && !!docId, refetchInterval: 5000 }
   );
-  const { data: rawClaims, isLoading: claimsLoading, refetch: refetchClaims } = trpc.claims.byDocument.useQuery(
-    { documentId: docId },
-    { enabled: isAuthenticated && !!docId }
-  );
+  const { data: rawClaims, isLoading: claimsLoading, refetch: refetchClaims } =
+    trpc.claims.byDocument.useQuery({ documentId: docId }, { enabled: isAuthenticated && !!docId });
   const { data: auditReport } = trpc.reports.byDocument.useQuery(
     { documentId: docId },
     { enabled: isAuthenticated && !!docId }
@@ -172,26 +151,20 @@ export default function AuditReport() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <TopNav />
-        <div className="container py-10 max-w-4xl space-y-4">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-48" />
-          <Skeleton className="h-48 w-full rounded-xl" />
-          <Skeleton className="h-64 w-full rounded-xl" />
-        </div>
+      <div className="max-w-4xl mx-auto space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
 
   if (!doc) {
     return (
-      <div className="min-h-screen bg-background">
-        <TopNav />
-        <div className="container py-24 text-center">
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Document not found</h2>
-          <Button onClick={() => navigate("/dashboard")} variant="outline">← Back to Dashboard</Button>
-        </div>
+      <div className="max-w-4xl mx-auto py-24 text-center">
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Document not found</h2>
+        <Button onClick={() => navigate("/dashboard")} variant="outline">← Back to Dashboard</Button>
       </div>
     );
   }
@@ -200,321 +173,295 @@ export default function AuditReport() {
   const isComplete = doc.status === "complete";
 
   return (
-    <div className="min-h-screen bg-background">
-      <TopNav />
-      <div className="container py-10 max-w-4xl">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-          <button onClick={() => navigate("/dashboard")} className="hover:text-slate-900 transition-colors">
-            Dashboard
-          </button>
-          <span>/</span>
-          <span className="text-slate-900 font-medium truncate max-w-xs">{doc.title}</span>
+    <div className="max-w-4xl mx-auto">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+        <button onClick={() => navigate("/dashboard")} className="hover:text-slate-900 transition-colors">
+          My Audits
+        </button>
+        <span>/</span>
+        <span className="text-slate-900 font-medium truncate max-w-xs">{doc.title}</span>
+      </div>
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">{doc.title}</h1>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            <span>Submitted {new Date(doc.createdAt).toLocaleDateString()}</span>
+            {doc.claimCount > 0 && <span>· {doc.claimCount} claims extracted</span>}
+          </div>
         </div>
-
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-1">{doc.title}</h1>
-            <div className="flex items-center gap-3 text-sm text-slate-500">
-              <span>Submitted {new Date(doc.createdAt).toLocaleDateString()}</span>
-              {doc.claimCount > 0 && <span>· {doc.claimCount} claims extracted</span>}
-            </div>
-          </div>
-          {isComplete && (
-            <div className="flex items-center gap-2">
-              <a
-                href={`/api/reports/${docId}/pdf`}
-                download={`audit-report-${docId}.pdf`}
-                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Export PDF
-              </a>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => regenerateMutation.mutate({ documentId: docId })}
-                disabled={regenerateMutation.isPending}
-              >
-                Regenerate Report
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Processing state */}
-        {isProcessing && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6 text-center">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <svg className="animate-spin h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>
-              <span className="font-semibold text-blue-700">
-                {doc.status === "extracting" && "Extracting molecular claims…"}
-                {doc.status === "validating" && "Validating claims against PDB…"}
-                {doc.status === "generating_report" && "Generating audit report…"}
-              </span>
-            </div>
-            <p className="text-sm text-blue-600">This usually takes 30–90 seconds. Refresh to check progress.</p>
-          </div>
-        )}
-
-        {/* Failed state */}
-        {doc.status === "failed" && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6">
-            <p className="font-semibold text-red-700 mb-1">Analysis failed</p>
-            <p className="text-sm text-red-600">{doc.errorMessage ?? "An unexpected error occurred."}</p>
-          </div>
-        )}
-
-        {/* Verdict summary */}
-        {claims && claims.length > 0 && (
-          <div className="bg-white rounded-xl border border-border p-5 mb-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-slate-900">Verdict Summary</h2>
-              <span className="text-sm text-slate-500">{claims.length} claims</span>
-            </div>
-            <VerdictBar claims={claims} />
-            <div className="flex flex-wrap gap-2 mt-4">
-              {VERDICT_ORDER.map((v) => {
-                const count = claims.filter((c) => getFinalVerdict(c) === v).length;
-                if (!count) return null;
-                return (
-                  <div key={v} className="flex items-center gap-1.5">
-                    <VerdictBadge verdict={v} size="sm" />
-                    <span className="text-xs font-mono text-slate-500">{count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Report file links + claims.json badge */}
         {isComplete && (
-          <div className="bg-slate-50 rounded-xl border border-border p-4 mb-6 flex flex-wrap gap-3 items-center">
-            <p className="text-sm font-medium text-slate-700 w-full mb-1">Machine-readable output</p>
-            <ClaimsJsonBadge documentId={docId} />
+          <div className="flex items-center gap-2">
             <a
-              href={`/reports/${docId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 transition-colors"
+              href={`/api/reports/${docId}/pdf`}
+              download={`audit-report-${docId}.pdf`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                <polyline points="15 3 21 3 21 9"/>
-                <line x1="10" y1="14" x2="21" y2="3"/>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              View Public Report
+              Export PDF
             </a>
-          </div>
-        )}
-        {auditReport && (auditReport.htmlStorageUrl || auditReport.pdfStorageUrl) && (
-          <div className="bg-slate-50 rounded-xl border border-border p-4 mb-6 flex flex-wrap gap-3 items-center">
-            <p className="text-sm font-medium text-slate-700 w-full mb-1">Stored report files</p>
-            {auditReport.htmlStorageUrl && (
-              <a
-                href={auditReport.htmlStorageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:underline"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                  <polyline points="15 3 21 3 21 9"/>
-                  <line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
-                HTML Report
-              </a>
-            )}
-            {auditReport.pdfStorageUrl && (
-              <a
-                href={auditReport.pdfStorageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:underline"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                  <polyline points="15 3 21 3 21 9"/>
-                  <line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
-                PDF Report
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* Claims table */}
-        {claims && claims.length > 0 && (
-          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <h2 className="font-semibold text-slate-900">Extracted Claims &amp; Evidence</h2>
-            </div>
-            <div className="divide-y divide-border">
-              {claims.map((claim) => {
-                const finalVerdict = getFinalVerdict(claim);
-                const isOverridden = !!claim.overriddenVerdict;
-                return (
-                  <div key={claim.id} className="p-5">
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <VerdictBadge verdict={finalVerdict} />
-                          {isOverridden && (
-                            <span className="text-xs text-slate-400 italic">reviewer override</span>
-                          )}
-                          <span className="text-xs text-slate-400 font-mono uppercase">{claim.claimType}</span>
-                          {claim.confidenceScore != null && (
-                            <span
-                              className="inline-flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 rounded"
-                              style={{
-                                background: claim.confidenceScore >= 0.75 ? "#dcfce7" : claim.confidenceScore >= 0.5 ? "#fef9c3" : "#fee2e2",
-                                color: claim.confidenceScore >= 0.75 ? "#166534" : claim.confidenceScore >= 0.5 ? "#854d0e" : "#991b1b",
-                              }}
-                              title="Confidence score (0–1)"
-                            >
-                              {(claim.confidenceScore * 100).toFixed(0)}% conf
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-slate-700 leading-relaxed">{claim.claimText}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="shrink-0 text-xs"
-                        onClick={() => {
-                          setReviewingId(reviewingId === claim.id ? null : claim.id);
-                          setOverrideVerdict(finalVerdict);
-                          setOverrideNote("");
-                        }}
-                      >
-                        Review
-                      </Button>
-                    </div>
-
-                    {/* Rationale */}
-                    {claim.verdictRationale && (
-                      <div className="bg-slate-50 rounded-lg p-3 mb-3">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Rationale</p>
-                        <p className="text-xs text-slate-600 leading-relaxed">{claim.verdictRationale}</p>
-                      </div>
-                    )}
-
-                    {/* PDB link */}
-                    {claim.pdbId && (
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        <a
-                          href={`https://www.rcsb.org/structure/${claim.pdbId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-mono text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors"
-                        >
-                          PDB: {claim.pdbId} ↗
-                        </a>
-                        {claim.pdbEvidenceUrl && (
-                          <a
-                            href={claim.pdbEvidenceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 hover:underline"
-                          >
-                            Evidence source ↗
-                          </a>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Protein / method details */}
-                    {(claim.proteinName || claim.experimentalMethod || claim.resolution) && (
-                      <div className="flex flex-wrap gap-3 mb-3 text-xs text-slate-500">
-                        {claim.proteinName && (
-                          <span>Protein: <span className="font-medium text-slate-700">{claim.proteinName}</span></span>
-                        )}
-                        {claim.experimentalMethod && (
-                          <span>Method: <span className="font-medium text-slate-700">{claim.experimentalMethod}</span></span>
-                        )}
-                        {claim.resolution && (
-                          <span>Resolution: <span className="font-medium text-slate-700">{claim.resolution} Å</span></span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Override panel */}
-                    {reviewingId === claim.id && (
-                      <div className="mt-4 border border-blue-200 rounded-lg p-4 bg-blue-50">
-                        <p className="text-xs font-semibold text-blue-700 mb-3">Override Verdict</p>
-                        <div className="grid grid-cols-2 gap-2 mb-3">
-                          {VERDICT_ORDER.map((v) => (
-                            <button
-                              key={v}
-                              onClick={() => setOverrideVerdict(v)}
-                              className={`text-left px-2 py-1.5 rounded text-xs font-medium transition-colors ${
-                                overrideVerdict === v
-                                  ? "bg-blue-700 text-white"
-                                  : "bg-white text-slate-700 hover:bg-blue-100"
-                              }`}
-                            >
-                              {v}
-                            </button>
-                          ))}
-                        </div>
-                        <textarea
-                          className="w-full text-xs border border-blue-200 rounded p-2 mb-3 bg-white resize-none"
-                          rows={2}
-                          placeholder="Reviewer note (optional)"
-                          value={overrideNote}
-                          onChange={(e) => setOverrideNote(e.target.value)}
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            className="bg-blue-700 hover:bg-blue-800 text-xs"
-                            disabled={overrideMutation.isPending}
-                            onClick={() =>
-                              overrideMutation.mutate({
-                                claimId: claim.id,
-                                documentId: docId,
-                                overriddenVerdict: overrideVerdict,
-                                reviewNotes: overrideNote,
-                              })
-                            }
-                          >
-                            Save Override
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs"
-                            onClick={() => setReviewingId(null)}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* No claims yet */}
-        {!isProcessing && claims && claims.length === 0 && (
-          <div className="bg-white rounded-xl border border-border p-12 text-center shadow-sm">
-            <p className="text-slate-500 text-sm">No claims extracted yet.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => regenerateMutation.mutate({ documentId: docId })}
+              disabled={regenerateMutation.isPending}
+            >
+              Regenerate Report
+            </Button>
           </div>
         )}
       </div>
+
+      {/* Processing state */}
+      {isProcessing && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6 text-center">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <svg className="animate-spin h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            <span className="font-semibold text-blue-700">
+              {doc.status === "extracting" && "Extracting molecular claims…"}
+              {doc.status === "validating" && "Validating claims against PDB…"}
+              {doc.status === "generating_report" && "Generating audit report…"}
+            </span>
+          </div>
+          <p className="text-sm text-blue-600">This usually takes 30–90 seconds. Page auto-refreshes.</p>
+        </div>
+      )}
+
+      {/* Failed state */}
+      {doc.status === "failed" && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6">
+          <p className="font-semibold text-red-700 mb-1">Analysis failed</p>
+          <p className="text-sm text-red-600">{doc.errorMessage ?? "An unexpected error occurred."}</p>
+        </div>
+      )}
+
+      {/* Verdict summary */}
+      {claims && claims.length > 0 && (
+        <div className="bg-white rounded-xl border border-border p-5 mb-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-slate-900">Verdict Summary</h2>
+            <span className="text-sm text-slate-500">{claims.length} claims</span>
+          </div>
+          <VerdictBar claims={claims} />
+          <div className="flex flex-wrap gap-2 mt-4">
+            {VERDICT_ORDER.map((v) => {
+              const count = claims.filter((c) => getFinalVerdict(c) === v).length;
+              if (!count) return null;
+              return (
+                <div key={v} className="flex items-center gap-1.5">
+                  <VerdictBadge verdict={v} size="sm" />
+                  <span className="text-xs font-mono text-slate-500">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Machine-readable output */}
+      {isComplete && (
+        <div className="bg-slate-50 rounded-xl border border-border p-4 mb-6 flex flex-wrap gap-3 items-center">
+          <p className="text-sm font-medium text-slate-700 w-full mb-1">Machine-readable output</p>
+          <ClaimsJsonBadge documentId={docId} />
+          <a
+            href={`/reports/${docId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            View Public Report
+          </a>
+        </div>
+      )}
+
+      {/* Stored report files */}
+      {auditReport && (auditReport.htmlStorageUrl || auditReport.pdfStorageUrl) && (
+        <div className="bg-slate-50 rounded-xl border border-border p-4 mb-6 flex flex-wrap gap-3 items-center">
+          <p className="text-sm font-medium text-slate-700 w-full mb-1">Stored report files</p>
+          {auditReport.htmlStorageUrl && (
+            <a href={auditReport.htmlStorageUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:underline">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              HTML Report
+            </a>
+          )}
+          {auditReport.pdfStorageUrl && (
+            <a href={auditReport.pdfStorageUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:underline">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              PDF Report
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Claims table */}
+      {claims && claims.length > 0 && (
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="font-semibold text-slate-900">Extracted Claims &amp; Evidence</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {claims.map((claim) => {
+              const finalVerdict = getFinalVerdict(claim);
+              const isOverridden = !!claim.overriddenVerdict;
+              return (
+                <div key={claim.id} className="p-5">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <VerdictBadge verdict={finalVerdict} />
+                        {isOverridden && <span className="text-xs text-slate-400 italic">reviewer override</span>}
+                        <span className="text-xs text-slate-400 font-mono uppercase">{claim.claimType}</span>
+                        {claim.confidenceScore != null && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 rounded"
+                            style={{
+                              background: claim.confidenceScore >= 0.75 ? "#dcfce7" : claim.confidenceScore >= 0.5 ? "#fef9c3" : "#fee2e2",
+                              color: claim.confidenceScore >= 0.75 ? "#166534" : claim.confidenceScore >= 0.5 ? "#854d0e" : "#991b1b",
+                            }}
+                            title="Confidence score (0–1)"
+                          >
+                            {(claim.confidenceScore * 100).toFixed(0)}% conf
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-700 leading-relaxed">{claim.claimText}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 text-xs"
+                      onClick={() => {
+                        setReviewingId(reviewingId === claim.id ? null : claim.id);
+                        setOverrideVerdict(finalVerdict);
+                        setOverrideNote("");
+                      }}
+                    >
+                      Review
+                    </Button>
+                  </div>
+
+                  {/* Rationale */}
+                  {claim.verdictRationale && (
+                    <div className="bg-slate-50 rounded-lg p-3 mb-3">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Rationale</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">{claim.verdictRationale}</p>
+                    </div>
+                  )}
+
+                  {/* PDB link */}
+                  {claim.pdbId && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <a
+                        href={`https://www.rcsb.org/structure/${claim.pdbId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-mono text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors"
+                      >
+                        PDB: {claim.pdbId} ↗
+                      </a>
+                      {claim.pdbEvidenceUrl && (
+                        <a
+                          href={claim.pdbEvidenceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 hover:underline"
+                        >
+                          Evidence source ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Protein / method details */}
+                  {(claim.proteinName || claim.experimentalMethod || claim.resolution) && (
+                    <div className="flex flex-wrap gap-3 mb-3 text-xs text-slate-500">
+                      {claim.proteinName && <span>Protein: <span className="font-medium text-slate-700">{claim.proteinName}</span></span>}
+                      {claim.experimentalMethod && <span>Method: <span className="font-medium text-slate-700">{claim.experimentalMethod}</span></span>}
+                      {claim.resolution && <span>Resolution: <span className="font-medium text-slate-700">{claim.resolution} Å</span></span>}
+                    </div>
+                  )}
+
+                  {/* Override panel */}
+                  {reviewingId === claim.id && (
+                    <div className="mt-4 border border-blue-200 rounded-lg p-4 bg-blue-50">
+                      <p className="text-xs font-semibold text-blue-700 mb-3">Override Verdict</p>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        {VERDICT_ORDER.map((v) => (
+                          <button
+                            key={v}
+                            onClick={() => setOverrideVerdict(v)}
+                            className={`text-left px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                              overrideVerdict === v ? "bg-blue-700 text-white" : "bg-white text-slate-700 hover:bg-blue-100"
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        className="w-full text-xs border border-blue-200 rounded p-2 mb-3 bg-white resize-none"
+                        rows={2}
+                        placeholder="Reviewer note (optional)"
+                        value={overrideNote}
+                        onChange={(e) => setOverrideNote(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-blue-700 hover:bg-blue-800 text-xs"
+                          disabled={overrideMutation.isPending}
+                          onClick={() =>
+                            overrideMutation.mutate({
+                              claimId: claim.id,
+                              documentId: docId,
+                              overriddenVerdict: overrideVerdict,
+                              reviewNotes: overrideNote,
+                            })
+                          }
+                        >
+                          Save Override
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => setReviewingId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* No claims yet */}
+      {!isProcessing && claims && claims.length === 0 && (
+        <div className="bg-white rounded-xl border border-border p-12 text-center shadow-sm">
+          <p className="text-slate-500 text-sm">No claims extracted yet.</p>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function AuditReport() {
+  return (
+    <DashboardLayout>
+      <AuditReportContent />
+    </DashboardLayout>
   );
 }

@@ -303,3 +303,13 @@
 - [x] Add trpc.admin.backfillStatus query (returns completedDocuments, wikiCompiled, wikiPending, percentComplete)
 - [x] Write 15 Vitest tests: batch logic, skip logic, retry logic, speed math, wikiCompiledAt field — 173 total passing
 - [x] Save checkpoint and push to GitHub
+
+## Phase 32: Customer Dashboard (Revenue Gate)
+
+- [x] Rewrite Dashboard.tsx: DashboardLayout sidebar, document list table (title, StatusBadge, claimCount, topVerdict, date, PDF download, View button), 4 stat cards, 5s polling, empty state CTA
+- [x] Rewrite AuditReport.tsx: DashboardLayout sidebar, breadcrumb (My Audits / title), 5s polling, all claim data, verdict override panel, PDF export, public report link, machine-readable output section
+- [x] Build Admin.tsx: DashboardLayout, backfill status cards (Total, Compiled, Pending, % Complete), progress bar, Run Backfill button, raw JSON toggle, wired to trpc.admin.backfillWiki + trpc.admin.backfillStatus
+- [x] Update DashboardLayout nav items: My Audits (/dashboard), New Audit (/submit), Monitoring (/monitoring), Registry (/registry)
+- [x] Register /admin route in App.tsx
+- [x] Write 15 Vitest tests: stats computation, verdict distribution, nav items, admin status shape — 188 total passing
+- [x] Save checkpoint and push to GitHub
