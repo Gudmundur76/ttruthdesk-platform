@@ -114,8 +114,8 @@
 - [x] Add filter/search sidebar to /graph: filter by vertical domain, verdict, date range; node search by label
 - [x] Add embed mode to /graph (?embed=1 hides nav/legend overlays, full-canvas for iframe embedding)
 - [x] Add embed snippet copy button on /graph page (shows iframe code for laxey.is integration)
-- [ ] Wire PayPal checkout on Pricing page — DEFERRED (PayPal connector OAuth needs to be authorized in Manus UI first)
-- [ ] Add PayPal order confirmation page/modal — DEFERRED
+- [ ] Wire PayPal checkout on Pricing page — DEFERRED (PayPal connector OAuth needs to be authorized in Manus UI first) [NOT BLOCKING]
+- [ ] Add PayPal order confirmation page/modal — DEFERRED [NOT BLOCKING]
 - [x] Save checkpoint
 
 ## Phase 13: Truth Desk Branding + Verticals Page
@@ -174,3 +174,13 @@
 - [x] Add Protocol Discovery: /.well-known/mcp.json (2 tools), Link header on all responses, content-signal meta tag, /api/md markdown negotiation endpoint
 - [x] Update /llms.txt: full Truth Desk branding, all endpoints, verticals, provenance, CC BY 4.0 licence
 - [x] Run tests (80 passing) and save checkpoint (f5d35886)
+
+## Phase 18: Production Semantic HTML Fix + MCP Improvements
+
+- [x] Bake semantic HTML (noscript block, 572 words) directly into client/index.html — production static file now contains all crawler signals
+- [x] Bake JSON-LD (WebSite + SoftwareApplication + FAQPage) into client/index.html <head>
+- [x] Add content-signal meta tag to client/index.html <head>
+- [x] Expand /.well-known/mcp.json: 4 tools (verify_claim, get_claims_registry, get_platform_summary, get_knowledge_graph_data), output_schema per tool, resources array, schema_version, mcp_endpoint, license, provider
+- [x] Add GET /mcp SSE endpoint (MCP streamable HTTP transport, protocol version 2024-11-05)
+- [x] Add POST /mcp JSON-RPC endpoint (initialize, tools/list, resources/list methods)
+- [x] 80 tests passing, TypeScript clean

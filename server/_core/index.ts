@@ -52,45 +52,153 @@ async function startServer() {
   });
 
   // ── Protocol discovery: MCP card ──────────────────────────────────────────
+  const SITE_ORIGIN = process.env.NODE_ENV === "production"
+    ? "https://protein-desk-5r5rzpyg.manus.space"
+    : "http://localhost:3000";
+
+  const MCP_TOOLS = [
+    {
+      name: "verify_claim",
+      description: "Verify a scientific claim against authoritative databases (PDB, PubChem, PubMed). Returns verdict (supported|refuted|inconclusive), confidence score 0-1, evidence source, and PDB/PubChem accession if applicable. Rate-limited to 30 req/min.",
+      endpoint: `${SITE_ORIGIN}/api/public/verify-claim`,
+      method: "POST",
+      input_schema: {
+        type: "object",
+        properties: {
+          claim: { type: "string", description: "The scientific claim text to verify, e.g. 'BRCA1 forms a heterodimer with BARD1 stabilised by a RING domain interface'" },
+          vertical: { type: "string", enum: ["structural_biology", "salmon_biotech"], description: "Optional: restrict verification to a specific research domain" }
+        },
+        required: ["claim"]
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          verdict: { type: "string", enum: ["supported", "refuted", "inconclusive"] },
+          confidenceScore: { type: "number", description: "0.0–1.0" },
+          evidenceSource: { type: "string", description: "Primary database used for verification" },
+          pdbId: { type: "string", description: "PDB accession if structural evidence found" },
+          pubchemCid: { type: "number", description: "PubChem CID if compound evidence found" },
+          summary: { type: "string", description: "Human-readable explanation of the verdict" }
+        }
+      }
+    },
+    {
+      name: "get_claims_registry",
+      description: "Retrieve the full machine-readable registry of all verified claims across all verticals. Returns JSON array of claim objects with verdict, confidence, evidence source, and report URL.",
+      endpoint: `${SITE_ORIGIN}/api/public/claims.json`,
+      method: "GET",
+      output_schema: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            claimText: { type: "string" },
+            verdict: { type: "string", enum: ["supported", "refuted", "inconclusive"] },
+            confidenceScore: { type: "number" },
+            verticalDomain: { type: "string" },
+            evidenceSource: { type: "string" },
+            reportUrl: { type: "string" }
+          }
+        }
+      }
+    },
+    {
+      name: "get_platform_summary",
+      description: "Retrieve a markdown summary of the Truth Desk platform including available verticals, endpoints, and capabilities. Useful for agent orientation before making API calls.",
+      endpoint: `${SITE_ORIGIN}/api/md`,
+      method: "GET",
+      output_schema: { type: "string", description: "Markdown text" }
+    },
+    {
+      name: "get_knowledge_graph_data",
+      description: "Retrieve the raw knowledge graph data as JSON, including all document nodes, claim nodes, and evidence edges. Useful for graph analysis and relationship discovery.",
+      endpoint: `${SITE_ORIGIN}/api/public/graph.json`,
+      method: "GET",
+      output_schema: {
+        type: "object",
+        properties: {
+          nodes: { type: "array", description: "Document and evidence nodes" },
+          links: { type: "array", description: "Edges between nodes" }
+        }
+      }
+    }
+  ];
+
   app.get("/.well-known/mcp.json", (_req, res) => {
-    const origin = process.env.VITE_FRONTEND_FORGE_API_URL
-      ? "https://protein-desk-5r5rzpyg.manus.space"
-      : "http://localhost:3000";
     res.set({
       "Content-Type": "application/json",
       "Cache-Control": "public, max-age=3600",
       "Access-Control-Allow-Origin": "*",
     }).json({
+      schema_version: "v1",
       name: "Truth Desk",
-      description: "Autonomous multi-vertical scientific claims verification platform. Verifies claims against PDB, PubChem, PMC Open Access, and domain-specific evidence sources.",
+      description: "Autonomous multi-vertical scientific claims verification platform. Verifies molecular, structural, and biological claims against authoritative databases: PDB, PubChem, PubMed, UniProt, PMC Open Access.",
       version: "1.0.0",
-      url: origin,
-      tools: [
-        {
-          name: "verify_claim",
-          description: "Verify a scientific claim against authoritative databases. Returns verdict, confidence score, and evidence references.",
-          endpoint: `${origin}/api/public/verify-claim`,
-          method: "POST",
-          input_schema: {
-            type: "object",
-            properties: {
-              claim: { type: "string", description: "The scientific claim text to verify" },
-              vertical: { type: "string", enum: ["structural_biology", "salmon_biotech"], description: "Optional: restrict verification to a specific domain" }
-            },
-            required: ["claim"]
-          }
-        },
-        {
-          name: "get_claims_registry",
-          description: "Retrieve the machine-readable registry of all verified claims across all verticals.",
-          endpoint: `${origin}/api/public/claims.json`,
-          method: "GET"
-        }
+      url: SITE_ORIGIN,
+      mcp_endpoint: `${SITE_ORIGIN}/mcp`,
+      tools: MCP_TOOLS,
+      resources: [
+        { uri: `${SITE_ORIGIN}/llms.txt`, description: "AI instructions and endpoint documentation" },
+        { uri: `${SITE_ORIGIN}/sitemap.xml`, description: "All public report URLs" },
+        { uri: `${SITE_ORIGIN}/api/public/claims.json`, description: "Machine-readable claims registry" }
       ],
-      contact: `${origin}/pricing`,
-      llms_txt: `${origin}/llms.txt`,
-      sitemap: `${origin}/sitemap.xml`
+      contact: `${SITE_ORIGIN}/pricing`,
+      license: "CC BY 4.0",
+      provider: { name: "Arctic Media LLC", url: SITE_ORIGIN }
     });
+  });
+
+  // ── MCP SSE endpoint (streamable HTTP transport) ──────────────────────────
+  app.get("/mcp", (_req, res) => {
+    res.set({
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+    // Send MCP initialize response
+    const initEvent = {
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        protocolVersion: "2024-11-05",
+        capabilities: { tools: {}, resources: {} },
+        serverInfo: { name: "Truth Desk", version: "1.0.0" }
+      }
+    };
+    res.write(`data: ${JSON.stringify(initEvent)}\n\n`);
+    // Send tools/list
+    const toolsEvent = {
+      jsonrpc: "2.0",
+      method: "notifications/tools/list_changed",
+      params: { tools: MCP_TOOLS }
+    };
+    res.write(`data: ${JSON.stringify(toolsEvent)}\n\n`);
+    // Keep connection alive with heartbeat
+    const heartbeat = setInterval(() => {
+      res.write(`: heartbeat\n\n`);
+    }, 15000);
+    res.on("close", () => clearInterval(heartbeat));
+  });
+
+  app.post("/mcp", express.json(), (req, res) => {
+    const { method, id, params } = req.body || {};
+    res.set({ "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    if (method === "initialize") {
+      return res.json({ jsonrpc: "2.0", id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {}, resources: {} }, serverInfo: { name: "Truth Desk", version: "1.0.0" } } });
+    }
+    if (method === "tools/list") {
+      return res.json({ jsonrpc: "2.0", id, result: { tools: MCP_TOOLS } });
+    }
+    if (method === "resources/list") {
+      return res.json({ jsonrpc: "2.0", id, result: { resources: [
+        { uri: `${SITE_ORIGIN}/llms.txt`, name: "AI Instructions", mimeType: "text/plain" },
+        { uri: `${SITE_ORIGIN}/api/public/claims.json`, name: "Claims Registry", mimeType: "application/json" },
+        { uri: `${SITE_ORIGIN}/api/md`, name: "Platform Summary", mimeType: "text/markdown" }
+      ] } });
+    }
+    return res.status(404).json({ jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found" } });
   });
 
   // ── Markdown negotiation endpoint ─────────────────────────────────────────
