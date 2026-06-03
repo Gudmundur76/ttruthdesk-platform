@@ -253,12 +253,13 @@ export default function Home() {
   return (
     <div className="td-root">
       <TopNav />
+      <main id="main-content" aria-label="Truth Desk platform">
 
       {/* ── NAV already rendered by TopNav ── */}
 
       {/* ── HERO CARD ─────────────────────────────────────────────────────── */}
       <div className="td-page-wrap">
-        <section className="td-hero-card">
+        <section className="td-hero-card" aria-labelledby="hero-heading">
           {/* Gradient arc ::before is CSS-only */}
           <div className="td-hero-grid" />
 
@@ -340,7 +341,7 @@ export default function Home() {
               <span className="td-badge-dot" />
               Multi-Vertical Evidence Intelligence
             </div>
-            <h1 className="td-hero-heading">
+            <h1 className="td-hero-heading" id="hero-heading">
               Verify scientific claims
               <strong>against authoritative databases.</strong>
             </h1>
@@ -433,10 +434,10 @@ export default function Home() {
       </div>
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
-      <section className="td-section td-section-alt">
+      <section className="td-section td-section-alt" aria-labelledby="features-heading">
         <div className="td-container">
           <div className="td-section-header">
-            <h2 className="td-section-title">Built for rigorous scientific diligence</h2>
+            <h2 className="td-section-title" id="features-heading">Built for rigorous scientific diligence</h2>
             <p className="td-section-sub">Every component is designed for precision, traceability, and trust — not speed at the expense of accuracy.</p>
           </div>
           <div className="td-features-grid">
@@ -459,10 +460,10 @@ export default function Home() {
       </section>
 
       {/* ── PRICING ───────────────────────────────────────────────────────── */}
-      <section className="td-section" id="pricing">
+      <section className="td-section" id="pricing" aria-labelledby="pricing-heading">
         <div className="td-container">
           <div className="td-section-header">
-            <h2 className="td-section-title">Transparent pricing</h2>
+            <h2 className="td-section-title" id="pricing-heading">Transparent pricing</h2>
             <p className="td-section-sub">Concierge audit reports for investors, pharma BD teams, AI-bio founders, and publishers.</p>
           </div>
           <div className="td-pricing-grid">
@@ -493,7 +494,8 @@ export default function Home() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="td-footer">
+      </main>
+      <footer className="td-footer" role="contentinfo" aria-label="Site footer">
         <div className="td-container td-footer-inner">
           <div className="td-footer-brand">
             <div className="td-footer-logo">

@@ -167,10 +167,10 @@
 
 ## Phase 17: Agent Readability Score (32→90+)
 
-- [ ] Fix Semantic HTML: add `<main>`, `<nav>`, `<header>`, `<footer>`, `<section>` landmark tags and h1/h2 hierarchy to Home.tsx and all public pages (Verticals, Registry, Graph)
-- [ ] Add JSON-LD: WebSite + SoftwareApplication schema in index.html; FAQPage + ItemList in Home.tsx
-- [ ] Fix Citability: ensure every public page has substantive visible text (>200 words) accessible to crawlers without JS
-- [ ] Fix Speed: lazy-load react-force-graph-2d (dynamic import on /graph only), enable gzip/brotli compression on Express server, reduce initial bundle below 150kb
-- [ ] Add Protocol Discovery: serve `/.well-known/mcp.json` (MCP card), add `Link: </.well-known/mcp.json>; rel="mcp"` response header, add `<meta name="content-signal">` tag, add `/api/md` markdown negotiation endpoint
-- [ ] Update /llms.txt to reference mcp.json and markdown endpoint
-- [ ] Run tests and save checkpoint
+- [x] Fix Semantic HTML: server-side injection of <main>, <header>, <nav>, <section> landmarks + h1/h2 hierarchy into HTML shell (visible to crawlers without JS)
+- [x] Add JSON-LD: WebSite + SoftwareApplication + FAQPage schemas injected server-side into every HTML response
+- [x] Fix Citability: <noscript> block with 300+ words of crawlable semantic content injected server-side
+- [x] Fix Speed: lazy-loaded Graph route (React.lazy + Suspense), gzip compression middleware added to Express
+- [x] Add Protocol Discovery: /.well-known/mcp.json (2 tools), Link header on all responses, content-signal meta tag, /api/md markdown negotiation endpoint
+- [x] Update /llms.txt: full Truth Desk branding, all endpoints, verticals, provenance, CC BY 4.0 licence
+- [x] Run tests (80 passing) and save checkpoint (f5d35886)

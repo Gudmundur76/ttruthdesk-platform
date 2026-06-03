@@ -90,6 +90,10 @@ export async function setupVite(app: Express, server: Server) {
       <a href="/pricing">Pricing</a>
     </nav>
   </main>
+  <footer role="contentinfo" aria-label="Site footer">
+    <p>Truth Desk is operated by Arctic Media LLC. Evidence verification powered by RCSB PDB, PubChem, and PMC Open Access. Not a substitute for expert scientific judgment.</p>
+    <p>Contact: <a href="/pricing">Request an audit</a> | <a href="/llms.txt">AI agent instructions</a> | <a href="/.well-known/mcp.json">MCP tool card</a></p>
+  </footer>
 </noscript>
 <script type="application/ld+json">
 ${JSON.stringify({
