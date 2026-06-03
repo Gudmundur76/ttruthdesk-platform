@@ -324,6 +324,18 @@ export async function markAuditRequestOwnerNotified(id: number) {
   await db.update(auditRequests).set({ ownerNotified: true }).where(eq(auditRequests.id, id));
 }
 
+/** Returns the number of audit requests from a given email within the last windowMs milliseconds. */
+export async function getRecentAuditRequestsByEmail(email: string, windowMs: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const since = new Date(Date.now() - windowMs);
+  const rows = await db
+    .select({ id: auditRequests.id })
+    .from(auditRequests)
+    .where(and(eq(auditRequests.contactEmail, email), gt(auditRequests.createdAt, since)));
+  return rows.length;
+}
+
 // ─── Monitoring Feed ──────────────────────────────────────────────────────────
 export async function insertMonitoringItems(items: InsertMonitoringFeedItem[]) {
   const db = await getDb();
@@ -474,11 +486,10 @@ export async function getRecentVerifiedClaims(limit = 200) {
       documentId: claims.documentId,
     })
     .from(claims)
-    .where(eq(claims.verdict, claims.verdict)) // all rows with non-null verdict handled below
+    .where(isNotNull(claims.verdict))
     .orderBy(desc(claims.createdAt))
     .limit(limit);
-  // Filter in JS to keep the query simple (verdict is nullable)
-  return rows.filter((r) => r.claim.verdict !== null);
+  return rows;
 }
 
 /**

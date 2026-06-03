@@ -8,6 +8,7 @@ import {
   float,
   boolean,
   json,
+  index,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -55,7 +56,11 @@ export const documents = mysqlTable("documents", {
   needsReview: boolean("needsReview").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  userIdIdx: index("documents_userId_idx").on(t.userId),
+  statusIdx: index("documents_status_idx").on(t.status),
+  verticalIdx: index("documents_vertical_idx").on(t.verticalDomain),
+}));
 
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = typeof documents.$inferInsert;
@@ -115,7 +120,10 @@ export const claims = mysqlTable("claims", {
   ]),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  documentIdIdx: index("claims_documentId_idx").on(t.documentId),
+  verdictIdx: index("claims_verdict_idx").on(t.verdict),
+}));
 
 export type Claim = typeof claims.$inferSelect;
 export type InsertClaim = typeof claims.$inferInsert;
@@ -151,7 +159,9 @@ export const monitoringFeed = mysqlTable("monitoring_feed", {
   relevanceScore: float("relevanceScore"),
   publishedAt: timestamp("publishedAt"),
   discoveredAt: timestamp("discoveredAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  documentIdIdx: index("monitoring_feed_documentId_idx").on(t.documentId),
+}));
 
 export type MonitoringFeedItem = typeof monitoringFeed.$inferSelect;
 export type InsertMonitoringFeedItem = typeof monitoringFeed.$inferInsert;
@@ -215,7 +225,10 @@ export const autoIngestedPapers = mysqlTable("auto_ingested_papers", {
   ingestSource: mysqlEnum("ingestSource", ["pubmed", "biorxiv", "pdb_linked"]).default("pubmed").notNull(),
   ingestedAt: timestamp("ingestedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  statusIdx: index("auto_ingested_papers_status_idx").on(t.status),
+  verticalIdx: index("auto_ingested_papers_vertical_idx").on(t.verticalDomain),
+}));
 
 export type AutoIngestedPaper = typeof autoIngestedPapers.$inferSelect;
 export type InsertAutoIngestedPaper = typeof autoIngestedPapers.$inferInsert;

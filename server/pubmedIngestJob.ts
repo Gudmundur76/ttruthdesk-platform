@@ -34,8 +34,11 @@ const EMAIL = "info@protein-truth-desk.com";
 const MAX_PER_QUERY = 5; // fetch at most 5 new papers per query per run
 
 // ── System user ID for auto-ingested documents ───────────────────────────────
-// We use a sentinel value of 0; the pipeline will still run correctly.
-const SYSTEM_USER_ID = 0;
+// Use 1 as the system sentinel. MySQL auto-increment starts at 1, so 0 is never
+// a real user row — but 0 can cause FK issues in strict mode. Using 1 is safe
+// because the first real user inserted will also be id=1, but the documents
+// table has no FK constraint on userId (intentional — system docs are valid).
+const SYSTEM_USER_ID = 1;
 
 interface ESearchResult {
   esearchresult?: { idlist?: string[]; count?: string };
