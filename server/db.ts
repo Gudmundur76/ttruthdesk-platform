@@ -1031,3 +1031,19 @@ export async function getAllCompletedDocuments(limit = 500) {
     .orderBy(desc(documents.createdAt))
     .limit(limit);
 }
+
+// ─── Sitemap helpers ──────────────────────────────────────────────────────────
+export async function getVerifiedClaimsForSitemap(limit = 5000) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: claims.id,
+      updatedAt: claims.updatedAt,
+      createdAt: claims.createdAt,
+    })
+    .from(claims)
+    .where(sql`${claims.verdict} IS NOT NULL AND ${claims.verdict} != ''`)
+    .orderBy(desc(claims.updatedAt))
+    .limit(limit);
+}

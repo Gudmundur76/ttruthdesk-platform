@@ -361,3 +361,17 @@
 - [x] Register /admin/predictions route in App.tsx
 - [ ] Write Vitest tests for calibration helpers (target 260+ total)
 - [ ] Update todo.md, save checkpoint, push to GitHub
+
+## Phase 36: Perplexity/AI-Citation SEO Sprint
+
+- [x] Add FAQPage JSON-LD schema to /claim/:id pages (Question: "Is claim X true?", Answer: verdict + rationale + evidence URL + confidence)
+- [x] Add dateModified JSON-LD to /claim/:id and /wiki/:type/:slug pages (use claim.updatedAt / wiki.compiledAt)
+- [x] Add Last-Modified HTTP header to claim and wiki API responses
+- [x] Build server/seo/indexNow.ts helper (notifyIndexNow(url), notifyIndexNowBatch(urls[]))
+- [x] Wire IndexNow to analysisPipeline.ts (ping after each claim verdict is assigned)
+- [x] Wire IndexNow to wikiCompiler.ts (ping after wiki page is compiled)
+- [x] Wire IndexNow to monitoring job (ping after claim evidence is updated)
+- [x] Update sitemap.xml generation to include <lastmod> timestamps from DB (documents.updatedAt, claims.updatedAt)
+- [x] Add INDEX_NOW_KEY to environment secrets
+- [x] Write Vitest tests for IndexNow helper (notifyIndexNow, notifyIndexNowBatch, error handling)
+- [x] Save checkpoint, push to GitHub

@@ -17,6 +17,7 @@
  */
 
 import { storagePut, storageGetSignedUrl } from "./storage";
+import { notifyIndexNowBatch, wikiUrl } from "./seo/indexNow";
 import { invokeLLM } from "./_core/llm";
 import {
   getClaimsByDocument,
@@ -232,6 +233,9 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
     console.log(
       `[WikiCompiler] Doc #${documentId}: wiki compilation complete (${entities.length} entities)`
     );
+    // Ping IndexNow for all compiled wiki pages (instant Bing/Perplexity re-indexing)
+    const wikiUrls = entities.map((e) => wikiUrl(e.entityType, slugify(e.canonicalName)));
+    notifyIndexNowBatch(wikiUrls).catch(() => {/* non-fatal */});
   } catch (err) {
     // Non-fatal — pipeline should not fail if wiki compilation fails
     console.error(`[WikiCompiler] Error compiling doc #${documentId}:`, err);

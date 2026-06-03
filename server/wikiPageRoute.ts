@@ -88,10 +88,13 @@ export function registerWikiPageRoute(app: Express): void {
       license: "https://creativecommons.org/licenses/by/4.0/",
     };
 
+    const lastModified = (entity?.updatedAt ?? new Date()).toUTCString();
+
     res
       .set({
         "Content-Type": "application/json",
         "Cache-Control": "public, max-age=300, s-maxage=3600",
+        "Last-Modified": lastModified,
         Link: [
           `<${origin}/llms.txt>; rel="llms"`,
           `<${origin}/.well-known/mcp.json>; rel="mcp"`,

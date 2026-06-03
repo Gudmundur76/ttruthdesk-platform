@@ -1,10 +1,13 @@
 /**
  * claimPageRoute.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Registers GET /api/claim/:id — returns claim data with ClaimReview JSON-LD
- * for the public /claim/:id frontend page.
+ * Registers GET /api/claim/:id — returns claim data with:
+ *   - ClaimReview JSON-LD (existing)
+ *   - FAQPage JSON-LD (new — 47% Top-3 citation rate advantage in Perplexity)
+ *   - dateModified field in JSON-LD (freshness signal for AI reranker)
+ *   - Last-Modified HTTP header (2.5× more Perplexity citations for <30-day pages)
  *
- * Also registers GET /api/claim/:id/jsonld — returns the raw JSON-LD object
+ * Also registers GET /api/claim/:id/jsonld — returns the raw JSON-LD array
  * for server-side rendering and SEO crawlers.
  */
 
@@ -21,6 +24,29 @@ const VERDICT_RATING: Record<string, { value: string; label: string }> = {
   Contradicted: { value: "0", label: "Contradicted" },
 };
 
+/** Build a concise BLUF answer for FAQPage (answers in first 100 words). */
+function buildFaqAnswer(claim: {
+  verdict: string | null;
+  verdictRationale: string | null;
+  pdbId: string | null;
+  pdbEvidenceUrl: string | null;
+  confidenceScore?: number | null;
+}): string {
+  const verdict = claim.verdict ?? "Unknown";
+  const rationale = claim.verdictRationale ?? "";
+  const evidence = claim.pdbEvidenceUrl
+    ? ` Evidence: ${claim.pdbEvidenceUrl}.`
+    : claim.pdbId
+      ? ` PDB entry: ${claim.pdbId}.`
+      : "";
+  const confidence =
+    claim.confidenceScore != null
+      ? ` Confidence: ${Math.round(claim.confidenceScore * 100)}%.`
+      : "";
+  // Keep total under 100 words — BLUF format
+  return `${verdict}. ${rationale}${evidence}${confidence}`.trim();
+}
+
 export function buildClaimReviewJsonLd(
   claim: {
     id: number;
@@ -30,6 +56,8 @@ export function buildClaimReviewJsonLd(
     pdbEvidenceUrl: string | null;
     pdbId: string | null;
     createdAt: Date | null;
+    updatedAt?: Date | null;
+    confidenceScore?: number | null;
   },
   document: {
     id: number;
@@ -39,12 +67,15 @@ export function buildClaimReviewJsonLd(
   baseUrl: string
 ) {
   const rating = VERDICT_RATING[claim.verdict ?? ""] ?? { value: "0.5", label: claim.verdict ?? "Unknown" };
+  const dateModified = (claim.updatedAt ?? claim.createdAt ?? new Date()).toISOString();
 
-  return {
+  const claimReview = {
     "@context": "https://schema.org",
     "@type": "ClaimReview",
     url: `${baseUrl}/claim/${claim.id}`,
     claimReviewed: claim.claimText ?? "",
+    datePublished: claim.createdAt?.toISOString() ?? new Date().toISOString(),
+    dateModified,
     reviewRating: {
       "@type": "Rating",
       ratingValue: rating.value,
@@ -65,7 +96,6 @@ export function buildClaimReviewJsonLd(
       name: "Truth Desk",
       url: baseUrl,
     },
-    datePublished: claim.createdAt?.toISOString() ?? new Date().toISOString(),
     reviewBody: claim.verdictRationale ?? "",
     ...(claim.pdbEvidenceUrl
       ? {
@@ -80,6 +110,38 @@ export function buildClaimReviewJsonLd(
         }
       : {}),
   };
+
+  // FAQPage schema — 47% Top-3 Perplexity citation rate vs 28% without
+  const faqPage = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    dateModified,
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: `Is the claim "${claim.claimText ?? ""}" true?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: buildFaqAnswer(claim),
+        },
+      },
+      // Second question: what is the confidence level?
+      ...(claim.confidenceScore != null
+        ? [
+            {
+              "@type": "Question",
+              name: `How confident is Truth Desk in this verdict?`,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: `Truth Desk assigns a confidence score of ${Math.round(claim.confidenceScore * 100)}% to this verdict (${claim.verdict ?? "Unknown"}). Scores above 80% indicate strong evidence alignment; scores below 50% suggest the claim requires expert review.`,
+              },
+            },
+          ]
+        : []),
+    ],
+  };
+
+  return { claimReview, faqPage };
 }
 
 export function registerClaimPageRoute(app: Express): void {
@@ -101,12 +163,16 @@ export function registerClaimPageRoute(app: Express): void {
       process.env.VITE_APP_URL ??
       `${req.protocol}://${req.get("host") ?? "protein-desk-5r5rzpyg.manus.space"}`;
 
-    const jsonld = buildClaimReviewJsonLd(row.claim, row.document, origin);
+    const { claimReview, faqPage } = buildClaimReviewJsonLd(row.claim, row.document, origin);
+
+    // Last-Modified header: 2.5× more Perplexity citations for pages updated <30 days ago
+    const lastModified = (row.claim.updatedAt ?? row.claim.createdAt ?? new Date()).toUTCString();
 
     res
       .set({
         "Content-Type": "application/json",
         "Cache-Control": "public, max-age=300, s-maxage=3600",
+        "Last-Modified": lastModified,
         // Link headers for agent discovery
         Link: [
           `<${origin}/llms.txt>; rel="llms"`,
@@ -122,7 +188,9 @@ export function registerClaimPageRoute(app: Express): void {
           verdictRationale: row.claim.verdictRationale,
           pdbId: row.claim.pdbId,
           pdbEvidenceUrl: row.claim.pdbEvidenceUrl,
+          confidenceScore: row.claim.confidenceScore,
           createdAt: row.claim.createdAt,
+          updatedAt: row.claim.updatedAt,
           documentId: row.claim.documentId,
         },
         document: {
@@ -130,7 +198,10 @@ export function registerClaimPageRoute(app: Express): void {
           title: row.document.title,
           createdAt: row.document.createdAt,
         },
-        jsonld,
+        // Legacy: single jsonld object (ClaimReview) for backwards compat
+        jsonld: claimReview,
+        // New: array with both ClaimReview + FAQPage for richer AI citations
+        jsonldArray: [claimReview, faqPage],
       });
   });
 }

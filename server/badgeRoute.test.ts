@@ -90,88 +90,88 @@ const MOCK_DOCUMENT = {
 
 describe("buildClaimReviewJsonLd", () => {
   it("returns a ClaimReview type", () => {
-    const jsonld = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
-    expect(jsonld["@type"]).toBe("ClaimReview");
-    expect(jsonld["@context"]).toBe("https://schema.org");
+    const { claimReview } = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
+    expect(claimReview["@type"]).toBe("ClaimReview");
+    expect(claimReview["@context"]).toBe("https://schema.org");
   });
 
   it("includes the claim text in claimReviewed", () => {
-    const jsonld = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
-    expect(jsonld.claimReviewed).toBe(MOCK_CLAIM.claimText);
+    const { claimReview } = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
+    expect(claimReview.claimReviewed).toBe(MOCK_CLAIM.claimText);
   });
 
   it("maps Supported verdict to ratingValue 1", () => {
-    const jsonld = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
-    const rating = jsonld.reviewRating as Record<string, string>;
+    const { claimReview } = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
+    const rating = claimReview.reviewRating as Record<string, string>;
     expect(rating.ratingValue).toBe("1");
     expect(rating.alternateName).toBe("Supported");
   });
 
   it("maps Contradicted verdict to ratingValue 0", () => {
-    const jsonld = buildClaimReviewJsonLd(
+    const { claimReview } = buildClaimReviewJsonLd(
       { ...MOCK_CLAIM, verdict: "Contradicted" },
       MOCK_DOCUMENT,
       "https://example.com"
     );
-    const rating = jsonld.reviewRating as Record<string, string>;
+    const rating = claimReview.reviewRating as Record<string, string>;
     expect(rating.ratingValue).toBe("0");
     expect(rating.alternateName).toBe("Contradicted");
   });
 
   it("maps Partially Supported to ratingValue 0.75", () => {
-    const jsonld = buildClaimReviewJsonLd(
+    const { claimReview } = buildClaimReviewJsonLd(
       { ...MOCK_CLAIM, verdict: "Partially Supported" },
       MOCK_DOCUMENT,
       "https://example.com"
     );
-    const rating = jsonld.reviewRating as Record<string, string>;
+    const rating = claimReview.reviewRating as Record<string, string>;
     expect(rating.ratingValue).toBe("0.75");
   });
 
   it("includes PDB citation when pdbEvidenceUrl is set", () => {
-    const jsonld = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
-    expect(jsonld.citation).toBeDefined();
-    const citations = jsonld.citation as Array<Record<string, string>>;
+    const { claimReview } = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
+    expect(claimReview.citation).toBeDefined();
+    const citations = claimReview.citation as Array<Record<string, string>>;
     expect(citations[0].identifier).toBe("PDB:1LYZ");
     expect(citations[0].url).toBe("https://www.rcsb.org/structure/1LYZ");
   });
 
   it("omits citation when pdbEvidenceUrl is null", () => {
-    const jsonld = buildClaimReviewJsonLd(
+    const { claimReview } = buildClaimReviewJsonLd(
       { ...MOCK_CLAIM, pdbEvidenceUrl: null, pdbId: null },
       MOCK_DOCUMENT,
       "https://example.com"
     );
-    expect(jsonld.citation).toBeUndefined();
+    expect(claimReview.citation).toBeUndefined();
   });
 
   it("includes author as Truth Desk organization", () => {
-    const jsonld = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
-    const author = jsonld.author as Record<string, string>;
+    const { claimReview } = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
+    const author = claimReview.author as Record<string, string>;
     expect(author["@type"]).toBe("Organization");
     expect(author.name).toBe("Truth Desk");
     expect(author.url).toBe("https://example.com");
   });
 
   it("includes the claim URL using the provided baseUrl", () => {
-    const jsonld = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://mysite.com");
-    expect(jsonld.url).toBe("https://mysite.com/claim/42");
+    const { claimReview } = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://mysite.com");
+    expect(claimReview.url).toBe("https://mysite.com/claim/42");
   });
 
   it("includes document title in itemReviewed author name", () => {
-    const jsonld = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
-    const itemReviewed = jsonld.itemReviewed as Record<string, unknown>;
+    const { claimReview } = buildClaimReviewJsonLd(MOCK_CLAIM, MOCK_DOCUMENT, "https://example.com");
+    const itemReviewed = claimReview.itemReviewed as Record<string, unknown>;
     const itemAuthor = itemReviewed.author as Record<string, string>;
     expect(itemAuthor.name).toContain("Lysozyme Structure Analysis");
   });
 
   it("falls back to Document #id when title is null", () => {
-    const jsonld = buildClaimReviewJsonLd(
+    const { claimReview } = buildClaimReviewJsonLd(
       MOCK_CLAIM,
       { ...MOCK_DOCUMENT, title: null },
       "https://example.com"
     );
-    const itemReviewed = jsonld.itemReviewed as Record<string, unknown>;
+    const itemReviewed = claimReview.itemReviewed as Record<string, unknown>;
     const itemAuthor = itemReviewed.author as Record<string, string>;
     expect(itemAuthor.name).toContain(`#${MOCK_DOCUMENT.id}`);
   });

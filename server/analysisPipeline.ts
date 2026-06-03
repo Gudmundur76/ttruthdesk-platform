@@ -23,6 +23,7 @@ import { notifyOwner } from "./_core/notification";
 import { compileDocumentToWiki } from "./wikiCompiler";
 import { generatePdfReport } from "./pdfReportGenerator";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
+import { notifyIndexNow, notifyIndexNowBatch, claimUrl, reportUrl } from "./seo/indexNow";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -131,6 +132,10 @@ export async function runAnalysisPipeline(
     }).catch(() => {
       /* non-fatal */
     });
+    // Ping IndexNow for all claim pages (instant Bing/Perplexity re-indexing)
+    notifyIndexNowBatch(finalClaims.map((c) => claimUrl(c.id))).catch(() => {/* non-fatal */});
+    // Ping IndexNow for the public report page
+    notifyIndexNow(reportUrl(documentId)).catch(() => {/* non-fatal */});
     // Compile wiki pages and update knowledge graph (non-fatal)
     compileDocumentToWiki(documentId).catch((err) =>
       console.error("[Pipeline] Wiki compilation error:", err)

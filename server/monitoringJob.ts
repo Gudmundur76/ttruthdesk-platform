@@ -13,6 +13,7 @@ import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { invokeLLM } from "./_core/llm";
 import { insertMonitoringItems, getAllActiveMonitoringJobs, getDocumentById } from "./db";
+import { notifyIndexNow, reportUrl } from "./seo/indexNow";
 
 interface FeedItem {
   source: "pubmed" | "biorxiv" | "patent";
@@ -182,6 +183,8 @@ export async function monitoringJobHandler(req: Request, res: Response) {
             }))
           );
           totalInserted += relevantItems.length;
+          // Ping IndexNow so Bing/Perplexity re-crawls the report page with fresh evidence
+          notifyIndexNow(reportUrl(doc.id)).catch(() => {/* non-fatal */});
         }
       } catch (docErr) {
         console.error(`[monitoring-job] Error processing doc ${doc.id}:`, docErr);

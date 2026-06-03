@@ -1,19 +1,27 @@
 /**
  * sitemapRoute.ts
  *
- * Serves /sitemap.xml — a dynamic sitemap listing all public audit report
- * pages (/reports/:id) plus static pages, so search engines and AI crawlers
- * discover every published audit automatically.
+ * Serves /sitemap.xml — a dynamic sitemap listing:
+ *   - Static pages (/, /registry, /pricing, /submit, /graph, /verticals)
+ *   - Public audit report pages (/reports/:id) with lastmod
+ *   - Verified claim pages (/claim/:id) with lastmod
+ *   - Wiki entity pages (/wiki/:type/:slug) with lastmod
+ *
+ * All dynamic entries include <lastmod> from DB timestamps, which is the
+ * strongest freshness signal for Bing/Perplexity re-indexing priority.
  */
 
 import type { Express, Request, Response } from "express";
-import { getCompletedPublicPapers } from "./db";
+import { getCompletedPublicPapers, getAllGraphEntities, getVerifiedClaimsForSitemap } from "./db";
+import { slugify } from "./wikiCompiler";
 
 const DOMAIN = "https://protein-desk-5r5rzpyg.manus.space";
 
 const STATIC_PAGES = [
   { url: "/", priority: "1.0", changefreq: "weekly" },
   { url: "/registry", priority: "0.9", changefreq: "daily" },
+  { url: "/graph", priority: "0.8", changefreq: "daily" },
+  { url: "/verticals", priority: "0.7", changefreq: "weekly" },
   { url: "/pricing", priority: "0.7", changefreq: "monthly" },
   { url: "/submit", priority: "0.6", changefreq: "monthly" },
 ];
@@ -27,11 +35,20 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+function toLastmod(date: Date | null | undefined): string {
+  return (date ?? new Date()).toISOString().split("T")[0]!;
+}
+
 export function registerSitemapRoute(app: Express): void {
   app.get("/sitemap.xml", async (_req: Request, res: Response) => {
     try {
-      const papers = await getCompletedPublicPapers();
+      const [papers, entities, claimRows] = await Promise.all([
+        getCompletedPublicPapers(),
+        getAllGraphEntities(2000),
+        getVerifiedClaimsForSitemap(5000),
+      ]);
 
+      // Static pages (no lastmod — they rarely change)
       const staticEntries = STATIC_PAGES.map(
         (p) => `  <url>
     <loc>${DOMAIN}${p.url}</loc>
@@ -40,17 +57,44 @@ export function registerSitemapRoute(app: Express): void {
   </url>`
       ).join("\n");
 
+      // Report pages
       const reportEntries = papers
         .filter((p) => p.documentId != null)
         .map((p) => {
-          const lastmod = p.updatedAt
-            ? new Date(p.updatedAt).toISOString().split("T")[0]
-            : new Date().toISOString().split("T")[0];
+          const lastmod = toLastmod(p.updatedAt ? new Date(p.updatedAt) : null);
           return `  <url>
     <loc>${DOMAIN}/reports/${p.documentId}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>`;
+        })
+        .join("\n");
+
+      // Claim pages — highest value for Perplexity citations
+      const claimEntries = claimRows
+        .map((c) => {
+          const lastmod = toLastmod(c.updatedAt ?? c.createdAt);
+          return `  <url>
+    <loc>${DOMAIN}/claim/${c.id}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>`;
+        })
+        .join("\n");
+
+      // Wiki entity pages — only include entities that have a wiki page
+      const wikiEntries = entities
+        .filter((e) => e.wikiPagePath != null)
+        .map((e) => {
+          const lastmod = toLastmod(e.updatedAt ?? e.createdAt);
+          const slug = escapeXml(slugify(e.canonicalName));
+          return `  <url>
+    <loc>${DOMAIN}/wiki/${e.entityType}/${slug}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
   </url>`;
         })
         .join("\n");
@@ -62,6 +106,8 @@ export function registerSitemapRoute(app: Express): void {
           http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
 ${staticEntries}
 ${reportEntries}
+${claimEntries}
+${wikiEntries}
 </urlset>`;
 
       res
