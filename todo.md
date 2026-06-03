@@ -354,13 +354,13 @@
 - [x] Write tests, save checkpoint, push to GitHub
 
 ## Phase 35: Prediction Calibration Dashboard
-- [ ] Add DB helpers: getCalibrationStats (accuracy by model type + date bucket), getPredictionsForReview (pending validations), getPredictionById
-- [ ] Add tRPC procedures: admin.calibrationStats, admin.predictionsForReview, admin.validatePrediction (mutation)
-- [ ] Build /admin/predictions page: accuracy over time chart (Chart.js), calibration table (probability bucket vs actual rate), pending validations list with correct/incorrect buttons
-- [ ] Add "Predictions" nav item to DashboardLayout sidebar (TrendingUp icon)
+- [x] Add DB helpers: getCalibrationStats (accuracy by model type + date bucket), getPredictionsForReview (pending validations), getPredictionById
+- [x] Add tRPC procedures: admin.calibrationStats, admin.predictionsForReview, admin.validatePrediction (mutation)
+- [x] Build /admin/predictions page: accuracy over time chart (Chart.js), calibration table (probability bucket vs actual rate), pending validations list with correct/incorrect buttons
+- [x] Add "Predictions" nav item to DashboardLayout sidebar (TrendingUp icon)
 - [x] Register /admin/predictions route in App.tsx
-- [ ] Write Vitest tests for calibration helpers (target 260+ total)
-- [ ] Update todo.md, save checkpoint, push to GitHub
+- [x] Write Vitest tests for calibration helpers (target 260+ total)
+- [x] Update todo.md, save checkpoint, push to GitHub
 
 ## Phase 36: Perplexity/AI-Citation SEO Sprint
 
@@ -379,20 +379,20 @@
 ## Phase 37: Contradiction Alert Webhooks
 
 - [x] Add webhookAlerts table to drizzle/schema.ts (id, userId, url, secret, eventTypes json, active, createdAt)
-- [ ] Generate and apply DB migration 0012 for webhookAlerts table
-- [ ] Add DB helpers: insertWebhookAlert, getWebhookAlertsByUser, deleteWebhookAlert, getActiveWebhookAlerts
-- [ ] Build server/alertDispatcher.ts: dispatchHighRiskAlert(claim, prediction) — Telegram message + HMAC-signed webhook POST
-- [ ] Wire dispatchHighRiskAlert into analysisPipeline.ts when prediction.contradictionProbability >= 0.70
-- [ ] Add tRPC procedures: alerts.list, alerts.create, alerts.delete (all protectedProcedure)
+- [x] Generate and apply DB migration 0012 for webhookAlerts table
+- [x] Add DB helpers: insertWebhookAlert, getWebhookAlertsByUser, deleteWebhookAlert, getActiveWebhookAlerts
+- [x] Build server/alertDispatcher.ts: dispatchHighRiskAlert(claim, prediction) — Telegram message + HMAC-signed webhook POST
+- [x] Wire dispatchHighRiskAlert into analysisPipeline.ts when prediction.contradictionProbability >= 0.70
+- [x] Add tRPC procedures: alerts.list, alerts.create, alerts.delete (all protectedProcedure)
 - [x] Build /settings/alerts page with webhook URL form, secret display, and delete button
-- [ ] Add Alerts nav item to DashboardLayout sidebar
-- [ ] Write Vitest tests for alertDispatcher.ts
+- [x] Add Alerts nav item to DashboardLayout sidebar
+- [x] Write Vitest tests for alertDispatcher.ts
 
 ## Phase 38: Prediction Backfill Job
 
-- [ ] Build server/predictionBackfillJob.ts: fetches all claims with no prediction row, runs computeClaimTrajectory in batches of 20
-- [ ] Register POST /api/scheduled/backfill-predictions heartbeat endpoint in index.ts
-- [ ] Add trpc.admin.backfillPredictions mutation (adminProcedure) that triggers the backfill
-- [ ] Add "Run Backfill" button to /admin/predictions page
-- [ ] Write Vitest tests for predictionBackfillJob.ts
-- [ ] Save checkpoint, push to GitHub
+- [x] Build server/predictionBackfillJob.ts: fetches all claims with no prediction row, runs computeClaimTrajectory in batches of 20
+- [x] Register POST /api/scheduled/backfill-predictions heartbeat endpoint in index.ts
+- [x] Add trpc.admin.backfillPredictions mutation (adminProcedure) that triggers the backfill
+- [x] Add "Run Backfill" button to /admin/predictions page
+- [x] Write Vitest tests for predictionBackfillJob.ts
+- [x] Save checkpoint, push to GitHub
