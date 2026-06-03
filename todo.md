@@ -313,3 +313,33 @@
 - [x] Register /admin route in App.tsx
 - [x] Write 15 Vitest tests: stats computation, verdict distribution, nav items, admin status shape — 188 total passing
 - [x] Save checkpoint and push to GitHub
+
+## Phase 33: Revenue Unblock — Stripe Checkout + PDF Verification + Auth Guard
+
+- [ ] Add user_subscriptions table to drizzle/schema.ts (userId, tier, auditLimit, auditsUsed, stripeCustomerId, stripeSessionId, activatedAt)
+- [ ] Generate and apply DB migration 0010 for user_subscriptions
+- [ ] Add DB helpers: upsertSubscription, getSubscriptionByUser, incrementAuditsUsed
+- [ ] Add Stripe secret to ENV (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_STARTER, STRIPE_PRICE_DILIGENCE, STRIPE_PRICE_PLATFORM)
+- [ ] Add checkout router to routers.ts: checkout.createSession (protectedProcedure), checkout.getStatus (protectedProcedure)
+- [ ] Add POST /api/stripe/webhook Express route (raw body, signature verification, handle checkout.session.completed)
+- [ ] Wire Pricing page "Get Started" buttons to trpc.checkout.createSession → redirect to Stripe
+- [ ] Add tier limit gate in trpc.documents.submitText and submitFile: check auditsUsed < auditLimit, throw if exceeded
+- [ ] Add "Upgrade" CTA on Dashboard when user is at tier limit
+- [ ] Add sign-in redirect guard to Dashboard.tsx and AuditReport.tsx (useEffect: if !isAuthenticated && !isLoading → open MagicLinkDialog)
+- [ ] Write tests, save checkpoint, push to GitHub
+
+## Phase 33: Week 1 Revenue Sprint — DB Fixes + PDF Pipeline + PayPal Checkout
+
+- [x] Fix getRecentVerifiedClaims WHERE clause bug — added INNER JOIN with documents table, filter status=complete
+- [x] DB indexes confirmed: claims.documentId, documents.userId, documents.status, autoIngestedPapers.pmid all exist
+- [x] Duplicate runAnalysisPipeline confirmed not present (3 distinct calls: submitText, submitFile, regenerate)
+- [x] Add PDF generation to analysisPipeline.ts — generatePdfReport() called after HTML report stored, pdfStorageKey written to auditReports
+- [x] Add user_subscriptions table (userId, planTier, auditsLimit, auditsUsed, paypalOrderId, paypalCaptureId, activatedAt, expiresAt)
+- [x] Generate and apply DB migration 0010 (0010_keen_alex_wilder.sql)
+- [x] Add PayPal Orders API integration in server/paypalCheckout.ts: createPayPalOrder, capturePayPalOrder, getActiveSubscription, checkPayPalAuditLimit, incrementAuditsUsed
+- [x] Add PAYPAL_CLIENT_ID, PAYPAL_SECRET, PAYPAL_BASE_URL to ENV in env.ts
+- [x] Add checkout router to routers.ts: checkout.plans, checkout.createOrder, checkout.captureOrder, checkout.getSubscription
+- [x] Wire Pricing page — rewritten with PayPal checkout buttons for starter/diligence, contact form for platform, subscription status display
+- [x] Add sign-in redirect guard to Dashboard.tsx and AuditReport.tsx (loading: authLoading, redirect to / if !isAuthenticated)
+- [x] Write 15 Vitest tests: PLANS constant, limit math, createPayPalOrder error handling, schema fields — 203 total passing
+- [x] Save checkpoint and push to GitHub

@@ -21,4 +21,8 @@ export const ENV = {
   // Telegram bot integration
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   telegramChannelId: process.env.TELEGRAM_CHANNEL_ID ?? "",
+  // PayPal checkout
+  paypalClientId: process.env.PAYPAL_CLIENT_ID ?? "",
+  paypalSecret: process.env.PAYPAL_SECRET ?? "",
+  paypalMode: (process.env.PAYPAL_MODE ?? "sandbox") as "sandbox" | "live",
 };

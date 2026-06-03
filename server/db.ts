@@ -518,13 +518,15 @@ export async function getCompletedPublicPapers() {
 export async function getRecentVerifiedClaims(limit = 200) {
   const db = await getDb();
   if (!db) return [];
+  // Only return claims from fully completed documents — not failed or in-progress ones
   const rows = await db
     .select({
       claim: claims,
       documentId: claims.documentId,
     })
     .from(claims)
-    .where(isNotNull(claims.verdict))
+    .innerJoin(documents, eq(claims.documentId, documents.id))
+    .where(and(isNotNull(claims.verdict), eq(documents.status, "complete")))
     .orderBy(desc(claims.createdAt))
     .limit(limit);
   return rows;

@@ -112,11 +112,17 @@ function VerdictBar({ claims }: { claims: ClaimRow[] }) {
 function AuditReportContent() {
   const params = useParams<{ id: string }>();
   const docId = parseInt(params.id ?? "0");
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [, navigate] = useLocation();
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [overrideVerdict, setOverrideVerdict] = useState<VerdictType>("Insufficient Evidence");
   const [overrideNote, setOverrideNote] = useState("");
+
+  // Redirect unauthenticated users
+  if (!authLoading && !isAuthenticated) {
+    navigate("/");
+    return null;
+  }
 
   const { data: doc, isLoading: docLoading } = trpc.documents.get.useQuery(
     { id: docId },

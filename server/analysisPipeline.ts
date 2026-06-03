@@ -21,6 +21,7 @@ import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./report
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { compileDocumentToWiki } from "./wikiCompiler";
+import { generatePdfReport } from "./pdfReportGenerator";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -88,12 +89,26 @@ export async function runAnalysisPipeline(
       Buffer.from(htmlContent, "utf-8"),
       "text/html"
     );
-    // 6. Upsert audit report record
+    // 6. Generate PDF report (non-fatal — HTML report is the fallback)
+    let pdfStorageKey: string | undefined;
+    let pdfStorageUrl: string | undefined;
+    try {
+      const pdfBuffer = await generatePdfReport(documentId);
+      const pdfKey = `reports/${userId}/${documentId}/audit-report.pdf`;
+      const { url: pdfUrl } = await storagePut(pdfKey, pdfBuffer, "application/pdf");
+      pdfStorageKey = pdfKey;
+      pdfStorageUrl = pdfUrl;
+    } catch (pdfErr) {
+      console.error("[Pipeline] PDF generation failed (non-fatal):", pdfErr);
+    }
+    // 7. Upsert audit report record (with PDF if available)
     await upsertAuditReport({
       documentId,
       userId,
       htmlStorageKey: htmlKey,
       htmlStorageUrl: htmlUrl,
+      pdfStorageKey,
+      pdfStorageUrl,
       verdictSummary: summary,
       highRiskCount: highRisk,
       totalClaims: finalClaims.length,

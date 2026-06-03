@@ -336,3 +336,27 @@ export const graphRelations = mysqlTable("graph_relations", {
 
 export type GraphRelation = typeof graphRelations.$inferSelect;
 export type InsertGraphRelation = typeof graphRelations.$inferInsert;
+
+// ─── User Subscriptions (PayPal) ─────────────────────────────────────────────
+export const userSubscriptions = mysqlTable("user_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  paypalOrderId: varchar("paypalOrderId", { length: 128 }).notNull().unique(),
+  paypalCaptureId: varchar("paypalCaptureId", { length: 128 }),
+  planTier: mysqlEnum("planTier", ["starter", "diligence", "platform"]).notNull(),
+  status: mysqlEnum("status", ["pending", "active", "cancelled", "refunded"]).default("pending").notNull(),
+  auditsLimit: int("auditsLimit").notNull(),       // -1 = unlimited
+  auditsUsed: int("auditsUsed").default(0).notNull(),
+  amountUsd: int("amountUsd").notNull(),           // cents
+  currency: varchar("currency", { length: 8 }).default("USD").notNull(),
+  activatedAt: timestamp("activatedAt"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  userIdIdx: index("subscriptions_userId_idx").on(t.userId),
+  statusIdx: index("subscriptions_status_idx").on(t.status),
+}));
+
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;

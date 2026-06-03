@@ -29,12 +29,18 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function DashboardContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [, navigate] = useLocation();
   const { data: docs, isLoading } = trpc.documents.list.useQuery(undefined, {
     enabled: isAuthenticated,
     refetchInterval: 5000,
   });
+
+  // Redirect unauthenticated users to sign-in
+  if (!authLoading && !isAuthenticated) {
+    navigate("/");
+    return null;
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
