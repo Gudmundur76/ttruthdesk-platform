@@ -47,7 +47,12 @@ async function startServer() {
 
   // ── Global agent-discovery headers ────────────────────────────────────────
   app.use((_req, res, next) => {
-    res.setHeader("Link", '</.well-known/mcp.json>; rel="mcp", </llms.txt>; rel="ai-instructions"');
+    res.setHeader("Link", [
+      '</.well-known/mcp.json>; rel="mcp"',
+      '</llms.txt>; rel="ai-instructions"',
+      '</api/md>; rel="alternate"; type="text/markdown"',
+    ].join(", "));
+    res.setHeader("X-Content-Signal", "scientific-claims-verification");
     next();
   });
 
@@ -232,6 +237,150 @@ async function startServer() {
       "- Clinical Genomics (coming soon)",
     ].join("\n");
     res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(md);
+  });
+
+  // ── Agent Auth: /.well-known/auth.md ────────────────────────────────────
+  app.get("/.well-known/auth.md", (_req, res) => {
+    const authMd = [
+      "# Truth Desk — Agent Authentication Guide",
+      "",
+      "Truth Desk exposes public, unauthenticated endpoints for agent use. No API key is required for read operations.",
+      "",
+      "## Public Endpoints (no auth required)",
+      "",
+      "- `GET /api/public/claims.json` — full verified claims registry",
+      "- `POST /api/public/verify-claim` — verify a single scientific claim (rate-limited: 30 req/min)",
+      "- `GET /api/md` — markdown summary of the platform",
+      "- `GET /.well-known/mcp.json` — MCP tool card",
+      "- `GET /llms.txt` — AI agent instructions",
+      "- `GET /sitemap.xml` — all public report URLs",
+      "- `GET /mcp` — MCP SSE streaming endpoint (protocol version 2024-11-05)",
+      "- `POST /mcp` — MCP JSON-RPC endpoint",
+      "",
+      "## Authentication (for write operations)",
+      "",
+      "Write operations and admin endpoints require Manus OAuth. To authenticate:",
+      "",
+      "1. Redirect the user to the Manus OAuth portal",
+      "2. Exchange the code for a session token at `/api/oauth/callback`",
+      "3. Include the session cookie on subsequent requests",
+      "",
+      "## Rate Limits",
+      "",
+      "- `POST /api/public/verify-claim`: 30 requests per minute per IP",
+      "- All other public endpoints: no rate limit",
+      "",
+      "## OpenAPI Specification",
+      "",
+      "Machine-readable API spec available at `/openapi.json` (OpenAPI 3.1).",
+      "",
+      "## Contact",
+      "",
+      "Arctic Media LLC — https://protein-desk-5r5rzpyg.manus.space/pricing",
+    ].join("\n");
+    res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(authMd);
+  });
+
+  // ── OpenAPI 3.1 specification ──────────────────────────────────────────
+  const OPENAPI_SPEC = {
+    openapi: "3.1.0",
+    info: {
+      title: "Truth Desk API",
+      version: "1.0.0",
+      description: "Autonomous multi-vertical scientific claims verification platform. Verifies claims against PDB, PubChem, PubMed, UniProt, and PMC Open Access.",
+      contact: { name: "Arctic Media LLC", url: `${SITE_ORIGIN}/pricing` },
+      license: { name: "CC BY 4.0", url: "https://creativecommons.org/licenses/by/4.0/" }
+    },
+    servers: [{ url: SITE_ORIGIN, description: "Production" }],
+    paths: {
+      "/api/public/claims.json": {
+        get: {
+          operationId: "getClaimsRegistry",
+          summary: "Get verified claims registry",
+          description: "Returns the full machine-readable registry of all verified scientific claims across all verticals.",
+          tags: ["Public"],
+          responses: {
+            "200": {
+              description: "Array of verified claim objects",
+              content: { "application/json": { schema: { type: "array", items: { "$ref": "#/components/schemas/Claim" } } } }
+            }
+          }
+        }
+      },
+      "/api/public/verify-claim": {
+        post: {
+          operationId: "verifyClaim",
+          summary: "Verify a scientific claim",
+          description: "Verifies a single scientific claim against authoritative databases (PDB, PubChem, PubMed). Rate-limited to 30 requests per minute.",
+          tags: ["Public"],
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { "$ref": "#/components/schemas/VerifyClaimRequest" } } }
+          },
+          responses: {
+            "200": { description: "Verification result", content: { "application/json": { schema: { "$ref": "#/components/schemas/VerifyClaimResponse" } } } },
+            "429": { description: "Rate limit exceeded" }
+          }
+        }
+      },
+      "/api/md": {
+        get: {
+          operationId: "getPlatformSummary",
+          summary: "Get platform summary as Markdown",
+          description: "Returns a Markdown-formatted summary of the Truth Desk platform, including verticals, endpoints, and capabilities.",
+          tags: ["Discovery"],
+          responses: { "200": { description: "Markdown text", content: { "text/markdown": { schema: { type: "string" } } } } }
+        }
+      },
+      "/.well-known/mcp.json": {
+        get: {
+          operationId: "getMcpCard",
+          summary: "Get MCP tool card",
+          description: "Returns the MCP tool card for agent integration.",
+          tags: ["Discovery"],
+          responses: { "200": { description: "MCP tool card", content: { "application/json": { schema: { type: "object" } } } } }
+        }
+      }
+    },
+    components: {
+      schemas: {
+        Claim: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            claimText: { type: "string" },
+            verdict: { type: "string", enum: ["supported", "refuted", "inconclusive"] },
+            confidenceScore: { type: "number", minimum: 0, maximum: 1 },
+            verticalDomain: { type: "string" },
+            evidenceSource: { type: "string" },
+            reportUrl: { type: "string" }
+          }
+        },
+        VerifyClaimRequest: {
+          type: "object",
+          required: ["claim"],
+          properties: {
+            claim: { type: "string", description: "The scientific claim text to verify" },
+            vertical: { type: "string", enum: ["structural_biology", "salmon_biotech"], description: "Optional: restrict to a specific domain" }
+          }
+        },
+        VerifyClaimResponse: {
+          type: "object",
+          properties: {
+            verdict: { type: "string", enum: ["supported", "refuted", "inconclusive"] },
+            confidenceScore: { type: "number" },
+            evidenceSource: { type: "string" },
+            pdbId: { type: "string" },
+            pubchemCid: { type: "number" },
+            summary: { type: "string" }
+          }
+        }
+      }
+    }
+  };
+
+  app.get("/openapi.json", (_req, res) => {
+    res.set({ "Content-Type": "application/json", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" }).json(OPENAPI_SPEC);
   });
 
   // Configure body parser with larger size limit for file uploads
