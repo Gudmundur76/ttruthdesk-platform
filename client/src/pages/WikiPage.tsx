@@ -13,7 +13,7 @@
 
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Streamdown } from "streamdown";
 import { TopNav } from "@/components/TopNav";
 
@@ -83,6 +83,56 @@ export default function WikiPage() {
     });
   }, [thisEntity, relations, entities]);
 
+  const typeLabel = ENTITY_TYPE_LABEL[entityType] ?? entityType;
+
+  // Inject JSON-LD Dataset schema and update page title
+  useEffect(() => {
+    if (!canonicalName) return;
+
+    // Update page title
+    document.title = `${canonicalName} — Truth Desk Knowledge Graph`;
+
+    // Inject JSON-LD Dataset schema
+    const existingScript = document.getElementById("wiki-jsonld");
+    if (existingScript) existingScript.remove();
+
+    const script = document.createElement("script");
+    script.id = "wiki-jsonld";
+    script.type = "application/ld+json";
+    const jsonld: Record<string, unknown> = {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      name: `Truth Desk Verification: ${typeLabel} ${canonicalName}`,
+      description: `Autonomous evidence audit of claims about ${typeLabel} ${canonicalName}. Verified against RCSB PDB, PubChem, and domain-specific sources.`,
+      url: window.location.href,
+      dateModified: new Date().toISOString(),
+      creator: {
+        "@type": "Organization",
+        name: "Truth Desk",
+        url: window.location.origin,
+      },
+      license: "https://creativecommons.org/licenses/by/4.0/",
+      keywords: [canonicalName, entityType, "protein verification", "scientific claims", "PDB"],
+    };
+    if (entityType === "pdb_id") {
+      jsonld.identifier = `PDB:${canonicalName}`;
+      jsonld.citation = [{
+        "@type": "ScholarlyArticle",
+        headline: `PDB entry ${canonicalName}`,
+        identifier: `PDB:${canonicalName}`,
+        url: `https://www.rcsb.org/structure/${canonicalName}`,
+      }];
+    }
+    script.textContent = JSON.stringify(jsonld);
+    document.head.appendChild(script);
+
+    return () => {
+      const s = document.getElementById("wiki-jsonld");
+      if (s) s.remove();
+      document.title = "Truth Desk";
+    };
+  }, [canonicalName, entityType, typeLabel]);
+
   // Check for contradictions involving this entity
   const hasContradictions = useMemo(() => {
     if (!thisEntity || !contradictions) return false;
@@ -91,8 +141,6 @@ export default function WikiPage() {
         c.sourceEntityId === thisEntity.id || c.targetEntityId === thisEntity.id
     );
   }, [thisEntity, contradictions]);
-
-  const typeLabel = ENTITY_TYPE_LABEL[entityType] ?? entityType;
 
   return (
     <div className="min-h-screen bg-[#0a0e1a] text-white">

@@ -4,15 +4,16 @@
  * Serves /llms.txt — the AI Engine Optimisation (AEO) standard file that
  * makes the platform discoverable and citable by AI agents such as
  * ChatGPT, Claude, Perplexity, and any MCP-compatible agent.
+ *
+ * The dynamic section is generated from the live knowledge graph (graph_entities
+ * + graph_relations tables) and prepended to the static platform description.
+ * Falls back to a static version if the DB is unavailable.
  */
 
 import type { Express, Request, Response } from "express";
+import { generateLlmsTxt } from "./wikiCompiler";
 
-export function registerLlmsRoute(app: Express): void {
-  app.get("/llms.txt", (_req: Request, res: Response) => {
-    const content = `# Truth Desk
-> Autonomous multi-vertical scientific claims verification platform
-
+const STATIC_FOOTER = `
 ## What this platform does
 
 Truth Desk extracts verifiable scientific claims from biotech documents
@@ -29,16 +30,6 @@ Every claim receives one of seven verdicts:
 - Out of Scope
 - Needs Expert Review
 
-Results are published as machine-readable JSON registries that any AI agent,
-investor due diligence tool, or regulatory system can query directly.
-
-## Research verticals
-
-- Structural Biology (live) — verified against RCSB PDB
-- Salmon Biotech (beta) — verified against PubChem and PMC Open Access
-- Drug Discovery (coming soon) — will use ChEMBL and DrugBank
-- Clinical Genomics (coming soon) — will use ClinVar and dbSNP
-
 ## Machine-readable endpoints (no authentication required)
 
 Global claims registry (latest 200 verified claims across all documents):
@@ -54,45 +45,28 @@ Single-claim verification API:
 MCP tool card (for AI agent integration):
   GET /.well-known/mcp.json
 
-Markdown summary (for LLM context):
-  GET /api/md
-
-JSON Schema (self-describing):
-  GET /api/public/schemas/claims.schema.json
-
 Sitemap (all public audit report URLs):
   GET /sitemap.xml
 
-## Public audit report pages
+## Public pages
 
-Each completed audit report has a public human-readable page with full
-JSON-LD structured data (schema.org ScholarlyArticle + Claim types):
+Each completed audit report:
   /reports/{id}
 
-These pages are indexed in /sitemap.xml and are designed to be discovered
-and cited by AI search engines (ChatGPT, Perplexity, Google AI Overview).
+Each entity wiki page:
+  /wiki/{entityType}/{entitySlug}
 
-## Automated ingestion
-
-The platform automatically ingests new papers from PMC Open Access via a
-nightly feed using PubMed E-utilities and MeSH term queries. Each paper
-is audited and published to the Registry and /reports/{id} automatically.
+Each individual claim:
+  /claim/{id}
 
 ## Standard
 
-All claim records follow the Truth Desk Verifiable Claims Standard v1.0,
-derived from the grow.contact Agent-Verifiable Standard v2.1.
-
+All claim records follow the Truth Desk Verifiable Claims Standard v1.0.
 Each claim record includes:
 - id: stable identifier in format td-{documentId}-{claimId}
-- value: verbatim claim text from the source document
 - verdict: one of the seven verdicts above
 - source_refs: authoritative database references
-- page_anchors: permalinks to the human-readable audit report
 - evidence_checked_at: ISO timestamp of when the database was queried
-- manually_reviewed: boolean indicating expert override
-- llm_provider: which model extracted the claim
-- quality_tier: draft (free-tier LLM) or verified (premium model)
 
 ## License
 
@@ -101,34 +75,42 @@ Attribution: Truth Desk (https://protein-desk-5r5rzpyg.manus.space)
 
 ## Contact
 
-For API access, partnership, or audit requests:
-  /pricing — Request a professional audit
-
-## Registry
-
-Browse all publicly available audit reports:
-  /registry
-
-## Knowledge Graph
-
-Interactive force-directed graph of all verified claims:
-  /graph
-  Embed: /graph?embed=1
-
-## Provenance
-
-This platform was built on the "Validating Verifiable Truth" concept,
-which originated in the grow.contact GEO scoring project.
-The platform is operated by Arctic Media LLC.
+For API access, partnership, or audit requests: /pricing
 `;
 
-    res
-      .set({
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "public, max-age=3600, s-maxage=86400",
-        "X-Content-Type-Options": "nosniff",
-      })
-      .status(200)
-      .send(content);
+export function registerLlmsRoute(app: Express): void {
+  app.get("/llms.txt", async (req: Request, res: Response) => {
+    try {
+      const origin =
+        process.env.VITE_APP_URL ??
+        `${req.protocol}://${req.get("host") ?? "protein-desk-5r5rzpyg.manus.space"}`;
+
+      const dynamicSection = await generateLlmsTxt(origin);
+      const content = dynamicSection + STATIC_FOOTER;
+
+      res
+        .set({
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "public, max-age=1800, s-maxage=3600",
+          "X-Content-Type-Options": "nosniff",
+          // Link headers — point agents to MCP and API catalog
+          Link: [
+            `<${origin}/.well-known/mcp.json>; rel="mcp"`,
+            `<${origin}/api/trpc>; rel="api-catalog"`,
+          ].join(", "),
+        })
+        .status(200)
+        .send(content);
+    } catch (err) {
+      console.error("[llmsRoute] Failed to generate dynamic llms.txt:", err);
+      // Fallback static response
+      res
+        .set({ "Content-Type": "text/plain; charset=utf-8" })
+        .status(200)
+        .send(
+          `# Truth Desk · Protein Knowledge Graph\n> Autonomous evidence auditing for molecular biology claims.\n\n` +
+            STATIC_FOOTER
+        );
+    }
   });
 }

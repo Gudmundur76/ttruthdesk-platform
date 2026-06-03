@@ -263,3 +263,20 @@
 - [x] Register /wiki/:entityType/:entitySlug route in App.tsx
 - [x] Write Vitest tests: 16 wikiCompiler tests + 5 wikiLinter tests = 137 total passing
 - [x] Save checkpoint and push to GitHub
+
+## Phase 29: Citation Architecture (grow.contact GEO Standard)
+
+- [x] Serve GET /llms.txt dynamically — generateLlmsTxt() builds entity sections + contradiction listings from live graph
+- [x] Add generateLlmsTxt() + storeLlmsTxt() to wikiCompiler.ts
+- [x] Add JSON-LD Dataset schema injection to WikiPage.tsx via useEffect (dateModified, PDB citation, keywords)
+- [x] Build public /claim/:id page (ClaimPage.tsx) with ClaimReview JSON-LD schema, OG meta tags, badge embed code
+- [x] Build GET /api/claim/:id JSON endpoint (claimPageRoute.ts) with Link headers and ClaimReview JSON-LD
+- [x] Add Link: headers middleware to all /api/wiki, /api/claim, /llms.txt responses (rel=llms, rel=mcp, rel=api-catalog)
+- [x] Update client/public/robots.txt with bot matrix (OAI-SearchBot allow wiki/claim, GPTBot disallow all, Content-Signal)
+- [x] Build GET /badge/:claimId.svg — verdict badge SVG with color-coded verdicts and Truth Desk branding
+- [x] Build GET /api/wiki/:entityType/:entitySlug JSON endpoint (wikiPageRoute.ts) with Link headers and Dataset JSON-LD
+- [x] Add OG meta tags to /claim/:id and /wiki/:entityType/:entitySlug pages via useEffect
+- [x] Register /claim/:id route in App.tsx
+- [x] Add getClaimById, getClaimWithDocument, getEntityClaimSummary helpers to db.ts
+- [x] Write 21 Vitest tests: badge SVG, ClaimReview JSON-LD, llms.txt format compliance — 158 total passing
+- [x] Save checkpoint and push to GitHub

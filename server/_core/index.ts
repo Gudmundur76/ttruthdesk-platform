@@ -19,6 +19,9 @@ import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
+import { registerClaimPageRoute } from "../claimPageRoute";
+import { registerWikiPageRoute } from "../wikiPageRoute";
+import { registerBadgeRoute } from "../badgeRoute";
 import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
 import { startTelegramBot } from "../telegramBot";
@@ -502,6 +505,9 @@ async function startServer() {
 
   // Agent-callable single-claim verification endpoint
   registerVerifyClaimRoute(app);
+  registerClaimPageRoute(app);
+  registerWikiPageRoute(app);
+  registerBadgeRoute(app);
 
   // PDF report export endpoint (authenticated)
   app.get("/api/reports/:documentId/pdf", async (req, res) => {

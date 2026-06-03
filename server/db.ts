@@ -778,3 +778,57 @@ export async function getEntitiesWithMultipleClaims(
     .orderBy(graphEntities.canonicalName)
     .limit(limit);
 }
+
+export async function getClaimById(claimId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getClaimWithDocument(claimId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({
+      claim: claims,
+      document: documents,
+    })
+    .from(claims)
+    .innerJoin(documents, eq(claims.documentId, documents.id))
+    .where(eq(claims.id, claimId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getEntityClaimSummary(entityName: string): Promise<{
+  supported: number;
+  contradicted: number;
+  ambiguous: number;
+  total: number;
+  lastUpdated: Date | null;
+}> {
+  const db = await getDb();
+  if (!db) return { supported: 0, contradicted: 0, ambiguous: 0, total: 0, lastUpdated: null };
+  const rows = await db
+    .select()
+    .from(claims)
+    .where(
+      sql`(${claims.claimText} LIKE ${`%${entityName}%`} OR ${claims.pdbId} = ${entityName})`
+    )
+    .orderBy(desc(claims.createdAt))
+    .limit(500);
+
+  let supported = 0, contradicted = 0, ambiguous = 0;
+  let lastUpdated: Date | null = null;
+  for (const row of rows) {
+    const v = row.verdict ?? "";
+    if (v === "Supported" || v === "Partially Supported") supported++;
+    else if (v === "Contradicted") contradicted++;
+    else ambiguous++;
+    if (row.createdAt && (!lastUpdated || row.createdAt > lastUpdated)) {
+      lastUpdated = row.createdAt;
+    }
+  }
+  return { supported, contradicted, ambiguous, total: rows.length, lastUpdated };
+}

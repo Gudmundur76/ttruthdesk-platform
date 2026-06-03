@@ -241,3 +241,99 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
 // ─── Exported helpers for wikiLinter ─────────────────────────────────────────
 
 export { fetchWikiPage, wikiKey, slugify };
+
+// ─── llms.txt generation ──────────────────────────────────────────────────────
+
+/**
+ * generateLlmsTxt
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Builds the /llms.txt content from all graph entities.
+ * Follows the geo-standard §5 format:
+ *   # Site name
+ *   > One-line summary
+ *   ## Section
+ *   - [Title](/path): description
+ */
+export async function generateLlmsTxt(baseUrl: string): Promise<string> {
+  const { getAllGraphEntities, getContradictionRelations } = await import("./db");
+
+  const entities = await getAllGraphEntities(1000);
+  const contradictions = await getContradictionRelations(500);
+
+  const contradictEntityIds = new Set<number>();
+  for (const c of contradictions) {
+    contradictEntityIds.add(c.sourceEntityId);
+    contradictEntityIds.add(c.targetEntityId);
+  }
+
+  // Group by entity type
+  const byType: Record<string, typeof entities> = {};
+  for (const e of entities) {
+    if (!byType[e.entityType]) byType[e.entityType] = [];
+    byType[e.entityType].push(e);
+  }
+
+  const typeLabels: Record<string, string> = {
+    protein: "Proteins",
+    pdb_id: "PDB Structures",
+    method: "Methods",
+    organism: "Organisms",
+    ligand: "Ligands",
+    author: "Authors",
+    concept: "Concepts",
+    document: "Documents",
+  };
+
+  const totalEntities = entities.length;
+  const totalContradictions = contradictions.length;
+
+  let txt = `# Truth Desk · Protein Knowledge Graph\n`;
+  txt += `> Autonomous evidence auditing for molecular biology claims. `;
+  txt += `${totalEntities} entities verified against RCSB PDB, PubChem, and domain-specific sources.\n\n`;
+
+  // Recent contradictions section first (highest citation value)
+  if (contradictions.length > 0) {
+    txt += `## Recent Contradictions\n`;
+    for (const c of contradictions.slice(0, 10)) {
+      const srcEntity = entities.find((e) => e.id === c.sourceEntityId);
+      const tgtEntity = entities.find((e) => e.id === c.targetEntityId);
+      if (srcEntity && tgtEntity) {
+        const slug = `${srcEntity.entityType}/${encodeURIComponent(srcEntity.canonicalName.replace(/ /g, "_"))}`;
+        txt += `- [${srcEntity.canonicalName} vs ${tgtEntity.canonicalName}](${baseUrl}/wiki/${slug}): Cross-document contradiction detected\n`;
+      }
+    }
+    txt += `\n`;
+  }
+
+  // Entity sections by type
+  for (const [type, typeEntities] of Object.entries(byType)) {
+    if (type === "document") continue; // Skip document entities in llms.txt
+    const label = typeLabels[type] ?? type;
+    txt += `## ${label}\n`;
+    for (const e of typeEntities.slice(0, 50)) {
+      const slug = `${e.entityType}/${encodeURIComponent(e.canonicalName.replace(/ /g, "_"))}`;
+      const hasContradiction = contradictEntityIds.has(e.id);
+      const suffix = hasContradiction ? ` (${totalContradictions} contradictions)` : "";
+      txt += `- [${e.canonicalName}](${baseUrl}/wiki/${slug}): Verified entity${suffix}\n`;
+    }
+    txt += `\n`;
+  }
+
+  // MCP tools section
+  txt += `## MCP Tools\n`;
+  txt += `- [graph.query](${baseUrl}/api/trpc): Natural language knowledge graph query\n`;
+  txt += `- [claims.verify](${baseUrl}/api/trpc): Verify a scientific claim against PDB/PubChem\n`;
+  txt += `- [wiki.getPage](${baseUrl}/api/trpc): Retrieve entity wiki page by type and name\n\n`;
+
+  return txt;
+}
+
+/**
+ * storeLlmsTxt
+ * Writes the generated llms.txt to S3 for caching.
+ */
+export async function storeLlmsTxt(baseUrl: string): Promise<string> {
+  const content = await generateLlmsTxt(baseUrl);
+  await storagePut("llms.txt", Buffer.from(content, "utf-8"), "text/plain");
+  return content;
+}

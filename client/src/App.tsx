@@ -15,6 +15,7 @@ import Registry from "@/pages/Registry";
 import PublicReport from "@/pages/PublicReport";
 import Verticals from "@/pages/Verticals";
 import WikiPage from "@/pages/WikiPage";
+import ClaimPage from "@/pages/ClaimPage";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -37,6 +38,7 @@ function Router() {
       </Route>
       <Route path="/verticals" component={Verticals} />
       <Route path="/wiki/:entityType/:entitySlug" component={WikiPage} />
+      <Route path="/claim/:id" component={ClaimPage} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
