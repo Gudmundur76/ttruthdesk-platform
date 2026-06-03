@@ -396,3 +396,12 @@
 - [x] Add "Run Backfill" button to /admin/predictions page
 - [x] Write Vitest tests for predictionBackfillJob.ts
 - [x] Save checkpoint, push to GitHub
+
+## Phase 39: P0 Trust & Transparency Sprint (Strategy Map)
+
+- [x] Build /trust page: methodology, data sources (RCSB/PubMed/PMC/UniProt), EU AI Act compliance statement, privacy architecture, No Scraping manifesto section
+- [x] Add /trust and /docs/api links to main navigation (TopNav)
+- [x] Add "How We Verify" pipeline visual to AuditReport.tsx (collapsible section showing Extract → Validate → Report steps with timestamps)
+- [x] Build /docs/api page: live examples for /api/public/verify-claim and /api/public/claims.json, code snippets in curl/Python/JS
+- [x] Register /trust and /docs/api routes in App.tsx
+- [x] Write Vitest tests, save checkpoint, push to GitHub

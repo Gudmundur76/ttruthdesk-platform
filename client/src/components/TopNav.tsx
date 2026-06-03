@@ -19,6 +19,8 @@ const NAV_LINKS = [
   { href: "/verticals", label: "Verticals", public: true },
   { href: "/registry", label: "Registry", public: true },
   { href: "/graph", label: "Graph", public: true },
+  { href: "/trust", label: "Trust", public: true },
+  { href: "/docs/api", label: "API", public: true },
   { href: "/dashboard", label: "Dashboard", public: false },
   { href: "/monitoring", label: "Monitoring", public: false },
   { href: "/pricing", label: "Request Audit", public: true },

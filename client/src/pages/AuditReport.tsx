@@ -7,6 +7,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useState, useCallback } from "react";
+import { Link } from "wouter";
 
 // ─── ClaimTrajectoryBadge ─────────────────────────────────────────────────────
 function ClaimTrajectoryBadge({ claimId }: { claimId: number }) {
@@ -140,6 +141,97 @@ function VerdictBar({ claims }: { claims: ClaimRow[] }) {
           <div key={v} className={`${VERDICT_COLORS[v]} transition-all`} style={{ width: `${pct}%` }} title={`${v}: ${count}`} />
         );
       })}
+    </div>
+  );
+}
+
+// ─── HowWeVerifyPanel ────────────────────────────────────────────────────────
+function HowWeVerifyPanel({
+  submittedAt,
+  claimsCount,
+  llmProvider,
+  qualityTier,
+}: {
+  submittedAt: number;
+  claimsCount: number;
+  llmProvider?: string;
+  qualityTier?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const steps = [
+    {
+      icon: "📄",
+      label: "Document Ingested",
+      detail: `Submitted ${new Date(submittedAt).toLocaleString()}. Text extracted and normalised.`,
+      color: "bg-slate-100 text-slate-700",
+    },
+    {
+      icon: "🔍",
+      label: "Claims Extracted",
+      detail: `${claimsCount} discrete scientific claims identified by LLM (${llmProvider ?? "manus_builtin"}). Each claim typed: structural, quantitative, methodological, or organism.`,
+      color: "bg-blue-50 text-blue-700",
+    },
+    {
+      icon: "🗄️",
+      label: "Validated Against Databases",
+      detail: "Each claim cross-referenced against RCSB PDB, PubMed, Europe PMC, and PubChem using official APIs. No web scraping. Every evidence link points to a real database entry.",
+      color: "bg-violet-50 text-violet-700",
+    },
+    {
+      icon: "📊",
+      label: "Confidence Scored",
+      detail: "A confidence score (0–1) and confidence flags assigned per claim based on evidence quality, source count, and method reliability.",
+      color: "bg-amber-50 text-amber-700",
+    },
+    {
+      icon: "✅",
+      label: "Report Generated",
+      detail: `Quality tier: ${qualityTier ?? "draft"}. Audit report with structured claims.json, HTML export, and PDF export produced.`,
+      color: "bg-green-50 text-green-700",
+    },
+  ];
+  return (
+    <div className="bg-white rounded-xl border border-border shadow-sm mb-6 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-slate-900">How We Verified This Document</span>
+          <span className="text-xs text-slate-400 font-normal">API-only · No scraping · Full audit trail</span>
+        </div>
+        <svg
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-5 pb-5">
+          <div className="flex flex-col md:flex-row gap-0 md:gap-0 relative">
+            {steps.map((step, i) => (
+              <div key={i} className="flex md:flex-col items-start md:items-center gap-3 md:gap-2 flex-1 relative pb-4 md:pb-0">
+                {/* connector line */}
+                {i < steps.length - 1 && (
+                  <div className="hidden md:block absolute top-5 left-1/2 w-full h-px bg-border" />
+                )}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 z-10 ${step.color}`}>
+                  {step.icon}
+                </div>
+                <div className="md:text-center">
+                  <p className="text-xs font-semibold text-slate-800 mb-0.5">{step.label}</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{step.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+            <p className="text-xs text-slate-400">All data sourced from official APIs: RCSB PDB · PubMed · Europe PMC · PubChem</p>
+            <Link href="/trust" className="text-xs text-primary hover:underline">Full methodology →</Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -346,6 +438,16 @@ function AuditReportContent() {
             </a>
           )}
         </div>
+      )}
+
+      {/* How We Verify */}
+      {isComplete && (
+        <HowWeVerifyPanel
+          submittedAt={doc.createdAt instanceof Date ? doc.createdAt.getTime() : Number(doc.createdAt)}
+          claimsCount={claims?.length ?? 0}
+          llmProvider={(doc as { llmProvider?: string }).llmProvider}
+          qualityTier={(doc as { qualityTier?: string }).qualityTier}
+        />
       )}
 
       {/* Claims table */}

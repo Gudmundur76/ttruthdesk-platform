@@ -19,6 +19,8 @@ import ClaimPage from "@/pages/ClaimPage";
 import Admin from "@/pages/Admin";
 import PredictionCalibration from "@/pages/PredictionCalibration";
 import AlertSettings from "@/pages/AlertSettings";
+import Trust from "@/pages/Trust";
+import ApiDocs from "@/pages/ApiDocs";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -45,6 +47,8 @@ function Router() {
       <Route path="/admin" component={Admin} />
       <Route path="/admin/predictions" component={PredictionCalibration} />
       <Route path="/settings/alerts" component={AlertSettings} />
+      <Route path="/trust" component={Trust} />
+      <Route path="/docs/api" component={ApiDocs} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
