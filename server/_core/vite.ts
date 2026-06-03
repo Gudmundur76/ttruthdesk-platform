@@ -172,6 +172,114 @@ ${JSON.stringify({
   });
 }
 
+// ── Semantic HTML injection for production HTML responses ────────────────
+function buildSemanticInjection(): { headMeta: string; noscriptBlock: string } {
+  const noscriptBlock = `
+<noscript>
+  <header>
+    <nav aria-label="Main navigation">
+      <a href="/">Truth Desk</a>
+      <a href="/verticals">Verticals</a>
+      <a href="/registry">Registry</a>
+      <a href="/graph">Knowledge Graph</a>
+      <a href="/pricing">Pricing</a>
+    </nav>
+  </header>
+  <main id="main-content">
+    <section aria-labelledby="hero-heading">
+      <h1 id="hero-heading">Truth Desk — Scientific Claims Verification Platform</h1>
+      <p>Truth Desk is an autonomous multi-vertical platform that verifies scientific claims against authoritative databases. It ingests peer-reviewed literature from PMC Open Access, extracts molecular and biological claims, and cross-references each claim against the Protein Data Bank (PDB), PubChem, PubMed, and UniProt.</p>
+      <p>Every verdict is traceable to a primary evidence source. LLMs are used only for claim extraction — never for verdict generation. The result is a machine-readable audit trail that researchers, investors, and AI agents can query directly.</p>
+    </section>
+    <section aria-labelledby="verticals-heading">
+      <h2 id="verticals-heading">Research Verticals</h2>
+      <p>Truth Desk operates across multiple scientific domains. Each vertical uses domain-specific MeSH queries, curated evidence sources, and a two-pass quality pipeline to ensure high-fidelity claim verification.</p>
+      <ul>
+        <li><strong>Structural Biology</strong> — Verifies protein structure claims against PDB deposited crystal structures. Covers fold topology, binding site geometry, resolution thresholds, and crystallographic evidence.</li>
+        <li><strong>Salmon Biotech</strong> — Verifies aquaculture and marine biotech claims against PubChem compound data and PubMed literature. Covers feed additives, growth factors, and disease resistance compounds.</li>
+        <li><strong>Drug Discovery</strong> — Coming soon. Will cover small molecule candidates, target binding affinity, and ADMET property claims.</li>
+        <li><strong>Clinical Genomics</strong> — Coming soon. Will cover variant pathogenicity, gene expression, and clinical association claims.</li>
+        <li><strong>Cancer Biology</strong> — Coming soon. Will cover oncogene activity, tumour suppressor function, and therapeutic target claims.</li>
+      </ul>
+      <p><a href="/verticals">View all verticals and live statistics</a></p>
+    </section>
+    <section aria-labelledby="registry-heading">
+      <h2 id="registry-heading">Claims Registry and Knowledge Graph</h2>
+      <p>All verified claims are published in a machine-readable registry accessible at <a href="/api/public/claims.json">/api/public/claims.json</a>. The registry includes claim text, verdict (supported, refuted, or inconclusive), confidence score, evidence source, and a link to the full audit report.</p>
+      <p>The interactive knowledge graph at <a href="/graph">/graph</a> visualises relationships between scientific documents, extracted claims, and evidence nodes. Document nodes are colour-coded by vertical domain. Evidence nodes are colour-coded by verdict.</p>
+      <p>AI agents can query the platform directly via the MCP tool card at <a href="/.well-known/mcp.json">/.well-known/mcp.json</a>, the markdown summary at <a href="/api/md">/api/md</a>, and the agent-callable verification endpoint at <a href="/api/public/verify-claim">/api/public/verify-claim</a>.</p>
+      <p><a href="/registry">Browse the public claims registry</a></p>
+    </section>
+  </main>
+  <footer>
+    <nav aria-label="Footer navigation">
+      <a href="/">Home</a>
+      <a href="/verticals">Verticals</a>
+      <a href="/registry">Registry</a>
+      <a href="/graph">Knowledge Graph</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/llms.txt">llms.txt</a>
+      <a href="/.well-known/mcp.json">MCP</a>
+      <a href="/api/public/claims.json">Claims API</a>
+    </nav>
+    <p>Truth Desk by Arctic Media LLC. Scientific claims verified against PDB, PubChem, PubMed, UniProt, and PMC Open Access.</p>
+  </footer>
+</noscript>`;
+
+  const jsonLd = JSON.stringify({
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://protein-desk-5r5rzpyg.manus.space/#website",
+        "url": "https://protein-desk-5r5rzpyg.manus.space/",
+        "name": "Truth Desk",
+        "description": "Autonomous multi-vertical scientific claims verification platform. Verifies molecular, structural, and biological claims against authoritative databases including PDB, PubChem, PubMed, UniProt, and PMC Open Access.",
+        "publisher": { "@type": "Organization", "name": "Arctic Media LLC", "url": "https://protein-desk-5r5rzpyg.manus.space/" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://protein-desk-5r5rzpyg.manus.space/#app",
+        "name": "Truth Desk",
+        "applicationCategory": "ScientificApplication",
+        "operatingSystem": "Web",
+        "description": "Truth Desk autonomously ingests scientific literature from PMC Open Access, extracts molecular and biological claims, and verifies each claim against authoritative evidence databases including the Protein Data Bank (PDB), PubChem, PubMed, and UniProt.",
+        "offers": [
+          { "@type": "Offer", "name": "Starter", "price": "1500", "priceCurrency": "USD" },
+          { "@type": "Offer", "name": "Diligence", "price": "5000", "priceCurrency": "USD" }
+        ],
+        "featureList": [
+          "Automated claim extraction from PMC Open Access literature",
+          "PDB structure verification for structural biology claims",
+          "PubChem compound verification for chemistry and biotech claims",
+          "Machine-readable claim registry at /api/public/claims.json",
+          "Interactive knowledge graph at /graph",
+          "Agent-callable verification endpoint at /api/public/verify-claim",
+          "MCP tool card at /.well-known/mcp.json"
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://protein-desk-5r5rzpyg.manus.space/#faq",
+        "mainEntity": [
+          { "@type": "Question", "name": "What is Truth Desk?", "acceptedAnswer": { "@type": "Answer", "text": "Truth Desk is an autonomous scientific claims verification platform. It ingests peer-reviewed literature from PMC Open Access, extracts molecular and biological claims, and verifies each claim against authoritative databases including the Protein Data Bank (PDB), PubChem, PubMed, and UniProt." } },
+          { "@type": "Question", "name": "Which research verticals does Truth Desk cover?", "acceptedAnswer": { "@type": "Answer", "text": "Truth Desk currently covers structural biology and salmon biotech, with drug discovery, clinical genomics, cancer biology, neuroscience, and agri-biotech planned." } },
+          { "@type": "Question", "name": "How does Truth Desk verify claims?", "acceptedAnswer": { "@type": "Answer", "text": "Claims are verified by cross-referencing against authoritative databases. Structural biology claims are checked against the Protein Data Bank (PDB). Chemistry and biotech claims are checked against PubChem. LLMs are used only for claim extraction, never for verdict generation." } },
+          { "@type": "Question", "name": "Can AI agents query Truth Desk programmatically?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Truth Desk exposes a machine-readable claims registry at /api/public/claims.json, an agent-callable verification endpoint at /api/public/verify-claim, a markdown summary at /api/md, and an MCP tool card at /.well-known/mcp.json." } },
+          { "@type": "Question", "name": "What is the knowledge graph?", "acceptedAnswer": { "@type": "Answer", "text": "The knowledge graph at /graph visualises relationships between scientific documents, extracted claims, and verified evidence nodes. Nodes are colour-coded by vertical domain and verdict. The graph can be embedded in external sites via iframe." } }
+        ]
+      }
+    ]
+  }, null, 2);
+
+  const headMeta = [
+    '<meta name="content-signal" content="scientific-claims-verification" />',
+    `<script type="application/ld+json">\n${jsonLd}\n</script>`,
+  ].join("\n    ");
+
+  return { headMeta, noscriptBlock };
+}
+
 export function serveStatic(app: Express) {
   const distPath =
     process.env.NODE_ENV === "development"
@@ -185,8 +293,25 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
+  // fall through to index.html — inject semantic HTML before sending
   app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const indexPath = path.resolve(distPath, "index.html");
+    try {
+      let html = fs.readFileSync(indexPath, "utf-8");
+      const { headMeta, noscriptBlock } = buildSemanticInjection();
+      // Inject meta + JSON-LD into <head>
+      if (!html.includes('content-signal')) {
+        html = html.replace("</head>", `    ${headMeta}\n  </head>`);
+      }
+      // Inject noscript block before </body>
+      if (!html.includes('<noscript>')) {
+        html = html.replace("</body>", `${noscriptBlock}\n  </body>`);
+      }
+      // Replace title placeholder if present
+      html = html.replace('{{project_title}}', process.env.VITE_APP_TITLE ?? 'Truth Desk');
+      res.set('Content-Type', 'text/html; charset=utf-8').send(html);
+    } catch {
+      res.sendFile(indexPath);
+    }
   });
 }
