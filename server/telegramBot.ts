@@ -246,6 +246,58 @@ export async function postDailyDigest(channelId: string): Promise<void> {
   }
 }
 
+// ─── Contradiction alert ────────────────────────────────────────────────────────
+
+/**
+ * Post a real-time contradiction alert to the Telegram channel.
+ * Called by wikiLinter when a new 'contradicts' edge is written to graph_relations.
+ */
+export async function postContradictionAlert(params: {
+  entityName: string;
+  entityType: string;
+  claimText: string;
+  verdict: string;
+  rationale: string;
+  claimId: number;
+  documentTitle?: string;
+  pdbId?: string;
+  baseUrl?: string;
+}): Promise<void> {
+  const bot = getBot();
+  const channelId = ENV.telegramChannelId;
+  if (!bot || !channelId) return;
+
+  const origin = params.baseUrl ?? "https://protein-desk-5r5rzpyg.manus.space";
+  const claimUrl = `${origin}/claim/${params.claimId}`;
+  const wikiUrl = `${origin}/wiki/${params.entityType}/${params.entityName.toLowerCase().replace(/\s+/g, "_")}`;
+
+  const claimSnippet = params.claimText.slice(0, 120);
+  const rationaleSnippet = params.rationale.slice(0, 180);
+
+  const lines = [
+    `🔴 *NEW CONTRADICTION DETECTED*`,
+    ``,
+    `🧬 *Entity:* ${escapeMarkdown(params.entityName)} \(${escapeMarkdown(params.entityType)}\)`,
+    params.documentTitle ? `📄 *Paper:* ${escapeMarkdown(params.documentTitle)}` : null,
+    params.pdbId ? `🔬 *PDB:* ${escapeMarkdown(params.pdbId)}` : null,
+    ``,
+    `*Claim:* _${escapeMarkdown(claimSnippet)}${params.claimText.length > 120 ? "…" : ""}_`,
+    `*Verdict:* ${escapeMarkdown(params.verdict)}`,
+    `*Rationale:* ${escapeMarkdown(rationaleSnippet)}${params.rationale.length > 180 ? "…" : ""}`,
+    ``,
+    `[View Claim](${escapeMarkdown(claimUrl)}) · [Entity Wiki](${escapeMarkdown(wikiUrl)})`,
+  ].filter(Boolean) as string[];
+
+  try {
+    await bot.api.sendMessage(channelId, lines.join("\n"), {
+      parse_mode: "MarkdownV2",
+    });
+    console.log(`[TelegramBot] Contradiction alert sent for claim #${params.claimId}`);
+  } catch (err) {
+    console.error("[TelegramBot] Contradiction alert send failed:", err);
+  }
+}
+
 // ─── Start polling (development / long-running) ───────────────────────────────
 export async function startTelegramBot(): Promise<void> {
   const bot = getBot();

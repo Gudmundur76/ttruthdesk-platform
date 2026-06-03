@@ -280,3 +280,16 @@
 - [x] Add getClaimById, getClaimWithDocument, getEntityClaimSummary helpers to db.ts
 - [x] Write 21 Vitest tests: badge SVG, ClaimReview JSON-LD, llms.txt format compliance — 158 total passing
 - [x] Save checkpoint and push to GitHub
+
+## Phase 30: Backfill, MCP Server Card, Telegram Contradiction Posts
+
+- [x] Build POST /api/admin/backfill-wiki — iterates all completed documents (up to 500), calls compileDocumentToWiki for each with 300ms throttle, regenerates /llms.txt
+- [x] Build GET /api/admin/backfill-wiki/status — owner-only status check returning completedDocuments count
+- [x] Add getAllCompletedDocuments() helper to db.ts
+- [x] Expand /.well-known/mcp.json to 7 tools: verify_claim, get_claims_registry, get_platform_summary, get_knowledge_graph_data, claims.byEntity, graph.query, reports.generate
+- [x] Verify /llms.txt serves with Link headers (rel=mcp, rel=api-catalog)
+- [x] Verify /api/wiki/* responses return Link headers (rel=llms, rel=mcp, rel=api-catalog)
+- [x] Add postContradictionAlert() to telegramBot.ts — MarkdownV2 formatted alert with entity, PDB, claim snippet, verdict, rationale, and claim/wiki links
+- [x] Wire postContradictionAlert into wikiLinter.ts — fires after each new contradicts edge is written
+- [x] Write 20 Vitest tests: MCP tool card shape, backfill logic, Telegram alert format, Link header format — 172 total passing
+- [x] Save checkpoint and push to GitHub

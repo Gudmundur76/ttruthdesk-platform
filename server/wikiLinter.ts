@@ -17,6 +17,7 @@
  */
 
 import { invokeLLM } from "./_core/llm";
+import { postContradictionAlert } from "./telegramBot";
 import {
   getGraphEntitiesByType,
   getContradictionRelations,
@@ -171,6 +172,15 @@ export async function runWikiLint(): Promise<WikiLintReport> {
           confidenceScore: c.confidenceScore,
         });
         newEdgesCreated++;
+        // Fire-and-forget Telegram alert for new contradictions
+        postContradictionAlert({
+          entityName: entity.canonicalName,
+          entityType: entity.entityType,
+          claimText: c.claimA,
+          verdict: "Contradicted",
+          rationale: c.explanation,
+          claimId: entity.firstSeenDocumentId ?? 0,
+        }).catch((e) => console.error("[WikiLinter] Telegram alert failed:", e));
       } catch (err) {
         // Duplicate edge — already exists, ignore
         console.debug(`[WikiLinter] Edge already exists for entity #${entity.id}`);

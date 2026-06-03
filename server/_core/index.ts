@@ -22,6 +22,7 @@ import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
 import { registerWikiPageRoute } from "../wikiPageRoute";
 import { registerBadgeRoute } from "../badgeRoute";
+import { registerBackfillWikiRoute } from "../backfillWikiRoute";
 import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
 import { startTelegramBot } from "../telegramBot";
@@ -133,6 +134,72 @@ async function startServer() {
         properties: {
           nodes: { type: "array", description: "Document and evidence nodes" },
           links: { type: "array", description: "Edges between nodes" }
+        }
+      }
+    },
+    {
+      name: "claims.byEntity",
+      description: "Retrieve all verified claims for a specific entity (protein, PDB ID, method, organism). Returns claims with verdicts, rationale, and evidence links. Use entity_type values: protein, pdb_id, method, organism, ligand.",
+      endpoint: `${SITE_ORIGIN}/api/trpc/graph.entities`,
+      method: "GET",
+      input_schema: {
+        type: "object",
+        properties: {
+          entityType: { type: "string", enum: ["protein", "pdb_id", "method", "organism", "ligand", "author", "concept"], description: "Entity category" },
+          canonicalName: { type: "string", description: "Canonical entity name, e.g. 'lysozyme' or '1LYZ'" }
+        },
+        required: ["entityType", "canonicalName"]
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          entity: { type: "object", description: "Entity metadata" },
+          markdown: { type: "string", description: "Wiki page markdown with all claims" },
+          jsonld: { type: "object", description: "Schema.org Dataset JSON-LD" }
+        }
+      }
+    },
+    {
+      name: "graph.query",
+      description: "Ask a natural language question about the protein knowledge graph. Returns an LLM-synthesised answer grounded in the graph entities and relations. Example: 'What contradictions exist about PDB 1LYZ resolution?'",
+      endpoint: `${SITE_ORIGIN}/api/trpc/graph.query`,
+      method: "POST",
+      input_schema: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "Natural language question about the knowledge graph" }
+        },
+        required: ["question"]
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          answer: { type: "string", description: "LLM-synthesised answer with entity citations" },
+          entities: { type: "array", description: "Entities referenced in the answer" },
+          contradictions: { type: "array", description: "Any contradiction edges relevant to the question" }
+        }
+      }
+    },
+    {
+      name: "reports.generate",
+      description: "Submit a scientific document (abstract, whitepaper, pitch deck) for automated claim extraction and verification. Returns a document ID for polling status and retrieving the full audit report.",
+      endpoint: `${SITE_ORIGIN}/api/trpc/documents.create`,
+      method: "POST",
+      input_schema: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Document title" },
+          rawText: { type: "string", description: "Full text of the document to audit" },
+          sourceType: { type: "string", enum: ["manual", "pmid", "doi", "url"], description: "How the document was sourced" },
+          verticalDomain: { type: "string", enum: ["structural_biology", "salmon_biotech", "general"], description: "Research domain for targeted verification" }
+        },
+        required: ["rawText"]
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          documentId: { type: "number", description: "Use this ID to poll /api/trpc/documents.get for status" },
+          status: { type: "string", enum: ["pending", "extracting", "validating", "generating_report", "complete", "failed"] }
         }
       }
     }
@@ -508,6 +575,7 @@ async function startServer() {
   registerClaimPageRoute(app);
   registerWikiPageRoute(app);
   registerBadgeRoute(app);
+  registerBackfillWikiRoute(app);
 
   // PDF report export endpoint (authenticated)
   app.get("/api/reports/:documentId/pdf", async (req, res) => {

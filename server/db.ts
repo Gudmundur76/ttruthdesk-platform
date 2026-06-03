@@ -832,3 +832,16 @@ export async function getEntityClaimSummary(entityName: string): Promise<{
   }
   return { supported, contradicted, ambiguous, total: rows.length, lastUpdated };
 }
+
+// ─── Backfill helpers ─────────────────────────────────────────────────────────
+
+export async function getAllCompletedDocuments(limit = 500) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(documents)
+    .where(eq(documents.status, "complete"))
+    .orderBy(desc(documents.createdAt))
+    .limit(limit);
+}
