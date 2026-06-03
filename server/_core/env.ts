@@ -25,4 +25,6 @@ export const ENV = {
   paypalClientId: process.env.PAYPAL_CLIENT_ID ?? "",
   paypalSecret: process.env.PAYPAL_SECRET ?? "",
   paypalMode: (process.env.PAYPAL_MODE ?? "sandbox") as "sandbox" | "live",
+  // IndexNow (Bing/Perplexity instant re-indexing)
+  indexNowKey: process.env.INDEX_NOW_KEY ?? "",
 };

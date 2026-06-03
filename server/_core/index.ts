@@ -27,6 +27,7 @@ import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
 import { startTelegramBot } from "../telegramBot";
 import { runWikiLint } from "../wikiLinter";
+import { ENV } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -574,6 +575,11 @@ async function startServer() {
   registerVerifyClaimRoute(app);
   registerClaimPageRoute(app);
   registerWikiPageRoute(app);
+  // IndexNow key verification file (Bing ownership proof — served at /<key>.txt)
+  app.get(`/${ENV.indexNowKey || '_indexnow_disabled'}.txt`, (_req, res) => {
+    if (!ENV.indexNowKey) { res.status(404).send("Not found"); return; }
+    res.set("Content-Type", "text/plain").send(ENV.indexNowKey);
+  });
   registerBadgeRoute(app);
   registerBackfillWikiRoute(app);
 

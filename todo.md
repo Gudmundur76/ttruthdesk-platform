@@ -375,3 +375,24 @@
 - [x] Add INDEX_NOW_KEY to environment secrets
 - [x] Write Vitest tests for IndexNow helper (notifyIndexNow, notifyIndexNowBatch, error handling)
 - [x] Save checkpoint, push to GitHub
+
+## Phase 37: Contradiction Alert Webhooks
+
+- [ ] Add webhookAlerts table to drizzle/schema.ts (id, userId, url, secret, eventTypes json, active, createdAt)
+- [ ] Generate and apply DB migration 0012 for webhookAlerts table
+- [ ] Add DB helpers: insertWebhookAlert, getWebhookAlertsByUser, deleteWebhookAlert, getActiveWebhookAlerts
+- [ ] Build server/alertDispatcher.ts: dispatchHighRiskAlert(claim, prediction) — Telegram message + HMAC-signed webhook POST
+- [ ] Wire dispatchHighRiskAlert into analysisPipeline.ts when prediction.contradictionProbability >= 0.70
+- [ ] Add tRPC procedures: alerts.list, alerts.create, alerts.delete (all protectedProcedure)
+- [ ] Build /settings/alerts page with webhook URL form, secret display, and delete button
+- [ ] Add Alerts nav item to DashboardLayout sidebar
+- [ ] Write Vitest tests for alertDispatcher.ts
+
+## Phase 38: Prediction Backfill Job
+
+- [ ] Build server/predictionBackfillJob.ts: fetches all claims with no prediction row, runs computeClaimTrajectory in batches of 20
+- [ ] Register POST /api/scheduled/backfill-predictions heartbeat endpoint in index.ts
+- [ ] Add trpc.admin.backfillPredictions mutation (adminProcedure) that triggers the backfill
+- [ ] Add "Run Backfill" button to /admin/predictions page
+- [ ] Write Vitest tests for predictionBackfillJob.ts
+- [ ] Save checkpoint, push to GitHub
