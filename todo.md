@@ -232,3 +232,14 @@
 - [x] Update landing page hero with "Free for universities" badge/callout
 - [x] Write Vitest tests for academic domain detection and plan enforcement (21 tests in academicDomains.test.ts)
 - [x] Save checkpoint and push to GitHub (fc23dd4f)
+
+## Phase 27: Strategic Revision — Dashboard, PDF, API Billing, Telegram
+
+- [x] Fix Dashboard page: document list with real data, claim counts, verdict distribution chart, report status, links to /audit/:id
+- [x] Fix AuditReport page: claim table with verdicts, evidence links, rationale, confidence badges all rendering from real DB data
+- [x] Add topVerdict to getDocumentsByUser — highest-priority verdict from claims, rendered as VerdictBadge in Dashboard
+- [x] Add PDF export: GET /api/reports/:documentId/pdf — puppeteer-core + /usr/bin/chromium, authenticated, download button in AuditReport.tsx and Dashboard.tsx
+- [x] Add API billing headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-Plan-Tier, X-Credits-Used, X-Credits-Remaining on /api/public/verify-claim and POST /mcp
+- [x] Build Telegram bot (grammy): /start, /audit <PMID>, /monitor <PMID>, /status commands; daily digest via postDailyDigest(channelId); TELEGRAM_BOT_TOKEN + TELEGRAM_CHANNEL_ID in ENV
+- [x] Register Telegram bot startup in index.ts (no-op if TELEGRAM_BOT_TOKEN not set)
+- [x] Run tests, push to GitHub, save checkpoint

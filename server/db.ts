@@ -176,7 +176,39 @@ export async function getDocumentById(id: number) {
 export async function getDocumentsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
+  const docs = await db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
+  // Attach topVerdict: the most common non-null verdict for each document
+  const VERDICT_PRIORITY = [
+    "Contradicted",
+    "Partially Supported",
+    "Needs Expert Review",
+    "Ambiguous",
+    "Insufficient Evidence",
+    "Supported",
+    "Out of Scope",
+  ];
+  const docIds = docs.map((d) => d.id);
+  if (docIds.length === 0) return docs.map((d) => ({ ...d, topVerdict: null as string | null }));
+  const claimRows = await db
+    .select({ documentId: claims.documentId, verdict: claims.verdict })
+    .from(claims)
+    .where(and(isNotNull(claims.verdict), sql`${claims.documentId} IN (${sql.join(docIds.map((id) => sql`${id}`), sql`, `)})`))
+  // Count verdicts per document
+  const verdictMap: Record<number, Record<string, number>> = {};
+  for (const row of claimRows) {
+    if (!row.verdict || !row.documentId) continue;
+    verdictMap[row.documentId] ??= {};
+    verdictMap[row.documentId][row.verdict] = (verdictMap[row.documentId][row.verdict] ?? 0) + 1;
+  }
+  return docs.map((d) => {
+    const counts = verdictMap[d.id];
+    let topVerdict: string | null = null;
+    if (counts) {
+      // Pick highest-priority verdict that appears at least once
+      topVerdict = VERDICT_PRIORITY.find((v) => (counts[v] ?? 0) > 0) ?? Object.keys(counts)[0] ?? null;
+    }
+    return { ...d, topVerdict };
+  });
 }
 
 export async function updateDocumentStatus(

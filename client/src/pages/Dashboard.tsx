@@ -126,15 +126,37 @@ export default function Dashboard() {
                       <span className="font-mono text-slate-700">{doc.claimCount ?? "—"}</span>
                     </td>
                     <td className="px-5 py-4 hidden lg:table-cell">
-                      <span className="text-slate-300">—</span>
+                      {doc.topVerdict ? (
+                        <VerdictBadge verdict={doc.topVerdict} />
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-4 hidden md:table-cell text-slate-500 text-xs">
                       {new Date(doc.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/audit/${doc.id}`); }}>
-                        View →
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        {doc.status === "complete" && (
+                          <a
+                            href={`/api/reports/${doc.id}/pdf`}
+                            download={`audit-report-${doc.id}.pdf`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                            title="Export PDF"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                              <polyline points="7 10 12 15 17 10"/>
+                              <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            PDF
+                          </a>
+                        )}
+                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/audit/${doc.id}`); }}>
+                          View →
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}

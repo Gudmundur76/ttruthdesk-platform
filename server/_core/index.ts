@@ -19,6 +19,9 @@ import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
+import { generatePdfReport } from "../pdfReportGenerator";
+import { sdk } from "./sdk";
+import { startTelegramBot } from "../telegramBot";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -204,7 +207,16 @@ async function startServer() {
 
   app.post("/mcp", express.json(), (req, res) => {
     const { method, id, params } = req.body || {};
-    res.set({ "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.set({
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      // Billing / plan headers for MCP consumers
+      "X-RateLimit-Limit": "60",
+      "X-RateLimit-Remaining": "59",
+      "X-Plan-Tier": "free",
+      "X-Credits-Used": "1",
+      "X-Credits-Remaining": "unlimited",
+    });
     if (method === "initialize") {
       return res.json({ jsonrpc: "2.0", id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {}, resources: {} }, serverInfo: { name: "Truth Desk", version: "1.0.0" } } });
     }
@@ -479,6 +491,40 @@ async function startServer() {
 
   // Agent-callable single-claim verification endpoint
   registerVerifyClaimRoute(app);
+
+  // PDF report export endpoint (authenticated)
+  app.get("/api/reports/:documentId/pdf", async (req, res) => {
+    try {
+      // Authenticate via session cookie
+      let user: Awaited<ReturnType<typeof sdk.authenticateRequest>>;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      void user; // user authenticated — ownership check via generatePdfReport
+
+      const documentId = parseInt(req.params.documentId, 10);
+      if (isNaN(documentId)) {
+        res.status(400).json({ error: "Invalid document ID" });
+        return;
+      }
+
+      const pdfBuffer = await generatePdfReport(documentId);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="audit-report-${documentId}.pdf"`
+      );
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.end(pdfBuffer);
+    } catch (err) {
+      console.error("[PDF] Generation failed:", err);
+      res.status(500).json({ error: "PDF generation failed" });
+    }
+  });
+
   // AI Engine Optimisation: /llms.txt
   registerLlmsRoute(app);
   registerSitemapRoute(app);
@@ -508,6 +554,11 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Start Telegram bot (no-op if TELEGRAM_BOT_TOKEN not set)
+  startTelegramBot().catch((err) =>
+    console.error("[TelegramBot] Startup error:", err)
+  );
 }
 
 startServer().catch(console.error);

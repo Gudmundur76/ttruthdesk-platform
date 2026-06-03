@@ -90,6 +90,11 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
   res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
   res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
 
+  // Billing / plan headers (public endpoint = free tier)
+  res.setHeader("X-Plan-Tier", "free");
+  res.setHeader("X-Credits-Used", "1");
+  res.setHeader("X-Credits-Remaining", "unlimited");
+
   if (!rl.allowed) {
     res.status(429).json({
       ok: false,

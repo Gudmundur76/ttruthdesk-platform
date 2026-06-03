@@ -18,4 +18,7 @@ export const ENV = {
   freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
   kimiApiKey: process.env.KIMI_API_KEY ?? "",
   openRouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
+  // Telegram bot integration
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
+  telegramChannelId: process.env.TELEGRAM_CHANNEL_ID ?? "",
 };

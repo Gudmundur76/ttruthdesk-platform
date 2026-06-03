@@ -222,14 +222,28 @@ export default function AuditReport() {
             </div>
           </div>
           {isComplete && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => regenerateMutation.mutate({ documentId: docId })}
-              disabled={regenerateMutation.isPending}
-            >
-              Regenerate Report
-            </Button>
+            <div className="flex items-center gap-2">
+              <a
+                href={`/api/reports/${docId}/pdf`}
+                download={`audit-report-${docId}.pdf`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export PDF
+              </a>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => regenerateMutation.mutate({ documentId: docId })}
+                disabled={regenerateMutation.isPending}
+              >
+                Regenerate Report
+              </Button>
+            </div>
           )}
         </div>
 
