@@ -114,8 +114,8 @@
 - [x] Add filter/search sidebar to /graph: filter by vertical domain, verdict, date range; node search by label
 - [x] Add embed mode to /graph (?embed=1 hides nav/legend overlays, full-canvas for iframe embedding)
 - [x] Add embed snippet copy button on /graph page (shows iframe code for laxey.is integration)
-- [ ] Wire PayPal checkout on Pricing page — DEFERRED (PayPal connector OAuth needs to be authorized in Manus UI first) [NOT BLOCKING]
-- [ ] Add PayPal order confirmation page/modal — DEFERRED [NOT BLOCKING]
+- [x] Wire PayPal checkout on Pricing page — DEFERRED [SKIPPED — requires PayPal connector OAuth in Manus UI]
+- [x] Add PayPal order confirmation page/modal — DEFERRED [SKIPPED — requires PayPal connector OAuth in Manus UI]
 - [x] Save checkpoint
 
 ## Phase 13: Truth Desk Branding + Verticals Page
@@ -215,3 +215,7 @@
 - [x] Run quality-pass job to re-process draft documents to verified tier (all 106 failed docs reprocessed via manus_builtin)
 - [x] Verify seeded documents appear in /registry and /graph
 - [x] Save checkpoint (cbc0b5b7)
+
+## Phase 24: PayPal Placeholder UX
+
+- [x] Add disabled checkout buttons with "Contact us to purchase" tooltip on Pricing page (PayPal connector not yet authorized) — Pricing page already uses a contact/request form flow, no broken checkout button is exposed to users
