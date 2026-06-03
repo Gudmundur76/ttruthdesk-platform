@@ -43,6 +43,13 @@
       "when": 1780478461200,
       "tag": "0005_hard_texas_twister",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1780493052728,
+      "tag": "0006_fair_ares",
+      "breakpoints": true
     }
   ]
 }

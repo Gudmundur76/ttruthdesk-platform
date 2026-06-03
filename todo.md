@@ -219,3 +219,16 @@
 ## Phase 24: PayPal Placeholder UX
 
 - [x] Add disabled checkout buttons with "Contact us to purchase" tooltip on Pricing page (PayPal connector not yet authorized) — Pricing page already uses a contact/request form flow, no broken checkout button is exposed to users
+
+## Phase 25: Free Trial + Academic Tier
+
+- [ ] Add plan (free_trial|academic|starter|diligence|platform) and trial_expires_at columns to email_users table
+- [ ] Run DB migration for new columns
+- [ ] Build ACADEMIC_DOMAINS list (edu, ac.uk, ac.nz, ac.za, ac.jp, ac.in, ac.il, ac.id, ac.at, ac.be, ac.th, ac.kr, ac.za, hi.is, ru.is, unak.is, bifrost.is, lbhi.is, holar.is, and 80+ country-specific academic TLDs)
+- [ ] Auto-detect academic plan on magic link sign-in by email domain
+- [ ] Enforce usage limits in tRPC: free_trial = 3 audits/30 days, academic = unlimited, starter = 10/month, diligence = 50/month
+- [ ] Add plan badge to user session (visible in top nav after sign-in)
+- [ ] Update Pricing page: add Academic tier card (free, unlimited, domain-gated) and Free Trial CTA
+- [ ] Update landing page hero with "Free for universities" badge/callout
+- [ ] Write Vitest tests for academic domain detection and plan enforcement
+- [ ] Save checkpoint and push to GitHub

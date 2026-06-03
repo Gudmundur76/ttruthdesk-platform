@@ -24,6 +24,8 @@ import {
   getVerticalStats,
 } from "./db";
 import { extractClaims } from "./claimExtractor";
+import { checkAuditLimit } from "./academicDomains";
+import { getEmailUserById, incrementEmailUserAuditCount } from "./db";
 import { verdictForClaim } from "./pdbAdapter";
 import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./reportGenerator";
 import { storagePut } from "./storage";
@@ -157,12 +159,28 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // Plan enforcement for email users
+        if (ctx.user.openId?.startsWith("email_")) {
+          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          const emailUser = await getEmailUserById(emailUserId);
+          if (emailUser) {
+            const limit = checkAuditLimit(emailUser);
+            if (!limit.allowed) {
+              throw new TRPCError({ code: "FORBIDDEN", message: limit.reason });
+            }
+          }
+        }
         const docId = await createDocument({
           userId: ctx.user.id,
           title: input.title,
           sourceType: "paste",
           rawText: input.text,
         });
+        // Increment audit count for email users
+        if (ctx.user.openId?.startsWith("email_")) {
+          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          await incrementEmailUserAuditCount(emailUserId).catch(() => {});
+        }
         // Run pipeline async (fire and forget)
         runAnalysisPipeline(docId, input.text, ctx.user.id).catch(console.error);
         return { documentId: docId };
@@ -179,6 +197,17 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // Plan enforcement for email users
+        if (ctx.user.openId?.startsWith("email_")) {
+          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          const emailUser = await getEmailUserById(emailUserId);
+          if (emailUser) {
+            const limit = checkAuditLimit(emailUser);
+            if (!limit.allowed) {
+              throw new TRPCError({ code: "FORBIDDEN", message: limit.reason });
+            }
+          }
+        }
         const docId = await createDocument({
           userId: ctx.user.id,
           title: input.title,
@@ -188,6 +217,11 @@ export const appRouter = router({
           storageUrl: input.storageUrl,
           rawText: input.rawText,
         });
+        // Increment audit count for email users
+        if (ctx.user.openId?.startsWith("email_")) {
+          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          await incrementEmailUserAuditCount(emailUserId).catch(() => {});
+        }
         runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(console.error);
         return { documentId: docId };
       }),

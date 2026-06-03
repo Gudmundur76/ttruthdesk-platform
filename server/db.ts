@@ -121,12 +121,27 @@ export async function countRecentMagicLinkRequests(email: string, windowMs: numb
 export async function upsertEmailUser(email: string, name?: string) {
   const db = await getDb();
   if (!db) return undefined;
+
+  // Lazy import to avoid circular deps
+  const { getPlanForEmail } = await import("./academicDomains");
+  const { plan, trialExpiresAt } = getPlanForEmail(email);
+
+  // On first insert: assign plan + trialExpiresAt. On duplicate: only update lastSignedIn.
   await db
     .insert(emailUsers)
-    .values({ email, name: name ?? null, lastSignedIn: new Date() })
+    .values({ email, name: name ?? null, plan, trialExpiresAt, lastSignedIn: new Date() })
     .onDuplicateKeyUpdate({ set: { lastSignedIn: new Date() } });
   const result = await db.select().from(emailUsers).where(eq(emailUsers.email, email)).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function incrementEmailUserAuditCount(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(emailUsers)
+    .set({ auditCount: sql`audit_count + 1` })
+    .where(eq(emailUsers.id, id));
 }
 
 export async function getEmailUserByEmail(email: string) {

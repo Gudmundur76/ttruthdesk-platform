@@ -238,11 +238,17 @@ export type InsertMagicLinkToken = typeof magicLinkTokens.$inferInsert;
 
 // ─── Email Users ──────────────────────────────────────────────────────────────
 // Separate from Manus OAuth users — email-only accounts created via magic link
+// plan: free_trial (30 days, 3 audits), academic (unlimited, domain-gated), starter/diligence/platform (paid)
 export const emailUsers = mysqlTable("email_users", {
   id: int("id").autoincrement().primaryKey(),
   email: varchar("email", { length: 320 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  plan: mysqlEnum("plan", ["free_trial", "academic", "starter", "diligence", "platform"])
+    .default("free_trial")
+    .notNull(),
+  trialExpiresAt: timestamp("trialExpiresAt"),  // null for non-trial plans
+  auditCount: int("auditCount").default(0).notNull(),  // lifetime audit submissions
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
