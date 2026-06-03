@@ -707,6 +707,44 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       const { computeAuthorReliability } = await import("./predictionEngine");
       return computeAuthorReliability(ctx.user.id);
     }),
+
+    // ─── Calibration (admin-only) ─────────────────────────────────────────────
+    calibrationStats: protectedProcedure
+      .input(z.object({ modelType: z.string().optional() }))
+      .query(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { getCalibrationStats } = await import("./db");
+        return getCalibrationStats(input.modelType);
+      }),
+
+    predictionsForReview: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(200).default(50) }))
+      .query(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { getPredictionsForReview } = await import("./db");
+        return getPredictionsForReview(input.limit);
+      }),
+
+    validatePrediction: protectedProcedure
+      .input(z.object({
+        predictionId: z.number(),
+        result: z.enum(["correct", "incorrect"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { updatePredictionModelValidation } = await import("./db");
+        await updatePredictionModelValidation(input.predictionId, input.result);
+        return { success: true };
+      }),
   }),
 });
 

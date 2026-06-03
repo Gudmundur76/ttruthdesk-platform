@@ -1,4 +1,4 @@
-import { eq, desc, isNull, isNotNull, and, gt, sql } from "drizzle-orm";
+import { eq, desc, asc, isNull, isNotNull, and, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -893,6 +893,130 @@ export async function updatePredictionModelValidation(
     .update(predictionModels)
     .set({ validationResult: result, validatedAt: new Date() })
     .where(eq(predictionModels.id, predictionId));
+}
+
+// ─── Prediction Calibration helpers ─────────────────────────────────────────
+
+export async function getPredictionById(id: number): Promise<PredictionModel | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(predictionModels)
+    .where(eq(predictionModels.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPredictionsForReview(limit = 50): Promise<PredictionModel[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(predictionModels)
+    .where(eq(predictionModels.validationResult, "pending"))
+    .orderBy(desc(predictionModels.createdAt))
+    .limit(limit);
+}
+
+export interface CalibrationBucket {
+  bucket: string;
+  bucketMin: number;
+  bucketMax: number;
+  total: number;
+  correct: number;
+  incorrect: number;
+  actualRate: number;
+  midpoint: number;
+}
+
+export interface AccuracyByDay {
+  date: string;
+  total: number;
+  correct: number;
+  accuracy: number;
+}
+
+export async function getCalibrationStats(modelType?: string): Promise<{
+  buckets: CalibrationBucket[];
+  byDay: AccuracyByDay[];
+  overallAccuracy: number;
+  totalValidated: number;
+  totalPending: number;
+}> {
+  const db = await getDb();
+  if (!db) return { buckets: [], byDay: [], overallAccuracy: 0, totalValidated: 0, totalPending: 0 };
+
+  const conditions: ReturnType<typeof eq>[] = [
+    sql`${predictionModels.validationResult} != 'pending'` as unknown as ReturnType<typeof eq>,
+  ];
+  if (modelType) {
+    conditions.push(eq(predictionModels.modelType, modelType as PredictionModel["modelType"]));
+  }
+
+  const validated = await db
+    .select()
+    .from(predictionModels)
+    .where(and(...conditions))
+    .orderBy(asc(predictionModels.createdAt));
+
+  const pendingRows = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(predictionModels)
+    .where(eq(predictionModels.validationResult, "pending"));
+  const totalPending = Number(pendingRows[0]?.count ?? 0);
+
+  const BUCKET_COUNT = 10;
+  const buckets: CalibrationBucket[] = Array.from({ length: BUCKET_COUNT }, (_, i) => ({
+    bucket: `${(i / BUCKET_COUNT).toFixed(1)}–${((i + 1) / BUCKET_COUNT).toFixed(1)}`,
+    bucketMin: i / BUCKET_COUNT,
+    bucketMax: (i + 1) / BUCKET_COUNT,
+    midpoint: (i + 0.5) / BUCKET_COUNT,
+    total: 0,
+    correct: 0,
+    incorrect: 0,
+    actualRate: 0,
+  }));
+
+  const dayMap = new Map<string, { total: number; correct: number }>();
+
+  for (const row of validated) {
+    const pred = row.prediction as { probability?: number } | null;
+    const prob = pred?.probability ?? 0.5;
+    const bucketIdx = Math.min(Math.floor(prob * BUCKET_COUNT), BUCKET_COUNT - 1);
+    const bucket = buckets[bucketIdx];
+    bucket.total++;
+    if (row.validationResult === "correct") bucket.correct++;
+    else bucket.incorrect++;
+
+    const day = row.validatedAt
+      ? new Date(row.validatedAt).toISOString().slice(0, 10)
+      : new Date(row.createdAt).toISOString().slice(0, 10);
+    const existing = dayMap.get(day) ?? { total: 0, correct: 0 };
+    existing.total++;
+    if (row.validationResult === "correct") existing.correct++;
+    dayMap.set(day, existing);
+  }
+
+  for (const b of buckets) {
+    const denominator = b.correct + b.incorrect;
+    b.actualRate = denominator > 0 ? b.correct / denominator : 0;
+  }
+
+  const byDay: AccuracyByDay[] = Array.from(dayMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { total, correct }]) => ({
+      date,
+      total,
+      correct,
+      accuracy: total > 0 ? correct / total : 0,
+    }));
+
+  const totalValidated = validated.length;
+  const totalCorrect = validated.filter((r) => r.validationResult === "correct").length;
+  const overallAccuracy = totalValidated > 0 ? totalCorrect / totalValidated : 0;
+
+  return { buckets, byDay, overallAccuracy, totalValidated, totalPending };
 }
 
 // ─── Backfill helpers ─────────────────────────────────────────────────────────

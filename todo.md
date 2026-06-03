@@ -352,3 +352,12 @@
 - [x] Add prediction risk badge to AuditReport.tsx claim table (show contradiction probability for each claim)
 - [x] Add prediction summary card to Dashboard.tsx (high-risk claims count, author reliability score)
 - [x] Write tests, save checkpoint, push to GitHub
+
+## Phase 35: Prediction Calibration Dashboard
+- [ ] Add DB helpers: getCalibrationStats (accuracy by model type + date bucket), getPredictionsForReview (pending validations), getPredictionById
+- [ ] Add tRPC procedures: admin.calibrationStats, admin.predictionsForReview, admin.validatePrediction (mutation)
+- [ ] Build /admin/predictions page: accuracy over time chart (Chart.js), calibration table (probability bucket vs actual rate), pending validations list with correct/incorrect buttons
+- [ ] Add "Predictions" nav item to DashboardLayout sidebar (TrendingUp icon)
+- [x] Register /admin/predictions route in App.tsx
+- [ ] Write Vitest tests for calibration helpers (target 260+ total)
+- [ ] Update todo.md, save checkpoint, push to GitHub
