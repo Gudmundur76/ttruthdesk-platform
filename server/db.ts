@@ -183,6 +183,17 @@ export async function updateDocumentStatus(
     .where(eq(documents.id, id));
 }
 
+export async function getFailedDocuments(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(documents)
+    .where(eq(documents.status, "failed"))
+    .orderBy(documents.createdAt)
+    .limit(limit);
+}
+
 export async function getDraftDocuments(limit = 100) {
   const db = await getDb();
   if (!db) return [];

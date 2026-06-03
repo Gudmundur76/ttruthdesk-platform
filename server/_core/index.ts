@@ -397,6 +397,43 @@ async function startServer() {
   app.post("/api/scheduled/pmc-feed", pmcFeedJobHandler);
   app.post("/api/scheduled/quality-pass", qualityPassJobHandler);
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
+  // Admin re-process: re-runs the analysis pipeline on all failed documents
+  app.post("/api/admin/reprocess-failed", async (req, res) => {
+    const { getFailedDocuments, updateDocumentStatus, deleteClaimsByDocument } = await import("../db");
+    const { runAnalysisPipeline } = await import("../analysisPipeline");
+    const batchSize = Math.min(parseInt(String(req.body?.batchSize ?? "50"), 10) || 50, 200);
+    const docs = await getFailedDocuments(batchSize);
+    if (docs.length === 0) {
+      res.json({ ok: true, message: "No failed documents found", requeued: 0 });
+      return;
+    }
+    let requeued = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    // Process concurrently with cap of 5
+    const queue = [...docs];
+    const workers = Array.from({ length: 5 }, async () => {
+      while (queue.length > 0) {
+        const doc = queue.shift();
+        if (!doc) break;
+        if (!doc.rawText) { failed++; continue; }
+        try {
+          await deleteClaimsByDocument(doc.id);
+          await updateDocumentStatus(doc.id, "pending");
+          runAnalysisPipeline(doc.id, doc.rawText, doc.userId)
+            .catch((e: unknown) => console.error(`[Reprocess] doc ${doc.id} failed:`, e));
+          requeued++;
+        } catch (e) {
+          failed++;
+          errors.push(`doc ${doc.id}: ${String(e)}`);
+        }
+      }
+    });
+    await Promise.all(workers);
+    console.log(`[Reprocess] Requeued ${requeued} failed documents, ${failed} skipped`);
+    res.json({ ok: true, requeued, failed, errors: errors.slice(0, 10) });
+  });
+
   app.post("/api/admin/bulk-seed", async (req, res) => {
     // Delegate to pmcFeedJobHandler with allVerticals=true and extended lookback
     req.body = {

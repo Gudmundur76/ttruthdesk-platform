@@ -206,3 +206,12 @@
 - [x] Run E2E suite against dev server and capture results
 - [x] Run k6 load tests and capture throughput/latency/error rate results
 - [x] Save checkpoint and deliver test report
+
+## Phase 22: Bulk Seed All Verticals (Free LLM, Quality + Speed)
+
+- [ ] Audit current free LLM config (multiLLM.ts, env.ts) and vertical feed configs
+- [ ] Optimise bulk seed: parallel pipeline workers, free LLM routing for all verticals, concurrency cap to avoid rate limits
+- [ ] Trigger bulk seed for structural_biology and salmon_biotech via /api/admin/bulk-seed
+- [ ] Run quality-pass job to re-process draft documents to verified tier
+- [ ] Verify seeded documents appear in /registry and /graph
+- [ ] Save checkpoint

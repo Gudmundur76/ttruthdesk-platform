@@ -321,24 +321,28 @@ async function runVerticalFeed(
       continue;
     }
 
-    for (const pmid of batch) {
+    // Process PMIDs concurrently with a concurrency cap to avoid overwhelming
+    // the DB and NCBI rate limits. 5 concurrent workers is safe.
+    const CONCURRENCY = 5;
+    const pmidQueue = [...batch];
+
+    const processPmid = async (pmid: string): Promise<void> => {
       const meta = metaMap.get(pmid);
-      if (!meta) continue;
+      if (!meta) return;
 
       // Quality gate: signal density check
       const signalText = `${meta.title} ${meta.abstractText}`;
       const density = computeSignalDensity(signalText);
-      if (density < MIN_SIGNAL_DENSITY) continue;
+      if (density < MIN_SIGNAL_DENSITY) return;
       result.passedQualityGate++;
 
       // Deduplication: skip if already in the DB
       const existing = await getAutoIngestedPaperByPmid(pmid);
       if (existing) {
         result.alreadyIngested++;
-        continue;
+        return;
       }
 
-      // Insert record and submit to pipeline
       try {
         await upsertAutoIngestedPaper({
           pmid: meta.pmid,
@@ -354,17 +358,23 @@ async function runVerticalFeed(
           ingestSource: "pubmed",
         });
 
-        // Best-effort PMC OA full-text fetch: resolve PMID → PMCID → Methods/Results sections
+        // Best-effort PMC OA full-text fetch (non-blocking, 2s timeout)
         let fullTextSections: string | null = null;
         try {
-          const pmcid = await pmidToPmcid(pmid);
+          const pmcid = await Promise.race([
+            pmidToPmcid(pmid),
+            new Promise<null>((r) => setTimeout(() => r(null), 2000)),
+          ]);
           if (pmcid) {
-            await delay(NCBI_RATE_DELAY_MS);
-            fullTextSections = await fetchPmcFullTextSections(pmcid);
+            fullTextSections = await Promise.race([
+              fetchPmcFullTextSections(pmcid as string),
+              new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+            ]);
           }
         } catch {
-          // Non-fatal — abstract is sufficient
+          // Non-fatal
         }
+
         const rawText = buildRawText(meta, fullTextSections ?? undefined);
         const docId = await createDocument({
           userId: SYSTEM_USER_ID,
@@ -376,7 +386,7 @@ async function runVerticalFeed(
 
         await updateAutoIngestedPaperStatus(pmid, "submitted", { documentId: docId });
 
-        // Fire-and-forget — pipeline runs async
+        // Fire-and-forget pipeline — runs async, does not block the seed loop
         runAnalysisPipeline(docId, rawText, SYSTEM_USER_ID)
           .then(() => updateAutoIngestedPaperStatus(pmid, "complete", { documentId: docId }))
           .catch((err: unknown) =>
@@ -390,13 +400,25 @@ async function runVerticalFeed(
         try {
           await updateAutoIngestedPaperStatus(pmid, "failed", { errorMessage: String(err) });
         } catch {
-          // Best-effort status update
+          // Best-effort
         }
       }
-
-      // Rate limit between individual DB/pipeline operations
-      await delay(50);
     }
+
+    // Run with concurrency cap
+    const workers: Promise<void>[] = [];
+    for (let w = 0; w < CONCURRENCY; w++) {
+      workers.push(
+        (async () => {
+          while (pmidQueue.length > 0) {
+            const pmid = pmidQueue.shift();
+            if (!pmid) break;
+            await processPmid(pmid);
+          }
+        })()
+      );
+    }
+    await Promise.all(workers);
   }
 
   return result;
@@ -442,8 +464,11 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
   let totalSubmitted = 0;
 
   try {
-    for (const config of configs) {
-      const result = await runVerticalFeed(config, lookbackDays);
+    // Run all verticals in parallel for maximum speed
+    const results = await Promise.all(
+      configs.map((config) => runVerticalFeed(config, lookbackDays))
+    );
+    for (const result of results) {
       allResults.push(result);
       totalSubmitted += result.submitted;
     }

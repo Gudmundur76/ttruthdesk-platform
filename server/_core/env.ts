@@ -9,10 +9,10 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   // Two-pass corpus LLM provider config
   // Options: "manus_builtin" | "freellmapi" | "kimi"
-  // Default is "freellmapi" for bulk seeding (free, no quota).
-  // Set LLM_PROVIDER=kimi + KIMI_API_KEY for the quality re-pass.
-  // Set LLM_PROVIDER=manus_builtin to use the Manus-managed LLM.
-  llmProvider: (process.env.LLM_PROVIDER ?? "freellmapi") as "manus_builtin" | "freellmapi" | "kimi",
+  // Default is "manus_builtin" — the Manus-managed free LLM (no external proxy needed).
+  // Set LLM_PROVIDER=freellmapi + FREELM_API_URL for a self-hosted free LLM proxy.
+  // Set LLM_PROVIDER=kimi + KIMI_API_KEY for the Kimi K2 quality re-pass.
+  llmProvider: (process.env.LLM_PROVIDER ?? "manus_builtin") as "manus_builtin" | "freellmapi" | "kimi",
   freeLLMApiUrl: process.env.FREELM_API_URL ?? "http://localhost:3001/v1",
   freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
   kimiApiKey: process.env.KIMI_API_KEY ?? "",
