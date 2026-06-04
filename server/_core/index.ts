@@ -25,6 +25,7 @@ import { registerClaimPageRoute } from "../claimPageRoute";
 import { registerWikiPageRoute } from "../wikiPageRoute";
 import { registerBadgeRoute } from "../badgeRoute";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
+import { createCoordRouter } from "../coordApi";
 import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
 import { startTelegramBot } from "../telegramBot";
@@ -515,6 +516,8 @@ async function startServer() {
   app.post("/api/scheduled/backfill-predictions", predictionBackfillHandler);
   // Swarm coordinator: fans out all 5 agent jobs in parallel
   app.post("/api/scheduled/swarm-tick", swarmTickHandler);
+  // Manus Coordination Layer: shared work queue, task registry, context store
+  app.use("/api/coord", createCoordRouter());
   // LLM health check: reports active provider, model pool, and connectivity
   app.get("/api/admin/llm-health", async (_req, res) => {
     try {

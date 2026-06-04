@@ -31,4 +31,9 @@ export const ENV = {
   paypalMode: (process.env.PAYPAL_MODE ?? "sandbox") as "sandbox" | "live",
   // IndexNow (Bing/Perplexity instant re-indexing)
   indexNowKey: process.env.INDEX_NOW_KEY ?? "",
+  // Manus Coordination Layer
+  // COORD_API_KEY: shared secret for /api/coord/* endpoints (set in env)
+  // MANUS_API_KEY: Manus platform API key for spawning tasks via task.create
+  coordApiKey: process.env.COORD_API_KEY ?? "",
+  manusApiKey: process.env.MANUS_API_KEY ?? "",
 };

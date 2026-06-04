@@ -419,3 +419,22 @@
 - [x] Write Vitest tests for swarm coordinator and multiLLM key rotation
 - [x] Run live verification: trigger swarm-tick and confirm all agents respond
 - [x] Save checkpoint, push to GitHub
+
+## Phase 41 — Manus Coordination Layer
+
+- [x] Add coord_tasks, coord_queue, coord_context tables to drizzle/schema.ts
+- [x] Generate migration 0013 via pnpm drizzle-kit generate
+- [x] Apply migration 0013 via webdev_execute_sql
+- [x] Add MANUS_API_KEY to ENV in server/_core/env.ts
+- [x] Build server/coordApi.ts — REST handlers for /api/coord/* endpoints
+- [x] Register /api/coord/* routes in server/_core/index.ts
+- [x] Build server/manusOrchestrator.ts — Manus API task spawner + health monitor
+- [x] Add 6 new verticals to verticalFeedConfig.ts (protein_supplement, creatine_ergogenics, gut_microbiome, collagen_peptides, plant_based_protein, sports_nutrition_rct)
+- [x] Build client/src/pages/CoordinatorDashboard.tsx — live queue depth, active tasks, throughput chart
+- [x] Register /admin/coordinator route in App.tsx + DashboardLayout nav
+- [ ] Add /api/coord/memory endpoints bridging to manus-persistent-drive graph_memory pattern
+- [x] Write server/coordLayer.test.ts (vertical configs, prompt builder, router structure)
+- [x] Write server/manusOrchestrator.test.ts (buildVerticalAgentPrompt)
+- [ ] Update manus-persistent-drive repo with integration notes
+- [ ] Save checkpoint (Phase 41 complete)
+- [ ] Push to GitHub (protein-truth-desk + manus-persistent-drive)

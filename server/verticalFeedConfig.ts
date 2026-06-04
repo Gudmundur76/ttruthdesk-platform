@@ -65,6 +65,78 @@ export const VERTICAL_FEED_CONFIGS: VerticalFeedConfig[] = [
     ],
     maxResultsPerQuery: 40,
   },
+  // ── 6 new coordination-layer verticals ──────────────────────────────────────
+  {
+    domainKey: "protein_supplement",
+    displayName: "Protein Supplements",
+    meshQueries: [
+      '"Dietary Supplements"[MeSH Terms] AND "Proteins"[MeSH Terms] AND free full text[sb]',
+      '"Whey Proteins"[MeSH Terms] AND free full text[sb]',
+      '"Plant Proteins, Dietary"[MeSH Terms] AND free full text[sb]',
+      '"Amino Acids, Essential"[MeSH Terms] AND "Athletic Performance"[MeSH Terms] AND free full text[sb]',
+      '"Muscle Proteins"[MeSH Terms] AND "Resistance Training"[MeSH Terms] AND free full text[sb]',
+    ],
+    maxResultsPerQuery: 50,
+  },
+  {
+    domainKey: "creatine_ergogenics",
+    displayName: "Creatine & Ergogenics",
+    meshQueries: [
+      '"Creatine"[MeSH Terms] AND free full text[sb]',
+      '"Performance-Enhancing Substances"[MeSH Terms] AND free full text[sb]',
+      '"Beta-Alanine"[All Fields] AND free full text[sb]',
+      '"Caffeine"[MeSH Terms] AND "Athletic Performance"[MeSH Terms] AND free full text[sb]',
+      '"Nitric Oxide"[MeSH Terms] AND "Exercise"[MeSH Terms] AND free full text[sb]',
+    ],
+    maxResultsPerQuery: 50,
+  },
+  {
+    domainKey: "gut_microbiome",
+    displayName: "Gut Microbiome & Protein",
+    meshQueries: [
+      '"Gastrointestinal Microbiome"[MeSH Terms] AND "Dietary Proteins"[MeSH Terms] AND free full text[sb]',
+      '"Probiotics"[MeSH Terms] AND "Protein Digestion"[All Fields] AND free full text[sb]',
+      '"Short-Chain Fatty Acids"[MeSH Terms] AND "Dietary Fiber"[MeSH Terms] AND free full text[sb]',
+      '"Intestinal Absorption"[MeSH Terms] AND "Amino Acids"[MeSH Terms] AND free full text[sb]',
+    ],
+    maxResultsPerQuery: 40,
+  },
+  {
+    domainKey: "collagen_peptides",
+    displayName: "Collagen & Peptides",
+    meshQueries: [
+      '"Collagen"[MeSH Terms] AND "Dietary Supplements"[MeSH Terms] AND free full text[sb]',
+      '"Collagen Peptides"[All Fields] AND free full text[sb]',
+      '"Gelatin"[MeSH Terms] AND "Wound Healing"[MeSH Terms] AND free full text[sb]',
+      '"Skin Aging"[MeSH Terms] AND "Collagen"[MeSH Terms] AND free full text[sb]',
+      '"Joint Diseases"[MeSH Terms] AND "Collagen"[MeSH Terms] AND free full text[sb]',
+    ],
+    maxResultsPerQuery: 40,
+  },
+  {
+    domainKey: "plant_based_protein",
+    displayName: "Plant-Based Protein",
+    meshQueries: [
+      '"Pea Proteins"[All Fields] AND free full text[sb]',
+      '"Soy Proteins"[MeSH Terms] AND free full text[sb]',
+      '"Legumes"[MeSH Terms] AND "Protein"[MeSH Terms] AND free full text[sb]',
+      '"Hemp"[All Fields] AND "Protein"[MeSH Terms] AND free full text[sb]',
+      '"Spirulina"[MeSH Terms] AND free full text[sb]',
+      '"Mycoprotein"[All Fields] AND free full text[sb]',
+    ],
+    maxResultsPerQuery: 50,
+  },
+  {
+    domainKey: "sports_nutrition_rct",
+    displayName: "Sports Nutrition RCTs",
+    meshQueries: [
+      '"Randomized Controlled Trial"[pt] AND "Sports Nutritional Sciences"[MeSH Terms] AND free full text[sb]',
+      '"Randomized Controlled Trial"[pt] AND "Muscle Strength"[MeSH Terms] AND "Dietary Supplements"[MeSH Terms] AND free full text[sb]',
+      '"Randomized Controlled Trial"[pt] AND "Body Composition"[MeSH Terms] AND "Protein"[MeSH Terms] AND free full text[sb]',
+      '"Randomized Controlled Trial"[pt] AND "Recovery"[All Fields] AND "Exercise"[MeSH Terms] AND free full text[sb]',
+    ],
+    maxResultsPerQuery: 60,
+  },
 ];
 
 /** Look up a feed config by vertical domain key. Returns undefined if not found. */

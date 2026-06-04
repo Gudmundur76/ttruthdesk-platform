@@ -782,6 +782,144 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
         return { success: true };
       }),
   }),
+
+  // ─── Coordinator (admin-only) ─────────────────────────────────────────────
+  coordinator: router({
+    /**
+     * Dashboard summary: active tasks, queue depth per vertical, recent errors.
+     */
+    summary: protectedProcedure.query(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return { tasks: [], queueStats: {}, recentErrors: [] };
+      const { coordTasks, coordQueue } = await import("../drizzle/schema");
+      const { eq, or, and, gt, desc, sql } = await import("drizzle-orm");
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      const tasks = await db
+        .select()
+        .from(coordTasks)
+        .where(
+          or(
+            eq(coordTasks.status, "running"),
+            eq(coordTasks.status, "pending"),
+            eq(coordTasks.status, "stalled"),
+            and(
+              eq(coordTasks.status, "failed"),
+              gt(coordTasks.startedAt, oneHourAgo)
+            )
+          )
+        )
+        .orderBy(desc(coordTasks.startedAt))
+        .limit(100);
+
+      const queueRows = await db
+        .select({
+          vertical: coordQueue.vertical,
+          status: coordQueue.status,
+          count: sql<number>`COUNT(*)`,
+        })
+        .from(coordQueue)
+        .groupBy(coordQueue.vertical, coordQueue.status);
+
+      const queueStats: Record<string, Record<string, number>> = {};
+      for (const row of queueRows) {
+        if (!queueStats[row.vertical]) {
+          queueStats[row.vertical] = { pending: 0, claimed: 0, completed: 0, failed: 0, skipped: 0, total: 0 };
+        }
+        queueStats[row.vertical][row.status] = Number(row.count);
+        queueStats[row.vertical].total += Number(row.count);
+      }
+
+      const recentErrors = await db
+        .select()
+        .from(coordTasks)
+        .where(
+          and(
+            eq(coordTasks.status, "failed"),
+            gt(coordTasks.startedAt, oneHourAgo)
+          )
+        )
+        .orderBy(desc(coordTasks.completedAt))
+        .limit(20);
+
+      return { tasks, queueStats, recentErrors };
+    }),
+
+    /**
+     * List all coord_context keys for a namespace.
+     */
+    contextList: protectedProcedure
+      .input(z.object({ namespace: z.string().default("global") }))
+      .query(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { coordContext } = await import("../drizzle/schema");
+        const { eq, and, or, isNull, gt, desc } = await import("drizzle-orm");
+        return db
+          .select()
+          .from(coordContext)
+          .where(
+            and(
+              eq(coordContext.namespace, input.namespace),
+              or(isNull(coordContext.expiresAt), gt(coordContext.expiresAt, new Date()))
+            )
+          )
+          .orderBy(desc(coordContext.updatedAt))
+          .limit(200);
+      }),
+
+    /**
+     * Mark a stalled task as failed (admin manual override).
+     */
+    forceFailTask: protectedProcedure
+      .input(z.object({ taskId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { coordTasks } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db
+          .update(coordTasks)
+          .set({ status: "failed", errorMsg: "Manually failed by admin", completedAt: new Date() })
+          .where(eq(coordTasks.taskId, input.taskId));
+        return { ok: true };
+      }),
+
+    /**
+     * Delete a task from the registry.
+     */
+    deleteTask: protectedProcedure
+      .input(z.object({ taskId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { coordTasks } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.delete(coordTasks).where(eq(coordTasks.taskId, input.taskId));
+        return { ok: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
