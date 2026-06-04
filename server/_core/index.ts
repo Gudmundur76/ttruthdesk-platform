@@ -675,7 +675,7 @@ async function startServer() {
   });
   registerBadgeRoute(app);
   registerEmbedWidgetRoutes(app);
-  registerBackfillWikiRoute(app);
+  registerBackfillWikiRoute(app, requireOwnerOrAdmin);
 
   // PDF report export endpoint (authenticated)
   app.get("/api/reports/:documentId/pdf", async (req, res) => {

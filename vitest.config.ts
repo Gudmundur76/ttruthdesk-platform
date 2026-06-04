@@ -15,5 +15,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    // Provide required secrets so env.ts startup validation passes in test runs.
+    // These are test-only values and are never used in production.
+    env: {
+      JWT_SECRET: "test-jwt-secret-for-vitest-only",
+    },
   },
 });

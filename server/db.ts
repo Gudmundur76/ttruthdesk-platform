@@ -1,4 +1,4 @@
-import { eq, desc, asc, isNull, isNotNull, and, gt, sql } from "drizzle-orm";
+import { eq, desc, asc, isNull, isNotNull, and, or, gt, like, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
@@ -832,7 +832,10 @@ export async function getEntityClaimSummary(entityName: string): Promise<{
     .select()
     .from(claims)
     .where(
-      sql`(${claims.claimText} LIKE ${`%${entityName}%`} OR ${claims.pdbId} = ${entityName})`
+      or(
+        like(claims.claimText, `%${entityName}%`),
+        eq(claims.pdbId, entityName)
+      )
     )
     .orderBy(desc(claims.createdAt))
     .limit(500);

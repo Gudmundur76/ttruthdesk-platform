@@ -573,12 +573,12 @@
 ## Phase 70 — QA P0 Critical Fixes
 
 ### P0 Security
-- [x] P0-1: Add adminMiddleware to all /api/admin/* routes (verifySession + role=admin check)
-- [x] P0-2: Throw on missing JWT_SECRET instead of defaulting to empty string
+- [x] P0-1: All 6 /api/admin/* routes now use shared requireOwnerOrAdmin middleware (backfillWikiRoute.ts refactored to accept middleware as parameter)
+- [x] P0-2: Throw on missing JWT_SECRET — env.ts now throws at startup; vitest.config.ts provides test-only value
 - [x] P0-3: Add shared secret header check to all /api/scheduled/* endpoints
 
 ### P0 Business Logic
-- [x] P0-4: SQL injection in db.ts LIKE query — Drizzle parameterizes template literals (false positive)
+- [x] P0-4: db.ts LIKE query replaced with Drizzle like() + or() helpers (idiomatic, unambiguous, no raw sql template)
 - [x] P0-5: Fix DB singleton init race condition — add initialization lock
 - [x] P0-6: Concurrency semaphore verified in agentIngestionEndpoint.ts (activeIngestions counter, max 10)
 - [x] P0-7: pmcFeedJob uses Promise.allSettled(batch.map(...)) — proper batching

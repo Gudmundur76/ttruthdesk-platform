@@ -33,7 +33,6 @@ import { getDb, getAllCompletedDocuments } from "./db";
 import { documents } from "../drizzle/schema";
 import { compileDocumentToWiki, storeLlmsTxt } from "./wikiCompiler";
 import { notifyOwner } from "./_core/notification";
-import { sdk } from "./_core/sdk";
 import { ENV } from "./_core/env";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -175,27 +174,20 @@ export async function runBackfillWiki(
 
 // ─── Express route registration ───────────────────────────────────────────────
 
-export function registerBackfillWikiRoute(app: Express): void {
+import type { RequestHandler } from "express";
+
+export function registerBackfillWikiRoute(
+  app: Express,
+  requireOwnerOrAdmin: RequestHandler
+): void {
   /**
    * POST /api/admin/backfill-wiki
    * Fire-and-forget: returns immediately with { status: "started" } and
    * runs the backfill in the background. Progress is logged to the server
    * console and posted to Telegram if configured.
    */
-  app.post("/api/admin/backfill-wiki", async (req: Request, res: Response) => {
-    const user = await sdk.authenticateRequest(req);
-    if (!user) {
-      res.status(401).json({ error: "Authentication required" });
-      return;
-    }
-    if (user.openId !== ENV.ownerOpenId) {
-      res.status(403).json({ error: "Owner access required" });
-      return;
-    }
-
-    const origin =
-      process.env.VITE_APP_URL ??
-      `${req.protocol}://${req.get("host") ?? "protein-desk-5r5rzpyg.manus.space"}`;
+  app.post("/api/admin/backfill-wiki", requireOwnerOrAdmin, async (req: Request, res: Response) => {
+    const origin = ENV.appUrl || `${req.protocol}://${req.get("host") ?? "localhost:3000"}`;
 
     // Fire-and-forget — respond immediately so the HTTP connection doesn't time out
     res.json({
@@ -217,16 +209,8 @@ export function registerBackfillWikiRoute(app: Express): void {
    * Synchronous variant — waits for completion and returns full results.
    * Use for small corpora (<50 docs) or testing. Will timeout for large corpora.
    */
-  app.post("/api/admin/backfill-wiki/sync", async (req: Request, res: Response) => {
-    const user = await sdk.authenticateRequest(req);
-    if (!user || user.openId !== ENV.ownerOpenId) {
-      res.status(403).json({ error: "Owner access required" });
-      return;
-    }
-
-    const origin =
-      process.env.VITE_APP_URL ??
-      `${req.protocol}://${req.get("host") ?? "protein-desk-5r5rzpyg.manus.space"}`;
+  app.post("/api/admin/backfill-wiki/sync", requireOwnerOrAdmin, async (req: Request, res: Response) => {
+    const origin = ENV.appUrl || `${req.protocol}://${req.get("host") ?? "localhost:3000"}`;
 
     try {
       const result = await runBackfillWiki(origin, (msg) => {
@@ -242,13 +226,7 @@ export function registerBackfillWikiRoute(app: Express): void {
    * GET /api/admin/backfill-wiki/status
    * Returns count of completed documents and how many still need wiki compilation.
    */
-  app.get("/api/admin/backfill-wiki/status", async (req: Request, res: Response) => {
-    const user = await sdk.authenticateRequest(req);
-    if (!user || user.openId !== ENV.ownerOpenId) {
-      res.status(403).json({ error: "Owner access required" });
-      return;
-    }
-
+  app.get("/api/admin/backfill-wiki/status", requireOwnerOrAdmin, async (_req: Request, res: Response) => {
     const db = await getDb();
     if (!db) {
       res.status(503).json({ error: "DB unavailable" });
