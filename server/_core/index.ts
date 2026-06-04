@@ -25,6 +25,7 @@ import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
 import { registerWikiPageRoute } from "../wikiPageRoute";
 import { registerBadgeRoute } from "../badgeRoute";
+import { registerEmbedWidgetRoutes } from "../embedWidgetRoute";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
 import { createCoordRouter } from "../coordApi";
 import { createApiV2Router } from "../apiV2Router";
@@ -646,6 +647,7 @@ async function startServer() {
     res.set("Content-Type", "text/plain").send(ENV.indexNowKey);
   });
   registerBadgeRoute(app);
+  registerEmbedWidgetRoutes(app);
   registerBackfillWikiRoute(app);
 
   // PDF report export endpoint (authenticated)

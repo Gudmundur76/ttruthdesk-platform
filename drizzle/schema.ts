@@ -584,3 +584,41 @@ export const notificationLog = mysqlTable("notification_log", {
 }));
 export type NotificationLogEntry = typeof notificationLog.$inferSelect;
 export type InsertNotificationLogEntry = typeof notificationLog.$inferInsert;
+
+// ─── Webhook Delivery Log ─────────────────────────────────────────────────────
+// Tracks every outbound webhook POST — status, response, latency, and retry history.
+// Enables the admin delivery log UI and retry-on-failure logic.
+export const webhookDeliveryLog = mysqlTable("webhook_delivery_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK → webhook_alerts.id */
+  webhookId: int("webhookId").notNull(),
+  /** Snapshot of the target URL at delivery time */
+  url: varchar("url", { length: 2048 }).notNull(),
+  /** Event type that triggered this delivery */
+  eventType: varchar("eventType", { length: 64 }).notNull(),
+  /** Full JSON payload sent */
+  payload: json("payload").notNull(),
+  /** HTTP status code returned (null if network error) */
+  httpStatus: int("httpStatus"),
+  /** Delivery outcome */
+  status: mysqlEnum("status", ["success", "failed", "timeout", "retry_pending"]).notNull(),
+  /** Response body (first 2048 chars) */
+  responseBody: text("responseBody"),
+  /** Round-trip latency in milliseconds */
+  latencyMs: int("latencyMs"),
+  /** Number of delivery attempts so far (1 = first try) */
+  attemptCount: int("attemptCount").notNull().default(1),
+  /** Timestamp of next scheduled retry (null if no retry needed) */
+  nextRetryAt: timestamp("nextRetryAt"),
+  /** Error message if delivery failed */
+  errorMsg: text("errorMsg"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  webhookIdx: index("wdl_webhook_idx").on(t.webhookId),
+  statusIdx: index("wdl_status_idx").on(t.status),
+  createdAtIdx: index("wdl_created_at_idx").on(t.createdAt),
+  retryIdx: index("wdl_retry_idx").on(t.nextRetryAt),
+}));
+export type WebhookDeliveryLog = typeof webhookDeliveryLog.$inferSelect;
+export type InsertWebhookDeliveryLog = typeof webhookDeliveryLog.$inferInsert;

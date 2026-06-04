@@ -1000,6 +1000,44 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       }),
   }),
 
+  // ─── Webhook Delivery Log ──────────────────────────────────────────────────
+  deliveryLog: router({
+    list: protectedProcedure
+      .input(z.object({
+        webhookId: z.number().optional(),
+        status: z.enum(["success", "failed", "timeout", "retry_pending"]).optional(),
+        eventType: z.string().optional(),
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }))
+      .query(async ({ input }) => {
+        const { getDeliveryLog } = await import("./webhookDeliveryService");
+        return getDeliveryLog(input);
+      }),
+    stats: protectedProcedure
+      .input(z.object({ webhookId: z.number().optional() }))
+      .query(async ({ input }) => {
+        const { getDeliveryStats } = await import("./webhookDeliveryService");
+        return getDeliveryStats(input.webhookId);
+      }),
+    retry: protectedProcedure
+      .input(z.object({ deliveryLogId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { manualRetry } = await import("./webhookDeliveryService");
+        return manualRetry(input.deliveryLogId);
+      }),
+    prune: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { pruneDeliveryLog } = await import("./webhookDeliveryService");
+        const pruned = await pruneDeliveryLog();
+        return { pruned };
+      }),
+  }),
+
   // ─── Coordinator (admin-only) ─────────────────────────────────────────────
   coordinator: router({
     /**
@@ -1170,6 +1208,50 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       }),
   }),
 
+
+  /**
+   * Claim similarity engine — TF-IDF cosine similarity across the corpus.
+   */
+  similarity: router({
+    findSimilar: publicProcedure
+      .input(
+        z.object({
+          queryText: z.string().min(5).max(2000),
+          threshold: z.number().min(0).max(1).optional().default(0.35),
+          topK: z.number().int().min(1).max(50).optional().default(10),
+        })
+      )
+      .query(async ({ input }) => {
+        const { findSimilarClaims } = await import("./claimSimilarityEngine");
+        return findSimilarClaims(input.queryText, { threshold: input.threshold, topK: input.topK });
+      }),
+    findSimilarToId: publicProcedure
+      .input(
+        z.object({
+          claimId: z.number().int().positive(),
+          threshold: z.number().min(0).max(1).optional().default(0.35),
+          topK: z.number().int().min(1).max(20).optional().default(8),
+        })
+      )
+      .query(async ({ input }) => {
+        const { findSimilarToClaimId } = await import("./claimSimilarityEngine");
+        return findSimilarToClaimId(input.claimId, { threshold: input.threshold, topK: input.topK });
+      }),
+    detectDuplicates: protectedProcedure
+      .input(
+        z.object({
+          documentId: z.number().int().positive(),
+          threshold: z.number().min(0).max(1).optional().default(0.8),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const { getDocumentById } = await import("./db");
+        const doc = await getDocumentById(input.documentId);
+        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        const { detectDuplicatesInDocument } = await import("./claimSimilarityEngine");
+        return detectDuplicatesInDocument(input.documentId, input.threshold);
+      }),
+  }),
   /**
    * Unified search across claims and entities.
    */
@@ -1537,6 +1619,254 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
         };
       }),
   }),
+
+  // ─── Audit Comparison ────────────────────────────────────────────────────────
+  auditComparison: router({
+    /**
+     * Compare two documents side-by-side: matched claims, verdict diffs, and
+     * a summary of what changed between the two audit reports.
+     */
+    compare: protectedProcedure
+      .input(
+        z.object({
+          documentIdA: z.number(),
+          documentIdB: z.number(),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const [docA, docB] = await Promise.all([
+          getDocumentById(input.documentIdA),
+          getDocumentById(input.documentIdB),
+        ]);
+        if (!docA || docA.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Document A not found" });
+        if (!docB || docB.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Document B not found" });
+
+        const [claimsA, claimsB, reportA, reportB] = await Promise.all([
+          getClaimsByDocument(input.documentIdA),
+          getClaimsByDocument(input.documentIdB),
+          getAuditReportByDocument(input.documentIdA),
+          getAuditReportByDocument(input.documentIdB),
+        ]);
+
+        type ClaimRow = Awaited<ReturnType<typeof getClaimsByDocument>>[number];
+        const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+
+        const matchedPairs: Array<{
+          claimA: ClaimRow | null;
+          claimB: ClaimRow | null;
+          similarity: "exact" | "similar" | "unique";
+          verdictChanged: boolean;
+          confidenceChanged: boolean;
+        }> = [];
+        const usedB = new Set<number>();
+
+        for (const cA of claimsA) {
+          const normA = normalise(cA.claimText);
+          let bestMatch: ClaimRow | null = null;
+          let bestScore = 0;
+          for (const cB of claimsB) {
+            if (usedB.has(cB.id)) continue;
+            const normB = normalise(cB.claimText);
+            const wordsA = new Set(normA.split(" "));
+            const wordsB = new Set(normB.split(" "));
+            const intersection = Array.from(wordsA).filter((w) => wordsB.has(w)).length;
+            const union = new Set([...Array.from(wordsA), ...Array.from(wordsB)]).size;
+            const score = union > 0 ? intersection / union : 0;
+            if (score > bestScore) { bestScore = score; bestMatch = cB; }
+          }
+          if (bestMatch && bestScore >= 0.5) {
+            usedB.add(bestMatch.id);
+            matchedPairs.push({
+              claimA: cA,
+              claimB: bestMatch,
+              similarity: bestScore >= 0.9 ? "exact" : "similar",
+              verdictChanged: cA.verdict !== bestMatch.verdict,
+              confidenceChanged: Math.abs((cA.confidenceScore ?? 0) - (bestMatch.confidenceScore ?? 0)) > 0.05,
+            });
+          } else {
+            matchedPairs.push({ claimA: cA, claimB: null, similarity: "unique", verdictChanged: false, confidenceChanged: false });
+          }
+        }
+        for (const cB of claimsB) {
+          if (!usedB.has(cB.id)) {
+            matchedPairs.push({ claimA: null, claimB: cB, similarity: "unique", verdictChanged: false, confidenceChanged: false });
+          }
+        }
+
+        const verdictChanges = matchedPairs.filter((p) => p.verdictChanged).length;
+        const onlyInA = matchedPairs.filter((p) => !p.claimB).length;
+        const onlyInB = matchedPairs.filter((p) => !p.claimA).length;
+        const avgConfA = claimsA.length > 0 ? claimsA.reduce((s, c) => s + (c.confidenceScore ?? 0), 0) / claimsA.length : 0;
+        const avgConfB = claimsB.length > 0 ? claimsB.reduce((s, c) => s + (c.confidenceScore ?? 0), 0) / claimsB.length : 0;
+
+        return {
+          documentA: { id: docA.id, title: docA.title, status: docA.status, createdAt: docA.createdAt },
+          documentB: { id: docB.id, title: docB.title, status: docB.status, createdAt: docB.createdAt },
+          reportA: reportA ?? null,
+          reportB: reportB ?? null,
+          pairs: matchedPairs,
+          summary: {
+            claimsInA: claimsA.length,
+            claimsInB: claimsB.length,
+            matchedPairs: matchedPairs.filter((p) => p.claimA && p.claimB).length,
+            verdictChanges,
+            onlyInA,
+            onlyInB,
+            avgConfidenceA: Math.round(avgConfA * 1000) / 1000,
+            avgConfidenceB: Math.round(avgConfB * 1000) / 1000,
+            confidenceDelta: Math.round((avgConfB - avgConfA) * 1000) / 1000,
+          },
+        };
+      }),
+
+    listForPicker: protectedProcedure.query(async ({ ctx }) => {
+      const docs = await getDocumentsByUser(ctx.user.id);
+      return docs.map((d) => ({ id: d.id, title: d.title, status: d.status, createdAt: d.createdAt }));
+    }),
+  }),
+
+  // ─── Vertical Leaderboard ─────────────────────────────────────────────────
+  leaderboard: router({
+    topEntities: publicProcedure
+      .input(
+        z.object({
+          vertical: z.string().optional(),
+          entityType: z.enum(["protein", "pdb_id", "method", "organism", "ligand", "author", "concept", "document"]).optional(),
+          limit: z.number().min(1).max(50).default(20),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getDb: getDb2 } = await import("./db");
+        const db = await getDb2();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+        const { sql, eq } = await import("drizzle-orm");
+        const { graphEntities, graphRelations, documents } = await import("../drizzle/schema");
+
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+        const entityTypeFilter = input.entityType
+          ? eq(graphEntities.entityType, input.entityType)
+          : undefined;
+
+        const entitiesWithCounts = await db
+          .select({
+            id: graphEntities.id,
+            canonicalName: graphEntities.canonicalName,
+            entityType: graphEntities.entityType,
+            totalCitations: sql<number>`(
+              SELECT COUNT(*) FROM graph_relations gr
+              WHERE gr.sourceEntityId = ${graphEntities.id}
+                 OR gr.targetEntityId = ${graphEntities.id}
+            )`.as("totalCitations"),
+            recentCitations: sql<number>`(
+              SELECT COUNT(*) FROM graph_relations gr
+              WHERE (gr.sourceEntityId = ${graphEntities.id} OR gr.targetEntityId = ${graphEntities.id})
+                AND gr.createdAt >= ${thirtyDaysAgo}
+            )`.as("recentCitations"),
+            prevCitations: sql<number>`(
+              SELECT COUNT(*) FROM graph_relations gr
+              WHERE (gr.sourceEntityId = ${graphEntities.id} OR gr.targetEntityId = ${graphEntities.id})
+                AND gr.createdAt >= ${sixtyDaysAgo}
+                AND gr.createdAt < ${thirtyDaysAgo}
+            )`.as("prevCitations"),
+          })
+          .from(graphEntities)
+          .where(entityTypeFilter)
+          .orderBy(sql`totalCitations DESC`)
+          .limit(input.limit * 3);
+
+        let filtered = entitiesWithCounts;
+        if (input.vertical) {
+          const verticalEntityIds = await db
+            .selectDistinct({ entityId: graphRelations.sourceEntityId })
+            .from(graphRelations)
+            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .where(eq(documents.verticalDomain, input.vertical))
+            .limit(5000);
+          const verticalEntityIdSet = new Set(verticalEntityIds.map((r: { entityId: number }) => r.entityId));
+
+          const targetEntityIds = await db
+            .selectDistinct({ entityId: graphRelations.targetEntityId })
+            .from(graphRelations)
+            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .where(eq(documents.verticalDomain, input.vertical))
+            .limit(5000);
+          targetEntityIds.forEach((r: { entityId: number }) => verticalEntityIdSet.add(r.entityId));
+
+          filtered = entitiesWithCounts.filter((e: { id: number }) => verticalEntityIdSet.has(e.id));
+        }
+
+        const top = filtered.slice(0, input.limit);
+
+        return top.map((e: { id: number; canonicalName: string; entityType: string; totalCitations: number; recentCitations: number; prevCitations: number }, rank: number) => ({
+          rank: rank + 1,
+          id: e.id,
+          canonicalName: e.canonicalName,
+          entityType: e.entityType,
+          totalCitations: Number(e.totalCitations),
+          recentCitations: Number(e.recentCitations),
+          prevCitations: Number(e.prevCitations),
+          trend: Number(e.recentCitations) > Number(e.prevCitations)
+            ? "up" as const
+            : Number(e.recentCitations) < Number(e.prevCitations)
+            ? "down" as const
+            : "stable" as const,
+          trendDelta: Number(e.recentCitations) - Number(e.prevCitations),
+        }));
+      }),
+
+    verticalSummary: publicProcedure.query(async () => {
+      const { getDb: getDb3 } = await import("./db");
+      const db = await getDb3();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const { sql, eq } = await import("drizzle-orm");
+      const { graphRelations, documents } = await import("../drizzle/schema");
+
+      const verticals = await db
+        .selectDistinct({ vertical: documents.verticalDomain })
+        .from(documents)
+        .where(sql`${documents.verticalDomain} IS NOT NULL`);
+
+      const summaries = await Promise.all(
+        verticals.map(async ({ vertical }: { vertical: string }) => {
+          const entityIds = await db
+            .selectDistinct({ entityId: graphRelations.sourceEntityId })
+            .from(graphRelations)
+            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .where(eq(documents.verticalDomain, vertical))
+            .limit(10000);
+
+          const targetIds = await db
+            .selectDistinct({ entityId: graphRelations.targetEntityId })
+            .from(graphRelations)
+            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .where(eq(documents.verticalDomain, vertical))
+            .limit(10000);
+
+          const allIds = new Set([...entityIds.map((r: { entityId: number }) => r.entityId), ...targetIds.map((r: { entityId: number }) => r.entityId)]);
+
+          const citationCount = await db
+            .select({ cnt: sql<number>`COUNT(*)` })
+            .from(graphRelations)
+            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .where(eq(documents.verticalDomain, vertical));
+
+          return {
+            vertical,
+            entityCount: allIds.size,
+            citationCount: Number(citationCount[0]?.cnt ?? 0),
+          };
+        })
+      );
+
+      return summaries.sort((a: { citationCount: number }, b: { citationCount: number }) => b.citationCount - a.citationCount);
+    }),
+  }),
+
 });
 
 export type AppRouter = typeof appRouter;

@@ -25,9 +25,12 @@ import ApiDocs from "@/pages/ApiDocs";
 import CoordinatorDashboard from "@/pages/CoordinatorDashboard";
 import VerticalDetail from "@/pages/VerticalDetail";
 import ContradictionViewer from "@/pages/ContradictionViewer";
+import AuditComparison from "@/pages/AuditComparison";
 import Search from "@/pages/Search";
 import EvidenceTimeline from "@/pages/EvidenceTimeline";
 import AdminAnalytics from "@/pages/AdminAnalytics";
+import VerticalLeaderboard from "@/pages/VerticalLeaderboard";
+import WebhookDeliveryLog from "@/pages/WebhookDeliveryLog";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -61,6 +64,9 @@ function Router() {
       <Route path="/settings/notifications" component={NotificationSettings} />
       <Route path="/search" component={Search} />
       <Route path="/timeline" component={EvidenceTimeline} />
+      <Route path="/leaderboard" component={VerticalLeaderboard} />
+      <Route path="/admin/webhooks" component={WebhookDeliveryLog} />
+      <Route path="/compare" component={AuditComparison} />
       <Route path="/trust" component={Trust} />
       <Route path="/docs/api" component={ApiDocs} />
       <Route path="/404" component={NotFound} />

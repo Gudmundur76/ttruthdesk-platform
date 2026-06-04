@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, CheckCircle, XCircle, HelpCircle, ExternalLink, Copy, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { SimilarClaimsPanel } from "@/components/SimilarClaimsPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -343,6 +344,16 @@ export default function ClaimPage() {
             <pre className="text-xs text-slate-400 bg-slate-950 rounded p-3 overflow-x-auto whitespace-pre-wrap">
               {badgeEmbedCode}
             </pre>
+          </div>
+
+          {/* Similar claims */}
+          <div className="pt-2">
+            <SimilarClaimsPanel
+              claimId={data.claim.id}
+              threshold={0.35}
+              topK={6}
+              className="bg-slate-900/50 border-slate-700"
+            />
           </div>
         </div>
       </div>
