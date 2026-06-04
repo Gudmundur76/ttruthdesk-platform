@@ -29,13 +29,14 @@ import { notifyIndexNow, notifyIndexNowBatch, claimUrl, reportUrl } from "./seo/
 export async function runAnalysisPipeline(
   documentId: number,
   rawText: string,
-  userId: number
+  userId: number,
+  options?: { providerOverride?: string }
 ): Promise<void> {
   try {
     // 1. Extract claims
-    const llmProvider = getActiveLLMProvider();
+    const llmProvider = options?.providerOverride ?? getActiveLLMProvider();
     await updateDocumentStatus(documentId, "extracting", { llmProvider });
-    const extracted = await extractClaims(rawText);
+    const extracted = await extractClaims(rawText, options?.providerOverride);
     // 2. Insert claims into DB
     const claimInserts = extracted.map((c) => ({
       documentId,
@@ -187,7 +188,7 @@ export async function runAnalysisPipeline(
       } catch (predErr) {
         console.warn("[Pipeline] Prediction engine error (non-fatal):", predErr);
       }
-    })();
+    })().catch((predErr) => console.warn("[Pipeline] Prediction IIFE error (non-fatal):", predErr));
   } catch (err) {
     console.error("[Pipeline] Error:", err);
     await updateDocumentStatus(documentId, "failed", {

@@ -65,7 +65,7 @@ describe("wikiLinter: runWikiLint", () => {
   });
 
   it("handles entities with no wiki page path gracefully", async () => {
-    const { getGraphEntitiesByType } = await import("./db") as Record<string, ReturnType<typeof vi.fn>>;
+    const { getGraphEntitiesByType } = (await import("./db")) as unknown as Record<string, ReturnType<typeof vi.fn>>;
     getGraphEntitiesByType.mockResolvedValue([
       {
         id: 1,

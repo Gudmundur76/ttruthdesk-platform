@@ -50,11 +50,12 @@ Return ONLY a valid JSON array. Each element must have:
 
 Be conservative — only extract claims that are specific and potentially verifiable. Do not extract vague or opinion-based statements. Return an empty array [] if no verifiable claims are found.`;
 
-export async function extractClaims(documentText: string): Promise<ExtractedClaim[]> {
+export async function extractClaims(documentText: string, providerOverride?: string): Promise<ExtractedClaim[]> {
   // Truncate very long documents to avoid token limits
   const truncated = documentText.length > 12000 ? documentText.substring(0, 12000) + "\n[Document truncated for analysis]" : documentText;
 
-  const response = await invokeMultiLLM({
+  const response = await invokeMultiLLM(
+    {
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       {
@@ -116,7 +117,10 @@ export async function extractClaims(documentText: string): Promise<ExtractedClai
         },
       },
     },
-  });
+  },
+  "draft",
+  providerOverride
+  );
 
   try {
     const content = response.choices?.[0]?.message?.content as string | undefined;

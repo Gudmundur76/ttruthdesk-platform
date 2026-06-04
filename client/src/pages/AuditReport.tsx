@@ -6,7 +6,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link } from "wouter";
 
 // ─── ClaimTrajectoryBadge ─────────────────────────────────────────────────────
@@ -245,11 +245,12 @@ function AuditReportContent() {
   const [overrideVerdict, setOverrideVerdict] = useState<VerdictType>("Insufficient Evidence");
   const [overrideNote, setOverrideNote] = useState("");
 
-  // Redirect unauthenticated users
-  if (!authLoading && !isAuthenticated) {
-    navigate("/");
-    return null;
-  }
+  // Redirect unauthenticated users (must be in useEffect to avoid render-phase side effects)
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate("/");
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   const { data: doc, isLoading: docLoading } = trpc.documents.get.useQuery(
     { id: docId },

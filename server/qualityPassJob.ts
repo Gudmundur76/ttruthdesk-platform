@@ -60,13 +60,12 @@ export async function runQualityPass(options: {
     return result;
   }
 
-  // Temporarily override the provider to use the best available quality model
-  const previousProvider = ENV.llmProvider;
+  // Determine which provider to use — prefer OpenRouter (Kimi K2.6 free) or fall back to direct Kimi API
+  // Pass as an explicit parameter instead of mutating the global ENV object (which is not thread-safe)
+  const providerOverride = hasOpenRouter ? "openrouter" : "kimi";
   if (hasOpenRouter) {
-    (ENV as { llmProvider: string }).llmProvider = "openrouter";
     console.log("[QualityPass] Using OpenRouter → moonshotai/kimi-k2.6:free");
   } else {
-    (ENV as { llmProvider: string }).llmProvider = "kimi";
     console.log("[QualityPass] Using direct Kimi API");
   }
 
@@ -103,8 +102,8 @@ export async function runQualityPass(options: {
         // Reset status to pending so the pipeline can re-run cleanly
         await updateDocumentStatus(doc.id, "pending");
 
-        // Re-run the full pipeline with Kimi K2 active
-        await runAnalysisPipeline(doc.id, doc.rawText, doc.userId ?? SYSTEM_USER_ID);
+        // Re-run the full pipeline with the quality provider passed explicitly
+        await runAnalysisPipeline(doc.id, doc.rawText, doc.userId ?? SYSTEM_USER_ID, { providerOverride });
         result.processed++;
 
         // Rate limit between documents to avoid hammering the Kimi API
@@ -121,9 +120,9 @@ export async function runQualityPass(options: {
         }
       }
     }
-  } finally {
-    // Restore previous provider
-    (ENV as { llmProvider: string }).llmProvider = previousProvider;
+  } catch (outerErr) {
+    console.error("[QualityPass] Unexpected error:", outerErr);
+    result.errors.push(`Unexpected: ${String(outerErr).slice(0, 200)}`);
   }
 
   return result;

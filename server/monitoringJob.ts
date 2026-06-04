@@ -31,14 +31,14 @@ async function fetchPubMed(query: string): Promise<FeedItem[]> {
   try {
     const encoded = encodeURIComponent(query);
     const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encoded}&retmax=5&sort=relevance&retmode=json`;
-    const searchRes = await fetch(searchUrl);
+    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(10_000) });
     if (!searchRes.ok) return [];
     const searchData = (await searchRes.json()) as { esearchresult?: { idlist?: string[] } };
     const ids: string[] = searchData.esearchresult?.idlist ?? [];
     if (!ids.length) return [];
 
     const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`;
-    const summaryRes = await fetch(summaryUrl);
+    const summaryRes = await fetch(summaryUrl, { signal: AbortSignal.timeout(10_000) });
     if (!summaryRes.ok) return [];
     const summaryData = (await summaryRes.json()) as {
       result?: Record<string, { title?: string; source?: string; pubdate?: string; uid?: string }>;
@@ -70,7 +70,7 @@ async function fetchBioRxiv(query: string): Promise<FeedItem[]> {
     // is reserved for future search integration. We fetch the latest preprints
     // from the category listing and filter by title relevance via LLM.
     void query; // reserved for future search endpoint integration
-    const res = await fetch(`https://api.biorxiv.org/details/biorxiv/2024-01-01/2099-12-31/0/json`);
+    const res = await fetch(`https://api.biorxiv.org/details/biorxiv/2024-01-01/2099-12-31/0/json`, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return [];
     const data = (await res.json()) as {
       collection?: Array<{ title?: string; abstract?: string; doi?: string; date?: string }>;

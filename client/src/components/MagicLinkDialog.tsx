@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,14 @@ export function MagicLinkDialog({ open, onOpenChange }: MagicLinkDialogProps) {
   const [email, setEmail] = useState("");
   const [step, setStep] = useState<Step>("email");
   const [loading, setLoading] = useState(false);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Clean up any pending reset timer on unmount to prevent setState-after-unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(resetTimerRef.current);
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +52,7 @@ export function MagicLinkDialog({ open, onOpenChange }: MagicLinkDialogProps) {
   function handleClose(open: boolean) {
     if (!open) {
       // Reset state when dialog closes
-      setTimeout(() => {
+      resetTimerRef.current = setTimeout(() => {
         setEmail("");
         setStep("email");
         setLoading(false);

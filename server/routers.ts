@@ -182,7 +182,7 @@ export const appRouter = router({
           // If we have a DOI, resolve to PMID first via E-search
           if (!pmid && doi) {
             const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(doi)}[doi]&retmode=json&retmax=1&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-            const searchRes = await fetch(searchUrl);
+            const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(10_000) });
             const searchData = await searchRes.json() as { esearchresult?: { idlist?: string[] } };
             const ids = searchData?.esearchresult?.idlist ?? [];
             if (ids.length > 0) pmid = ids[0];
@@ -191,7 +191,7 @@ export const appRouter = router({
           if (pmid) {
             // Fetch full abstract + metadata via efetch
             const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&rettype=abstract&retmode=xml&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-            const fetchRes = await fetch(fetchUrl);
+            const fetchRes = await fetch(fetchUrl, { signal: AbortSignal.timeout(10_000) });
             const xml = await fetchRes.text();
 
             // Extract title
@@ -227,13 +227,13 @@ export const appRouter = router({
             try {
               // Check if this PMID has a PMC full-text record
               const pmcSearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&db=pmc&id=${pmid}&retmode=json&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-              const pmcLinkRes = await fetch(pmcSearchUrl);
+              const pmcLinkRes = await fetch(pmcSearchUrl, { signal: AbortSignal.timeout(10_000) });
               const pmcLinkData = await pmcLinkRes.json() as { linksets?: Array<{ linksetdbs?: Array<{ dbto: string; links?: string[] }> }> };
               const pmcLinks = pmcLinkData?.linksets?.[0]?.linksetdbs?.find((db) => db.dbto === "pmc")?.links ?? [];
               if (pmcLinks.length > 0) {
                 const pmcId = pmcLinks[0];
                 const ftUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${pmcId}&rettype=full&retmode=xml&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-                const ftRes = await fetch(ftUrl);
+                const ftRes = await fetch(ftUrl, { signal: AbortSignal.timeout(15_000) });
                 const ftXml = await ftRes.text();
                 // Extract Methods section text
                 const methodsMatch = ftXml.match(/<sec[^>]*>\s*<title>[^<]*(?:method|material|experiment)[^<]*<\/title>([\s\S]*?)<\/sec>/i);
@@ -264,7 +264,8 @@ export const appRouter = router({
           const identifier = doi ?? pmid;
           if (identifier) {
             const epmc = await fetch(
-              `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(doi ? `DOI:${doi}` : `EXT_ID:${pmid}`)}&format=json&resultType=core&pageSize=1`
+              `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(doi ? `DOI:${doi}` : `EXT_ID:${pmid}`)}&format=json&resultType=core&pageSize=1`,
+              { signal: AbortSignal.timeout(10_000) }
             );
             const epmcData = await epmc.json() as { resultList?: { result?: Array<{ title?: string; abstractText?: string; authorString?: string; journalAbbreviation?: string; pubYear?: string; doi?: string }> } };
             const result = epmcData?.resultList?.result?.[0];
@@ -2003,9 +2004,13 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
     /** Validate an API key (public — used by external callers) */
     validate: publicProcedure
       .input(z.object({ rawKey: z.string().length(64) }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const { validateApiKey } = await import("./apiKeyService");
-        return validateApiKey(input.rawKey);
+        const callerIp =
+          (ctx.req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+          ctx.req.socket?.remoteAddress ??
+          "unknown";
+        return validateApiKey(input.rawKey, callerIp);
       }),
   }),
 

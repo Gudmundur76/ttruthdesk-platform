@@ -29,7 +29,7 @@ const PDB_SEARCH_API = "https://search.rcsb.org/rcsbsearch/v2/query";
 export async function fetchPdbEntry(pdbId: string): Promise<PdbValidationResult> {
   const id = pdbId.trim().toUpperCase();
   try {
-    const res = await fetch(`${PDB_DATA_API}/${id}`);
+    const res = await fetch(`${PDB_DATA_API}/${id}`, { signal: AbortSignal.timeout(10_000) });
     if (res.status === 404) return { found: false, entry: null, error: "PDB ID not found" };
     if (!res.ok) return { found: false, entry: null, error: `PDB API error: ${res.status}` };
 
@@ -40,7 +40,8 @@ export async function fetchPdbEntry(pdbId: string): Promise<PdbValidationResult>
     let organisms: string[] = [];
     try {
       const polymerRes = await fetch(
-        `https://data.rcsb.org/rest/v1/core/polymer_entity/${id}/1`
+        `https://data.rcsb.org/rest/v1/core/polymer_entity/${id}/1`,
+        { signal: AbortSignal.timeout(10_000) }
       );
       if (polymerRes.ok) {
         const polymerData = await polymerRes.json();
@@ -60,7 +61,8 @@ export async function fetchPdbEntry(pdbId: string): Promise<PdbValidationResult>
     let ligands: string[] = [];
     try {
       const ligRes = await fetch(
-        `https://data.rcsb.org/rest/v1/core/nonpolymer_entity/${id}/1`
+        `https://data.rcsb.org/rest/v1/core/nonpolymer_entity/${id}/1`,
+        { signal: AbortSignal.timeout(10_000) }
       );
       if (ligRes.ok) {
         const ligData = await ligRes.json();
@@ -123,6 +125,7 @@ export async function searchPdbByProteinName(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(query),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return [];
     const data = await res.json();

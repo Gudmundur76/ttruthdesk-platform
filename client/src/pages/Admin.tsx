@@ -17,8 +17,8 @@ function AdminContent() {
     onError: (e) => toast.error(e.message),
   });
 
-  // Basic owner/admin guard on the frontend
-  const isOwner = user?.role === "admin" || !!user;
+  // Frontend guard: only admin-role users may see this page (backend enforces it too)
+  const isOwner = user?.role === "admin";
 
   if (!isOwner) {
     return (

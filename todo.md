@@ -561,3 +561,43 @@
 - [x] Use Kimi 1M context to fix 91 as-any warnings across all server files
 - [x] Write Vitest tests for llmLargeContext.ts (7 tests, all passing)
 - [x] Push both repos, save checkpoint (457674c5)
+
+## Phase 70 — QA P0 Critical Fixes
+
+### P0 Security
+- [x] P0-1: Add adminMiddleware to all /api/admin/* routes (verifySession + role=admin check)
+- [x] P0-2: Throw on missing JWT_SECRET instead of defaulting to empty string
+- [x] P0-3: Add shared secret header check to all /api/scheduled/* endpoints
+
+### P0 Business Logic
+- [x] P0-4: SQL injection in db.ts LIKE query — Drizzle parameterizes template literals (false positive)
+- [x] P0-5: Fix DB singleton init race condition — add initialization lock
+- [x] P0-6: Concurrency semaphore verified in agentIngestionEndpoint.ts (activeIngestions counter, max 10)
+- [x] P0-7: pmcFeedJob uses Promise.allSettled(batch.map(...)) — proper batching
+- [x] P0-8: Remove global ENV.llmProvider mutation in qualityPassJob — pass as parameter
+- [x] P0-9: Unawaited IIFE in analysisPipeline — added .catch() to prevent unhandled promise rejections
+- [x] P0-10: createDocument return type verified consistent
+
+### P0 Frontend
+- [x] P0-11: Move localStorage.setItem() from useMemo to useEffect in useAuth.ts
+- [x] P0-12: Wrap navigate("/") in useEffect in AuditReport.tsx
+- [x] P0-13: Wrap navigate("/") in useEffect in Dashboard.tsx
+- [x] P0-14: Fix broken admin guard in Admin.tsx (remove || !!user clause)
+- [x] P0-15: requireOwnerOrAdmin middleware added to all /api/admin/* routes in index.ts
+- [x] P0-16: ClaimPage.tsx meta tag useEffect cleanup verified
+
+### P0 Architecture
+- [x] P0-17: Schema verified — no duplicate isActive/active columns found
+- [x] P0-18: Foreign key constraints verified in schema
+- [x] P0-19: dotenv v17 verified working — no downgrade needed
+- [x] P0-20: Remove **/*.test.ts from tsconfig.json exclude array
+
+### High-Impact P1 Fixes
+- [x] P1-3: Add in-memory sliding window rate limiter to validateApiKey (20 req/min per IP)
+- [x] P1-8: In-memory rate limiter implemented; Redis deferred to scale phase
+- [ ] P1-9: Change session cookie SameSite from None to Lax
+- [x] P1-16: AbortSignal.timeout(10000-15000) added to all external API fetches
+- [ ] P1-26: Add expiresAt > NOW() check in findValidMagicLinkToken
+- [x] P1-34: Wrapped atob() in try/catch in Submit.tsx — falls back to server-side extraction on malformed base64
+- [x] P1-38: Fixed setTimeout leak in MagicLinkDialog — clearTimeout in useEffect cleanup
+- [ ] P1-48: Return HTTP 501 from all stub endpoints

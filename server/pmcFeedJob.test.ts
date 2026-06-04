@@ -117,7 +117,6 @@ describe("pmcFeedJobHandler auth", () => {
     // Dynamically import so we can mock ENV
     const envMod = await import("./_core/env");
     const originalKey = envMod.ENV.forgeApiKey;
-    // @ts-expect-error — mutating for test
     envMod.ENV.forgeApiKey = "secret-key-123";
 
     const { pmcFeedJobHandler } = await import("./pmcFeedJob");
@@ -140,14 +139,12 @@ describe("pmcFeedJobHandler auth", () => {
     expect((responseBody as { error: string }).error).toBe("Unauthorized");
 
     // Restore
-    // @ts-expect-error
     envMod.ENV.forgeApiKey = originalKey;
   });
 
   it("accepts requests when forgeApiKey is not set", async () => {
     const envMod = await import("./_core/env");
     const originalKey = envMod.ENV.forgeApiKey;
-    // @ts-expect-error
     envMod.ENV.forgeApiKey = "";
 
     // Mock all DB and pipeline calls to avoid real network/DB access
@@ -191,7 +188,6 @@ describe("pmcFeedJobHandler auth", () => {
     expect((responseBody as { ok: boolean }).ok).toBe(true);
 
     // Restore
-    // @ts-expect-error
     envMod.ENV.forgeApiKey = originalKey;
     vi.restoreAllMocks();
   });
@@ -259,7 +255,6 @@ describe("PMID deduplication (unit)", () => {
 describe("pmcFeedJobHandler response shape", () => {
   it("returns ok, lookbackDays, totalSubmitted, results, timestamp", async () => {
     const envMod = await import("./_core/env");
-    // @ts-expect-error
     envMod.ENV.forgeApiKey = "";
 
     vi.mock("./db", () => ({
@@ -308,7 +303,6 @@ describe("pmcFeedJobHandler response shape", () => {
 
   it("returns 400 for unknown vertical", async () => {
     const envMod = await import("./_core/env");
-    // @ts-expect-error
     envMod.ENV.forgeApiKey = "";
 
     const { pmcFeedJobHandler } = await import("./pmcFeedJob");

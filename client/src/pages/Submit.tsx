@@ -88,8 +88,13 @@ export default function Submit() {
       setFileBase64(base64);
       // Extract text from file
       if (file.type === "text/plain") {
-        const txt = atob(base64);
-        setFileText(txt);
+        try {
+          const txt = atob(base64);
+          setFileText(txt);
+        } catch {
+          // Malformed base64 — fall back to server-side extraction
+          setFileText(`[File: ${file.name} — text will be extracted server-side]`);
+        }
       } else {
         // For PDFs and other types, use raw base64 text extraction hint
         setFileText(`[File: ${file.name} — text will be extracted server-side]`);

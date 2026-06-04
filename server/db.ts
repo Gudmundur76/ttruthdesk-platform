@@ -36,16 +36,26 @@ import {
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _dbInitPromise: Promise<ReturnType<typeof drizzle> | null> | null = null;
 
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
+export async function getDb(): Promise<ReturnType<typeof drizzle> | null> {
+  if (_db) return _db;
+  // Prevent concurrent initializations from creating multiple connections
+  if (!_dbInitPromise && process.env.DATABASE_URL) {
+    _dbInitPromise = (async () => {
+      try {
+        _db = drizzle(process.env.DATABASE_URL!);
+        return _db;
+      } catch (error) {
+        console.warn("[Database] Failed to connect:", error);
+        _db = null;
+        return null;
+      } finally {
+        _dbInitPromise = null;
+      }
+    })();
   }
+  if (_dbInitPromise) return _dbInitPromise;
   return _db;
 }
 

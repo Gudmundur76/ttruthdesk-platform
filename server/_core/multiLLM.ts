@@ -208,9 +208,11 @@ async function callOpenAICompatible(
  */
 export async function invokeMultiLLM(
   options: LLMOptions,
-  openRouterTier: "quality" | "draft" | "fallback" = "draft"
+  openRouterTier: "quality" | "draft" | "fallback" = "draft",
+  providerOverride?: string
 ): Promise<LLMResponse> {
-  const provider = ENV.llmProvider;
+  // providerOverride allows callers to specify a provider without mutating global ENV
+  const provider = providerOverride ?? ENV.llmProvider;
 
   // ── OpenRouter (free model swarm with key rotation) ───────────────────────
   if (provider === "openrouter") {

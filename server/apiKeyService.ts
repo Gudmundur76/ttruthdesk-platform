@@ -108,9 +108,40 @@ export async function generateApiKey(opts: GenerateApiKeyOpts): Promise<Generate
   };
 }
 
+// ─── In-memory rate limiter for validateApiKey ──────────────────────────────
+// Sliding window: max 20 attempts per IP per 60 seconds.
+// The key parameter is a string identifier (IP address or similar).
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_ATTEMPTS = 20;
+const _rateLimitMap = new Map<string, number[]>();
+
+export function checkApiKeyRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const attempts = (_rateLimitMap.get(identifier) ?? []).filter((t) => t > windowStart);
+  if (attempts.length >= RATE_LIMIT_MAX_ATTEMPTS) {
+    return false; // rate limited
+  }
+  attempts.push(now);
+  _rateLimitMap.set(identifier, attempts);
+  // Periodically prune stale entries to prevent unbounded memory growth
+  if (_rateLimitMap.size > 10_000) {
+    Array.from(_rateLimitMap.entries()).forEach(([k, ts]: [string, number[]]) => {
+      if (ts.every((t: number) => t <= windowStart)) _rateLimitMap.delete(k);
+    });
+  }
+  return true; // allowed
+}
+
 // ─── Validate an API key ──────────────────────────────────────────────────────
 
-export async function validateApiKey(rawKey: string): Promise<ValidateApiKeyResult> {
+export async function validateApiKey(rawKey: string, callerIp?: string): Promise<ValidateApiKeyResult> {
+  // Rate-limit by caller IP if provided
+  if (callerIp && !checkApiKeyRateLimit(callerIp)) {
+    return { valid: false, reason: "rate_limited" };
+  }
+
   if (!rawKey || rawKey.length !== 64) {
     return { valid: false, reason: "invalid_format" };
   }

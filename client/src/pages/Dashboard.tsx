@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -67,11 +68,14 @@ function DashboardContent() {
     refetchInterval: 5000,
   });
 
-  // Redirect unauthenticated users to sign-in
-  if (!authLoading && !isAuthenticated) {
-    navigate("/");
-    return null;
-  }
+  // Redirect unauthenticated users to sign-in (must be in useEffect to avoid render-phase side effects)
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate("/");
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  if (!authLoading && !isAuthenticated) return null;
 
   return (
     <div className="max-w-5xl mx-auto">

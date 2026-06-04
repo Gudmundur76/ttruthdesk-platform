@@ -265,7 +265,7 @@ describe("updatePredictionModelValidation", () => {
     await db.updatePredictionModelValidation(7, "incorrect");
     expect(updateFn).toHaveBeenCalledOnce();
     expect(setFn).toHaveBeenCalledOnce();
-    const setArg = setFn.mock.calls[0][0] as { validationResult: string; validatedAt: Date };
+    const setArg = (setFn.mock.calls as unknown as Array<[{ validationResult: string; validatedAt: Date }]>)[0][0];
     expect(setArg.validationResult).toBe("incorrect");
     expect(setArg.validatedAt).toBeInstanceOf(Date);
     expect(whereFn).toHaveBeenCalledOnce();

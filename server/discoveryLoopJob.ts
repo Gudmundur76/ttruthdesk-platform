@@ -122,7 +122,7 @@ async function fetchAbstract(pmid: string): Promise<string | null> {
     url.searchParams.set("id", pmid);
     url.searchParams.set("rettype", "abstract");
     url.searchParams.set("retmode", "text");
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
     const text = await res.text();
     const match = text.match(/AB\s+-\s+([\s\S]+?)(?:\n\n|\nFAU\s+-|\nMH\s+-|$)/);

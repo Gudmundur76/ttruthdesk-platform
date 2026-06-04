@@ -50,12 +50,10 @@ describe("widget.js endpoint", () => {
     const app = { get: (path: string, handler: (req: unknown, res: unknown) => void) => { routes[path] = handler; } } as never;
     registerEmbedWidgetRoutes(app);
 
-    const res = {
-      setHeader: vi.fn(),
-      send: vi.fn(),
-    } as never;
+    const setHeader = vi.fn();
+    const res = { setHeader, send: vi.fn() } as never;
     routes["/embed/widget.js"](makeReq(), res);
-    expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/javascript; charset=utf-8");
+    expect(setHeader).toHaveBeenCalledWith("Content-Type", "application/javascript; charset=utf-8");
   });
 
   it("sets CORS header to *", async () => {

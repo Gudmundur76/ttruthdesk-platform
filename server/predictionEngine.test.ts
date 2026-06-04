@@ -710,7 +710,8 @@ describe("upsertPredictionFeature", () => {
       upsertPredictionFeature({
         entityId: 1,
         featureType: "contradiction_rate",
-        featureValue: 0.25,
+        value: 0.25,
+        sampleSize: 1,
         computedAt: new Date(),
       })
     ).resolves.not.toThrow();

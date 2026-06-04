@@ -58,15 +58,15 @@ describe("checkPayPalAuditLimit", () => {
 
   it("limit math: auditsUsed >= auditsLimit means canSubmit:false", () => {
     // Pure logic test — no DB required
-    const auditsLimit = 5;
-    const auditsUsed = 5;
+    const auditsLimit: number = 5;
+    const auditsUsed: number = 5;
     const canSubmit = auditsLimit === -1 || auditsUsed < auditsLimit;
     expect(canSubmit).toBe(false);
   });
 
   it("limit math: auditsUsed < auditsLimit means canSubmit:true with correct remaining", () => {
-    const auditsLimit = 25;
-    const auditsUsed = 10;
+    const auditsLimit: number = 25;
+    const auditsUsed: number = 10;
     const canSubmit = auditsLimit === -1 || auditsUsed < auditsLimit;
     const remaining = auditsLimit === -1 ? -1 : auditsLimit - auditsUsed;
     expect(canSubmit).toBe(true);

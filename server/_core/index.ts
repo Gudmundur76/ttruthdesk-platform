@@ -514,23 +514,47 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerMagicLinkRoutes(app);
+
+  // ── Auth middleware for protected routes ──────────────────────────────────
+  // Scheduled endpoints: only cron callbacks (isCron=true) or admin users may call them.
+  const requireCronOrAdmin: express.RequestHandler = async (req, res, next) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (user.isCron || user.role === "admin") return next();
+      res.status(403).json({ error: "Forbidden: cron or admin access required" });
+    } catch {
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  };
+
+  // Admin endpoints: only the project owner (OWNER_OPEN_ID) or admin-role users.
+  const requireOwnerOrAdmin: express.RequestHandler = async (req, res, next) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (user.role === "admin" || user.openId === ENV.ownerOpenId) return next();
+      res.status(403).json({ error: "Forbidden: owner or admin access required" });
+    } catch {
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  };
+
   // Scheduled job endpoints (must be before Vite/static fallthrough)
-  app.post("/api/scheduled/monitoring", monitoringJobHandler);
-  app.post("/api/scheduled/pubmed-ingest", pubmedIngestJobHandler);
-  app.post("/api/scheduled/discovery-loop", handleDiscoveryLoop);
-  app.post("/api/scheduled/pmc-feed", pmcFeedJobHandler);
-  app.post("/api/scheduled/quality-pass", qualityPassJobHandler);
-  app.post("/api/scheduled/backfill-predictions", predictionBackfillHandler);
+  app.post("/api/scheduled/monitoring", requireCronOrAdmin, monitoringJobHandler);
+  app.post("/api/scheduled/pubmed-ingest", requireCronOrAdmin, pubmedIngestJobHandler);
+  app.post("/api/scheduled/discovery-loop", requireCronOrAdmin, handleDiscoveryLoop);
+  app.post("/api/scheduled/pmc-feed", requireCronOrAdmin, pmcFeedJobHandler);
+  app.post("/api/scheduled/quality-pass", requireCronOrAdmin, qualityPassJobHandler);
+  app.post("/api/scheduled/backfill-predictions", requireCronOrAdmin, predictionBackfillHandler);
   // Swarm coordinator: fans out all 5 agent jobs in parallel
-  app.post("/api/scheduled/swarm-tick", swarmTickHandler);
+  app.post("/api/scheduled/swarm-tick", requireCronOrAdmin, swarmTickHandler);
   // Orchestrator tick: auto-spawns Manus agents for verticals with pending queue items
-  app.post("/api/scheduled/orchestrator-tick", orchestratorTickHandler);
+  app.post("/api/scheduled/orchestrator-tick", requireCronOrAdmin, orchestratorTickHandler);
   // Manus Coordination Layer: shared work queue, task registry, context store
   app.use("/api/coord", createCoordRouter());
   // Agent result ingestion: accepts structured JSON from Manus agent tasks
   app.post("/api/coord/ingest", agentIngestionHandler);
   // Quality scoring pipeline: scores all unscored/stale claims every 6 hours
-  app.post("/api/scheduled/quality-scorer", qualityScorerJobHandler);
+  app.post("/api/scheduled/quality-scorer", requireCronOrAdmin, qualityScorerJobHandler);
   // Public API v2: paginated, filterable endpoints for claims, entities, verticals, and audits
   app.use("/api/v2", createApiV2Router());
   // Structured data export: CSV/JSON download endpoints for claims, reports, entities
@@ -538,7 +562,7 @@ async function startServer() {
   // Batch audit API: accept up to 20 papers in one request, run full pipeline, return structured results
   app.use("/api/v2/batch-audit", express.json({ limit: "5mb" }), batchAuditRouter);
   // LLM health check: reports active provider, model pool, and connectivity
-  app.get("/api/admin/llm-health", async (_req, res) => {
+  app.get("/api/admin/llm-health", requireOwnerOrAdmin, async (_req, res) => {
     try {
       const { getActiveLLMProvider } = await import("../claimExtractor");
       const { invokeMultiLLM, FREE_MODEL_ROTATION, getLLMHealthSummary } = await import("../_core/multiLLM");
@@ -580,7 +604,7 @@ async function startServer() {
     }
   });
   // Wiki lint: cross-document contradiction detection
-  app.post("/api/scheduled/wiki-lint", async (_req, res) => {
+  app.post("/api/scheduled/wiki-lint", requireCronOrAdmin, async (_req, res) => {
     try {
       const report = await runWikiLint();
       res.json({ ok: true, ...report });
@@ -591,7 +615,7 @@ async function startServer() {
   });
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
   // Admin re-process: re-runs the analysis pipeline on all failed documents
-  app.post("/api/admin/reprocess-failed", async (req, res) => {
+  app.post("/api/admin/reprocess-failed", requireOwnerOrAdmin, async (req, res) => {
     const { getFailedDocuments, updateDocumentStatus, deleteClaimsByDocument } = await import("../db");
     const { runAnalysisPipeline } = await import("../analysisPipeline");
     const batchSize = Math.min(parseInt(String(req.body?.batchSize ?? "50"), 10) || 50, 200);
@@ -627,7 +651,7 @@ async function startServer() {
     res.json({ ok: true, requeued, failed, errors: errors.slice(0, 10) });
   });
 
-  app.post("/api/admin/bulk-seed", async (req, res) => {
+  app.post("/api/admin/bulk-seed", requireOwnerOrAdmin, async (req, res) => {
     // Delegate to pmcFeedJobHandler with allVerticals=true and extended lookback
     req.body = {
       ...req.body,

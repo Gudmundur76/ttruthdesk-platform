@@ -151,7 +151,7 @@ describe("generateApiKey", () => {
     mockInsert.mockReturnValue(valuesChain);
 
     const result = await generateApiKey({ userId: 1, label: "hash-test", scopes: ["read"] });
-    const storedHash = valuesChain.values.mock.calls[0][0].keyHash;
+    const storedHash = ((valuesChain.values.mock.calls as unknown as Array<[Record<string, string>]>)[0][0]).keyHash;
 
     // The stored hash must be a 64-char hex string
     expect(storedHash).toHaveLength(64);
