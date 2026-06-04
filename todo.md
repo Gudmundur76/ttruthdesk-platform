@@ -603,9 +603,9 @@
 ### High-Impact P1 Fixes
 - [x] P1-3: Add in-memory sliding window rate limiter to validateApiKey (20 req/min per IP)
 - [x] P1-8: In-memory rate limiter implemented; Redis deferred to scale phase
-- [ ] P1-9: Change session cookie SameSite from None to Lax
+- [x] P1-9: Change session cookie SameSite from None to Lax in server/_core/cookies.ts
 - [x] P1-16: AbortSignal.timeout(10000-15000) added to all external API fetches
-- [ ] P1-26: Add expiresAt > NOW() check in findValidMagicLinkToken
+- [x] P1-26: expiresAt > NOW() check already present in findValidMagicLinkToken via Drizzle gt(magicLinkTokens.expiresAt, new Date()) — no change needed
 - [x] P1-34: Wrapped atob() in try/catch in Submit.tsx — falls back to server-side extraction on malformed base64
 - [x] P1-38: Fixed setTimeout leak in MagicLinkDialog — clearTimeout in useEffect cleanup
-- [ ] P1-48: Return HTTP 501 from all stub endpoints
+- [x] P1-48: Audited all server endpoints — no stub endpoints found; all handlers return real responses or proper error codes

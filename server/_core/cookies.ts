@@ -42,7 +42,10 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // SameSite=Lax is sufficient for same-site OAuth redirects and magic-link flows.
+    // SameSite=None requires Secure=true on every environment and is unnecessarily permissive
+    // for cross-site embedding (Truth Desk does not embed in third-party iframes).
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }
