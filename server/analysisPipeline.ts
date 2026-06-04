@@ -51,25 +51,37 @@ export async function runAnalysisPipeline(
     }));
     await insertClaims(claimInserts as never);
     await updateDocumentStatus(documentId, "validating", { claimCount: extracted.length });
-    // 3. Validate each claim against PDB
+    // 3. Validate each claim against PDB — parallel with concurrency cap of 8
     const allClaims = await getClaimsByDocument(documentId);
-    for (const claim of allClaims) {
-      const result = await verdictForClaim({
-        claimType: claim.claimType,
-        pdbId: claim.pdbId,
-        proteinName: claim.proteinName,
-        experimentalMethod: claim.experimentalMethod,
-        resolution: claim.resolution ?? undefined,
-        organism: claim.organism,
-        ligand: claim.ligand,
-        extractedValue: claim.extractedValue,
-      });
-      await updateClaimVerdict(claim.id, {
-        verdict: result.verdict,
-        verdictRationale: result.rationale,
-        pdbEvidenceUrl: result.evidenceUrl ?? undefined,
-        pdbEvidenceRaw: result.evidenceRaw ?? undefined,
-        pdbEvidenceCheckedAt: new Date(),
+    const CLAIM_CONCURRENCY = 8;
+    for (let i = 0; i < allClaims.length; i += CLAIM_CONCURRENCY) {
+      const batch = allClaims.slice(i, i + CLAIM_CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(async (claim) => {
+          const result = await verdictForClaim({
+            claimType: claim.claimType,
+            pdbId: claim.pdbId,
+            proteinName: claim.proteinName,
+            experimentalMethod: claim.experimentalMethod,
+            resolution: claim.resolution ?? undefined,
+            organism: claim.organism,
+            ligand: claim.ligand,
+            extractedValue: claim.extractedValue,
+          });
+          await updateClaimVerdict(claim.id, {
+            verdict: result.verdict,
+            verdictRationale: result.rationale,
+            pdbEvidenceUrl: result.evidenceUrl ?? undefined,
+            pdbEvidenceRaw: result.evidenceRaw ?? undefined,
+            pdbEvidenceCheckedAt: new Date(),
+          });
+        })
+      );
+      // Log any individual claim failures without aborting the whole document
+      results.forEach((r, idx) => {
+        if (r.status === "rejected") {
+          console.warn(`[Pipeline] Claim ${batch[idx]?.id} validation failed (non-fatal):`, r.reason);
+        }
       });
     }
     // 4. Generate report

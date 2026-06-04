@@ -18,6 +18,10 @@ export const ENV = {
   freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
   kimiApiKey: process.env.KIMI_API_KEY ?? "",
   openRouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
+  // Comma-separated pool of OpenRouter keys for round-robin rotation (multiplies free-tier throughput)
+  openRouterApiKeys: process.env.OPENROUTER_API_KEYS ?? "",
+  // Self-hosted model name for freellmapi provider (e.g. gemma4:27b-it-q4_K_M for Ollama)
+  freeLLMModel: process.env.FREELM_MODEL ?? "auto",
   // Telegram bot integration
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   telegramChannelId: process.env.TELEGRAM_CHANNEL_ID ?? "",

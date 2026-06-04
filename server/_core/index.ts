@@ -16,6 +16,7 @@ import { handleDiscoveryLoop } from "../discoveryLoopJob";
 import { pmcFeedJobHandler } from "../pmcFeedJob";
 import { qualityPassJobHandler } from "../qualityPassJob";
 import { predictionBackfillHandler } from "../predictionBackfillJob";
+import { swarmTickHandler } from "../swarmTickJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
@@ -512,6 +513,50 @@ async function startServer() {
   app.post("/api/scheduled/pmc-feed", pmcFeedJobHandler);
   app.post("/api/scheduled/quality-pass", qualityPassJobHandler);
   app.post("/api/scheduled/backfill-predictions", predictionBackfillHandler);
+  // Swarm coordinator: fans out all 5 agent jobs in parallel
+  app.post("/api/scheduled/swarm-tick", swarmTickHandler);
+  // LLM health check: reports active provider, model pool, and connectivity
+  app.get("/api/admin/llm-health", async (_req, res) => {
+    try {
+      const { getActiveLLMProvider } = await import("../claimExtractor");
+      const { invokeMultiLLM, FREE_MODEL_ROTATION, getLLMHealthSummary } = await import("../_core/multiLLM");
+      const activeProvider = getActiveLLMProvider();
+      // Test connectivity with a minimal prompt
+      let connectivityOk = false;
+      let connectivityError: string | null = null;
+      try {
+        const resp = await invokeMultiLLM({
+          messages: [{ role: "user", content: "Reply with the single word: OK" }],
+        });
+        const text = resp?.choices?.[0]?.message?.content ?? "";
+        connectivityOk = text.trim().toLowerCase().includes("ok");
+      } catch (e) {
+        connectivityError = String(e);
+      }
+      const healthSummary = getLLMHealthSummary();
+      res.json({
+        activeProvider,
+        freeModelPool: FREE_MODEL_ROTATION,
+        healthSummary,
+        connectivity: { ok: connectivityOk, error: connectivityError },
+        selfHostedGemma4: {
+          supported: !!ENV.freeLLMApiUrl,
+          apiUrl: ENV.freeLLMApiUrl || null,
+          model: ENV.freeLLMModel || "gemma4:27b-it-q4_K_M",
+          setupInstructions: [
+            "1. Install Ollama: curl -fsSL https://ollama.com/install.sh | sh",
+            "2. Pull model: ollama pull gemma4:27b-it-q4_K_M  (requires ~16GB VRAM)",
+            "3. Start server: OLLAMA_HOST=0.0.0.0 ollama serve",
+            "4. Set env: FREELM_API_URL=http://YOUR_SERVER_IP:11434/v1",
+            "5. Set env: FREELM_MODEL=gemma4:27b-it-q4_K_M",
+          ],
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
   // Wiki lint: cross-document contradiction detection
   app.post("/api/scheduled/wiki-lint", async (_req, res) => {
     try {

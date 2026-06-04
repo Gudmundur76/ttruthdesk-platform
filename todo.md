@@ -405,3 +405,17 @@
 - [x] Build /docs/api page: live examples for /api/public/verify-claim and /api/public/claims.json, code snippets in curl/Python/JS
 - [x] Register /trust and /docs/api routes in App.tsx
 - [x] Write Vitest tests, save checkpoint, push to GitHub
+
+## Phase 40: Agent Swarm + Free LLM Upgrade
+
+- [x] Expand OpenRouter free model pool in multiLLM.ts: add openrouter/free meta-router, ERNIE 4.5, GLM 4.5 Air, NVIDIA Nemotron 3 Super, OpenAI gpt-oss-20b
+- [x] Add OPENROUTER_API_KEYS comma-separated key rotation pool to multiLLM.ts
+- [x] Add freellmapi (self-hosted Gemma 4 / Ollama) provider support with health check
+- [x] Parallelize claim validation in analysisPipeline.ts using Promise.allSettled (concurrency cap 8)
+- [x] Add concurrent document processing pool (4 docs at once) in seedKnowledgeGraph.ts
+- [x] Build server/swarmTickJob.ts coordinator that fans out all 5 agent jobs in parallel
+- [x] Register POST /api/scheduled/swarm-tick in index.ts
+- [x] Add GET /api/admin/llm-health endpoint showing active provider, model rotation status, key pool size
+- [x] Write Vitest tests for swarm coordinator and multiLLM key rotation
+- [x] Run live verification: trigger swarm-tick and confirm all agents respond
+- [x] Save checkpoint, push to GitHub

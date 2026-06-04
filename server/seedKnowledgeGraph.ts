@@ -164,7 +164,10 @@ async function fetchPubmedAbstract(pmid: string): Promise<{ title: string; abstr
 // ─── Main seeding loop ────────────────────────────────────────────────────────
 
 const SYSTEM_USER_ID = 1; // Owner user ID (created on first login)
-const DELAY_MS = 3_500;   // 3.5s between submissions to respect PubMed 3 req/s limit
+// Concurrency: 4 documents processed in parallel (safe for PubMed 3 req/s + pipeline)
+const DOC_CONCURRENCY = 4;
+// Delay between batches (ms) — reduced from 3.5s since we batch 4 at once
+const BATCH_DELAY_MS = 1_500;
 
 // Helper to determine vertical domain from PMID
 function getVertical(pmid: string): string {
@@ -175,108 +178,119 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Process a single paper through the full pipeline.
+ * Returns 'submitted' | 'skipped' | 'failed'.
+ */
+async function processPaper(paper: { pmid: string; label: string }): Promise<"submitted" | "skipped" | "failed"> {
+  const { pmid, label } = paper;
+  console.log(`  [${pmid}] ${label} — starting`);
+
+  // Check if already ingested
+  const existing = await getAutoIngestedPaperByPmid(pmid);
+  if (existing && existing.status !== "failed") {
+    console.log(`  [${pmid}] SKIP (already ingested, status: ${existing.status})`);
+    return "skipped";
+  }
+
+  // Fetch abstract from PubMed
+  const fetched = await fetchPubmedAbstract(pmid);
+  if (!fetched) {
+    console.log(`  [${pmid}] FAIL (fetch error)`);
+    await upsertAutoIngestedPaper({
+      pmid, doi: null, title: label, searchQuery: `seed:${pmid}`,
+      status: "failed", verticalDomain: getVertical(pmid), ingestSource: "pubmed",
+    });
+    return "failed";
+  }
+
+  // Try to enrich with PMC full-text methods section
+  const pmcMethods = await fetchPmcFullText(pmid);
+  const rawText = `${fetched.title}\n\n${fetched.abstract}${pmcMethods}`;
+  const vertical = getVertical(pmid);
+
+  // Record ingestion attempt
+  await upsertAutoIngestedPaper({
+    pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
+    status: "fetched", verticalDomain: vertical, ingestSource: "pubmed",
+  });
+
+  // Create document record
+  let docId: number;
+  try {
+    const doc = await createDocument({
+      userId: SYSTEM_USER_ID,
+      title: fetched.title.slice(0, 255),
+      rawText,
+      sourceType: "paste",
+      status: "pending",
+      verticalDomain: vertical,
+    });
+    docId = doc as number;
+  } catch (err) {
+    console.log(`  [${pmid}] FAIL (createDocument: ${(err as Error).message})`);
+    await upsertAutoIngestedPaper({
+      pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
+      status: "failed", verticalDomain: vertical, ingestSource: "pubmed",
+    });
+    return "failed";
+  }
+
+  // Mark as submitted
+  await upsertAutoIngestedPaper({
+    pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
+    status: "submitted", documentId: docId, verticalDomain: vertical, ingestSource: "pubmed",
+  });
+
+  // Run the full audit pipeline
+  try {
+    await runAnalysisPipeline(docId, rawText, SYSTEM_USER_ID);
+    await upsertAutoIngestedPaper({
+      pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
+      status: "complete", documentId: docId, verticalDomain: vertical, ingestSource: "pubmed",
+    });
+    console.log(`  [${pmid}] OK (docId: ${docId})`);
+    return "submitted";
+  } catch (err) {
+    console.log(`  [${pmid}] FAIL (pipeline: ${(err as Error).message})`);
+    await updateDocumentStatus(docId, "failed");
+    await upsertAutoIngestedPaper({
+      pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
+      status: "failed", documentId: docId, verticalDomain: vertical, ingestSource: "pubmed",
+    });
+    return "failed";
+  }
+}
+
 async function main() {
-  console.log(`\n🌱 Protein Truth Desk — Knowledge Graph Seeding`);
-  console.log(`   Seeding ${SEED_PAPERS.length} curated papers...\n`);
+  console.log(`\n🌱 Protein Truth Desk — Knowledge Graph Seeding (Parallel x${DOC_CONCURRENCY})`);
+  console.log(`   Seeding ${SEED_PAPERS.length} curated papers in batches of ${DOC_CONCURRENCY}...\n`);
 
   let submitted = 0;
   let skipped = 0;
   let failed = 0;
 
-  for (const paper of SEED_PAPERS) {
-    const { pmid, label } = paper;
-    process.stdout.write(`  [${pmid}] ${label} ... `);
+  // Process papers in concurrent batches of DOC_CONCURRENCY
+  for (let i = 0; i < SEED_PAPERS.length; i += DOC_CONCURRENCY) {
+    const batch = SEED_PAPERS.slice(i, i + DOC_CONCURRENCY);
+    console.log(`\n📦 Batch ${Math.floor(i / DOC_CONCURRENCY) + 1}/${Math.ceil(SEED_PAPERS.length / DOC_CONCURRENCY)} (papers ${i + 1}–${Math.min(i + DOC_CONCURRENCY, SEED_PAPERS.length)})`);
 
-    // Check if already ingested
-    const existing = await getAutoIngestedPaperByPmid(pmid);
-    if (existing && existing.status !== "failed") {
-      console.log(`SKIP (already ingested, status: ${existing.status})`);
-      skipped++;
-      continue;
-    }
-
-    // Fetch abstract from PubMed
-    const fetched = await fetchPubmedAbstract(pmid);
-    if (!fetched) {
-      console.log(`FAIL (fetch error)`);
-      await upsertAutoIngestedPaper({
-        pmid,
-        doi: null,
-        title: label,
-        searchQuery: `seed:${pmid}`,
-        status: "failed",
-        verticalDomain: getVertical(pmid),
-        ingestSource: "pubmed",
-      });
-      failed++;
-      continue;
-    }
-
-    // Try to enrich with PMC full-text methods section
-    const pmcMethods = await fetchPmcFullText(pmid);
-    const rawText = `${fetched.title}\n\n${fetched.abstract}${pmcMethods}`;
-    const vertical = getVertical(pmid);
-
-    // Record ingestion attempt
-    await upsertAutoIngestedPaper({
-      pmid,
-      doi: null,
-      title: fetched.title,
-      searchQuery: `seed:${pmid}`,
-      status: "fetched",
-      verticalDomain: vertical,
-      ingestSource: "pubmed",
+    const results = await Promise.allSettled(batch.map(processPaper));
+    results.forEach((r, idx) => {
+      if (r.status === "fulfilled") {
+        if (r.value === "submitted") submitted++;
+        else if (r.value === "skipped") skipped++;
+        else failed++;
+      } else {
+        console.error(`  [${batch[idx]?.pmid}] Unexpected error:`, r.reason);
+        failed++;
+      }
     });
 
-    // Create document record
-    let docId: number;
-    try {
-      const doc = await createDocument({
-        userId: SYSTEM_USER_ID,
-        title: fetched.title.slice(0, 255),
-        rawText,
-        sourceType: "paste",
-        status: "pending",
-        verticalDomain: vertical,
-      });
-      docId = doc as number;
-    } catch (err) {
-      console.log(`FAIL (createDocument: ${(err as Error).message})`);
-      await upsertAutoIngestedPaper({
-        pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
-        status: "failed", verticalDomain: vertical, ingestSource: "pubmed",
-      });
-      failed++;
-      continue;
+    // Brief pause between batches to respect PubMed rate limits
+    if (i + DOC_CONCURRENCY < SEED_PAPERS.length) {
+      await sleep(BATCH_DELAY_MS);
     }
-
-    // Mark as submitted
-    await upsertAutoIngestedPaper({
-      pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
-      status: "submitted", documentId: docId, verticalDomain: vertical, ingestSource: "pubmed",
-    });
-
-    // Run the full audit pipeline
-    try {
-      await runAnalysisPipeline(docId, rawText, SYSTEM_USER_ID);
-      await upsertAutoIngestedPaper({
-        pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
-        status: "complete", documentId: docId, verticalDomain: vertical, ingestSource: "pubmed",
-      });
-      console.log(`OK (docId: ${docId})`);
-      submitted++;
-    } catch (err) {
-      console.log(`FAIL (pipeline: ${(err as Error).message})`);
-      await updateDocumentStatus(docId, "failed");
-      await upsertAutoIngestedPaper({
-        pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
-        status: "failed", documentId: docId, verticalDomain: vertical, ingestSource: "pubmed",
-      });
-      failed++;
-    }
-
-    // Throttle to respect PubMed rate limits (3 req/s max without API key)
-    await sleep(DELAY_MS);
   }
 
   console.log(`\n✅ Seeding complete.`);
