@@ -1,4 +1,5 @@
 import { eq, desc, asc, isNull, isNotNull, and, gt, sql } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -19,7 +20,6 @@ import {
   magicLinkTokens,
   emailUsers,
   InsertMagicLinkToken,
-  InsertEmailUser,
   graphEntities,
   graphRelations,
   InsertGraphEntity,
@@ -32,7 +32,6 @@ import {
   InsertPredictionModel,
   PredictionModel,
   webhookAlerts,
-  WebhookAlert,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -848,7 +847,7 @@ export async function savePredictionModel(data: InsertPredictionModel): Promise<
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const [result] = await db.insert(predictionModels).values(data);
-  return (result as any).insertId as number;
+  return (result as unknown as ResultSetHeader).insertId;
 }
 
 export async function getPredictionsByClaimId(claimId: number): Promise<PredictionModel[]> {

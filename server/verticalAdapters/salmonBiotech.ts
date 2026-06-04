@@ -42,10 +42,6 @@ interface PubChemProperties {
   InChIKey?: string;
 }
 
-interface PubChemSynonyms {
-  Synonym?: string[];
-}
-
 async function fetchPubChemProperties(cid: number): Promise<PubChemProperties | null> {
   try {
     const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName,IsomericSMILES,InChIKey/JSON`;

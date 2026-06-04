@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Download, FileJson, FileText, Table2, GitBranch, Building2 } from "lucide-react";
+import { FileJson, FileText, Table2, GitBranch, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ function buildQueryString(filters: ExportFilters, extra?: Record<string, string>
   return qs ? `?${qs}` : "";
 }
 
-async function triggerDownload(url: string, filename: string, isJson: boolean) {
+async function triggerDownload(url: string, filename: string, _isJson: boolean) {
   try {
     const res = await fetch(url);
     if (!res.ok) {
@@ -85,7 +85,7 @@ export default function ExportData() {
   const setFilter = (key: keyof ExportFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
-  const download = async (endpoint: string, ext: "csv" | "json", label: string) => {
+  const download = async (endpoint: string, ext: "csv" | "json", _label: string) => {
     const qs = buildQueryString(filters);
     const url = `/api/v2/export/${endpoint}.${ext}${qs}`;
     const filename = `truth-desk-${endpoint}-${new Date().toISOString().slice(0, 10)}.${ext}`;

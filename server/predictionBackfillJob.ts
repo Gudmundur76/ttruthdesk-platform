@@ -15,7 +15,7 @@ import type { Request, Response } from "express";
 import { getDb } from "./db";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
 import { claims, documents, predictionModels } from "../drizzle/schema";
-import { isNull, isNotNull, eq } from "drizzle-orm";
+import { isNotNull, eq } from "drizzle-orm";
 
 const BATCH_SIZE = 50;
 

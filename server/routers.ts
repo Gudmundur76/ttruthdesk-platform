@@ -8,11 +8,8 @@ import {
   createDocument,
   getDocumentById,
   getDocumentsByUser,
-  updateDocumentStatus,
-  insertClaims,
   getClaimsByDocument,
   overrideClaimVerdict,
-  upsertAuditReport,
   getAuditReportByDocument,
   createAuditRequest,
   getAllAuditRequests,
@@ -244,7 +241,7 @@ export const appRouter = router({
                   methodsText = methodsMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
                 }
               }
-            } catch (_pmcErr) {
+            } catch {
               // PMC full-text is optional — silently continue with abstract only
             }
             const fullText = [
@@ -384,7 +381,7 @@ export const appRouter = router({
           additionalNotes: z.string().optional(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
+      .mutation(async ({ input }) => {
         // Rate limit: max 3 audit requests per email per 24 hours
         const recentRequests = await getRecentAuditRequestsByEmail(input.contactEmail, 24 * 60 * 60 * 1000);
         if (recentRequests >= 3) {

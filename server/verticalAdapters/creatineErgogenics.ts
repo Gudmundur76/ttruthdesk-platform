@@ -44,7 +44,7 @@ async function lookupErgogenicPubChem(cid: number): Promise<{ found: boolean; ur
   }
 }
 
-async function searchPubMedPerformance(compound: string, claimFragment: string): Promise<{ count: number; pmids: string[] }> {
+async function searchPubMedPerformance(compound: string, _claimFragment: string): Promise<{ count: number; pmids: string[] }> {
   try {
     const query = encodeURIComponent(
       `${compound} performance[tiab] AND (randomized controlled trial[pt] OR meta-analysis[pt])`

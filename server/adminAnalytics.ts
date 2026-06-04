@@ -16,7 +16,7 @@
 
 import { getDb } from "./db";
 import { documents, claims, graphEntities, graphRelations, coordTasks } from "../drizzle/schema";
-import { sql, count, avg, desc, gte, and, isNotNull } from "drizzle-orm";
+import { sql, count, avg, desc, gte, isNotNull } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -23,7 +23,7 @@ import {
   coordTasks,
   coordQueue,
 } from "../drizzle/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import {
   runOrchestratorTick,
   spawnVerticalTask,

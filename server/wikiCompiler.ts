@@ -24,7 +24,6 @@ import {
   getDocumentById,
   upsertGraphEntity,
   upsertGraphRelation,
-  getGraphEntityByTypeAndName,
 } from "./db";
 import type { GraphEntity } from "../drizzle/schema";
 

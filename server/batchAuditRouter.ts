@@ -17,7 +17,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { getDb } from "./db";
 import { documents, claims as claimsTable } from "../drizzle/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { scoreBatch } from "./claimQualityScorer";
 

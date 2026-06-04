@@ -9,6 +9,7 @@
  */
 
 import { eq, and, sql, desc } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { getDb } from "./db";
 import {
   claims,
@@ -499,7 +500,7 @@ export async function savePrediction(
 ): Promise<number> {
   const db = await requireDb();
   const [result] = await db.insert(predictionModels).values(data);
-  return (result as any).insertId as number;
+  return (result as unknown as ResultSetHeader).insertId;
 }
 
 export async function getPredictionsByClaim(claimId: number) {

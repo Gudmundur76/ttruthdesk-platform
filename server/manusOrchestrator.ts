@@ -41,7 +41,7 @@ import { ENV } from "./_core/env";
 
 const MANUS_API_BASE = "https://api.manus.ai";
 const STALL_THRESHOLD_MS = 10 * 60_000; // 10 minutes without heartbeat = stalled
-const MAX_RETRIES = 3;
+const _MAX_RETRIES = 3;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -17,7 +17,6 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { TopNav } from "@/components/TopNav";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
 
 // ─── Feature cards ────────────────────────────────────────────────────────────
 

@@ -17,11 +17,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   TrendingUp,
   TrendingDown,
   Minus,
@@ -96,7 +91,7 @@ type TimelineEvent = {
   date: string;
 };
 
-function EventCard({ event, index }: { event: TimelineEvent; index: number }) {
+function EventCard({ event }: { event: TimelineEvent }) {
   const [expanded, setExpanded] = useState(false);
   const verdictClass = event.verdict ? VERDICT_COLORS[event.verdict] ?? "bg-slate-100 text-slate-700" : "";
   const dotClass = event.verdict ? VERDICT_DOT[event.verdict] ?? "bg-slate-400" : "bg-slate-300";
@@ -429,7 +424,7 @@ export default function EvidenceTimeline() {
                             : ""
                         }
                       >
-                        <EventCard event={event} index={idx} />
+                        <EventCard event={event} />
                       </div>
                     ))}
                   </div>

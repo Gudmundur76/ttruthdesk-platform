@@ -17,7 +17,7 @@
  * 4. Return top-N sorted by composite relevance score
  */
 
-import { sql, or, like, and, eq, desc, isNotNull } from "drizzle-orm";
+import { sql, or, like, and, eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { claims, documents, graphEntities } from "../drizzle/schema";
 

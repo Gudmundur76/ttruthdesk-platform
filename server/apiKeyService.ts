@@ -18,9 +18,10 @@
  */
 
 import { createHash, randomBytes } from "crypto";
+import type { ResultSetHeader } from "mysql2";
 import { getDb } from "./db";
 import { apiKeys } from "../drizzle/schema";
-import { eq, and, isNull, gt } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ export async function generateApiKey(opts: GenerateApiKeyOpts): Promise<Generate
     expiresAt: expiresAt ?? null,
   });
 
-  const insertId = (result as any).insertId ?? 0;
+  const insertId = (result as unknown as ResultSetHeader).insertId ?? 0;
 
   return {
     id: insertId,
@@ -162,7 +163,7 @@ export async function revokeApiKey(keyId: number, userId: number): Promise<boole
     .set({ revokedAt: new Date() })
     .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)));
 
-  return ((result as any).affectedRows ?? 0) > 0;
+  return ((result as unknown as ResultSetHeader).affectedRows ?? 0) > 0;
 }
 
 // ─── List API keys for a user ─────────────────────────────────────────────────

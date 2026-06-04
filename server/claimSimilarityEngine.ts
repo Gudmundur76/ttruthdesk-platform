@@ -15,7 +15,7 @@
 
 import { getDb } from "./db";
 import { claims, documents } from "../drizzle/schema";
-import { desc, eq, ne, and, isNotNull } from "drizzle-orm";
+import { desc, eq, and, isNotNull } from "drizzle-orm";
 
 // ─── Stopwords ────────────────────────────────────────────────────────────────
 
@@ -275,4 +275,98 @@ export async function detectDuplicatesInDocument(
   }
 
   return pairs.sort((a, b) => b.similarity - a.similarity);
+}
+
+// ─── LLM-enhanced similarity (Kimi large-context semantic re-ranking) ─────────
+
+import { invokeLargeContextLLMJson } from "./_core/llmLargeContext.js";
+
+/**
+ * LLM-enhanced similarity search.
+ *
+ * Step 1: Run the standard TF-IDF search to get up to 2× topK candidates.
+ * Step 2: Ask Kimi to re-rank those candidates by semantic similarity in the
+ *         context of protein science / biomedical research.
+ * Step 3: Return the top-K re-ranked results.
+ *
+ * Falls back to the standard TF-IDF results when Kimi is unavailable.
+ */
+export async function findSimilarClaimsLLM(
+  queryText: string,
+  options: SimilarityOptions = {}
+): Promise<SimilarClaim[]> {
+  const { topK = 10, threshold = 0.25 } = options;
+
+  // Get 2× candidates from TF-IDF (lower threshold to give LLM more to work with)
+  const candidates = await findSimilarClaims(queryText, {
+    topK: topK * 2,
+    threshold,
+  });
+
+  if (candidates.length === 0) return [];
+
+  // If Kimi is not available, return TF-IDF results directly
+  try {
+    const candidateList = candidates
+      .map((c, i) => `${i + 1}. [id:${c.claimId}] "${c.claimText.slice(0, 200)}"`)
+      .join("\n");
+
+    const { data } = await invokeLargeContextLLMJson<{
+      rankedIds: number[];
+      reasoning: string;
+    }>(
+      [
+        {
+          role: "system",
+          content:
+            "You are a biomedical research expert specialising in protein science, nutrition, " +
+            "and structural biology. Re-rank the candidate claims by semantic similarity to the " +
+            "query claim. Consider scientific equivalence, not just keyword overlap. " +
+            "Return the claim IDs in order from most to least semantically similar.",
+        },
+        {
+          role: "user",
+          content:
+            `Query claim: "${queryText}"\n\n` +
+            `Candidate claims:\n${candidateList}\n\n` +
+            "Return JSON: { rankedIds: [array of claim IDs in order], reasoning: string }",
+        },
+      ],
+      {
+        name: "similarity_reranking",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            rankedIds: {
+              type: "array",
+              items: { type: "number" },
+            },
+            reasoning: { type: "string" },
+          },
+          required: ["rankedIds", "reasoning"],
+          additionalProperties: false,
+        },
+      }
+    );
+
+    // Re-order candidates according to LLM ranking
+    const idToCandidate = new Map(candidates.map((c) => [c.claimId, c]));
+    const reranked: SimilarClaim[] = [];
+    for (const id of data.rankedIds) {
+      const c = idToCandidate.get(id);
+      if (c) reranked.push(c);
+    }
+    // Append any candidates not mentioned by the LLM (preserves completeness)
+    for (const c of candidates) {
+      if (!reranked.some((r) => r.claimId === c.claimId)) {
+        reranked.push(c);
+      }
+    }
+
+    return reranked.slice(0, topK);
+  } catch {
+    // Kimi unavailable — return TF-IDF results
+    return candidates.slice(0, topK);
+  }
 }

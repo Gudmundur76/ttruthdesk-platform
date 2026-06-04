@@ -34,7 +34,6 @@ import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import {
   VERTICAL_FEED_CONFIGS,
-  getVerticalFeedConfig,
   type VerticalFeedConfig,
 } from "./verticalFeedConfig";
 export { VERTICAL_FEED_CONFIGS, getVerticalFeedConfig } from "./verticalFeedConfig";

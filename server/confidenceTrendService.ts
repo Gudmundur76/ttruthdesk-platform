@@ -10,6 +10,7 @@
  *   backfillFromClaims(documentId)  — seed history from existing claims.confidenceScore
  */
 
+import type { ResultSetHeader } from "mysql2";
 import { getDb } from "./db";
 import { confidenceHistory, claims } from "../drizzle/schema";
 import { eq, desc, asc } from "drizzle-orm";
@@ -53,7 +54,7 @@ export async function recordConfidence(opts: RecordConfidenceOpts): Promise<numb
     flags: flags ?? null,
   });
 
-  return (result as any).insertId ?? 0;
+  return (result as unknown as ResultSetHeader).insertId ?? 0;
 }
 
 // ─── Get full confidence trend for a claim ────────────────────────────────────

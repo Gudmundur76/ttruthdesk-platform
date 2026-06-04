@@ -139,7 +139,7 @@ describe("batch-parallel backfill", () => {
       wikiCompiledAt: null,
     }));
     const batchSizes: number[] = [];
-    let currentBatchStart = 0;
+    const currentBatchStart = 0;
     const processedOrder: number[] = [];
 
     const result = await simulateBackfill(docs, async (id) => {

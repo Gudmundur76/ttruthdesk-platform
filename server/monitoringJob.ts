@@ -66,11 +66,10 @@ async function fetchPubMed(query: string): Promise<FeedItem[]> {
 async function fetchBioRxiv(query: string): Promise<FeedItem[]> {
   try {
     // bioRxiv search API (public, no key needed)
-    const encoded = encodeURIComponent(query);
-    const url = `https://api.biorxiv.org/details/biorxiv/2024-01-01/2099-12-31/0/json`;
-    // bioRxiv's public API doesn't have a search endpoint; use the category listing
-    // and filter by title relevance via LLM. We fetch the latest 10 preprints from
-    // the "biochemistry" and "biophysics" categories as a proxy.
+    // Note: bioRxiv's public API doesn't have a search endpoint; the query param
+    // is reserved for future search integration. We fetch the latest preprints
+    // from the category listing and filter by title relevance via LLM.
+    void query; // reserved for future search endpoint integration
     const res = await fetch(`https://api.biorxiv.org/details/biorxiv/2024-01-01/2099-12-31/0/json`);
     if (!res.ok) return [];
     const data = (await res.json()) as {

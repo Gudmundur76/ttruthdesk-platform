@@ -14,7 +14,7 @@
  */
 
 import type { Request, Response } from "express";
-import { getDraftDocuments, updateDocumentStatus, getDocumentById, deleteClaimsByDocument } from "./db";
+import { getDraftDocuments, updateDocumentStatus, deleteClaimsByDocument } from "./db";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";

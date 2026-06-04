@@ -20,14 +20,9 @@ import { invokeLLM } from "./_core/llm";
 import { postContradictionAlert } from "./telegramBot";
 import {
   getGraphEntitiesByType,
-  getContradictionRelations,
   upsertGraphRelation,
-  getGraphEntityByTypeAndName,
-  getAllGraphEntities,
 } from "./db";
-import { getClaimsByDocument } from "./db";
 import { fetchWikiPage } from "./wikiCompiler";
-import type { GraphEntity } from "../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,7 +176,7 @@ export async function runWikiLint(): Promise<WikiLintReport> {
           rationale: c.explanation,
           claimId: entity.firstSeenDocumentId ?? 0,
         }).catch((e) => console.error("[WikiLinter] Telegram alert failed:", e));
-      } catch (err) {
+      } catch {
         // Duplicate edge — already exists, ignore
         console.debug(`[WikiLinter] Edge already exists for entity #${entity.id}`);
       }

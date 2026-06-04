@@ -1,5 +1,4 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { useState } from "react";
 import { MagicLinkDialog } from "@/components/MagicLinkDialog";
 import { Link, useLocation } from "wouter";

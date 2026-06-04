@@ -65,7 +65,7 @@ const TIER_META: Record<Tier, { name: string; price: string; subtitle: string; f
 };
 
 export default function Pricing() {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [selectedTier, setSelectedTier] = useState<Tier>("diligence");
   const [form, setForm] = useState({
     contactName: "",

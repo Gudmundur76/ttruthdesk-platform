@@ -14,7 +14,6 @@ import { trpc } from "@/lib/trpc";
 import { TopNav } from "@/components/TopNav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { ArrowLeft, ExternalLink, FileSearch, TrendingUp, CheckCircle, XCircle, AlertCircle, HelpCircle, BookOpen, Beaker } from "lucide-react";

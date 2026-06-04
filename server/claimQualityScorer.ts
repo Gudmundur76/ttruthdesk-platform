@@ -21,7 +21,7 @@
  */
 import { getDb } from "./db";
 import { claims, documents } from "../drizzle/schema";
-import { eq, isNull, and, lt, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // ─── Scoring constants ────────────────────────────────────────────────────────
 
@@ -435,4 +435,114 @@ export async function runQualityScorerJob(): Promise<{
   const durationMs = Date.now() - startMs;
   console.log(`[QualityScorer] Scored ${scored} claims in ${durationMs}ms (${errors} errors)`);
   return { scored, errors, durationMs };
+}
+
+// ─── LLM-enhanced scoring (Kimi large-context) ───────────────────────────────
+
+import { invokeLargeContextLLMJson } from "./_core/llmLargeContext.js";
+
+/**
+ * LLM-enhanced quality score for a single claim.
+ *
+ * Uses Kimi's large-context model to evaluate three semantic dimensions:
+ *   - methodologyRigor   (0–1): Is the underlying study design sound?
+ *   - claimPrecision     (0–1): Is the claim specific and falsifiable?
+ *   - evidenceAlignment  (0–1): Does the evidence actually support the claim?
+ *
+ * The LLM score is blended with the deterministic score (70 % deterministic,
+ * 30 % LLM) so that the result is still grounded in structured evidence data.
+ *
+ * Falls back to the deterministic score when Kimi is unavailable.
+ */
+export async function scoreClaimWithLLM(claim: {
+  id: number;
+  claimText: string;
+  verdict: string | null;
+  claimType: string;
+  verticalDomain: string;
+  pdbEvidenceUrl: string | null;
+  extractedValue: string | null;
+  pdbEvidenceCheckedAt: Date | null;
+  pdbEvidenceRaw: unknown;
+}): Promise<ClaimQualityScore & { llmEnhanced: boolean }> {
+  // Always compute the deterministic base score first
+  const base = computeClaimScore({
+    id: claim.id,
+    verdict: claim.verdict as Verdict,
+    pdbEvidenceUrl: claim.pdbEvidenceUrl,
+    pdbEvidenceRaw: claim.pdbEvidenceRaw,
+    pdbEvidenceCheckedAt: claim.pdbEvidenceCheckedAt,
+    claimType: claim.claimType,
+    claimText: claim.claimText,
+    extractedValue: claim.extractedValue,
+    verticalDomain: claim.verticalDomain,
+  });
+
+  try {
+    const { data } = await invokeLargeContextLLMJson<{
+      methodologyRigor: number;
+      claimPrecision: number;
+      evidenceAlignment: number;
+      reasoning: string;
+    }>(
+      [
+        {
+          role: "system",
+          content:
+            "You are a biomedical research quality assessor specialising in protein science, " +
+            "nutrition research, and structural biology. Evaluate the claim below on three " +
+            "dimensions and return a JSON object with numeric scores 0–1 and a brief reasoning string.",
+        },
+        {
+          role: "user",
+          content:
+            `Claim: "${claim.claimText}"\n` +
+            `Claim type: ${claim.claimType}\n` +
+            `Vertical domain: ${claim.verticalDomain}\n` +
+            `Current verdict: ${claim.verdict ?? "unverified"}\n` +
+            `Evidence URL: ${claim.pdbEvidenceUrl ?? "none"}\n` +
+            `Extracted value: ${claim.extractedValue ?? "none"}\n\n` +
+            "Return JSON: { methodologyRigor: 0-1, claimPrecision: 0-1, evidenceAlignment: 0-1, reasoning: string }",
+        },
+      ],
+      {
+        name: "claim_quality_assessment",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            methodologyRigor: { type: "number" },
+            claimPrecision: { type: "number" },
+            evidenceAlignment: { type: "number" },
+            reasoning: { type: "string" },
+          },
+          required: ["methodologyRigor", "claimPrecision", "evidenceAlignment", "reasoning"],
+          additionalProperties: false,
+        },
+      }
+    );
+
+    // Clamp LLM scores to [0, 1]
+    const llmScore =
+      (Math.min(1, Math.max(0, data.methodologyRigor)) +
+        Math.min(1, Math.max(0, data.claimPrecision)) +
+        Math.min(1, Math.max(0, data.evidenceAlignment))) /
+      3;
+
+    // Blend: 70% deterministic + 30% LLM
+    const blended = Math.round((base.compositeScore * 0.7 + llmScore * 0.3) * 1000) / 1000;
+
+    return {
+      ...base,
+      compositeScore: blended,
+      flags: [
+        ...base.flags,
+        `llm_reasoning:${data.reasoning.slice(0, 120)}`,
+      ],
+      llmEnhanced: true,
+    };
+  } catch {
+    // Kimi unavailable or returned bad data — return deterministic score unchanged
+    return { ...base, llmEnhanced: false };
+  }
 }

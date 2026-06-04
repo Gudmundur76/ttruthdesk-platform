@@ -2,9 +2,6 @@ import { useState, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 

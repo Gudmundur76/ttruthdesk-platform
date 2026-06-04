@@ -28,7 +28,7 @@
  */
 
 import type { Express, Request, Response } from "express";
-import { eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb, getAllCompletedDocuments } from "./db";
 import { documents } from "../drizzle/schema";
 import { compileDocumentToWiki, storeLlmsTxt } from "./wikiCompiler";

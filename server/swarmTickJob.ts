@@ -27,7 +27,7 @@ import { qualityPassJobHandler } from "./qualityPassJob";
 import { compileDocumentToWiki } from "./wikiCompiler";
 import { getDb } from "./db";
 import { documents } from "../drizzle/schema";
-import { eq, and, isNull, lt } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 
 // ─── Agent: Harvester ─────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ async function runWikiCompilerAgent(): Promise<{ agent: string; status: string; 
     }
 
     // Find recently completed documents (last 24h) that need wiki compilation
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const _oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const pendingDocs = await db
       .select({ id: documents.id, title: documents.title })
       .from(documents)

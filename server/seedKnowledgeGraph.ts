@@ -110,7 +110,7 @@ async function fetchPmcFullText(pmid: string): Promise<string> {
     if (methodsMatch) {
       return "\n\nMethods (excerpt):\n" + methodsMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
     }
-  } catch (_err) {
+  } catch {
     // PMC full-text is optional
   }
   return "";
@@ -146,7 +146,7 @@ async function fetchPubmedAbstract(pmid: string): Promise<{ title: string; abstr
     const pmcUrl = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=EXT_ID:${pmid}%20AND%20SRC:MED&format=json&resultType=core`;
     const pmcRes = await fetch(pmcUrl, { signal: AbortSignal.timeout(15_000) });
     if (pmcRes.ok) {
-      const data = await pmcRes.json() as any;
+      const data = await pmcRes.json() as { resultList?: { result?: Array<{ title?: string; abstractText?: string }> } };
       const result = data?.resultList?.result?.[0];
       if (result?.abstractText) {
         return { title: result.title ?? title, abstract: result.abstractText };

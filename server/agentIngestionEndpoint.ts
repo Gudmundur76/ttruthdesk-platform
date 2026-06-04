@@ -35,7 +35,7 @@ import {
   upsertGraphRelation,
   getDb,
 } from "./db";
-import { coordQueue, coordTasks } from "../drizzle/schema";
+import { coordQueue } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { getVertical } from "./verticalAdapters";
 import { ENV } from "./_core/env";

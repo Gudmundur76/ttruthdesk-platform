@@ -17,6 +17,11 @@ export const ENV = {
   freeLLMApiUrl: process.env.FREELM_API_URL ?? "http://localhost:3001/v1",
   freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
   kimiApiKey: process.env.KIMI_API_KEY ?? "",
+  // Kimi for Coding plan (kimi.com) uses api.kimi.com/coding/v1 with model kimi-for-coding
+  // Moonshot Open Platform (platform.moonshot.ai) uses api.moonshot.ai/v1 with model kimi-k2.6
+  kimiBaseUrl: process.env.KIMI_BASE_URL ?? "https://api.kimi.com/coding/v1",
+  // kimi-for-coding = Kimi K2.6 (262K ctx, reasoning, image/video in) via kimi.com plan
+  kimiModel: process.env.KIMI_MODEL ?? "kimi-for-coding",
   openRouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
   // Comma-separated pool of OpenRouter keys for round-robin rotation (multiplies free-tier throughput)
   openRouterApiKeys: process.env.OPENROUTER_API_KEYS ?? "",

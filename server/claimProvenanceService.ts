@@ -15,7 +15,7 @@
 
 import { getDb } from "./db";
 import { claimProvenanceEvents, InsertClaimProvenanceEvent } from "../drizzle/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -288,7 +288,7 @@ async function startServer() {
   });
 
   app.post("/mcp", express.json(), (req, res) => {
-    const { method, id, params } = req.body || {};
+    const { method, id } = req.body || {};
     res.set({
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",

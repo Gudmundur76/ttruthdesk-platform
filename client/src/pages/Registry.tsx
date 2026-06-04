@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from "react";
 import { TopNav } from "@/components/TopNav";
-import { VerdictBadge } from "@/components/VerdictBadge";
 import { getLoginUrl } from "@/const";
 
 type SourceRef = {

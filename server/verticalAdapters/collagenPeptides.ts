@@ -14,7 +14,7 @@ import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./t
 
 // ─── Collagen-related PubChem CIDs ───────────────────────────────────────────
 
-const COLLAGEN_COMPOUNDS: Record<string, number> = {
+const _COLLAGEN_COMPOUNDS: Record<string, number> = {
   "hydroxyproline": 5810,
   "proline": 145742,
   "glycine": 750,

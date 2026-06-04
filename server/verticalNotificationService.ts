@@ -19,7 +19,7 @@ import {
   documents,
   users,
 } from "../drizzle/schema";
-import { eq, and, gte, gt, inArray, sql, desc } from "drizzle-orm";
+import { eq, and, gte, gt, inArray, desc } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

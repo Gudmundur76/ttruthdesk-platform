@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, Minus, Trophy, Atom, FlaskConical, Microscope, Globe, Link2, User, BookOpen, Layers } from "lucide-react";

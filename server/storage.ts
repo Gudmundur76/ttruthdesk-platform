@@ -56,7 +56,7 @@ export async function storagePut(
   const blob =
     typeof data === "string"
       ? new Blob([data], { type: contentType })
-      : new Blob([data as any], { type: contentType });
+      : new Blob([data as BlobPart], { type: contentType });
 
   const uploadResp = await fetch(s3Url, {
     method: "PUT",
