@@ -552,12 +552,12 @@
 - [x] Save checkpoint 66faafa5
 
 ## Phase 69 — Kimi Code API Integration (Large-Context LLM)
-- [ ] Add KIMI_API_KEY secret via webdev_request_secrets
-- [ ] Research Kimi API endpoint, model names, and OpenAI-compatible interface
-- [ ] Write server/_core/llmLargeContext.ts (invokeLargeContextLLM, streamLargeContextLLM)
-- [ ] Add KIMI_API_KEY and KIMI_BASE_URL to server/_core/env.ts
-- [ ] Wire invokeLargeContextLLM into claimQualityScorer.ts for full-schema-aware scoring
-- [ ] Wire invokeLargeContextLLM into claimSimilarityEngine.ts for semantic similarity
-- [ ] Use Kimi 1M context to fix 91 as-any warnings across all server files
-- [ ] Write Vitest tests for llmLargeContext.ts
-- [ ] Push both repos, save checkpoint
+- [x] Add KIMI_API_KEY secret via webdev_request_secrets
+- [x] Research Kimi API endpoint, model names, and OpenAI-compatible interface
+- [x] Write server/_core/llmLargeContext.ts (invokeLargeContextLLM, streamLargeContextLLM)
+- [x] Add KIMI_API_KEY and KIMI_BASE_URL to server/_core/env.ts
+- [x] Wire invokeLargeContextLLM into claimQualityScorer.ts for full-schema-aware scoring
+- [x] Wire invokeLargeContextLLM into claimSimilarityEngine.ts for semantic similarity
+- [x] Use Kimi 1M context to fix 91 as-any warnings across all server files
+- [x] Write Vitest tests for llmLargeContext.ts (7 tests, all passing)
+- [x] Push both repos, save checkpoint (457674c5)
