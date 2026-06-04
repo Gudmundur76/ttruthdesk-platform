@@ -35,5 +35,7 @@ export const ENV = {
   // COORD_API_KEY: shared secret for /api/coord/* endpoints (set in env)
   // MANUS_API_KEY: Manus platform API key for spawning tasks via task.create
   coordApiKey: process.env.COORD_API_KEY ?? "",
-  manusApiKey: process.env.MANUS_API_KEY ?? "",
+  // MANUS_API_KEY: Manus platform API key — falls back to ASIONE (the Iventure connector key
+  // which is the same Manus API key available in all sessions via the secrets system)
+  manusApiKey: process.env.MANUS_API_KEY ?? process.env.ASIONE ?? "",
 };

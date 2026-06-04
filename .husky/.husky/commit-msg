@@ -1,0 +1,11 @@
+#!/bin/sh
+pnpm exec commitlint --edit "$1" || {
+  echo ""
+  echo "❌ Commit message does not follow Conventional Commits format."
+  echo "   Examples:"
+  echo "     feat(claims): add confidence trend sparkline"
+  echo "     fix(pipeline): handle null documentId in confidence recorder"
+  echo "     chore(deps): upgrade drizzle-orm to 0.38"
+  echo "     docs(memory): update TRUTH_DESK_INTEGRATION to v2"
+  exit 1
+}
