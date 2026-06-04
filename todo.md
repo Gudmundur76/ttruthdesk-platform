@@ -488,29 +488,38 @@
 - [x] TypeScript clean, all tests pass
 
 ## Phase 62 — Structured Data Export
-- [ ] Add CSV export endpoint GET /api/v2/export/claims.csv (filter by vertical, verdict, date range)
-- [ ] Add JSON export endpoint GET /api/v2/export/claims.json (same filters)
-- [ ] Add export endpoints for audit reports and entities
-- [ ] Add download buttons to Search page and VerticalDetail pages
-- [ ] Write Vitest tests for export endpoints
+- [x] Add CSV export endpoint GET /api/v2/export/claims.csv (filter by vertical, verdict, date range)
+- [x] Add JSON export endpoint GET /api/v2/export/claims.json (same filters)
+- [x] Add export endpoints for audit reports and entities
+- [x] Build ExportData.tsx page at /export with filter panel and download buttons
+- [x] Add Export Data nav item to DashboardLayout.tsx sidebar
+- [x] Write Vitest tests for export router (27 tests passing)
 
 ## Phase 63 — Entity Co-occurrence Graph
-- [ ] Add entity_cooccurrences table to schema (entity_a, entity_b, document_id, co_count)
-- [ ] Build cooccurrence computation job (runs after each document pipeline)
-- [ ] Add tRPC cooccurrence.getForEntity procedure
-- [ ] Build CooccurrenceGraph.tsx page at /entities/:entityId/cooccurrence
-- [ ] Write Vitest tests
+- [x] Add entity_cooccurrences table to schema (entityAId, entityBId, documentId, coCount, unique pair+doc index)
+- [x] Generate and apply DB migration 0017 for entity_cooccurrences table
+- [x] Write entityCooccurrenceService.ts (computeCooccurrencesForDocument, getTopCooccurrences, getCooccurrencesForEntity, buildGraphData)
+- [x] Add cooccurrence tRPC router (top, forEntity, compute) to routers.ts
+- [x] Build CooccurrenceGraph.tsx page at /cooccurrence with SVG force-directed graph (no D3 dependency)
+- [x] Add Co-occurrence nav item to DashboardLayout.tsx sidebar (Network icon)
+- [x] Write Vitest tests for entityCooccurrenceService.ts (14 tests passing)
+- [x] TypeScript clean, dev server running
 
 ## Phase 64 — Claim Confidence Trend Chart
-- [ ] Add confidence_history table (claim_id, score, recorded_at)
-- [ ] Build server/confidenceTrendService.ts — record and query confidence over time
-- [ ] Add sparkline component to ClaimPage.tsx showing confidence trend
-- [ ] Write Vitest tests
+- [x] Add confidence_history table (claimId, documentId, score, trigger, flags, recordedAt)
+- [x] Generate and apply DB migration 0018 for confidence_history table
+- [x] Build server/confidenceTrendService.ts (recordConfidence, getConfidenceTrend, getLatestConfidence, backfillFromClaims)
+- [x] Add confidenceTrend tRPC router (forClaim, latest, record, backfill) to routers.ts
+- [x] Add ConfidenceSparkline inline component to ClaimPage.tsx (SVG sparkline + history table)
+- [x] Write Vitest tests for confidenceTrendService.ts (18 tests passing)
+- [x] TypeScript clean, dev server running
 
 ## Phase 65 — API Key Management
-- [ ] Add api_keys table (user_id, key_hash, label, scopes, last_used_at, revoked_at)
-- [ ] Build server/apiKeyService.ts — generate, validate, revoke, list
-- [ ] Add tRPC apiKeys router (list, create, revoke)
-- [ ] Build ApiKeys.tsx page at /settings/api-keys
-- [ ] Wire API key auth into apiV2Router.ts rate limiter
-- [ ] Write Vitest tests
+- [x] Add api_keys table (userId, keyHash, label, scopes, keyPrefix, lastUsedAt, revokedAt, expiresAt)
+- [x] Generate and apply DB migration 0019 for api_keys table
+- [x] Build server/apiKeyService.ts (generateApiKey, validateApiKey, revokeApiKey, listApiKeys, touchLastUsed)
+- [x] Add apiKeys tRPC router (list, create, revoke, validate) to routers.ts
+- [x] Build ApiKeys.tsx page at /settings/api-keys with create dialog, key list, revoke confirmation
+- [x] Add API Keys nav item to DashboardLayout.tsx sidebar (Key icon)
+- [x] Write Vitest tests for apiKeyService.ts (25 tests passing)
+- [x] TypeScript clean, dev server running

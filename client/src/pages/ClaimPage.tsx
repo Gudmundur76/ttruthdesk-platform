@@ -24,9 +24,90 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, CheckCircle, XCircle, HelpCircle, ExternalLink, Copy, Share2, GitBranch } from "lucide-react";
+import { AlertTriangle, CheckCircle, XCircle, HelpCircle, ExternalLink, Copy, Share2, GitBranch, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { SimilarClaimsPanel } from "@/components/SimilarClaimsPanel";
+import { trpc } from "@/lib/trpc";
+
+// ─── Confidence Sparkline ─────────────────────────────────────────────────────
+
+function ConfidenceSparkline({ claimId }: { claimId: number }) {
+  const { data: trend, isLoading } = trpc.confidenceTrend.forClaim.useQuery(
+    { claimId },
+    { staleTime: 60_000 }
+  );
+
+  if (isLoading) return <div className="h-12 animate-pulse bg-slate-800 rounded" />;
+  if (!trend || trend.length === 0) return null;
+
+  const W = 200;
+  const H = 40;
+  const PAD = 4;
+  const points = trend.map((p, i) => ({
+    x: PAD + (i / Math.max(trend.length - 1, 1)) * (W - PAD * 2),
+    y: H - PAD - p.score * (H - PAD * 2),
+    score: p.score,
+    trigger: p.trigger,
+  }));
+
+  const pathD = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(" ");
+
+  const latest = points[points.length - 1];
+  const scoreColor =
+    latest.score >= 0.7 ? "#34d399" : latest.score >= 0.4 ? "#fbbf24" : "#f87171";
+
+  return (
+    <Card className="bg-slate-900/60 border-slate-700 mb-6">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
+          <TrendingUp className="w-4 h-4" />
+          Confidence Trend
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-end gap-4">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-48 h-10 flex-shrink-0">
+            <defs>
+              <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={scoreColor} stopOpacity="0.3" />
+                <stop offset="100%" stopColor={scoreColor} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path
+              d={`${pathD} L ${points[points.length - 1].x.toFixed(1)} ${H} L ${points[0].x.toFixed(1)} ${H} Z`}
+              fill="url(#spark-grad)"
+            />
+            <path d={pathD} stroke={scoreColor} strokeWidth="1.5" fill="none" strokeLinejoin="round" />
+            <circle cx={latest.x} cy={latest.y} r="3" fill={scoreColor} />
+          </svg>
+          <div className="space-y-1">
+            <div className="text-2xl font-bold" style={{ color: scoreColor }}>
+              {(latest.score * 100).toFixed(0)}%
+            </div>
+            <div className="text-xs text-slate-500">
+              {trend.length} data point{trend.length !== 1 ? "s" : ""} &middot; latest: {latest.trigger}
+            </div>
+          </div>
+        </div>
+        {trend.length > 1 && (
+          <div className="mt-3 space-y-1">
+            {[...trend].reverse().slice(0, 5).map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-xs text-slate-400">
+                <span className="capitalize">{p.trigger}</span>
+                <span className="font-mono" style={{ color: p.score >= 0.7 ? "#34d399" : p.score >= 0.4 ? "#fbbf24" : "#f87171" }}>
+                  {(p.score * 100).toFixed(0)}%
+                </span>
+                <span className="text-slate-600">{new Date(p.recordedAt).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -281,6 +362,9 @@ export default function ClaimPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Confidence trend sparkline */}
+        <ConfidenceSparkline claimId={data.claim.id} />
 
         {/* Source document */}
         <Card className="bg-slate-900/60 border-slate-700 mb-6">

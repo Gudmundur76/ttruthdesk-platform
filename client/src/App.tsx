@@ -32,6 +32,9 @@ import AdminAnalytics from "@/pages/AdminAnalytics";
 import VerticalLeaderboard from "@/pages/VerticalLeaderboard";
 import WebhookDeliveryLog from "@/pages/WebhookDeliveryLog";
 import ClaimProvenance from "@/pages/ClaimProvenance";
+import ExportData from "@/pages/ExportData";
+import CooccurrenceGraph from "@/pages/CooccurrenceGraph";
+import ApiKeys from "@/pages/ApiKeys";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -58,12 +61,15 @@ function Router() {
       <Route path="/wiki/:entityType/:entitySlug" component={WikiPage} />
       <Route path="/claim/:id" component={ClaimPage} />
       <Route path="/provenance/:claimId" component={ClaimProvenance} />
+      <Route path="/export" component={ExportData} />
+      <Route path="/cooccurrence" component={CooccurrenceGraph} />
       <Route path="/admin" component={Admin} />
       <Route path="/admin/predictions" component={PredictionCalibration} />
       <Route path="/admin/coordinator" component={CoordinatorDashboard} />
       <Route path="/admin/analytics" component={AdminAnalytics} />
       <Route path="/settings/alerts" component={AlertSettings} />
       <Route path="/settings/notifications" component={NotificationSettings} />
+      <Route path="/settings/api-keys" component={ApiKeys} />
       <Route path="/search" component={Search} />
       <Route path="/timeline" component={EvidenceTimeline} />
       <Route path="/leaderboard" component={VerticalLeaderboard} />

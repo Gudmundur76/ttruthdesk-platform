@@ -120,6 +120,27 @@
       "when": 1780542596468,
       "tag": "0016_wooden_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1780543621602,
+      "tag": "0017_petite_salo",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1780544129225,
+      "tag": "0018_orange_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1780544383158,
+      "tag": "0019_happy_dorian_gray",
+      "breakpoints": true
     }
   ]
 }

@@ -660,3 +660,74 @@ export const claimProvenanceEvents = mysqlTable("claim_provenance_events", {
 }));
 export type ClaimProvenanceEvent = typeof claimProvenanceEvents.$inferSelect;
 export type InsertClaimProvenanceEvent = typeof claimProvenanceEvents.$inferInsert;
+
+// ─── Entity Co-occurrence ─────────────────────────────────────────────────────
+// Tracks how often two entities appear together in the same document.
+// Used to power the co-occurrence graph UI.
+export const entityCooccurrences = mysqlTable("entity_cooccurrences", {
+  id: int("id").autoincrement().primaryKey(),
+  entityAId: int("entityAId").notNull(),
+  entityBId: int("entityBId").notNull(),
+  documentId: int("documentId").notNull(),
+  /** Number of times these two entities co-occur in the same document */
+  coCount: int("coCount").notNull().default(1),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  entityPairDocIdx: uniqueIndex("cooc_entity_pair_doc_idx").on(t.entityAId, t.entityBId, t.documentId),
+  entityAIdx: index("cooc_entity_a_idx").on(t.entityAId),
+  entityBIdx: index("cooc_entity_b_idx").on(t.entityBId),
+  documentIdIdx: index("cooc_document_id_idx").on(t.documentId),
+}));
+export type EntityCooccurrence = typeof entityCooccurrences.$inferSelect;
+export type InsertEntityCooccurrence = typeof entityCooccurrences.$inferInsert;
+
+// ─── Confidence History ───────────────────────────────────────────────────────
+// Tracks confidence score changes over time for each claim.
+// Used to power the confidence trend sparkline in ClaimPage.tsx.
+export const confidenceHistory = mysqlTable("confidence_history", {
+  id: int("id").autoincrement().primaryKey(),
+  claimId: int("claimId").notNull(),
+  documentId: int("documentId").notNull(),
+  /** Confidence score at this point in time (0.0–1.0) */
+  score: float("score").notNull(),
+  /** Label for the event that triggered this score (e.g. "initial", "quality_pass", "human_review") */
+  trigger: varchar("trigger", { length: 64 }).notNull().default("initial"),
+  /** Optional flags array explaining the score */
+  flags: json("flags"),
+  recordedAt: timestamp("recordedAt").defaultNow().notNull(),
+}, (t) => ({
+  claimIdIdx: index("ch_claim_id_idx").on(t.claimId),
+  documentIdIdx: index("ch_document_id_idx").on(t.documentId),
+  recordedAtIdx: index("ch_recorded_at_idx").on(t.recordedAt),
+}));
+export type ConfidenceHistory = typeof confidenceHistory.$inferSelect;
+export type InsertConfidenceHistory = typeof confidenceHistory.$inferInsert;
+
+// ─── API Keys ─────────────────────────────────────────────────────────────────
+// User-generated API keys for programmatic access to the Truth Desk API.
+// Raw key is never stored — only a SHA-256 hash.
+// Scopes: "read" (GET only), "write" (POST/PUT/DELETE), "admin" (all)
+export const apiKeys = mysqlTable("api_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  /** SHA-256 hex of the raw key — never store raw key */
+  keyHash: varchar("keyHash", { length: 64 }).notNull().unique(),
+  /** Human-readable label set by the user */
+  label: varchar("label", { length: 128 }).notNull(),
+  /** JSON array of scope strings: ["read"], ["write"], ["read","write"], ["admin"] */
+  scopes: json("scopes").notNull(),
+  /** Prefix shown to user to identify the key (first 8 chars of raw key) */
+  keyPrefix: varchar("keyPrefix", { length: 16 }).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  revokedAt: timestamp("revokedAt"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  userIdIdx: index("ak_user_id_idx").on(t.userId),
+  keyHashIdx: uniqueIndex("ak_key_hash_idx").on(t.keyHash),
+  revokedAtIdx: index("ak_revoked_at_idx").on(t.revokedAt),
+}));
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;

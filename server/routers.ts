@@ -1924,6 +1924,139 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       }),
   }),
 
+  // ─── Entity Co-occurrence ───────────────────────────────────────────────────────────────────────
+  cooccurrence: router({
+    /** Top co-occurring entity pairs (global or per-document) */
+    top: publicProcedure
+      .input(
+        z.object({
+          documentId: z.number().int().positive().optional(),
+          limit: z.number().int().min(1).max(200).optional().default(100),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getTopCooccurrences, buildGraphData } = await import("./entityCooccurrenceService");
+        const rows = await getTopCooccurrences({ documentId: input.documentId, limit: input.limit });
+        return buildGraphData(rows);
+      }),
+
+    /** Co-occurrences for a specific entity */
+    forEntity: publicProcedure
+      .input(
+        z.object({
+          entityId: z.number().int().positive(),
+          limit: z.number().int().min(1).max(100).optional().default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getCooccurrencesForEntity, buildGraphData } = await import("./entityCooccurrenceService");
+        const rows = await getCooccurrencesForEntity(input.entityId, input.limit);
+        return buildGraphData(rows);
+      }),
+
+    /** Trigger co-occurrence computation for a document (admin) */
+    compute: protectedProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const { computeCooccurrencesForDocument } = await import("./entityCooccurrenceService");
+        const count = await computeCooccurrencesForDocument(input.documentId);
+        return { pairsUpserted: count };
+      }),
+  }),
+
+  // ─── API Keys ───────────────────────────────────────────────────────────────────────
+  apiKeys: router({
+    /** List all active (non-revoked) API keys for the current user */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const { listApiKeys } = await import("./apiKeyService");
+      return listApiKeys(ctx.user.id);
+    }),
+
+    /** Generate a new API key — raw key returned ONCE */
+    create: protectedProcedure
+      .input(
+        z.object({
+          label: z.string().min(1).max(128),
+          scopes: z.array(z.enum(["read", "write", "admin"])).min(1),
+          expiresAt: z.date().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { generateApiKey } = await import("./apiKeyService");
+        const result = await generateApiKey({
+          userId: ctx.user.id,
+          label: input.label,
+          scopes: input.scopes,
+          expiresAt: input.expiresAt,
+        });
+        if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate API key" });
+        return result;
+      }),
+
+    /** Revoke an API key by ID (must belong to current user) */
+    revoke: protectedProcedure
+      .input(z.object({ keyId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const { revokeApiKey } = await import("./apiKeyService");
+        const revoked = await revokeApiKey(input.keyId, ctx.user.id);
+        if (!revoked) throw new TRPCError({ code: "NOT_FOUND", message: "API key not found or not owned by you" });
+        return { revoked: true };
+      }),
+
+    /** Validate an API key (public — used by external callers) */
+    validate: publicProcedure
+      .input(z.object({ rawKey: z.string().length(64) }))
+      .query(async ({ input }) => {
+        const { validateApiKey } = await import("./apiKeyService");
+        return validateApiKey(input.rawKey);
+      }),
+  }),
+
+  // ─── Confidence Trend ───────────────────────────────────────────────────────────────────────
+  confidenceTrend: router({
+    /** Full confidence history for a single claim */
+    forClaim: publicProcedure
+      .input(z.object({ claimId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getConfidenceTrend } = await import("./confidenceTrendService");
+        return getConfidenceTrend(input.claimId);
+      }),
+
+    /** Latest confidence score for a claim */
+    latest: publicProcedure
+      .input(z.object({ claimId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getLatestConfidence } = await import("./confidenceTrendService");
+        return getLatestConfidence(input.claimId);
+      }),
+
+    /** Record a new confidence score (protected — called from pipeline or admin) */
+    record: protectedProcedure
+      .input(
+        z.object({
+          claimId: z.number().int().positive(),
+          documentId: z.number().int().positive(),
+          score: z.number().min(0).max(1),
+          trigger: z.string().max(64).optional().default("manual"),
+          flags: z.array(z.string()).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { recordConfidence } = await import("./confidenceTrendService");
+        const id = await recordConfidence(input);
+        return { id };
+      }),
+
+    /** Backfill confidence history from existing claims for a document (admin) */
+    backfill: protectedProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const { backfillFromClaims } = await import("./confidenceTrendService");
+        const count = await backfillFromClaims(input.documentId);
+        return { inserted: count };
+      }),
+  }),
+
 });
 
 export type AppRouter = typeof appRouter;
