@@ -34,10 +34,12 @@
  *   POST /api/coord/memory/graph/edge      — add an edge to the KG
  */
 
+import { createHash, timingSafeEqual } from "crypto";
 import type { Request, Response } from "express";
 import { Router as makeRouter } from "express";
 import { and, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { getDb } from "./db";
+import { ENV } from "./_core/env";
 import {
   coordContext,
   coordQueue,
@@ -47,7 +49,7 @@ import {
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 
 function coordAuth(req: Request, res: Response, next: () => void) {
-  const coordApiKey = process.env.COORD_API_KEY ?? "";
+  const coordApiKey = ENV.coordApiKey;
   if (!coordApiKey) {
     res
       .status(503)
@@ -55,8 +57,15 @@ function coordAuth(req: Request, res: Response, next: () => void) {
     return;
   }
   const key = req.headers["x-coord-key"] as string | undefined;
-  if (!key || key !== coordApiKey) {
-    res.status(401).json({ error: "Invalid or missing X-Coord-Key header" });
+  if (!key) {
+    res.status(401).json({ error: "Missing X-Coord-Key header" });
+    return;
+  }
+  // Use timing-safe comparison to prevent timing-oracle attacks on the shared secret
+  const expected = Buffer.from(createHash("sha256").update(coordApiKey).digest());
+  const provided = Buffer.from(createHash("sha256").update(key).digest());
+  if (!timingSafeEqual(expected, provided)) {
+    res.status(401).json({ error: "Invalid X-Coord-Key header" });
     return;
   }
   next();

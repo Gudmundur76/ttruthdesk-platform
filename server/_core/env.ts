@@ -43,4 +43,7 @@ export const ENV = {
   // MANUS_API_KEY: Manus platform API key — falls back to ASIONE (the Iventure connector key
   // which is the same Manus API key available in all sessions via the secrets system)
   manusApiKey: process.env.MANUS_API_KEY ?? process.env.ASIONE ?? "",
+  // Public base URL of this deployment (used by orchestrator for coord self-calls)
+  // Set VITE_APP_URL to the deployed domain, e.g. https://protein-truth-desk.manus.space
+  appUrl: process.env.VITE_APP_URL ?? "",
 };

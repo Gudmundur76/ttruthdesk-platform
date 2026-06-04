@@ -41,7 +41,7 @@ import { ENV } from "./_core/env";
 
 const MANUS_API_BASE = "https://api.manus.ai";
 const STALL_THRESHOLD_MS = 10 * 60_000; // 10 minutes without heartbeat = stalled
-const _MAX_RETRIES = 3;
+const MAX_RETRIES = 3; // max auto-restart attempts for stalled/failed tasks
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +95,7 @@ async function manusApiCall<T>(
         "x-manus-api-key": apiKey,
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(15_000),
     });
 
     const json = (await resp.json()) as Record<string, unknown>;
@@ -114,10 +115,8 @@ async function manusApiCall<T>(
 // ─── Coord API client (calls this server's own /api/coord/* endpoints) ────────
 
 function getCoordBase(): string {
-  return (process.env.VITE_APP_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    ""
-  );
+  // ENV.appUrl is VITE_APP_URL; fall back to localhost for dev
+  return (ENV.appUrl || "http://localhost:3000").replace(/\/$/, "");
 }
 
 async function coordCall(
@@ -125,7 +124,7 @@ async function coordCall(
   method: "GET" | "POST" | "PUT" | "DELETE",
   body?: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string; [key: string]: unknown }> {
-  const coordApiKey = process.env.COORD_API_KEY ?? "";
+  const coordApiKey = ENV.coordApiKey;
   if (!coordApiKey) {
     console.warn("[Orchestrator] COORD_API_KEY not set — coord calls disabled");
     return { ok: false, error: "COORD_API_KEY not set" };
@@ -139,6 +138,7 @@ async function coordCall(
         "x-coord-key": coordApiKey,
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(10_000),
     });
     return (await resp.json()) as { ok: boolean; [key: string]: unknown };
   } catch (err: unknown) {
@@ -249,9 +249,10 @@ export async function runOrchestratorTick(): Promise<{
   checked: number;
   stalled: number;
   synced: number;
+  retried: number;
   errors: string[];
 }> {
-  const summary = { checked: 0, stalled: 0, synced: 0, errors: [] as string[] };
+  const summary = { checked: 0, stalled: 0, synced: 0, retried: 0, errors: [] as string[] };
 
   const tasksResp = await coordCall("/tasks", "GET");
   if (!tasksResp.ok) {
@@ -325,6 +326,22 @@ export async function runOrchestratorTick(): Promise<{
       console.warn(
         `[Orchestrator] Task ${task.taskId} is stalled (Manus running, no callback)`
       );
+      // Auto-retry: stop the stalled Manus task and mark as failed so the
+      // orchestratorTickJob can respawn it in the next cycle.
+      const retryCount = (task as { retryCount?: number }).retryCount ?? 0;
+      if (retryCount < MAX_RETRIES) {
+        if (task.manusTaskId) {
+          await stopManusTask(task.manusTaskId);
+        }
+        await coordCall("/tasks/fail", "POST", {
+          taskId: task.taskId,
+          errorMsg: `Stalled (Manus running, no callback) — retry ${retryCount + 1}/${MAX_RETRIES}`,
+        });
+        summary.retried++;
+        console.log(
+          `[Orchestrator] Task ${task.taskId} stopped and marked failed for retry (${retryCount + 1}/${MAX_RETRIES})`
+        );
+      }
     }
   }
 
@@ -335,7 +352,7 @@ export async function runOrchestratorTick(): Promise<{
  * Build a standard coordination prompt for a vertical agent.
  * The agent is expected to:
  *  1. Call POST /api/coord/tasks/register to announce itself.
- *  2. Loop: POST /api/coord/queue/dequeue → process → POST /api/coord/queue/complete.
+ *  2. Loop: POST /api/coord/queue/dequeue → process → POST /api/coord/ingest (preferred) or queue/complete.
  *  3. POST /api/coord/tasks/heartbeat every ~2 min.
  *  4. POST /api/coord/tasks/complete when done.
  */
@@ -354,7 +371,7 @@ Your job is to process papers from the coordination work queue and extract prote
 ## Coordination API
 
 Base URL: ${coordBaseUrl}/api/coord
-Auth header: X-Coord-Key: ${coordApiKey}
+Auth header on ALL requests: X-Coord-Key: ${coordApiKey}
 
 ## Your workflow
 
@@ -367,14 +384,36 @@ Auth header: X-Coord-Key: ${coordApiKey}
       POST /api/coord/queue/dequeue
       Body: { "taskId": "${taskId}", "vertical": "${vertical}" }
       → If item is null, the queue is empty — skip to step 3.
-   
-   b. Process the paper (fetch abstract, extract claims, verify against known facts).
-   
-   c. Mark complete:
-      POST /api/coord/queue/complete
-      Body: { "itemId": <item.id>, "taskId": "${taskId}", "result": { "claims": [...] } }
-   
-   d. Send heartbeat every 2 minutes:
+
+   b. Fetch the paper abstract/full-text and extract all factual claims.
+
+   c. **Submit results via the ingest endpoint** (preferred — persists claims to the database):
+      POST /api/coord/ingest
+      Body: {
+        "queueItemId": <item.id>,
+        "taskId": "${taskId}",
+        "vertical": "${vertical}",
+        "paper": {
+          "title": "<paper title>",
+          "pmid": "<pmid if available>",
+          "doi": "<doi if available>",
+          "abstract": "<abstract text>"
+        },
+        "claims": [
+          {
+            "claimText": "<exact claim sentence>",
+            "claimType": "protein_name" | "pdb_id" | "experimental_method" | "resolution" | "organism" | "ligand" | "general_molecular",
+            "extractedValue": "<key value if applicable>",
+            "pdbId": "<PDB ID if present>",
+            "proteinName": "<protein name if present>"
+          }
+        ]
+      }
+      → The ingest endpoint automatically marks the queue item complete and updates your heartbeat.
+      → If ingest fails, fall back to: POST /api/coord/queue/complete
+        Body: { "itemId": <item.id>, "taskId": "${taskId}", "result": { "claimCount": N } }
+
+   d. Send heartbeat every 2 minutes (not needed if using ingest — it updates automatically):
       POST /api/coord/tasks/heartbeat
       Body: { "taskId": "${taskId}", "phase": "processing", "workItemId": <item.id> }
 
@@ -383,8 +422,10 @@ Auth header: X-Coord-Key: ${coordApiKey}
    Body: { "taskId": "${taskId}" }
 
 ## Error handling
-- If processing a paper fails, call POST /api/coord/queue/fail with retry: true.
-- If you encounter a fatal error, call POST /api/coord/tasks/fail with the error message.
+- If processing a paper fails, call POST /api/coord/queue/fail
+  Body: { "itemId": <item.id>, "taskId": "${taskId}", "errorMsg": "<reason>", "retry": true }
+- If you encounter a fatal error, call POST /api/coord/tasks/fail
+  Body: { "taskId": "${taskId}", "errorMsg": "<reason>" }
 - Always send a final heartbeat before stopping.
 
 Start now. Register yourself and begin processing.`;

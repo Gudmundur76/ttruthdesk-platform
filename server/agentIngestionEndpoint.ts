@@ -19,7 +19,7 @@
  *  6. Updates the coord_task heartbeat and itemsCompleted counter
  *  7. Triggers graph entity extraction for the new claims
  *
- * Authentication: x-coord-api-key header (same key as /api/coord/* endpoints)
+ * Authentication: x-coord-key header (same key as /api/coord/* endpoints)
  *
  * Rate limiting: max 10 concurrent ingestions (enforced by in-process semaphore)
  */
@@ -180,9 +180,8 @@ async function extractAndUpsertEntities(
 
 export async function agentIngestionHandler(req: Request, res: Response): Promise<void> {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  const envAny = ENV as unknown as Record<string, unknown>;
-  const coordApiKey = typeof envAny["COORD_API_KEY"] === "string" ? envAny["COORD_API_KEY"] : "";
-  const providedKey = req.headers["x-coord-api-key"] as string | undefined;
+  const coordApiKey = ENV.coordApiKey;
+  const providedKey = req.headers["x-coord-key"] as string | undefined;
   if (!coordApiKey || providedKey !== coordApiKey) {
     res.status(401).json({ ok: false, error: "Unauthorized" });
     return;

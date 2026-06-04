@@ -425,7 +425,7 @@
 - [x] Add coord_tasks, coord_queue, coord_context tables to drizzle/schema.ts
 - [x] Generate migration 0013 via pnpm drizzle-kit generate
 - [x] Apply migration 0013 via webdev_execute_sql
-- [x] Add MANUS_API_KEY to ENV in server/_core/env.ts
+- [x] Add MANUS_API_KEY + COORD_API_KEY + appUrl (VITE_APP_URL) to ENV in server/_core/env.ts
 - [x] Build server/coordApi.ts — REST handlers for /api/coord/* endpoints
 - [x] Register /api/coord/* routes in server/_core/index.ts
 - [x] Build server/manusOrchestrator.ts — Manus API task spawner + health monitor
@@ -434,10 +434,18 @@
 - [x] Register /admin/coordinator route in App.tsx + DashboardLayout nav
 - [x] Add /api/coord/memory endpoints bridging to manus-persistent-drive graph_memory pattern
 - [x] Write server/coordLayer.test.ts (vertical configs, prompt builder, router structure)
-- [x] Write server/manusOrchestrator.test.ts (buildVerticalAgentPrompt)
+- [x] Write server/manusOrchestrator.test.ts — 25 unit tests (buildVerticalAgentPrompt, spawnVerticalTask, getManusTaskStatus, stopManusTask, runOrchestratorTick; vi.mock ENV + fetch stubbing)
 - [x] Update manus-persistent-drive repo with integration notes (TRUTH_DESK_INTEGRATION.md)
 - [x] Save checkpoint (Phase 41 complete)
 - [x] Push to GitHub (protein-truth-desk + manus-persistent-drive)
+
+### Phase 41 Revision Fixes
+- [x] Fix header name inconsistency: standardise to x-coord-key in coordApi.ts AND agentIngestionEndpoint.ts
+- [x] Add AbortSignal.timeout(10_000) to both fetch calls in manusOrchestrator.ts
+- [x] Replace string equality with crypto.timingSafeEqual in coordApi.ts auth middleware
+- [x] Add appUrl field to ENV (reads VITE_APP_URL; falls back to localhost:3000)
+- [x] Add /api/coord/ingest endpoint to buildVerticalAgentPrompt workflow instructions
+- [x] Implement retry tracking in runOrchestratorTick (retryCount field, MAX_RETRIES=3 cap)
 
 ## Phase 42 — Orchestrator Heartbeat Scheduler
 - [x] Build server/orchestratorTickJob.ts — heartbeat handler that runs orchestrator tick + spawns new agents for empty verticals
