@@ -529,3 +529,58 @@ export const coordContext = mysqlTable("coord_context", {
 }));
 export type CoordContext = typeof coordContext.$inferSelect;
 export type InsertCoordContext = typeof coordContext.$inferInsert;
+
+// ─── Vertical Alert Subscriptions ────────────────────────────────────────────
+// Users subscribe to one or more research verticals and receive digest emails
+// when new high-confidence claims or contradictions are published.
+
+export const verticalAlerts = mysqlTable("vertical_alerts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  /** Domain key matching VERTICAL_FEED_CONFIGS, e.g. 'creatine_ergogenics' */
+  verticalDomain: varchar("verticalDomain", { length: 128 }).notNull(),
+  /** Minimum confidence score (0–1) to trigger a notification */
+  minConfidence: float("minConfidence").notNull().default(0.7),
+  /** Notify on new contradictions in this vertical */
+  notifyContradictions: boolean("notifyContradictions").notNull().default(true),
+  /** Notify when a new high-confidence Supported claim is added */
+  notifySupported: boolean("notifySupported").notNull().default(true),
+  /** Digest frequency: 'instant' | 'daily' | 'weekly' */
+  frequency: mysqlEnum("frequency", ["instant", "daily", "weekly"]).notNull().default("daily"),
+  active: boolean("active").notNull().default(true),
+  /** Last time a digest was sent for this subscription */
+  lastSentAt: timestamp("lastSentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  userVerticalUnique: uniqueIndex("va_user_vertical_unique").on(t.userId, t.verticalDomain),
+  userIdx: index("va_user_idx").on(t.userId),
+  verticalIdx: index("va_vertical_idx").on(t.verticalDomain),
+  activeIdx: index("va_active_idx").on(t.active),
+}));
+export type VerticalAlert = typeof verticalAlerts.$inferSelect;
+export type InsertVerticalAlert = typeof verticalAlerts.$inferInsert;
+
+// ─── Notification Log ─────────────────────────────────────────────────────────
+// Tracks every notification sent to avoid duplicates and support audit trails.
+
+export const notificationLog = mysqlTable("notification_log", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  /** Type: 'vertical_digest' | 'contradiction_alert' | 'high_confidence_claim' */
+  notifType: varchar("notifType", { length: 64 }).notNull(),
+  /** JSON payload: { verticalDomain, claimIds, contradictionIds, etc. } */
+  payload: json("payload").notNull(),
+  /** Delivery channel: 'manus' (built-in notification) | 'webhook' */
+  channel: mysqlEnum("channel", ["manus", "webhook"]).notNull().default("manus"),
+  /** Delivery status */
+  status: mysqlEnum("status", ["sent", "failed", "skipped"]).notNull().default("sent"),
+  errorMsg: text("errorMsg"),
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+}, (t) => ({
+  userIdx: index("nl_user_idx").on(t.userId),
+  typeIdx: index("nl_type_idx").on(t.notifType),
+  sentAtIdx: index("nl_sent_at_idx").on(t.sentAt),
+}));
+export type NotificationLogEntry = typeof notificationLog.$inferSelect;
+export type InsertNotificationLogEntry = typeof notificationLog.$inferInsert;

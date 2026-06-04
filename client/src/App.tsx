@@ -19,11 +19,15 @@ import ClaimPage from "@/pages/ClaimPage";
 import Admin from "@/pages/Admin";
 import PredictionCalibration from "@/pages/PredictionCalibration";
 import AlertSettings from "@/pages/AlertSettings";
+import NotificationSettings from "@/pages/NotificationSettings";
 import Trust from "@/pages/Trust";
 import ApiDocs from "@/pages/ApiDocs";
 import CoordinatorDashboard from "@/pages/CoordinatorDashboard";
 import VerticalDetail from "@/pages/VerticalDetail";
 import ContradictionViewer from "@/pages/ContradictionViewer";
+import Search from "@/pages/Search";
+import EvidenceTimeline from "@/pages/EvidenceTimeline";
+import AdminAnalytics from "@/pages/AdminAnalytics";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -52,7 +56,11 @@ function Router() {
       <Route path="/admin" component={Admin} />
       <Route path="/admin/predictions" component={PredictionCalibration} />
       <Route path="/admin/coordinator" component={CoordinatorDashboard} />
+      <Route path="/admin/analytics" component={AdminAnalytics} />
       <Route path="/settings/alerts" component={AlertSettings} />
+      <Route path="/settings/notifications" component={NotificationSettings} />
+      <Route path="/search" component={Search} />
+      <Route path="/timeline" component={EvidenceTimeline} />
       <Route path="/trust" component={Trust} />
       <Route path="/docs/api" component={ApiDocs} />
       <Route path="/404" component={NotFound} />

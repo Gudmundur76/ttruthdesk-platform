@@ -16,6 +16,8 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 const NAV_LINKS = [
+  { href: "/search", label: "Search", public: true },
+  { href: "/timeline", label: "Timeline", public: true },
   { href: "/verticals", label: "Verticals", public: true },
   { href: "/registry", label: "Registry", public: true },
   { href: "/graph", label: "Graph", public: true },

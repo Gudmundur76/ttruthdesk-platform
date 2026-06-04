@@ -817,6 +817,37 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
             allCompleted.length > 0 ? Math.round((compiled / allCompleted.length) * 100) : 0,
         };
       }),
+
+    /**
+     * Full analytics dashboard data — overview, verdicts, verticals, trend, quality, top entities, activity.
+     * All data fetched in parallel for fast response.
+     */
+    analyticsOverview: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const {
+          getPlatformOverview,
+          getVerdictDistribution,
+          getVerticalHealth,
+          getProcessingTrend,
+          getQualityDistribution,
+          getTopEntities,
+          getRecentActivity,
+        } = await import("./adminAnalytics");
+        const [overview, verdicts, verticals, trend, quality, topEntities, activity] = await Promise.all([
+          getPlatformOverview(),
+          getVerdictDistribution(),
+          getVerticalHealth(),
+          getProcessingTrend(),
+          getQualityDistribution(),
+          getTopEntities(),
+          getRecentActivity(),
+        ]);
+        return { overview, verdicts, verticals, trend, quality, topEntities, activity };
+      }),
   }),
 
   // ─── Checkout (PayPal) ───────────────────────────────────────────────────────
@@ -1136,6 +1167,374 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
           ? Math.round((scores.reduce((s, c) => s + c.compositeScore, 0) / scores.length) * 1000) / 1000
           : 0;
         return { ok: true, scored: scores.length, avgScore, scores };
+      }),
+  }),
+
+  /**
+   * Unified search across claims and entities.
+   */
+  search: router({
+    /**
+     * Search claims by keyword with relevance ranking.
+     */
+    claims: publicProcedure
+      .input(
+        z.object({
+          query: z.string().min(2).max(256),
+          limit: z.number().int().min(1).max(50).default(20),
+          verticalDomain: z.string().optional(),
+          verdict: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const { searchClaims } = await import("./searchEngine");
+        const results = await searchClaims(input.query, {
+          limit: input.limit,
+          verticalDomain: input.verticalDomain,
+          verdict: input.verdict,
+        });
+        return { results, count: results.length };
+      }),
+
+    /**
+     * Search entities in the knowledge graph.
+     */
+    entities: publicProcedure
+      .input(
+        z.object({
+          query: z.string().min(2).max(256),
+          limit: z.number().int().min(1).max(20).default(10),
+        })
+      )
+      .query(async ({ input }) => {
+        const { searchEntities } = await import("./searchEngine");
+        const results = await searchEntities(input.query, { limit: input.limit });
+        return { results, count: results.length };
+      }),
+
+    /**
+     * Unified search across claims and entities in a single call.
+     */
+    unified: publicProcedure
+      .input(
+        z.object({
+          query: z.string().min(2).max(256),
+          claimLimit: z.number().int().min(1).max(50).default(20),
+          entityLimit: z.number().int().min(1).max(10).default(5),
+          verticalDomain: z.string().optional(),
+          verdict: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const { unifiedSearch } = await import("./searchEngine");
+        return unifiedSearch(input.query, {
+          claimLimit: input.claimLimit,
+          entityLimit: input.entityLimit,
+          verticalDomain: input.verticalDomain,
+          verdict: input.verdict,
+        });
+      }),
+  }),
+
+  // ─── Vertical Alert Subscriptions ──────────────────────────────────────────
+  verticalAlerts: router({
+    /**
+     * List all vertical alert subscriptions for the current user.
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      const { verticalAlerts } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      return db.select().from(verticalAlerts).where(eq(verticalAlerts.userId, ctx.user.id));
+    }),
+
+    /**
+     * Subscribe to a vertical or update an existing subscription.
+     */
+    upsert: protectedProcedure
+      .input(
+        z.object({
+          verticalDomain: z.string().min(1).max(128),
+          minConfidence: z.number().min(0).max(1).default(0.7),
+          notifyContradictions: z.boolean().default(true),
+          notifySupported: z.boolean().default(true),
+          frequency: z.enum(["instant", "daily", "weekly"]).default("daily"),
+          active: z.boolean().default(true),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { verticalAlerts } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const existing = await db
+          .select({ id: verticalAlerts.id })
+          .from(verticalAlerts)
+          .where(and(eq(verticalAlerts.userId, ctx.user.id), eq(verticalAlerts.verticalDomain, input.verticalDomain)))
+          .limit(1);
+        if (existing.length > 0) {
+          await db
+            .update(verticalAlerts)
+            .set({
+              minConfidence: input.minConfidence,
+              notifyContradictions: input.notifyContradictions,
+              notifySupported: input.notifySupported,
+              frequency: input.frequency,
+              active: input.active,
+            })
+            .where(eq(verticalAlerts.id, existing[0].id));
+          return { ok: true, action: "updated" as const };
+        }
+        await db.insert(verticalAlerts).values({
+          userId: ctx.user.id,
+          verticalDomain: input.verticalDomain,
+          minConfidence: input.minConfidence,
+          notifyContradictions: input.notifyContradictions,
+          notifySupported: input.notifySupported,
+          frequency: input.frequency,
+          active: input.active,
+        });
+        return { ok: true, action: "created" as const };
+      }),
+
+    /**
+     * Delete a vertical alert subscription.
+     */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { verticalAlerts } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        await db
+          .delete(verticalAlerts)
+          .where(and(eq(verticalAlerts.id, input.id), eq(verticalAlerts.userId, ctx.user.id)));
+        return { ok: true };
+      }),
+
+    /**
+     * Admin: trigger a digest sweep for a given frequency.
+     */
+    triggerDigest: protectedProcedure
+      .input(z.object({ frequency: z.enum(["instant", "daily", "weekly"]).default("daily") }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { runDigestSweep } = await import("./verticalNotificationService");
+        return runDigestSweep(input.frequency);
+      }),
+
+    /**
+     * Get notification history for the current user.
+     */
+    history: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }))
+      .query(async ({ ctx, input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { notificationLog } = await import("../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        return db
+          .select()
+          .from(notificationLog)
+          .where(eq(notificationLog.userId, ctx.user.id))
+          .orderBy(desc(notificationLog.sentAt))
+          .limit(input.limit);
+      }),
+  }),
+
+  // ─── Evidence Timeline ────────────────────────────────────────────────────────
+  timeline: router({
+    /**
+     * Get the evidence timeline for a specific claim text.
+     * Returns all claims matching the text across all documents,
+     * ordered by publication year, showing how evidence has evolved over time.
+     */
+    forClaim: publicProcedure
+      .input(
+        z.object({
+          claimText: z.string().min(3).max(512),
+          limit: z.number().int().min(1).max(100).default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return { events: [], summary: null };
+        const { claims, documents, autoIngestedPapers } = await import("../drizzle/schema");
+        const { eq, asc, sql } = await import("drizzle-orm");
+
+        const matchingClaims = await db
+          .select({
+            claimId: claims.id,
+            claimText: claims.claimText,
+            verdict: claims.verdict,
+            confidenceScore: claims.confidenceScore,
+            confidenceFlags: claims.confidenceFlags,
+            verdictRationale: claims.verdictRationale,
+            claimCreatedAt: claims.createdAt,
+            documentId: documents.id,
+            documentTitle: documents.title,
+            verticalDomain: documents.verticalDomain,
+            storageUrl: documents.storageUrl,
+            pmid: autoIngestedPapers.pmid,
+            pubYear: autoIngestedPapers.pubYear,
+            journal: autoIngestedPapers.journal,
+            authors: autoIngestedPapers.authors,
+          })
+          .from(claims)
+          .innerJoin(documents, eq(claims.documentId, documents.id))
+          .leftJoin(autoIngestedPapers, eq(autoIngestedPapers.documentId, documents.id))
+          .where(
+            sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${input.claimText.slice(0, 80)}%`})`
+          )
+          .orderBy(
+            sql`COALESCE(${autoIngestedPapers.pubYear}, YEAR(${documents.createdAt})) ASC`,
+            asc(documents.createdAt)
+          )
+          .limit(input.limit);
+
+        if (matchingClaims.length === 0) return { events: [], summary: null };
+
+        const events = matchingClaims.map((row) => ({
+          claimId: row.claimId,
+          claimText: row.claimText,
+          verdict: row.verdict,
+          confidenceScore: row.confidenceScore,
+          confidenceFlags: row.confidenceFlags as string[] | null,
+          verdictRationale: row.verdictRationale,
+          documentId: row.documentId,
+          documentTitle: row.documentTitle,
+          verticalDomain: row.verticalDomain,
+          storageUrl: row.storageUrl,
+          pmid: row.pmid,
+          pubYear: row.pubYear,
+          journal: row.journal,
+          authors: row.authors,
+          date: row.pubYear
+            ? `${row.pubYear}-01-01`
+            : row.claimCreatedAt.toISOString().slice(0, 10),
+        }));
+
+        const verdictCounts: Record<string, number> = {};
+        let totalConfidence = 0;
+        let scoredCount = 0;
+        for (const ev of events) {
+          if (ev.verdict) verdictCounts[ev.verdict] = (verdictCounts[ev.verdict] ?? 0) + 1;
+          if (ev.confidenceScore != null) { totalConfidence += ev.confidenceScore; scoredCount++; }
+        }
+
+        const midpoint = Math.floor(events.length / 2);
+        const firstHalf = events.slice(0, midpoint).filter(e => e.confidenceScore != null);
+        const secondHalf = events.slice(midpoint).filter(e => e.confidenceScore != null);
+        const firstAvg = firstHalf.length ? firstHalf.reduce((s, e) => s + (e.confidenceScore ?? 0), 0) / firstHalf.length : null;
+        const secondAvg = secondHalf.length ? secondHalf.reduce((s, e) => s + (e.confidenceScore ?? 0), 0) / secondHalf.length : null;
+        const trend: "improving" | "declining" | "stable" | "insufficient_data" =
+          firstAvg == null || secondAvg == null ? "insufficient_data"
+          : secondAvg - firstAvg > 0.05 ? "improving"
+          : firstAvg - secondAvg > 0.05 ? "declining"
+          : "stable";
+
+        return {
+          events,
+          summary: {
+            totalEvents: events.length,
+            verdictDistribution: verdictCounts,
+            averageConfidence: scoredCount > 0 ? totalConfidence / scoredCount : null,
+            confidenceTrend: trend,
+            earliestYear: events[0]?.pubYear ?? null,
+            latestYear: events[events.length - 1]?.pubYear ?? null,
+          },
+        };
+      }),
+
+    /**
+     * Get the evidence timeline for a specific entity by slug.
+     */
+    forEntity: publicProcedure
+      .input(
+        z.object({
+          entitySlug: z.string().min(1).max(256),
+          limit: z.number().int().min(1).max(100).default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return { events: [], entity: null, summary: null };
+        const { claims, documents, autoIngestedPapers, graphEntities } = await import("../drizzle/schema");
+        const { eq, asc, sql } = await import("drizzle-orm");
+
+        // entitySlug is treated as canonicalName (URL-encoded form)
+        const entityName = decodeURIComponent(input.entitySlug).replace(/-/g, " ");
+        const entityRows = await db.select().from(graphEntities)
+          .where(sql`LOWER(${graphEntities.canonicalName}) = LOWER(${entityName})`)
+          .limit(1);
+        const entity = entityRows[0] ?? null;
+        if (!entity) return { events: [], entity: null, summary: null };
+
+        const matchingClaims = await db
+          .select({
+            claimId: claims.id,
+            claimText: claims.claimText,
+            verdict: claims.verdict,
+            confidenceScore: claims.confidenceScore,
+            verdictRationale: claims.verdictRationale,
+            claimCreatedAt: claims.createdAt,
+            documentId: documents.id,
+            documentTitle: documents.title,
+            verticalDomain: documents.verticalDomain,
+            storageUrl: documents.storageUrl,
+            pmid: autoIngestedPapers.pmid,
+            pubYear: autoIngestedPapers.pubYear,
+            journal: autoIngestedPapers.journal,
+            authors: autoIngestedPapers.authors,
+          })
+          .from(claims)
+          .innerJoin(documents, eq(claims.documentId, documents.id))
+          .leftJoin(autoIngestedPapers, eq(autoIngestedPapers.documentId, documents.id))
+          .where(sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${entity.canonicalName.slice(0, 80)}%`})`)
+          .orderBy(
+            sql`COALESCE(${autoIngestedPapers.pubYear}, YEAR(${documents.createdAt})) ASC`,
+            asc(documents.createdAt)
+          )
+          .limit(input.limit);
+
+        const events = matchingClaims.map((row) => ({
+          claimId: row.claimId,
+          claimText: row.claimText,
+          verdict: row.verdict,
+          confidenceScore: row.confidenceScore,
+          verdictRationale: row.verdictRationale,
+          documentId: row.documentId,
+          documentTitle: row.documentTitle,
+          verticalDomain: row.verticalDomain,
+          storageUrl: row.storageUrl,
+          pmid: row.pmid,
+          pubYear: row.pubYear,
+          journal: row.journal,
+          authors: row.authors,
+          date: row.pubYear ? `${row.pubYear}-01-01` : row.claimCreatedAt.toISOString().slice(0, 10),
+        }));
+
+        const verdictCounts: Record<string, number> = {};
+        for (const ev of events) {
+          if (ev.verdict) verdictCounts[ev.verdict] = (verdictCounts[ev.verdict] ?? 0) + 1;
+        }
+
+        return {
+          events,
+          entity: { id: entity.id, canonicalName: entity.canonicalName, entityType: entity.entityType },
+          summary: { totalEvents: events.length, verdictDistribution: verdictCounts },
+        };
       }),
   }),
 });

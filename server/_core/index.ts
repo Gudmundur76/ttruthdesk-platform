@@ -28,6 +28,7 @@ import { registerBadgeRoute } from "../badgeRoute";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
 import { createCoordRouter } from "../coordApi";
 import { createApiV2Router } from "../apiV2Router";
+import { batchAuditRouter } from "../batchAuditRouter";
 import { agentIngestionHandler } from "../agentIngestionEndpoint";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
@@ -530,6 +531,8 @@ async function startServer() {
   app.post("/api/scheduled/quality-scorer", qualityScorerJobHandler);
   // Public API v2: paginated, filterable endpoints for claims, entities, verticals, and audits
   app.use("/api/v2", createApiV2Router());
+  // Batch audit API: accept up to 20 papers in one request, run full pipeline, return structured results
+  app.use("/api/v2/batch-audit", express.json({ limit: "5mb" }), batchAuditRouter);
   // LLM health check: reports active provider, model pool, and connectivity
   app.get("/api/admin/llm-health", async (_req, res) => {
     try {
