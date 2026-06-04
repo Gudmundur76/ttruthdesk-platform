@@ -622,3 +622,41 @@ export const webhookDeliveryLog = mysqlTable("webhook_delivery_log", {
 }));
 export type WebhookDeliveryLog = typeof webhookDeliveryLog.$inferSelect;
 export type InsertWebhookDeliveryLog = typeof webhookDeliveryLog.$inferInsert;
+
+// ─── Claim Provenance Events ──────────────────────────────────────────────────
+// Each row records one step in the pipeline that produced or modified a claim.
+// Steps: extraction → evidence_lookup → quality_scoring → verdict_override
+export const claimProvenanceEvents = mysqlTable("claim_provenance_events", {
+  id: int("id").autoincrement().primaryKey(),
+  claimId: int("claimId").notNull(),
+  documentId: int("documentId").notNull(),
+  /** Pipeline step name */
+  step: mysqlEnum("step", [
+    "extraction",
+    "evidence_lookup",
+    "quality_scoring",
+    "verdict_override",
+    "agent_ingestion",
+    "similarity_check",
+  ]).notNull(),
+  /** Who or what performed this step */
+  actor: varchar("actor", { length: 128 }).notNull().default("system"),
+  /** Input snapshot (claim text, config, etc.) */
+  inputSnapshot: json("inputSnapshot"),
+  /** Output snapshot (verdict, score, evidence URL, etc.) */
+  outputSnapshot: json("outputSnapshot"),
+  /** Duration of this step in milliseconds */
+  durationMs: int("durationMs"),
+  /** Whether this step succeeded */
+  success: boolean("success").notNull().default(true),
+  /** Error message if step failed */
+  errorMsg: text("errorMsg"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  claimIdIdx: index("cpe_claim_id_idx").on(t.claimId),
+  documentIdIdx: index("cpe_document_id_idx").on(t.documentId),
+  stepIdx: index("cpe_step_idx").on(t.step),
+  createdAtIdx: index("cpe_created_at_idx").on(t.createdAt),
+}));
+export type ClaimProvenanceEvent = typeof claimProvenanceEvents.$inferSelect;
+export type InsertClaimProvenanceEvent = typeof claimProvenanceEvents.$inferInsert;

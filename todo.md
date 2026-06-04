@@ -475,3 +475,42 @@
 - [x] Register /contradictions/:id route in App.tsx
 - [x] Link from monitoring feed contradiction rows to the resolver
 - [x] Write Vitest tests for contradictions.detail
+
+## Phase 61 — Claim Provenance Chain
+- [x] Add claim_provenance_events table to drizzle/schema.ts (migration 0016 applied)
+- [x] Build server/claimProvenanceService.ts — recordStep(), getChain(), getDocumentChain(), summarize(), convenience wrappers
+- [x] Add provenance tRPC router (getChain, getDocumentChain, recordManualStep) to routers.ts
+- [x] Build client/src/pages/ClaimProvenance.tsx — timeline UI with actor badges, collapsible snapshots, summary card
+- [x] Register /provenance/:claimId route in App.tsx
+- [x] Add "View Provenance" button to ClaimPage.tsx
+- [x] Add Provenance nav item to DashboardLayout.tsx sidebar (GitBranch icon)
+- [x] Write server/claimProvenanceService.test.ts (20 tests passing)
+- [x] TypeScript clean, all tests pass
+
+## Phase 62 — Structured Data Export
+- [ ] Add CSV export endpoint GET /api/v2/export/claims.csv (filter by vertical, verdict, date range)
+- [ ] Add JSON export endpoint GET /api/v2/export/claims.json (same filters)
+- [ ] Add export endpoints for audit reports and entities
+- [ ] Add download buttons to Search page and VerticalDetail pages
+- [ ] Write Vitest tests for export endpoints
+
+## Phase 63 — Entity Co-occurrence Graph
+- [ ] Add entity_cooccurrences table to schema (entity_a, entity_b, document_id, co_count)
+- [ ] Build cooccurrence computation job (runs after each document pipeline)
+- [ ] Add tRPC cooccurrence.getForEntity procedure
+- [ ] Build CooccurrenceGraph.tsx page at /entities/:entityId/cooccurrence
+- [ ] Write Vitest tests
+
+## Phase 64 — Claim Confidence Trend Chart
+- [ ] Add confidence_history table (claim_id, score, recorded_at)
+- [ ] Build server/confidenceTrendService.ts — record and query confidence over time
+- [ ] Add sparkline component to ClaimPage.tsx showing confidence trend
+- [ ] Write Vitest tests
+
+## Phase 65 — API Key Management
+- [ ] Add api_keys table (user_id, key_hash, label, scopes, last_used_at, revoked_at)
+- [ ] Build server/apiKeyService.ts — generate, validate, revoke, list
+- [ ] Add tRPC apiKeys router (list, create, revoke)
+- [ ] Build ApiKeys.tsx page at /settings/api-keys
+- [ ] Wire API key auth into apiV2Router.ts rate limiter
+- [ ] Write Vitest tests

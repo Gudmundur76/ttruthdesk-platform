@@ -1867,6 +1867,63 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
     }),
   }),
 
+  // ─── Provenance ──────────────────────────────────────────────────────────────
+  provenance: router({
+    /** Full provenance chain for a single claim */
+    getChain: publicProcedure
+      .input(z.object({ claimId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getChain, summarize } = await import("./claimProvenanceService");
+        const chain = await getChain(input.claimId);
+        const summary = summarize(chain);
+        return { chain, summary };
+      }),
+
+    /** All provenance events for every claim in a document */
+    getDocumentChain: publicProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getDocumentChain } = await import("./claimProvenanceService");
+        const events = await getDocumentChain(input.documentId);
+        const byClaimId = new Map<number, typeof events>();
+        for (const ev of events) {
+          if (!byClaimId.has(ev.claimId)) byClaimId.set(ev.claimId, []);
+          byClaimId.get(ev.claimId)!.push(ev);
+        }
+        return {
+          documentId: input.documentId,
+          totalEvents: events.length,
+          claimCount: byClaimId.size,
+          chains: Array.from(byClaimId.entries()).map(([claimId, chain]) => ({
+            claimId,
+            events: chain,
+          })),
+        };
+      }),
+
+    /** Record a manual provenance event (admin only) */
+    recordManualStep: protectedProcedure
+      .input(z.object({
+        claimId: z.number().int().positive(),
+        documentId: z.number().int().positive(),
+        step: z.enum(["extraction", "evidence_lookup", "quality_scoring", "verdict_override", "agent_ingestion", "similarity_check"]),
+        actor: z.string().min(1).max(128).optional(),
+        inputSnapshot: z.record(z.string(), z.unknown()).optional(),
+        outputSnapshot: z.record(z.string(), z.unknown()).optional(),
+        durationMs: z.number().int().nonnegative().optional(),
+        success: z.boolean().optional(),
+        errorMsg: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { recordStep } = await import("./claimProvenanceService");
+        const id = await recordStep({
+          ...input,
+          actor: input.actor ?? ctx.user.name ?? "admin",
+        });
+        return { id };
+      }),
+  }),
+
 });
 
 export type AppRouter = typeof appRouter;

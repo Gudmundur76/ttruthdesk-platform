@@ -31,6 +31,7 @@ import EvidenceTimeline from "@/pages/EvidenceTimeline";
 import AdminAnalytics from "@/pages/AdminAnalytics";
 import VerticalLeaderboard from "@/pages/VerticalLeaderboard";
 import WebhookDeliveryLog from "@/pages/WebhookDeliveryLog";
+import ClaimProvenance from "@/pages/ClaimProvenance";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/contradictions/:relationId" component={ContradictionViewer} />
       <Route path="/wiki/:entityType/:entitySlug" component={WikiPage} />
       <Route path="/claim/:id" component={ClaimPage} />
+      <Route path="/provenance/:claimId" component={ClaimProvenance} />
       <Route path="/admin" component={Admin} />
       <Route path="/admin/predictions" component={PredictionCalibration} />
       <Route path="/admin/coordinator" component={CoordinatorDashboard} />

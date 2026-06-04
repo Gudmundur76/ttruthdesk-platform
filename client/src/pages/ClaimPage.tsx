@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, CheckCircle, XCircle, HelpCircle, ExternalLink, Copy, Share2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, XCircle, HelpCircle, ExternalLink, Copy, Share2, GitBranch } from "lucide-react";
 import { toast } from "sonner";
 import { SimilarClaimsPanel } from "@/components/SimilarClaimsPanel";
 
@@ -312,7 +312,16 @@ export default function ClaimPage() {
             Share & Cite
           </h2>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/provenance/${data.claim.id}`)}
+              className="gap-2 border-violet-700 text-violet-400 hover:text-violet-200 hover:border-violet-500"
+            >
+              <GitBranch className="w-4 h-4" />
+              View Provenance
+            </Button>
             <Button
               variant="outline"
               size="sm"
