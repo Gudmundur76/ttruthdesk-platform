@@ -22,6 +22,8 @@ import AlertSettings from "@/pages/AlertSettings";
 import Trust from "@/pages/Trust";
 import ApiDocs from "@/pages/ApiDocs";
 import CoordinatorDashboard from "@/pages/CoordinatorDashboard";
+import VerticalDetail from "@/pages/VerticalDetail";
+import ContradictionViewer from "@/pages/ContradictionViewer";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -43,6 +45,8 @@ function Router() {
         </Suspense>
       </Route>
       <Route path="/verticals" component={Verticals} />
+      <Route path="/verticals/:domainKey" component={VerticalDetail} />
+      <Route path="/contradictions/:relationId" component={ContradictionViewer} />
       <Route path="/wiki/:entityType/:entitySlug" component={WikiPage} />
       <Route path="/claim/:id" component={ClaimPage} />
       <Route path="/admin" component={Admin} />

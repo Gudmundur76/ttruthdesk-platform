@@ -19,3 +19,9 @@ export {
 // on module load. Order matters: structural_biology first (reference impl).
 import "./structuralBiology";
 import "./salmonBiotech";
+import "./proteinSupplement";
+import "./creatineErgogenics";
+import "./gutMicrobiome";
+import "./collagenPeptides";
+import "./plantBasedProtein";
+import "./sportsNutritionRct";

@@ -259,11 +259,11 @@ export default function Verticals() {
                     Submit document
                   </Link>
                   <Link
-                    href="/registry"
+                    href={`/verticals/${key}`}
                     className="flex-1 text-center text-sm font-medium py-2 rounded-lg text-white transition-colors"
                     style={{ backgroundColor: meta.color }}
                   >
-                    View registry
+                    View details
                   </Link>
                 </div>
               </motion.div>

@@ -500,6 +500,74 @@ export const appRouter = router({
       return getContradictionRelations(100);
     }),
 
+    contradictionDetail: publicProcedure
+      .input(z.object({ relationId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { graphRelations, graphEntities, claims, documents } = await import("../drizzle/schema");
+        const { eq, or } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const relRows = await db.select().from(graphRelations).where(eq(graphRelations.id, input.relationId)).limit(1);
+        if (relRows.length === 0) throw new TRPCError({ code: "NOT_FOUND" });
+        const rel = relRows[0];
+        const entityRows = await db.select().from(graphEntities).where(
+          or(eq(graphEntities.id, rel.sourceEntityId), eq(graphEntities.id, rel.targetEntityId))
+        );
+        const sourceEntity = entityRows.find(e => e.id === rel.sourceEntityId) ?? null;
+        const targetEntity = entityRows.find(e => e.id === rel.targetEntityId) ?? null;
+        let evidenceDocument = null;
+        if (rel.evidenceDocumentId) {
+          const docRows = await db.select({
+            id: documents.id, title: documents.title,
+            verticalDomain: documents.verticalDomain,
+            storageUrl: documents.storageUrl, status: documents.status,
+          }).from(documents).where(eq(documents.id, rel.evidenceDocumentId)).limit(1);
+          evidenceDocument = docRows[0] ?? null;
+        }
+        const sourceClaims = sourceEntity?.firstSeenDocumentId
+          ? await db.select({
+              id: claims.id, claimText: claims.claimText, verdict: claims.verdict,
+              confidenceScore: claims.confidenceScore, verdictRationale: claims.verdictRationale,
+              documentId: claims.documentId,
+            }).from(claims).where(eq(claims.documentId, sourceEntity.firstSeenDocumentId)).limit(10)
+          : [];
+        const targetClaims = targetEntity?.firstSeenDocumentId
+          ? await db.select({
+              id: claims.id, claimText: claims.claimText, verdict: claims.verdict,
+              confidenceScore: claims.confidenceScore, verdictRationale: claims.verdictRationale,
+              documentId: claims.documentId,
+            }).from(claims).where(eq(claims.documentId, targetEntity.firstSeenDocumentId)).limit(10)
+          : [];
+        return { relation: rel, sourceEntity, targetEntity, evidenceDocument, sourceClaims, targetClaims };
+      }),
+
+    resolveContradiction: protectedProcedure
+      .input(z.object({
+        relationId: z.number().int().positive(),
+        resolution: z.enum(["source_correct", "target_correct", "both_partial", "needs_expert", "false_positive"]),
+        notes: z.string().max(2000).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        void ctx;
+        const { getDb } = await import("./db");
+        const { graphRelations } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const scoreMap: Record<string, number> = {
+          false_positive: 0.0,
+          source_correct: 1.0,
+          target_correct: 1.0,
+          both_partial: 0.5,
+          needs_expert: 0.1,
+        };
+        await db.update(graphRelations).set({
+          confidenceScore: scoreMap[input.resolution] ?? 0.5,
+        }).where(eq(graphRelations.id, input.relationId));
+        return { ok: true, resolution: input.resolution, resolvedAt: new Date().toISOString() };
+      }),
+
     query: publicProcedure
       .input(z.object({ question: z.string().min(3).max(500) }))
       .mutation(async ({ input }) => {
@@ -576,6 +644,124 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
     stats: publicProcedure.query(async () => {
       return getVerticalStats();
     }),
+
+    /**
+     * List all registered research verticals with their metadata.
+     * Public — used by the vertical index page.
+     */
+    listAll: publicProcedure.query(async () => {
+      const { listVerticals } = await import("./verticalAdapters");
+      return listVerticals().map((v) => ({
+        domainKey: v.domainKey,
+        displayName: v.displayName,
+        description: v.description,
+        discoverySearchTerms: v.discoverySearchTerms,
+      }));
+    }),
+
+    /**
+     * Get detailed stats + top claims for a single vertical.
+     * Public — used by individual vertical landing pages.
+     */
+    detail: publicProcedure
+      .input(z.object({ domainKey: z.string().min(1).max(64) }))
+      .query(async ({ input }) => {
+        const { getVertical } = await import("./verticalAdapters");
+        const adapter = getVertical(input.domainKey);
+        if (!adapter) return null;
+
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return null;
+
+        const { documents, claims } = await import("../drizzle/schema");
+        const { eq, desc, and, isNotNull, sql } = await import("drizzle-orm");
+
+        // Document count and completion rate
+        const docStats = await db
+          .select({
+            total: sql<number>`COUNT(*)`,
+            completed: sql<number>`SUM(CASE WHEN ${documents.status} = 'complete' THEN 1 ELSE 0 END)`,
+          })
+          .from(documents)
+          .where(eq(documents.verticalDomain, input.domainKey));
+
+        const totalDocs = Number(docStats[0]?.total ?? 0);
+        const completedDocs = Number(docStats[0]?.completed ?? 0);
+
+        // Claim verdict distribution
+        const verdictDist = await db
+          .select({
+            verdict: claims.verdict,
+            count: sql<number>`COUNT(*)`,
+          })
+          .from(claims)
+          .innerJoin(documents, eq(claims.documentId, documents.id))
+          .where(
+            and(
+              eq(documents.verticalDomain, input.domainKey),
+              isNotNull(claims.verdict)
+            )
+          )
+          .groupBy(claims.verdict);
+
+        const verdictCounts: Record<string, number> = {};
+        let totalClaims = 0;
+        for (const row of verdictDist) {
+          verdictCounts[row.verdict ?? "Unknown"] = Number(row.count);
+          totalClaims += Number(row.count);
+        }
+
+        // Top claims by confidence score
+        const topClaims = await db
+          .select({
+            id: claims.id,
+            claimText: claims.claimText,
+            verdict: claims.verdict,
+            confidenceScore: claims.confidenceScore,
+            pdbEvidenceUrl: claims.pdbEvidenceUrl,
+            documentId: claims.documentId,
+          })
+          .from(claims)
+          .innerJoin(documents, eq(claims.documentId, documents.id))
+          .where(
+            and(
+              eq(documents.verticalDomain, input.domainKey),
+              isNotNull(claims.confidenceScore),
+              isNotNull(claims.verdict)
+            )
+          )
+          .orderBy(desc(claims.confidenceScore))
+          .limit(10);
+
+        // Average confidence score
+        const avgScoreRow = await db
+          .select({ avg: sql<number>`AVG(${claims.confidenceScore})` })
+          .from(claims)
+          .innerJoin(documents, eq(claims.documentId, documents.id))
+          .where(
+            and(
+              eq(documents.verticalDomain, input.domainKey),
+              isNotNull(claims.confidenceScore)
+            )
+          );
+        const avgConfidence = avgScoreRow[0]?.avg ? Math.round(Number(avgScoreRow[0].avg) * 1000) / 1000 : null;
+
+        return {
+          domainKey: adapter.domainKey,
+          displayName: adapter.displayName,
+          description: adapter.description,
+          discoverySearchTerms: adapter.discoverySearchTerms,
+          stats: {
+            totalDocs,
+            completedDocs,
+            totalClaims,
+            verdictCounts,
+            avgConfidence,
+          },
+          topClaims,
+        };
+      }),
   }),
   // ─── LLM text extraction from PDF text ────────────────────────────────────
   extractText: protectedProcedure
@@ -918,6 +1104,38 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
         const { eq } = await import("drizzle-orm");
         await db.delete(coordTasks).where(eq(coordTasks.taskId, input.taskId));
         return { ok: true };
+      }),
+
+    /**
+     * Trigger the quality scoring pipeline manually (admin only).
+     * Scores up to 500 unscored/stale claims and returns a summary.
+     */
+    triggerQualityScorer: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { runQualityScorerJob } = await import("./claimQualityScorer");
+      const result = await runQualityScorerJob();
+      return { ok: true, ...result };
+    }),
+
+    /**
+     * Score all claims for a specific document (admin only).
+     */
+    scoreDocument: protectedProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { scoreBatch } = await import("./claimQualityScorer");
+        const scores = await scoreBatch(input.documentId);
+        const avgScore = scores.length > 0
+          ? Math.round((scores.reduce((s, c) => s + c.compositeScore, 0) / scores.length) * 1000) / 1000
+          : 0;
+        return { ok: true, scored: scores.length, avgScore, scores };
       }),
   }),
 });

@@ -17,6 +17,7 @@ import { pmcFeedJobHandler } from "../pmcFeedJob";
 import { qualityPassJobHandler } from "../qualityPassJob";
 import { predictionBackfillHandler } from "../predictionBackfillJob";
 import { swarmTickHandler } from "../swarmTickJob";
+import { orchestratorTickHandler } from "../orchestratorTickJob";
 import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
@@ -26,6 +27,9 @@ import { registerWikiPageRoute } from "../wikiPageRoute";
 import { registerBadgeRoute } from "../badgeRoute";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
 import { createCoordRouter } from "../coordApi";
+import { createApiV2Router } from "../apiV2Router";
+import { agentIngestionHandler } from "../agentIngestionEndpoint";
+import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
 import { startTelegramBot } from "../telegramBot";
@@ -516,8 +520,16 @@ async function startServer() {
   app.post("/api/scheduled/backfill-predictions", predictionBackfillHandler);
   // Swarm coordinator: fans out all 5 agent jobs in parallel
   app.post("/api/scheduled/swarm-tick", swarmTickHandler);
+  // Orchestrator tick: auto-spawns Manus agents for verticals with pending queue items
+  app.post("/api/scheduled/orchestrator-tick", orchestratorTickHandler);
   // Manus Coordination Layer: shared work queue, task registry, context store
   app.use("/api/coord", createCoordRouter());
+  // Agent result ingestion: accepts structured JSON from Manus agent tasks
+  app.post("/api/coord/ingest", agentIngestionHandler);
+  // Quality scoring pipeline: scores all unscored/stale claims every 6 hours
+  app.post("/api/scheduled/quality-scorer", qualityScorerJobHandler);
+  // Public API v2: paginated, filterable endpoints for claims, entities, verticals, and audits
+  app.use("/api/v2", createApiV2Router());
   // LLM health check: reports active provider, model pool, and connectivity
   app.get("/api/admin/llm-health", async (_req, res) => {
     try {

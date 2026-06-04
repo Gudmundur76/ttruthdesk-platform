@@ -432,9 +432,46 @@
 - [x] Add 6 new verticals to verticalFeedConfig.ts (protein_supplement, creatine_ergogenics, gut_microbiome, collagen_peptides, plant_based_protein, sports_nutrition_rct)
 - [x] Build client/src/pages/CoordinatorDashboard.tsx — live queue depth, active tasks, throughput chart
 - [x] Register /admin/coordinator route in App.tsx + DashboardLayout nav
-- [ ] Add /api/coord/memory endpoints bridging to manus-persistent-drive graph_memory pattern
+- [x] Add /api/coord/memory endpoints bridging to manus-persistent-drive graph_memory pattern
 - [x] Write server/coordLayer.test.ts (vertical configs, prompt builder, router structure)
 - [x] Write server/manusOrchestrator.test.ts (buildVerticalAgentPrompt)
-- [ ] Update manus-persistent-drive repo with integration notes
-- [ ] Save checkpoint (Phase 41 complete)
-- [ ] Push to GitHub (protein-truth-desk + manus-persistent-drive)
+- [x] Update manus-persistent-drive repo with integration notes (TRUTH_DESK_INTEGRATION.md)
+- [x] Save checkpoint (Phase 41 complete)
+- [x] Push to GitHub (protein-truth-desk + manus-persistent-drive)
+
+## Phase 42 — Orchestrator Heartbeat Scheduler
+- [ ] Build server/orchestratorTickJob.ts — heartbeat handler that runs orchestrator tick + spawns new agents for empty verticals
+- [ ] Register POST /api/scheduled/orchestrator-tick in index.ts
+- [ ] Add orchestratorTickJob to swarmTickJob.ts as Agent 6
+- [ ] Build 6 vertical adapters (protein_supplement, creatine_ergogenics, gut_microbiome, collagen_peptides, plant_based_protein, sports_nutrition_rct)
+- [ ] Register all 6 new adapters in verticalAdapters/index.ts
+- [ ] Write Vitest tests for orchestratorTickJob and new adapters
+- [ ] TypeScript clean, all tests pass
+
+## Phase 43 — Quality Scoring Pipeline
+- [ ] Add quality_score, evidence_grade, sample_size_n, study_type, recency_score columns to claims table
+- [ ] Build server/qualityScorer.ts — score each claim on 5 dimensions
+- [ ] Wire quality scorer into analysisPipeline.ts post-extraction step
+- [ ] Add quality filter to registry/monitoring queries
+- [ ] Write Vitest tests for qualityScorer
+
+## Phase 44 — Public Vertical Pages
+- [ ] Build client/src/pages/VerticalDetail.tsx — rich page per vertical with top claims, stats, recent papers
+- [ ] Add tRPC verticals.detail procedure returning top claims + stats for a vertical
+- [ ] Register /verticals/:domainKey route in App.tsx
+- [ ] Add vertical cards to existing /verticals page with links
+- [ ] Write Vitest tests for verticals.detail procedure
+
+## Phase 45 — API v2
+- [ ] Build server/apiV2Router.ts — REST endpoints for claims, entities, audits with pagination + filtering
+- [ ] Add rate limiting middleware (100 req/min per IP, 1000/min for API key holders)
+- [ ] Register /api/v2/* routes in index.ts
+- [ ] Update /docs/api page with v2 endpoint reference
+- [ ] Write Vitest tests for API v2 endpoints
+
+## Phase 46 — Contradiction Resolution UI
+- [ ] Build client/src/pages/ContradictionResolver.tsx — side-by-side evidence viewer
+- [ ] Add tRPC contradictions.detail procedure returning both sides of a contradiction with full evidence
+- [ ] Register /contradictions/:id route in App.tsx
+- [ ] Link from monitoring feed contradiction rows to the resolver
+- [ ] Write Vitest tests for contradictions.detail

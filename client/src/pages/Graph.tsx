@@ -380,6 +380,27 @@ export default function Graph() {
               </div>
             </div>
 
+            {/* Contradiction list */}
+            {contradictionData && contradictionData.length > 0 && (
+              <div className="pt-2 border-t border-white/10">
+                <label className="text-slate-400 text-[10px] uppercase tracking-wider block mb-1.5">Active contradictions</label>
+                <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                  {contradictionData.slice(0, 8).map((c) => (
+                    <a
+                      key={c.id}
+                      href={`/contradictions/${c.id}`}
+                      className="flex items-center justify-between text-[10px] text-slate-400 hover:text-red-300 transition-colors py-0.5 group"
+                    >
+                      <span className="truncate max-w-[140px]">
+                        #{c.sourceEntityId} ↔ #{c.targetEntityId}
+                      </span>
+                      <span className="text-red-500/60 group-hover:text-red-400 ml-1 flex-shrink-0 text-[10px]">view →</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Embed snippet */}
             <div className="pt-2 border-t border-white/10">
               <label className="text-slate-400 text-[10px] uppercase tracking-wider block mb-1.5">Embed this graph</label>
