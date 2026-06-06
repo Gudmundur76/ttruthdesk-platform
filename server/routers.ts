@@ -628,6 +628,7 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
 
   // ─── Wiki ──────────────────────────────────────────────────────────────────
   wiki: router({
+    /** Legacy S3-backed page (entity/canonical name lookup) */
     getPage: publicProcedure
       .input(z.object({ entityType: z.string(), canonicalName: z.string() }))
       .query(async ({ input }) => {
@@ -636,6 +637,99 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
         const content = await fetchWikiPage(s3Key).catch(() => "");
         return { content, s3Key };
       }),
+    /** DB-backed wiki page by slug */
+    getPageBySlug: publicProcedure
+      .input(z.object({ slug: z.string().min(1).max(256) }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { wikiPages } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return null;
+        const rows = await db.select().from(wikiPages).where(eq(wikiPages.slug, input.slug)).limit(1);
+        return rows[0] ?? null;
+      }),
+    /** List DB-backed wiki pages with optional category filter and pagination */
+    listPages: publicProcedure
+      .input(
+        z.object({
+          category: z.enum(["entity", "concept", "synthesis", "source_summary"]).optional(),
+          verticalDomain: z.string().optional(),
+          limit: z.number().int().min(1).max(100).default(50),
+          offset: z.number().int().min(0).default(0),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { wikiPages } = await import("../drizzle/schema");
+        const { eq, and, desc } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return { pages: [], total: 0 };
+        const conditions = [];
+        if (input.category) conditions.push(eq(wikiPages.category, input.category));
+        if (input.verticalDomain) conditions.push(eq(wikiPages.verticalDomain, input.verticalDomain));
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+        const rows = await db
+          .select({
+            id: wikiPages.id,
+            slug: wikiPages.slug,
+            title: wikiPages.title,
+            category: wikiPages.category,
+            sourceCount: wikiPages.sourceCount,
+            avgConfidence: wikiPages.avgConfidence,
+            verticalDomain: wikiPages.verticalDomain,
+            lastCompiledAt: wikiPages.lastCompiledAt,
+            updatedAt: wikiPages.updatedAt,
+          })
+          .from(wikiPages)
+          .where(where)
+          .orderBy(desc(wikiPages.updatedAt))
+          .limit(input.limit)
+          .offset(input.offset);
+        const countRows = await db
+          .select({ id: wikiPages.id })
+          .from(wikiPages)
+          .where(where);
+        return { pages: rows, total: countRows.length };
+      }),
+    /** Full-text search across DB wiki pages */
+    search: publicProcedure
+      .input(z.object({ query: z.string().min(1).max(256), limit: z.number().int().min(1).max(50).default(10) }))
+      .query(async ({ input }) => {
+        const { searchWiki } = await import("./wikiEngine");
+        return searchWiki(input.query, input.limit);
+      }),
+    /** Get the wiki index (catalog) */
+    getIndex: publicProcedure.query(async () => {
+      const { getDb } = await import("./db");
+      const { wikiIndex } = await import("../drizzle/schema");
+      const db = await getDb();
+      if (!db) return null;
+      const rows = await db.select().from(wikiIndex).limit(1);
+      return rows[0] ?? null;
+    }),
+    /** Get recent wiki log entries */
+    getLog: publicProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { wikiLog } = await import("../drizzle/schema");
+        const { desc } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return [];
+        return db.select().from(wikiLog).orderBy(desc(wikiLog.recordedAt)).limit(input.limit);
+      }),
+    /** Admin: trigger a wiki lint pass and rebuild the index */
+    triggerLint: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
+      }
+      const { lintWiki, buildIndex } = await import("./wikiEngine");
+      const result = await lintWiki();
+      await buildIndex();
+      return result;
+    }),
   }),
   // ─── Verticals ────────────────────────────────────────────────────────────
   verticals: router({

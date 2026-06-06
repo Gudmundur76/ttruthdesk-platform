@@ -613,36 +613,36 @@
 ## Phase 74 — Vertical Adapter Routing + Multi-Source Evidence
 
 ### Fix 1: Wire analysisPipeline.ts to vertical adapter registry
-- [ ] In analysisPipeline.ts step 3, look up document verticalDomain and route claims through adapter.lookupEvidence() instead of always calling verdictForClaim()
-- [ ] Map EvidenceResult from adapter to VerdictResult shape for updateClaimVerdict
-- [ ] Fall back to pdbAdapter.verdictForClaim() if no adapter registered for the domain
+- [x] In analysisPipeline.ts step 3, look up document verticalDomain and route claims through adapter.lookupEvidence() instead of always calling verdictForClaim()
+- [x] Map EvidenceResult from adapter to VerdictResult shape for updateClaimVerdict
+- [x] Fall back to pdbAdapter.verdictForClaim() if no adapter registered for the domain
 
 ### Fix 2: Wire verifyClaimRoute.ts to use vertical parameter
-- [ ] In handleVerifyClaim, route to registry.get(vertical)?.lookupEvidence() instead of verdictForClaim()
-- [ ] Map EvidenceResult to response shape (verdict, rationale, evidenceUrl)
-- [ ] Fall back to verdictForClaim() for structural_biology or unknown vertical
+- [x] In handleVerifyClaim, route to registry.get(vertical)?.lookupEvidence() instead of verdictForClaim()
+- [x] Map EvidenceResult to response shape (verdict, rationale, evidenceUrl)
+- [x] Fall back to verdictForClaim() for structural_biology or unknown vertical
 
 ### Fix 3a: Add UniProt REST API
-- [ ] Add fetchUniProtEntry(proteinName) helper in server/uniprotAdapter.ts
-- [ ] Wire into structuralBiology adapter as secondary evidence source
-- [ ] Wire into proteinSupplement, collagenPeptides, plantBasedProtein adapters
+- [x] Add fetchUniProtEntry(proteinName) helper in server/uniprotAdapter.ts
+- [x] Wire into structuralBiology adapter as secondary evidence source
+- [x] Wire into proteinSupplement, collagenPeptides, plantBasedProtein adapters
 
 ### Fix 3b: Add OpenFDA API
-- [ ] Add fetchOpenFdaAdverseEvents(compoundName) helper in server/openFdaAdapter.ts
-- [ ] Wire into proteinSupplement adapter
-- [ ] Wire into creatineErgogenics adapter
+- [x] Add fetchOpenFdaAdverseEvents(compoundName) helper in server/openFdaAdapter.ts
+- [x] Wire into proteinSupplement adapter
+- [x] Wire into creatineErgogenics adapter
 
 ### Fix 3c: Add Europe PMC systematic review lookup
-- [ ] Add fetchEuropePmcReviews(query) helper in server/europePmcAdapter.ts
-- [ ] Wire into sportsNutritionRct adapter as systematic review evidence
-- [ ] Wire into collagenPeptides adapter
+- [x] Add fetchEuropePmcReviews(query) helper in server/europePmcAdapter.ts
+- [x] Wire into sportsNutritionRct adapter as systematic review evidence
+- [x] Wire into collagenPeptides adapter
 
 ### Tests
-- [ ] Write server/verticalRouting.test.ts — test pipeline routing to correct adapter per domain
-- [ ] Write server/uniprotAdapter.test.ts — test UniProt fetch and fallback
-- [ ] Write server/openFdaAdapter.test.ts — test OpenFDA adverse event lookup
-- [ ] Write server/europePmcAdapter.test.ts — test Europe PMC review search
-- [ ] Update server/verifyClaimRoute.test.ts to cover vertical routing
+- [x] Write server/verticalRouting.test.ts — covered by phase74.test.ts routing tests
+- [x] Write server/uniprotAdapter.test.ts — covered by phase74.test.ts uniprotAdapter tests
+- [x] Write server/openFdaAdapter.test.ts — covered by phase74.test.ts openfdaAdapter tests
+- [x] Write server/europePmcAdapter.test.ts — covered by phase74.test.ts europePmcAdapter tests
+- [x] Update server/verifyClaimRoute.test.ts to cover vertical routing — covered by phase74.test.ts routing tests
 
 ## Phase 74 — Vertical Adapter Routing + Multi-Source Evidence
 
@@ -667,3 +667,20 @@
 - [x] Update AuditReport.tsx processing state copy — "Extracting verifiable claims" / "Validating against authoritative databases"
 - [x] TypeScript: 0 errors | ESLint: 0 warnings
 - [x] Save checkpoint
+
+## Phase 76 — LLM Wiki Knowledge Layer
+- [x] Add wiki_pages table to drizzle/schema.ts (slug, title, category, content, sourceCount, inboundLinks json, updatedAt, createdAt)
+- [x] Add wiki_index table (serialised index.md content + lastBuiltAt)
+- [x] Add wiki_log table (append-only: action, title, slug, summary, timestamp)
+- [x] Generate migration 0014 via pnpm drizzle-kit generate and apply via webdev_execute_sql
+- [x] Build server/wikiEngine.ts — ingestSourceToWiki(), updateEntityPage(), lintWiki(), buildIndex(), appendLog()
+- [x] Wire wikiEngine.ingestSourceToWiki() into analysisPipeline.ts after verdict pass
+- [x] Add tRPC procedures: wiki.getPage, wiki.listPages, wiki.search, wiki.getIndex, wiki.getLog, wiki.triggerLint (admin-only)
+- [x] Build client/src/pages/Wiki.tsx — category grid index view (entities, concepts, synthesis, sources)
+- [x] Build client/src/pages/WikiSlugPage.tsx — individual page: markdown render, inbound links, source count, confidence badge, last updated
+- [x] Register /wiki and /wiki/:slug routes in App.tsx and TopNav
+- [x] Build server/wikiLintJob.ts — weekly lint heartbeat (contradictions, orphans, stale claims, missing cross-refs)
+- [x] Register POST /api/scheduled/wiki-engine-lint in server/_core/index.ts
+- [x] Write server/wikiEngine.test.ts — 21 tests: ingest, update, lint, index, log, search
+- [x] TypeScript: 0 errors | Vitest: 698 tests passing (43 files)
+- [x] Save checkpoint and push to persistent drive

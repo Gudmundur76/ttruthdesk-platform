@@ -19,6 +19,7 @@ const NAV_LINKS = [
   { href: "/timeline", label: "Timeline", public: true },
   { href: "/leaderboard", label: "Leaderboard", public: true },
   { href: "/verticals", label: "Verticals", public: true },
+  { href: "/wiki", label: "Wiki", public: true },
   { href: "/registry", label: "Registry", public: true },
   { href: "/graph", label: "Graph", public: true },
   { href: "/trust", label: "Trust", public: true },

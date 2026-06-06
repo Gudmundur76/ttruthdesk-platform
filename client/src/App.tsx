@@ -15,6 +15,8 @@ import Registry from "@/pages/Registry";
 import PublicReport from "@/pages/PublicReport";
 import Verticals from "@/pages/Verticals";
 import WikiPage from "@/pages/WikiPage";
+import Wiki from "@/pages/Wiki";
+import WikiSlugPage from "@/pages/WikiSlugPage";
 import ClaimPage from "@/pages/ClaimPage";
 import Admin from "@/pages/Admin";
 import PredictionCalibration from "@/pages/PredictionCalibration";
@@ -58,6 +60,8 @@ function Router() {
       <Route path="/verticals" component={Verticals} />
       <Route path="/verticals/:domainKey" component={VerticalDetail} />
       <Route path="/contradictions/:relationId" component={ContradictionViewer} />
+      <Route path="/wiki" component={Wiki} />
+      <Route path="/wiki/:slug" component={WikiSlugPage} />
       <Route path="/wiki/:entityType/:entitySlug" component={WikiPage} />
       <Route path="/claim/:id" component={ClaimPage} />
       <Route path="/provenance/:claimId" component={ClaimProvenance} />

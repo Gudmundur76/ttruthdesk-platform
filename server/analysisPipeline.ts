@@ -23,6 +23,7 @@ import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./report
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { compileDocumentToWiki } from "./wikiCompiler";
+import { ingestSourceToWiki } from "./wikiEngine";
 import "./verticalAdapters"; // ensure all adapters are registered
 import { generatePdfReport } from "./pdfReportGenerator";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
@@ -167,10 +168,16 @@ export async function runAnalysisPipeline(
     notifyIndexNowBatch(finalClaims.map((c) => claimUrl(c.id))).catch(() => {/* non-fatal */});
     // Ping IndexNow for the public report page
     notifyIndexNow(reportUrl(documentId)).catch(() => {/* non-fatal */});
-    // Compile wiki pages and update knowledge graph (non-fatal)
+    // Compile wiki pages and update knowledge graph — S3 + graph entities (non-fatal)
     compileDocumentToWiki(documentId).catch((err) =>
-      console.error("[Pipeline] Wiki compilation error:", err)
+      console.error("[Pipeline] Wiki compilation error (S3):", err)
     );
+    // Ingest into DB-backed LLM wiki (non-fatal, fire-and-forget)
+    if (doc) {
+      ingestSourceToWiki(doc as never, finalClaims as never).catch((err) =>
+        console.error("[Pipeline] Wiki engine ingest error:", err)
+      );
+    }
     // Compute claim trajectory predictions (non-fatal, fire-and-forget)
     (async () => {
       try {

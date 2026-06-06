@@ -731,3 +731,75 @@ export const apiKeys = mysqlTable("api_keys", {
 }));
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+// ─── Wiki Pages ───────────────────────────────────────────────────────────────
+// LLM-maintained wiki pages (entity pages, concept pages, synthesis pages).
+// The LLM writes and updates content; humans read.
+export const wikiPages = mysqlTable("wiki_pages", {
+  id: int("id").autoincrement().primaryKey(),
+  /** URL-safe slug, unique per page (e.g. "entity-lysozyme", "concept-x-ray-crystallography") */
+  slug: varchar("slug", { length: 256 }).notNull().unique(),
+  /** Human-readable page title */
+  title: varchar("title", { length: 512 }).notNull(),
+  /** Page category: entity | concept | synthesis | source_summary */
+  category: mysqlEnum("category", ["entity", "concept", "synthesis", "source_summary"]).notNull().default("entity"),
+  /** Full markdown content of the page — written and maintained by the LLM */
+  content: text("content").notNull().default(""),
+  /** Number of source documents that have contributed to this page */
+  sourceCount: int("sourceCount").notNull().default(0),
+  /** JSON array of slugs that link to this page */
+  inboundLinks: json("inboundLinks").$type<string[]>().notNull().default([]),
+  /** JSON array of slugs this page links to */
+  outboundLinks: json("outboundLinks").$type<string[]>().notNull().default([]),
+  /** Average confidence score of claims on this page (0-1) */
+  avgConfidence: float("avgConfidence").default(0),
+  /** Vertical domain this page belongs to */
+  verticalDomain: varchar("verticalDomain", { length: 64 }).default("structural_biology").notNull(),
+  /** ISO timestamp of last LLM update */
+  lastCompiledAt: timestamp("lastCompiledAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  slugIdx: uniqueIndex("wp_slug_idx").on(t.slug),
+  categoryIdx: index("wp_category_idx").on(t.category),
+  verticalIdx: index("wp_vertical_idx").on(t.verticalDomain),
+  updatedAtIdx: index("wp_updated_at_idx").on(t.updatedAt),
+}));
+export type WikiPage = typeof wikiPages.$inferSelect;
+export type InsertWikiPage = typeof wikiPages.$inferInsert;
+
+// ─── Wiki Index ───────────────────────────────────────────────────────────────
+// Serialised index.md — the LLM-maintained catalog of all wiki pages.
+// Single row, replaced on each rebuild.
+export const wikiIndex = mysqlTable("wiki_index", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Full markdown content of the index */
+  content: text("content").notNull().default(""),
+  /** Total page count at last build */
+  pageCount: int("pageCount").notNull().default(0),
+  lastBuiltAt: timestamp("lastBuiltAt").defaultNow().notNull(),
+});
+export type WikiIndex = typeof wikiIndex.$inferSelect;
+
+// ─── Wiki Log ─────────────────────────────────────────────────────────────────
+// Append-only chronological log of wiki operations (ingest, lint, query).
+export const wikiLog = mysqlTable("wiki_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Operation type: ingest | lint | query | update */
+  action: mysqlEnum("action", ["ingest", "lint", "query", "update"]).notNull(),
+  /** Page slug affected (null for lint/query operations) */
+  slug: varchar("slug", { length: 256 }),
+  /** Human-readable summary of what happened */
+  summary: text("summary").notNull(),
+  /** Number of pages touched by this operation */
+  pagesAffected: int("pagesAffected").notNull().default(0),
+  /** Source document ID if triggered by an ingest */
+  documentId: int("documentId"),
+  recordedAt: timestamp("recordedAt").defaultNow().notNull(),
+}, (t) => ({
+  actionIdx: index("wl_action_idx").on(t.action),
+  recordedAtIdx: index("wl_recorded_at_idx").on(t.recordedAt),
+  documentIdIdx: index("wl_document_id_idx").on(t.documentId),
+}));
+export type WikiLogEntry = typeof wikiLog.$inferSelect;
+export type InsertWikiLogEntry = typeof wikiLog.$inferInsert;

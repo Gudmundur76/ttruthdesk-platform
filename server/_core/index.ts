@@ -37,6 +37,7 @@ import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
 import { startTelegramBot } from "../telegramBot";
 import { runWikiLint } from "../wikiLinter";
+import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -603,7 +604,7 @@ async function startServer() {
       res.status(500).json({ error: String(err) });
     }
   });
-  // Wiki lint: cross-document contradiction detection
+  // Wiki lint: cross-document contradiction detection (S3-based, legacy)
   app.post("/api/scheduled/wiki-lint", requireCronOrAdmin, async (_req, res) => {
     try {
       const report = await runWikiLint();
@@ -613,6 +614,8 @@ async function startServer() {
       res.status(500).json({ ok: false, error: String(err) });
     }
   });
+  // DB-backed wiki engine lint + index rebuild (weekly)
+  app.post("/api/scheduled/wiki-engine-lint", requireCronOrAdmin, wikiEngineLintJobHandler);
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
   // Admin re-process: re-runs the analysis pipeline on all failed documents
   app.post("/api/admin/reprocess-failed", requireOwnerOrAdmin, async (req, res) => {
