@@ -702,3 +702,11 @@
 - [x] Compute real SHA-256 digests for SKILL.md content and update agent skills index
 - [x] Generate real RSA-2048 key pair, publish /.well-known/jwks.json with real public key JWK (kid: b5e30ba415a3dcd7)
 - [x] Register weekly wiki-engine-lint heartbeat cron schedule (task_uid: XfobFAegPui3QapN7k49tq, Sundays 02:00 UTC)
+
+## JWT Signing Integration (ACTIVE_PRIVATE_KEY_PEM wired)
+- [x] Audit all JWT-issuing code paths: session (HS256 via sdk.ts), API keys (random hex), magic links (random bytes)
+- [x] Create server/jwtSigner.ts — RS256 sign/verify helpers (signJwt, verifyJwt, issueApiToken, verifyApiToken)
+- [x] Wire issueApiToken into apiKeys.create — RS256 bearer token returned alongside raw key
+- [x] Add apiKeys.verifyBearer tRPC procedure for external JWT verification
+- [x] Write server/jwtSigner.test.ts — 12 tests: sign, verify, tamper, expire, audience, round-trip
+- [x] TypeScript: 0 errors | Vitest: 714 tests passing (45 files)

@@ -2064,7 +2064,7 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       return listApiKeys(ctx.user.id);
     }),
 
-    /** Generate a new API key — raw key returned ONCE */
+    /** Generate a new API key — raw key returned ONCE, plus a signed RS256 JWT bearer token */
     create: protectedProcedure
       .input(
         z.object({
@@ -2075,6 +2075,7 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       )
       .mutation(async ({ ctx, input }) => {
         const { generateApiKey } = await import("./apiKeyService");
+        const { issueApiToken } = await import("./jwtSigner");
         const result = await generateApiKey({
           userId: ctx.user.id,
           label: input.label,
@@ -2082,7 +2083,16 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
           expiresAt: input.expiresAt,
         });
         if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate API key" });
-        return result;
+        // Issue a signed RS256 JWT bearer token for external integrations.
+        // Verifiable via /.well-known/jwks.json without calling this server.
+        const expiresIn = input.expiresAt
+          ? `${Math.max(1, Math.floor((input.expiresAt.getTime() - Date.now()) / 1000))}s`
+          : "365d";
+        const bearerToken = await issueApiToken(
+          { sub: String(ctx.user.id), scope: input.scopes.join(" "), label: input.label },
+          { expiresIn }
+        );
+        return { ...result, bearerToken };
       }),
 
     /** Revoke an API key by ID (must belong to current user) */
@@ -2105,6 +2115,24 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
           ctx.req.socket?.remoteAddress ??
           "unknown";
         return validateApiKey(input.rawKey, callerIp);
+      }),
+
+    /**
+     * Verify a RS256 JWT bearer token issued by apiKeys.create.
+     * Returns the decoded payload (sub, scope, label, iat, exp) on success.
+     * Throws UNAUTHORIZED if the token is invalid or expired.
+     * External callers can also verify independently via /.well-known/jwks.json.
+     */
+    verifyBearer: publicProcedure
+      .input(z.object({ token: z.string().min(10) }))
+      .query(async ({ input }) => {
+        const { verifyApiToken } = await import("./jwtSigner");
+        try {
+          const payload = await verifyApiToken(input.token);
+          return { valid: true, payload };
+        } catch (err) {
+          return { valid: false, payload: null, reason: (err as Error).message };
+        }
       }),
   }),
 
