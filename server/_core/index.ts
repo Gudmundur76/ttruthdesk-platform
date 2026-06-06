@@ -1,4 +1,6 @@
 import "dotenv/config";
+import crypto from "crypto";
+import { ACTIVE_JWK_PUBLIC_KEY } from "../jwksKeys";
 import compression from "compression";
 import express from "express";
 import { createServer } from "http";
@@ -712,24 +714,14 @@ async function startServer() {
     res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(skillMd);
   });
 
-  // ── JWKS (JSON Web Key Set) — real RSA-2048 public key for JWT verification ──────────
-  // Key generated at project init; private key stored as JWKS_PRIVATE_KEY secret.
-  // To rotate: generate new key pair, update JWKS_PRIVATE_KEY secret, update n/e/kid below.
-  const JWKS_PUBLIC_KEY: { kty: string; n: string; e: string; kid: string; use: string; alg: string } = {
-    kty: "RSA",
-    n: "uvaz4eOP7jq_-BLjdSA2so8UejKWuUfIS5QxZ-6jF06zuKTdmKZHDvv0JG-z6ksLPIQAiT2OAWfMjl-Xj0Hps2872U6FadUSSOoNoeNWo_logW0MzSdUOL5dSSUOmNhxS8MlYXrg_MzZusXSCA6Y4Fy6aQWCXPhKNgddmJVx4hPb81c-brtuz2SJPGKjC-C_gQBlteSAtuIPOz0l1eT6_zP6UaWqKybcxb92Umctvkm44yuj5dLHsSsIEIkIKjE5pSmHvLKe1z-KYTnFIXPbTXKn0IhuuC5y-Xzi155xNrEThDb4sxwOf2wQtlHg0GuhGmFRYQsfSJA0RnsIeXeqtQ",
-    e: "AQAB",
-    kid: "b5e30ba415a3dcd7",
-    use: "sig",
-    alg: "RS256",
-  };
-
+  // ── JWKS (JSON Web Key Set) — public key derived from jwksKeys.ts ───────────────────
+  // Key material lives in server/jwksKeys.ts. Override via JWKS_PRIVATE_KEY secret.
   app.get("/.well-known/jwks.json", (_req, res) => {
     res.set({
       "Content-Type": "application/json",
       "Cache-Control": "public, max-age=86400",
       "Access-Control-Allow-Origin": "*",
-    }).json({ keys: [JWKS_PUBLIC_KEY] });
+    }).json({ keys: [ACTIVE_JWK_PUBLIC_KEY] });
   });
 
   const OPENAPI_SPEC = {

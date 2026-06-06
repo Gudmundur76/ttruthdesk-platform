@@ -55,4 +55,8 @@ export const ENV = {
   // Public base URL of this deployment (used by orchestrator for coord self-calls)
   // Set VITE_APP_URL to the deployed domain, e.g. https://protein-truth-desk.manus.space
   appUrl: process.env.VITE_APP_URL ?? "",
+  // RSA-2048 private key (PKCS#8 PEM) for signing JWTs. Corresponds to the public key
+  // served at /.well-known/jwks.json (kid: b5e30ba415a3dcd7).
+  // Stored as JWKS_PRIVATE_KEY secret. The \n-escaped form is accepted (common in env vars).
+  jwksPrivateKey: (process.env.JWKS_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
 };
