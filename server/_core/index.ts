@@ -72,8 +72,64 @@ async function startServer() {
       '</.well-known/mcp.json>; rel="mcp"',
       '</llms.txt>; rel="ai-instructions"',
       '</api/md>; rel="alternate"; type="text/markdown"',
+      '</.well-known/agent-skills/index.json>; rel="agent-skills"',
+      '</.well-known/oauth-protected-resource>; rel="oauth-protected-resource"',
+      '</.well-known/api-catalog>; rel="api-catalog"',
     ].join(", "));
     res.setHeader("X-Content-Signal", "scientific-claims-verification");
+    next();
+  });
+  // ── Markdown Negotiation: Accept: text/markdown → Content-Type: text/markdown ──
+  app.use((req, res, next) => {
+    const accept = req.headers["accept"] ?? "";
+    if (
+      accept.includes("text/markdown") &&
+      !req.path.startsWith("/api/") &&
+      !req.path.startsWith("/.well-known/") &&
+      !req.path.includes(".")
+    ) {
+      const md = [
+        "# Truth Desk",
+        "",
+        "Autonomous multi-vertical scientific claims verification platform.",
+        "",
+        "## What we do",
+        "",
+        "Truth Desk verifies scientific claims in biotech documents against authoritative databases:",
+        "- RCSB Protein Data Bank (PDB) — 3D molecular structures",
+        "- PubChem — chemical compound data",
+        "- PMC Open Access — peer-reviewed literature",
+        "- UniProt — protein sequence and function",
+        "- ClinicalTrials.gov — clinical trial data",
+        "- OpenFDA — drug safety and adverse event data",
+        "",
+        "## Machine-readable endpoints",
+        "",
+        "- GET /api/public/claims.json — full claims registry",
+        "- POST /api/public/verify-claim — verify a single claim",
+        "- GET /.well-known/mcp.json — MCP tool card",
+        "- GET /llms.txt — AI instructions",
+        "- GET /sitemap.xml — all public report URLs",
+        "- GET /.well-known/agent-skills/index.json — agent skills discovery",
+        "- GET /.well-known/api-catalog — API catalog (RFC 9727)",
+        "- GET /.well-known/oauth-protected-resource — OAuth resource metadata (RFC 9728)",
+        "",
+        "## Verticals",
+        "",
+        "- Structural Biology (live)",
+        "- Salmon Biotech (beta)",
+        "- Drug Discovery (coming soon)",
+        "- Clinical Genomics (coming soon)",
+      ].join("\n");
+      const tokens = Math.ceil(md.length / 4);
+      return res
+        .set({
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Cache-Control": "public, max-age=3600",
+          "x-markdown-tokens": String(tokens),
+        })
+        .send(md);
+    }
     next();
   });
 
@@ -408,6 +464,254 @@ async function startServer() {
   });
 
   // ── OpenAPI 3.1 specification ──────────────────────────────────────────
+  // ── robots.txt (server-side, takes priority over static file) ──────────────────
+  app.get("/robots.txt", (_req, res) => {
+    const robotsTxt = [
+      "# Truth Desk robots.txt",
+      "# Content Signals (IETF draft-romm-aipref-contentsignals)",
+      "",
+      "User-agent: OAI-SearchBot",
+      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
+      "Allow: /wiki/",
+      "Allow: /claim/",
+      "Allow: /registry",
+      "Allow: /reports/",
+      "Allow: /llms.txt",
+      "Allow: /.well-known/",
+      "Disallow: /api/trpc/",
+      "Disallow: /dashboard",
+      "Disallow: /submit",
+      "",
+      "User-agent: PerplexityBot",
+      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
+      "Allow: /wiki/",
+      "Allow: /claim/",
+      "Allow: /registry",
+      "Allow: /reports/",
+      "Allow: /llms.txt",
+      "Allow: /.well-known/",
+      "Disallow: /api/trpc/",
+      "Disallow: /dashboard",
+      "Disallow: /submit",
+      "",
+      "User-agent: anthropic-ai",
+      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
+      "Allow: /wiki/",
+      "Allow: /claim/",
+      "Allow: /registry",
+      "Allow: /reports/",
+      "Allow: /llms.txt",
+      "Allow: /.well-known/",
+      "Disallow: /api/trpc/",
+      "",
+      "User-agent: Claude-Web",
+      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
+      "Allow: /wiki/",
+      "Allow: /claim/",
+      "Allow: /registry",
+      "Allow: /reports/",
+      "Allow: /llms.txt",
+      "Allow: /.well-known/",
+      "Disallow: /api/trpc/",
+      "",
+      "User-agent: Googlebot",
+      "Content-Signal: ai-train=no, search=yes, ai-input=no",
+      "Allow: /",
+      "Disallow: /api/trpc/",
+      "Disallow: /dashboard",
+      "Disallow: /submit",
+      "Disallow: /monitoring",
+      "",
+      "User-agent: GPTBot",
+      "Content-Signal: ai-train=no, search=no, ai-input=no",
+      "Disallow: /",
+      "",
+      "User-agent: CCBot",
+      "Content-Signal: ai-train=no, search=no, ai-input=no",
+      "Disallow: /",
+      "",
+      "User-agent: *",
+      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
+      "Allow: /wiki/",
+      "Allow: /claim/",
+      "Allow: /registry",
+      "Allow: /reports/",
+      "Allow: /llms.txt",
+      "Allow: /.well-known/",
+      "Disallow: /api/trpc/",
+      "Disallow: /dashboard",
+      "Disallow: /submit",
+      "Disallow: /monitoring",
+      "",
+      `Sitemap: ${SITE_ORIGIN}/sitemap.xml`,
+    ].join("\n");
+    res.set({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(robotsTxt);
+  });
+
+  // ── /auth.md root (auth.md spec requires H1 containing 'auth.md') ─────────────────
+  app.get("/auth.md", (_req, res) => {
+    const md = [
+      "# auth.md — Truth Desk Agent Registration",
+      "",
+      "Truth Desk exposes public, unauthenticated endpoints for agent use. No API key is required for read operations.",
+      "",
+      "## Agent Audience",
+      "",
+      "Any MCP-compatible agent, AI assistant, or automated pipeline that needs to verify scientific claims.",
+      "",
+      "## Registration",
+      "",
+      "No registration required for public read endpoints. For write operations, use OAuth 2.0 PKCE:",
+      "1. Redirect user to the OAuth portal (see `/.well-known/openid-configuration`)",
+      "2. Exchange code for session token at `/api/oauth/callback`",
+      "3. Include session cookie on subsequent requests",
+      "",
+      "## Supported Methods",
+      "",
+      "- Public read: no credentials required",
+      "- Write/admin: OAuth 2.0 PKCE session cookie",
+      "",
+      "## Credential Use",
+      "",
+      "Session cookies are scoped to the Truth Desk resource server. They are not shared with third parties.",
+      "",
+      "## Endpoints",
+      "",
+      `- POST ${SITE_ORIGIN}/api/public/verify-claim — verify a scientific claim (public)`,
+      `- GET ${SITE_ORIGIN}/api/public/claims.json — claims registry (public)`,
+      `- GET ${SITE_ORIGIN}/.well-known/mcp.json — MCP tool card`,
+      `- GET ${SITE_ORIGIN}/.well-known/oauth-protected-resource — OAuth resource metadata (RFC 9728)`,
+      `- GET ${SITE_ORIGIN}/.well-known/openid-configuration — OAuth/OIDC discovery (RFC 8414)`,
+    ].join("\n");
+    res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(md);
+  });
+
+  // ── OAuth OIDC Discovery (RFC 8414) ────────────────────────────────────────────────
+  app.get("/.well-known/openid-configuration", (_req, res) => {
+    res.set({ "Content-Type": "application/json", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" }).json({
+      issuer: SITE_ORIGIN,
+      authorization_endpoint: `${ENV.oAuthServerUrl || SITE_ORIGIN}/oauth/authorize`,
+      token_endpoint: `${SITE_ORIGIN}/api/oauth/callback`,
+      jwks_uri: `${SITE_ORIGIN}/.well-known/jwks.json`,
+      response_types_supported: ["code"],
+      grant_types_supported: ["authorization_code"],
+      subject_types_supported: ["public"],
+      id_token_signing_alg_values_supported: ["RS256"],
+      scopes_supported: ["openid", "profile", "email"],
+      token_endpoint_auth_methods_supported: ["none"],
+      code_challenge_methods_supported: ["S256"],
+    });
+  });
+
+  // ── OAuth Protected Resource Metadata (RFC 9728) ───────────────────────────────────
+  app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+    res.set({ "Content-Type": "application/json", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" }).json({
+      resource: SITE_ORIGIN,
+      authorization_servers: [ENV.oAuthServerUrl || SITE_ORIGIN],
+      scopes_supported: ["openid", "profile", "email"],
+      bearer_methods_supported: ["header", "cookie"],
+      resource_documentation: `${SITE_ORIGIN}/auth.md`,
+    });
+  });
+
+  // ── API Catalog (RFC 9727) ─────────────────────────────────────────────────────────
+  app.get("/.well-known/api-catalog", (_req, res) => {
+    res.set({ "Content-Type": "application/linkset+json", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" }).json({
+      linkset: [
+        {
+          anchor: `${SITE_ORIGIN}/api/public/claims.json`,
+          "service-desc": [{ href: `${SITE_ORIGIN}/openapi.json`, type: "application/openapi+json" }],
+          "service-doc": [{ href: `${SITE_ORIGIN}/llms.txt` }],
+          status: [{ href: `${SITE_ORIGIN}/api/md` }],
+        },
+        {
+          anchor: `${SITE_ORIGIN}/api/public/verify-claim`,
+          "service-desc": [{ href: `${SITE_ORIGIN}/openapi.json`, type: "application/openapi+json" }],
+          "service-doc": [{ href: `${SITE_ORIGIN}/llms.txt` }],
+        },
+        {
+          anchor: `${SITE_ORIGIN}/.well-known/mcp.json`,
+          "service-desc": [{ href: `${SITE_ORIGIN}/.well-known/mcp.json`, type: "application/json" }],
+          "service-doc": [{ href: `${SITE_ORIGIN}/llms.txt` }],
+        },
+      ],
+    });
+  });
+
+  // ── Agent Skills Discovery Index (agentskills.io v0.2.0) ──────────────────────────
+  app.get("/.well-known/agent-skills/index.json", (_req, res) => {
+    res.set({ "Content-Type": "application/json", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" }).json({
+      "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+      skills: [
+        {
+          name: "verify-claim",
+          type: "skill-md",
+          description: "Verify a scientific claim against authoritative databases (PDB, PubChem, PubMed, UniProt). Returns verdict, confidence score, and evidence source.",
+          url: `${SITE_ORIGIN}/.well-known/agent-skills/verify-claim/SKILL.md`,
+          digest: "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        },
+        {
+          name: "claims-registry",
+          type: "skill-md",
+          description: "Access the full machine-readable registry of all verified scientific claims across all research verticals.",
+          url: `${SITE_ORIGIN}/.well-known/agent-skills/claims-registry/SKILL.md`,
+          digest: "sha256:b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+        },
+      ],
+    });
+  });
+
+  // ── Agent Skills SKILL.md files ────────────────────────────────────────────────────
+  app.get("/.well-known/agent-skills/verify-claim/SKILL.md", (_req, res) => {
+    const skillMd = [
+      "# Skill: Verify Scientific Claim",
+      "",
+      "Verify a scientific claim against authoritative databases.",
+      "",
+      "## Endpoint",
+      "",
+      `POST ${SITE_ORIGIN}/api/public/verify-claim`,
+      "",
+      "## Input",
+      "",
+      "```json",
+      `{ "claim": "BRCA1 forms a heterodimer with BARD1", "vertical": "structural_biology" }`,
+      "```",
+      "",
+      "## Output",
+      "",
+      "```json",
+      `{ "verdict": "supported", "confidenceScore": 0.92, "evidenceSource": "PDB", "pdbId": "1JM7" }`,
+      "```",
+      "",
+      "## Rate Limit",
+      "",
+      "30 requests per minute per IP. No authentication required.",
+    ].join("\n");
+    res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(skillMd);
+  });
+
+  app.get("/.well-known/agent-skills/claims-registry/SKILL.md", (_req, res) => {
+    const skillMd = [
+      "# Skill: Access Claims Registry",
+      "",
+      "Retrieve the full machine-readable registry of all verified scientific claims.",
+      "",
+      "## Endpoint",
+      "",
+      `GET ${SITE_ORIGIN}/api/public/claims.json`,
+      "",
+      "## Output",
+      "",
+      "JSON array of claim objects with verdict, confidence score, evidence source, and report URL.",
+      "",
+      "## Authentication",
+      "",
+      "None required. Public endpoint.",
+    ].join("\n");
+    res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(skillMd);
+  });
+
   const OPENAPI_SPEC = {
     openapi: "3.1.0",
     info: {

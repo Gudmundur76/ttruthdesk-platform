@@ -684,3 +684,16 @@
 - [x] Write server/wikiEngine.test.ts — 21 tests: ingest, update, lint, index, log, search
 - [x] TypeScript: 0 errors | Vitest: 698 tests passing (43 files)
 - [x] Save checkpoint and push to persistent drive
+
+## Agent-Readiness Improvements (isitagentready.com — Phase 77)
+- [x] robots.txt served server-side with Content-Signal directives per IETF draft-romm-aipref-contentsignals
+- [x] Markdown Negotiation middleware: Accept: text/markdown → Content-Type: text/markdown + x-markdown-tokens header
+- [x] /.well-known/agent-skills/index.json (agentskills.io v0.2.0 schema, 2 skills)
+- [x] /.well-known/agent-skills/verify-claim/SKILL.md
+- [x] /.well-known/agent-skills/claims-registry/SKILL.md
+- [x] /.well-known/api-catalog (RFC 9727 application/linkset+json)
+- [x] /auth.md root (auth.md spec H1 containing 'auth.md')
+- [x] /.well-known/openid-configuration (RFC 8414 OAuth/OIDC discovery)
+- [x] /.well-known/oauth-protected-resource (RFC 9728)
+- [x] Updated Link header to include agent-skills, oauth-protected-resource, api-catalog rels
+- [x] TypeScript: 0 errors | Vitest: 698 tests passing
