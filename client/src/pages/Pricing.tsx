@@ -14,7 +14,7 @@ const ACADEMIC_TIER = {
   subtitle: "For universities & research institutes",
   features: [
     "Unlimited document audits",
-    "Full PDB validation suite",
+    "Multi-database evidence routing",
     "HTML audit reports",
     "Access to public claims registry",
     "Auto-detected by .edu / .ac.uk / .ac.nz and 80+ academic domains",
@@ -29,8 +29,8 @@ const TIER_META: Record<Tier, { name: string; price: string; subtitle: string; f
     subtitle: "5 full-depth audits",
     features: [
       "5 document audits",
-      "Up to 50 molecular claims per document",
-      "Full PDB validation against RCSB",
+      "Up to 50 verifiable claims per document",
+      "Multi-database evidence routing",
       "HTML + PDF audit report",
       "Verdict summary with evidence links",
     ],
@@ -144,10 +144,10 @@ export default function Pricing() {
             Audit Pricing
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-            Evidence-backed molecular audits
+            Evidence-backed claim audits
           </h1>
           <p className="text-slate-500 text-base max-w-xl mx-auto mb-6">
-            Every claim in your biotech document validated against the RCSB Protein Data Bank and peer-reviewed literature.
+            Every verifiable claim in your document routed to the right authoritative source — structural databases, chemical registries, clinical trial repositories, and peer-reviewed literature.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <div className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-full">

@@ -656,3 +656,14 @@
 - [x] Create server/europePmcAdapter.ts — Europe PMC helper (searchSystematicReviews, interpretSystematicReviewEvidence)
 - [x] Write server/phase74.test.ts — 18 tests covering all 3 new adapters and the registry routing
 - [x] TypeScript: 0 errors | ESLint: 0 warnings | Vitest: 677 tests passing (42 files)
+
+## Phase 75 — Website Copy Rewrite (Domain-Agnostic)
+
+- [x] Rewrite Home.tsx hero, feature section, evidence sources row, and footer copy to reflect domain-agnostic engine
+- [x] Update Pricing.tsx — remove PDB-specific language, reflect multi-database routing
+- [x] Update Trust.tsx — update methodology step 2, verdict examples, confidence score description
+- [x] Add ClinicalTrials.gov, OpenFDA, USDA FoodData Central, NCBI Taxonomy data source cards to Trust.tsx
+- [x] Update AuditReport.tsx HowWeVerifyPanel — reflect multi-database routing in step detail and footer
+- [x] Update AuditReport.tsx processing state copy — "Extracting verifiable claims" / "Validating against authoritative databases"
+- [x] TypeScript: 0 errors | ESLint: 0 warnings
+- [x] Save checkpoint

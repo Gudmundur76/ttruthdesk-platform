@@ -174,7 +174,7 @@ function HowWeVerifyPanel({
     {
       icon: "🗄️",
       label: "Validated Against Databases",
-      detail: "Each claim cross-referenced against RCSB PDB, PubMed, Europe PMC, and PubChem using official APIs. No web scraping. Every evidence link points to a real database entry.",
+      detail: "Each claim routed to the right authoritative source for its domain: RCSB PDB, UniProt, PubChem, ClinicalTrials.gov, Europe PMC, OpenFDA, USDA FoodData Central, NCBI Taxonomy, and more. No web scraping. Every evidence link points to a real database entry.",
       color: "bg-violet-50 text-violet-700",
     },
     {
@@ -227,7 +227,7 @@ function HowWeVerifyPanel({
             ))}
           </div>
           <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-            <p className="text-xs text-slate-400">All data sourced from official APIs: RCSB PDB · PubMed · Europe PMC · PubChem</p>
+            <p className="text-xs text-slate-400">All data sourced from official APIs: RCSB PDB · UniProt · PubChem · ClinicalTrials.gov · Europe PMC · OpenFDA · USDA FoodData Central</p>
             <Link href="/trust" className="text-xs text-primary hover:underline">Full methodology →</Link>
           </div>
         </div>
@@ -361,8 +361,8 @@ function AuditReportContent() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
             <span className="font-semibold text-blue-700">
-              {doc.status === "extracting" && "Extracting molecular claims…"}
-              {doc.status === "validating" && "Validating claims against PDB…"}
+              {doc.status === "extracting" && "Extracting verifiable claims…"}
+              {doc.status === "validating" && "Validating claims against authoritative databases…"}
               {doc.status === "generating_report" && "Generating audit report…"}
             </span>
           </div>

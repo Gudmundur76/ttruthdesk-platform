@@ -101,7 +101,7 @@ export default function Trust() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-0 mb-8">
             {[
               { step: "1", label: "Extract", desc: "LLM identifies discrete scientific claims from the document text, each with a claim type (structural, quantitative, methodological, organism)" },
-              { step: "2", label: "Validate", desc: "Each claim is cross-referenced against PDB, PubMed, Europe PMC, and PubChem using official APIs. No web scraping." },
+              { step: "2", label: "Validate", desc: "Each claim is routed to the right authoritative source: RCSB PDB, UniProt, PubChem, ClinicalTrials.gov, Europe PMC, OpenFDA, USDA FoodData Central, NCBI Taxonomy, and more. No web scraping." },
               { step: "3", label: "Score", desc: "A confidence score (0–1 float) and confidence flags are assigned per claim based on evidence quality, source count, and method reliability." },
               { step: "4", label: "Report", desc: "A structured audit report is generated with every claim, its verdict, evidence links, rationale, and a machine-readable claims.json." },
             ].map((item, i) => (
@@ -122,7 +122,7 @@ export default function Trust() {
             <Accordion title="How are verdict categories assigned?">
               <p className="mb-2">Truth Desk assigns one of seven verdicts to each claim:</p>
               <ul className="space-y-1.5 ml-4">
-                <li><strong className="text-foreground">Supported</strong> — Direct evidence found in a primary database entry (e.g., PDB structure matches claimed resolution).</li>
+                <li><strong className="text-foreground">Supported</strong> — Direct evidence found in a primary database entry (e.g., PDB structure matches claimed resolution, ClinicalTrials.gov confirms RCT count, PubChem confirms compound identity).</li>
                 <li><strong className="text-foreground">Contradicted</strong> — Primary database evidence directly contradicts the claim.</li>
                 <li><strong className="text-foreground">Partially Supported</strong> — Some evidence supports the claim but key details differ.</li>
                 <li><strong className="text-foreground">Ambiguous</strong> — Evidence exists but is inconclusive or conflicting across sources.</li>
@@ -132,7 +132,7 @@ export default function Trust() {
               </ul>
             </Accordion>
             <Accordion title="What is the confidence score?">
-              <p>The confidence score (0.0–1.0) reflects the quality and completeness of the evidence found. It is computed from: number of corroborating sources, specificity of the database match (exact PDB ID vs. keyword match), method reliability score, and whether a human reviewer has confirmed the verdict. A score above 0.8 indicates strong primary database support.</p>
+              <p>The confidence score (0.0–1.0) reflects the quality and completeness of the evidence found. It is computed from: number of corroborating sources, specificity of the database match (exact PDB ID or NCT number vs. keyword match), source authority weight (Swiss-Prot reviewed entry vs. unreviewed), and whether a human reviewer has confirmed the verdict. A score above 0.8 indicates strong primary database support.</p>
             </Accordion>
             <Accordion title="Can humans override automated verdicts?">
               <p>Yes. Every claim has a human review workflow. Domain experts can override the automated verdict, correct entity mappings, add notes, and mark the claim as reviewed. Overrides are logged with a timestamp and reviewer ID. The audit trail is preserved and visible in the report.</p>
@@ -149,7 +149,7 @@ export default function Trust() {
             <DataSourceCard
               name="RCSB Protein Data Bank"
               url="https://data.rcsb.org/"
-              description="Primary source for protein structure validation. Used for resolution, method, organism, entity, and ligand verification. All structural biology claims are validated against PDB entries."
+              description="Primary source for structural biology claim validation. Used for resolution, method, organism, entity, and ligand verification. All structural biology claims are validated against PDB entries."
               type="Structural Biology"
             />
             <DataSourceCard
@@ -167,7 +167,7 @@ export default function Trust() {
             <DataSourceCard
               name="PubChem REST API"
               url="https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest"
-              description="NCBI's chemical compound database. Used for salmon biotech vertical — compound identification, CID lookup, synonyms, and molecular properties."
+              description="NCBI's chemical compound database. Used for compound identity verification across chemistry and nutrition verticals — CID lookup, synonyms, and molecular properties."
               type="Chemistry"
             />
             <DataSourceCard
@@ -179,8 +179,32 @@ export default function Trust() {
             <DataSourceCard
               name="UniProt REST API"
               url="https://www.uniprot.org/help/api"
-              description="Protein sequence and function database. Used for protein identity verification and organism cross-referencing in structural biology claims."
+              description="Protein sequence and function database. Used for protein identity verification across structural biology and nutrition verticals. Swiss-Prot reviewed entries carry higher confidence weight."
               type="Protein Function"
+            />
+            <DataSourceCard
+              name="ClinicalTrials.gov API"
+              url="https://clinicaltrials.gov/data-api/api"
+              description="US National Library of Medicine's registry of clinical trials. Used to verify RCT counts, study designs, and registered outcomes for nutrition and sports science claims."
+              type="Clinical Trials"
+            />
+            <DataSourceCard
+              name="OpenFDA API"
+              url="https://open.fda.gov/apis/"
+              description="FDA adverse event reporting system (FAERS). Used to surface safety signals for supplement and compound claims — high event counts lower confidence on safety claims."
+              type="Pharmacovigilance"
+            />
+            <DataSourceCard
+              name="USDA FoodData Central"
+              url="https://fdc.nal.usda.gov/api-guide.html"
+              description="USDA's nutritional composition database. Used to verify macronutrient, amino acid, and micronutrient content claims for food and supplement verticals."
+              type="Nutrition"
+            />
+            <DataSourceCard
+              name="NCBI Taxonomy API"
+              url="https://www.ncbi.nlm.nih.gov/books/NBK25500/"
+              description="NCBI's biological taxonomy database. Used for genus-level microbial strain validation in the gut microbiome vertical."
+              type="Taxonomy"
             />
           </div>
           <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground">
