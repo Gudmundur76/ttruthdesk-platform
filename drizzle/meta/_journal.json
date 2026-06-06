@@ -155,6 +155,13 @@
       "when": 1780782200780,
       "tag": "0021_brief_makkari",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1780785608636,
+      "tag": "0022_steep_maginty",
+      "breakpoints": true
     }
   ]
 }

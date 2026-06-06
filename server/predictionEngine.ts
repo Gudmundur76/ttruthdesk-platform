@@ -20,6 +20,7 @@ import {
   InsertPredictionFeature,
   InsertPredictionModel,
 } from "../drizzle/schema";
+import { loadActiveCalibration, applyPlattScaling } from "./plattCalibration";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 
@@ -213,13 +214,18 @@ export async function computeEntityContradictionRate(
 /**
  * Claim Trajectory Predictor
  *
- * Heuristic scoring model:
- *   P(contradicted) = 0.40 * claimTypeBaseRate
- *                   + 0.25 * authorContradictionRate
- *                   + 0.20 * entityRiskFactor
- *                   + 0.15 * methodRiskFactor
+ * Data-driven scoring model (Platt scaling):
+ *   rawScore = w0 * claimTypeBaseRate
+ *            + w1 * authorContradictionRate
+ *            + w2 * entityRiskFactor
+ *            + w3 * methodRiskFactor
  *
- * All weights sum to 1.0. Clipped to [0.05, 0.95].
+ *   P(contradicted) = sigmoid(plattW * rawScore + plattB)
+ *
+ * Weights [w0..w3] and Platt parameters are learned from historical
+ * validated predictions stored in prediction_calibration.
+ * Falls back to heuristic defaults [0.40, 0.25, 0.20, 0.15] when
+ * fewer than 20 validated predictions are available.
  */
 export async function computeClaimTrajectory(
   claimId: number,
@@ -387,15 +393,32 @@ export async function computeClaimTrajectory(
     factors.push("Method: not detected — using field average (31%)");
   }
 
-  // ── Heuristic scoring ─────────────────────────────────────────────────────
+  // ── Data-driven scoring (Platt scaling) ────────────────────────────────
+  // Load calibrated weights from DB (falls back to heuristic defaults if
+  // insufficient training data — MIN_TRAINING_SAMPLES = 20)
+  const calibration = await loadActiveCalibration();
+  const [w0 = 0.40, w1 = 0.25, w2 = 0.20, w3 = 0.15] = calibration.featureWeights;
   const rawScore =
-    0.40 * claimTypeBaseRate +
-    0.25 * authorRate +
-    0.20 * entityRiskFactor +
-    0.15 * methodRiskFactor;
+    w0 * claimTypeBaseRate +
+    w1 * authorRate +
+    w2 * entityRiskFactor +
+    w3 * methodRiskFactor;
 
-  // Clip to [0.05, 0.95]
-  const probability = Math.min(0.95, Math.max(0.05, rawScore));
+  // Apply Platt scaling to produce a calibrated probability
+  const probability = applyPlattScaling(rawScore, calibration.plattW, calibration.plattB);
+
+  if (!calibration.isDefault) {
+    factors.push(
+      `Calibration: Platt(w=${calibration.plattW.toFixed(3)}, b=${calibration.plattB.toFixed(3)}) ` +
+      `trained on ${calibration.trainingSampleSize} validated predictions` +
+      (calibration.brierScore != null ? ` — Brier=${calibration.brierScore.toFixed(3)}` : "")
+    );
+  } else {
+    factors.push(
+      `Calibration: using heuristic defaults (${calibration.trainingSampleSize} validated predictions ` +
+      `— need ${20} to activate learned weights)`
+    );
+  }
 
   // Confidence interval: ±0.12 (widens with less data)
   const ciWidth = claimTypeSampleSize < 10 ? 0.18 : 0.12;

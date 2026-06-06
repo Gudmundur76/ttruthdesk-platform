@@ -317,7 +317,18 @@ export const appRouter = router({
             "Out of Scope",
             "Needs Expert Review",
           ]),
-          reviewNotes: z.string(),
+          /** Minimum 20 characters — required to preserve epistemic chain integrity */
+          justification: z.string().min(20, "Justification must be at least 20 characters"),
+          /** Epistemic category explains WHY the human override is valid */
+          overrideCategory: z.enum([
+            "domain_expertise",
+            "new_evidence",
+            "context_clarification",
+            "scope_adjustment",
+            "error_correction",
+          ]),
+          /** Legacy field — kept for backward compat */
+          reviewNotes: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -327,9 +338,33 @@ export const appRouter = router({
           input.claimId,
           ctx.user.id,
           input.overriddenVerdict,
-          input.reviewNotes
+          input.justification,
+          {
+            justification: input.justification,
+            overrideCategory: input.overrideCategory,
+            documentId: input.documentId,
+          }
         );
+        // Async: log override to wiki audit trail
+        import("./wikiEngine").then(({ appendLog }) =>
+          appendLog(
+            "update",
+            `Claim #${input.claimId} verdict overridden (${input.overrideCategory}): ${input.justification.slice(0, 100)}`,
+            1,
+            `claim-${input.claimId}`,
+            input.documentId
+          ).catch(console.error)
+        ).catch(console.error);
         return { success: true };
+      }),
+
+    overrideLog: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const doc = await getDocumentById(input.documentId);
+        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        const { getOverrideAuditLog } = await import("./db");
+        return getOverrideAuditLog(input.documentId);
       }),
   }),
 
@@ -1075,6 +1110,78 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
           getRecentActivity(),
         ]);
         return { overview, verdicts, verticals, trend, quality, topEntities, activity };
+      }),
+
+    /**
+     * Fetch all LLM provider quality stats for the admin panel.
+     * Returns per-model accuracy, ban status, and usage counts.
+     */
+    llmProviderQuality: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { getProviderQualityStats } = await import("./llmProviderQuality");
+        return getProviderQualityStats();
+      }),
+
+    /**
+     * Ban a model from high-stakes verdicts.
+     */
+    banLlmModel: protectedProcedure
+      .input(z.object({ modelId: z.string(), reason: z.string().min(10) }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { banModel } = await import("./llmProviderQuality");
+        await banModel(input.modelId, input.reason);
+        return { success: true };
+      }),
+
+    /**
+     * Unban a model (admin action).
+     */
+    unbanLlmModel: protectedProcedure
+      .input(z.object({ modelId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { unbanModel } = await import("./llmProviderQuality");
+        await unbanModel(input.modelId);
+        return { success: true };
+      }),
+
+    /**
+     * Recompute accuracy rates for all models and auto-enforce bans.
+     */
+    recomputeLlmAccuracy: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { recomputeAllAccuracyRates } = await import("./llmProviderQuality");
+        await recomputeAllAccuracyRates();
+        return { success: true };
+      }),
+
+    /**
+     * Seed known models into the quality DB (idempotent).
+     */
+    seedLlmModels: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { seedKnownModels } = await import("./llmProviderQuality");
+        await seedKnownModels();
+        return { success: true };
       }),
   }),
 

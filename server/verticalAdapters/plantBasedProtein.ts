@@ -12,6 +12,7 @@
  *  2. USDA FoodData Central — nutrient composition data
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import { synthesiseEvidence, applySynthesis } from "./evidenceSynthesizer";
 
 // ─── USDA FoodData Central lookup ────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ For each claim, extract: the protein source, the claimed property/outcome, the v
       flags.push(`USDA FoodData Central: ${usdaResult.description} (FDC ID ${usdaResult.fdcId})`);
     }
 
-    return {
+    const baseResult: EvidenceResult = {
       found: rctResult.count > 0 || usdaResult !== null,
       sourceId: rctResult.pmids[0]
         ? `PMID:${rctResult.pmids[0]}`
@@ -191,6 +192,23 @@ For each claim, extract: the protein source, the claimed property/outcome, the v
       confidenceScore: score,
       confidenceFlags: flags,
     };
+    // ── LLM evidence synthesis layer ──────────────────────────────────────────
+    const synthesis = await synthesiseEvidence({
+      claimText: claim.claimText,
+      extractedValue: claim.extractedValue,
+      domainKey: "plant_based_protein",
+      domainName: "Plant-Based Protein",
+      rctCount: rctResult.count,
+      topPmids: rctResult.pmids,
+      pubchemCid: null,
+      compoundName: null,
+      uniprotFound: false,
+      uniprotFlags: [],
+      fdaAdverseCount: undefined,
+      baseScore: score,
+      baseFlags: flags,
+    });
+    return applySynthesis(baseResult, synthesis);
   },
 };
 

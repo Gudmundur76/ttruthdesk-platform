@@ -17,6 +17,7 @@
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
 import { searchSystematicReviews as searchEuropePmc, interpretSystematicReviewEvidence } from "../europePmcAdapter";
+import { synthesiseEvidence, applySynthesis } from "./evidenceSynthesizer";
 
 // ─── ClinicalTrials.gov lookup ────────────────────────────────────────────────
 
@@ -160,7 +161,7 @@ For each claim, extract: the intervention, the outcome, the study design, the sa
       ? { id: `NCT:${trialResult.trials[0].nctId}`, url: `https://clinicaltrials.gov/study/${trialResult.trials[0].nctId}` }
       : null;
 
-    return {
+    const baseResult: EvidenceResult = {
       found: europePmcResult.found || trialResult.total > 0,
       sourceId: primarySource?.id ?? null,
       sourceUrl: primarySource?.url ?? europePmcResult.sourceUrl ?? null,
@@ -179,6 +180,22 @@ For each claim, extract: the intervention, the outcome, the study design, the sa
       confidenceScore: finalScore,
       confidenceFlags: flags,
     };
+    // ── LLM evidence synthesis layer ──────────────────────────────────────────
+    const synthesis = await synthesiseEvidence({
+      claimText: claim.claimText,
+      extractedValue: claim.extractedValue,
+      domainKey: "sports_nutrition_rct",
+      domainName: "Sports Nutrition RCTs",
+      rctCount: europePmcResult.systematicReviewCount + europePmcResult.metaAnalysisCount,
+      topPmids: europePmcResult.topPmids,
+      pubchemCid: null,
+      compoundName: claim.extractedValue,
+      uniprotFound: false,
+      uniprotFlags: [],
+      baseScore: finalScore,
+      baseFlags: flags,
+    });
+    return applySynthesis(baseResult, synthesis);
   },
 };
 

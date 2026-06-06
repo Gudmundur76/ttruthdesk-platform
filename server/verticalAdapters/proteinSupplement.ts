@@ -17,6 +17,7 @@
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
 import { verifyProteinViaUniProt } from "../uniprotAdapter";
 import { searchFdaAdverseEvents, interpretFdaSignals } from "../openfdaAdapter";
+import { synthesiseEvidence, applySynthesis } from "./evidenceSynthesizer";
 
 // ─── PubChem lookup ───────────────────────────────────────────────────────────
 
@@ -180,7 +181,7 @@ For each claim, extract: the protein type, the claimed effect, the population, a
 
     const primaryPmid = rctResult.pmids[0] ?? null;
 
-    return {
+    const baseResult: EvidenceResult = {
       found: rctResult.count > 0 || pubchemResult !== null,
       sourceId: primaryPmid ? `PMID:${primaryPmid}` : (pubchemResult ? `CID:${pubchemResult.CID}` : null),
       sourceUrl: primaryPmid
@@ -197,6 +198,23 @@ For each claim, extract: the protein type, the claimed effect, the population, a
       confidenceScore: score,
       confidenceFlags: flags,
     };
+    // ── LLM evidence synthesis layer ──────────────────────────────────────────
+    const synthesis = await synthesiseEvidence({
+      claimText: claim.claimText,
+      extractedValue: claim.extractedValue,
+      domainKey: "protein_supplement",
+      domainName: "Protein Supplements",
+      rctCount: rctResult.count,
+      topPmids: rctResult.pmids,
+      pubchemCid: pubchemResult?.CID ?? null,
+      compoundName,
+      uniprotFound: uniprotResult?.found ?? false,
+      uniprotFlags: uniprotResult?.flags ?? [],
+      fdaAdverseCount: fdaResult?.totalEvents,
+      baseScore: score,
+      baseFlags: flags,
+    });
+    return applySynthesis(baseResult, synthesis);
   },
 };
 

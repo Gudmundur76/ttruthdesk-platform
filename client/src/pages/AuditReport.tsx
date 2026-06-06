@@ -244,6 +244,10 @@ function AuditReportContent() {
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [overrideVerdict, setOverrideVerdict] = useState<VerdictType>("Insufficient Evidence");
   const [overrideNote, setOverrideNote] = useState("");
+  const [overrideJustification, setOverrideJustification] = useState("");
+  const [overrideCategory, setOverrideCategory] = useState<
+    "domain_expertise" | "new_evidence" | "context_clarification" | "scope_adjustment" | "error_correction"
+  >("error_correction");
 
   // Redirect unauthenticated users (must be in useEffect to avoid render-phase side effects)
   useEffect(() => {
@@ -271,6 +275,8 @@ function AuditReportContent() {
       setReviewingId(null);
       setOverrideVerdict("Insufficient Evidence");
       setOverrideNote("");
+      setOverrideJustification("");
+      setOverrideCategory("error_correction");
       refetchClaims();
     },
     onError: (e) => toast.error(e.message),
@@ -542,9 +548,9 @@ function AuditReportContent() {
 
                   {/* Override panel */}
                   {reviewingId === claim.id && (
-                    <div className="mt-4 border border-blue-200 rounded-lg p-4 bg-blue-50">
-                      <p className="text-xs font-semibold text-blue-700 mb-3">Override Verdict</p>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="mt-4 border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-3">
+                      <p className="text-xs font-semibold text-blue-700">Override Verdict</p>
+                      <div className="grid grid-cols-2 gap-2">
                         {VERDICT_ORDER.map((v) => (
                           <button
                             key={v}
@@ -557,10 +563,46 @@ function AuditReportContent() {
                           </button>
                         ))}
                       </div>
+                      {/* Override category — required for epistemic chain */}
+                      <div>
+                        <p className="text-xs font-medium text-blue-700 mb-1">Override Reason</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {([
+                            ["domain_expertise", "Domain expertise"],
+                            ["new_evidence", "New evidence"],
+                            ["context_clarification", "Context clarification"],
+                            ["scope_adjustment", "Scope adjustment"],
+                            ["error_correction", "Error correction"],
+                          ] as const).map(([val, label]) => (
+                            <button
+                              key={val}
+                              onClick={() => setOverrideCategory(val)}
+                              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                overrideCategory === val ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-blue-100"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Justification — required, min 20 chars */}
+                      <div>
+                        <textarea
+                          className="w-full text-xs border border-blue-200 rounded p-2 bg-white resize-none"
+                          rows={3}
+                          placeholder="Justification (required, min 20 characters) — explain why this override is scientifically valid"
+                          value={overrideJustification}
+                          onChange={(e) => setOverrideJustification(e.target.value)}
+                        />
+                        {overrideJustification.length > 0 && overrideJustification.length < 20 && (
+                          <p className="text-xs text-red-500 mt-0.5">{20 - overrideJustification.length} more characters required</p>
+                        )}
+                      </div>
                       <textarea
-                        className="w-full text-xs border border-blue-200 rounded p-2 mb-3 bg-white resize-none"
-                        rows={2}
-                        placeholder="Reviewer note (optional)"
+                        className="w-full text-xs border border-blue-200 rounded p-2 bg-white resize-none"
+                        rows={1}
+                        placeholder="Additional reviewer note (optional)"
                         value={overrideNote}
                         onChange={(e) => setOverrideNote(e.target.value)}
                       />
@@ -568,13 +610,15 @@ function AuditReportContent() {
                         <Button
                           size="sm"
                           className="bg-blue-700 hover:bg-blue-800 text-xs"
-                          disabled={overrideMutation.isPending}
+                          disabled={overrideMutation.isPending || overrideJustification.trim().length < 20}
                           onClick={() =>
                             overrideMutation.mutate({
                               claimId: claim.id,
                               documentId: docId,
                               overriddenVerdict: overrideVerdict,
-                              reviewNotes: overrideNote,
+                              justification: overrideJustification,
+                              overrideCategory: overrideCategory,
+                              reviewNotes: overrideNote || undefined,
                             })
                           }
                         >

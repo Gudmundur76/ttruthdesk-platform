@@ -12,6 +12,7 @@
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
 import { searchFdaAdverseEvents, interpretFdaSignals } from "../openfdaAdapter";
+import { synthesiseEvidence, applySynthesis } from "./evidenceSynthesizer";
 
 // ─── PubChem CID map for common ergogenics ────────────────────────────────────
 
@@ -154,7 +155,7 @@ For each claim, extract: the compound, the claimed effect, the magnitude (if sta
     score = Math.min(Math.max(score + fdaSignals.confidenceDelta, 0.1), 0.95);
     flags.push(...fdaSignals.flags);
 
-    return {
+    const baseResult: EvidenceResult = {
       found: rctResult.count > 0 || pubchemResult.found,
       sourceId: rctResult.pmids[0] ? `PMID:${rctResult.pmids[0]}` : `CID:${matchedCid}`,
       sourceUrl: rctResult.pmids[0]
@@ -169,6 +170,23 @@ For each claim, extract: the compound, the claimed effect, the magnitude (if sta
       confidenceScore: score,
       confidenceFlags: flags,
     };
+    // ── LLM evidence synthesis layer ──────────────────────────────────────────
+    const synthesis = await synthesiseEvidence({
+      claimText: claim.claimText,
+      extractedValue: claim.extractedValue,
+      domainKey: "creatine_ergogenics",
+      domainName: "Creatine & Ergogenics",
+      rctCount: rctResult.count,
+      topPmids: rctResult.pmids,
+      pubchemCid: matchedCid,
+      compoundName: matchedCompound,
+      uniprotFound: false,
+      uniprotFlags: [],
+      fdaAdverseCount: fdaResult.totalEvents,
+      baseScore: score,
+      baseFlags: flags,
+    });
+    return applySynthesis(baseResult, synthesis);
   },
 };
 

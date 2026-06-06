@@ -12,6 +12,7 @@
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
 import { verifyProteinViaUniProt } from "../uniprotAdapter";
+import { synthesiseEvidence, applySynthesis } from "./evidenceSynthesizer";
 
 // ─── Collagen-related PubChem CIDs ───────────────────────────────────────────
 
@@ -137,7 +138,7 @@ For each claim, extract: the collagen type, the outcome measure, the magnitude, 
       flags.push(...uniprotResult.flags);
     }
 
-    return {
+    const baseResult: EvidenceResult = {
       found: rctResult.count > 0,
       sourceId: rctResult.pmids[0] ? `PMID:${rctResult.pmids[0]}` : null,
       sourceUrl: rctResult.pmids[0]
@@ -152,6 +153,23 @@ For each claim, extract: the collagen type, the outcome measure, the magnitude, 
       confidenceScore: score,
       confidenceFlags: flags,
     };
+    // ── LLM evidence synthesis layer ──────────────────────────────────────────
+    const synthesis = await synthesiseEvidence({
+      claimText: claim.claimText,
+      extractedValue: claim.extractedValue,
+      domainKey: "collagen_peptides",
+      domainName: "Collagen & Peptides",
+      rctCount: rctResult.count,
+      topPmids: rctResult.pmids,
+      pubchemCid: null,
+      compoundName: null,
+      uniprotFound: false,
+      uniprotFlags: [],
+      fdaAdverseCount: undefined,
+      baseScore: score,
+      baseFlags: flags,
+    });
+    return applySynthesis(baseResult, synthesis);
   },
 };
 

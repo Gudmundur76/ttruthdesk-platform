@@ -29,7 +29,7 @@ import { registerWikiPageRoute } from "../wikiPageRoute";
 import { registerBadgeRoute } from "../badgeRoute";
 import { registerEmbedWidgetRoutes } from "../embedWidgetRoute";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
-import { createCoordRouter } from "../coordApi";
+import { createCoordRouter } from "../coordApi/index";
 import { createApiV2Router } from "../apiV2Router";
 import { createExportRouter } from "../exportRouter";
 import { batchAuditRouter } from "../batchAuditRouter";

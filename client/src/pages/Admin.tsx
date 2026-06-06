@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Copy, CheckCircle2, RotateCcw, ShieldAlert, KeyRound, Activity, AlertTriangle, CheckCircle, XCircle, Clock, Cpu } from "lucide-react";
+import { Copy, CheckCircle2, RotateCcw, ShieldAlert, KeyRound, Activity, AlertTriangle, CheckCircle, XCircle, Clock, Cpu, BarChart3, Ban, RefreshCw } from "lucide-react";
 
 // ─── Meta-Agent Panel ─────────────────────────────────────────────────────────
 
@@ -218,6 +218,232 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
       {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
       {copied ? "Copied" : "Copy"}
     </button>
+  );
+}
+
+// ─── LLM Provider Quality Panel ─────────────────────────────────────────────
+
+type LlmQualityRow = {
+  id: number;
+  modelId: string;
+  modelName: string;
+  provider: string;
+  isFree: boolean;
+  allowedForHighStakes: boolean;
+  totalClaims: number;
+  correctPredictions: number;
+  accuracyRate: number | null;
+  avgConfidence: number | null;
+  isBanned: boolean;
+  banReason: string | null;
+  lastUpdatedAt: string | Date;
+};
+
+function LlmProviderQualityPanel() {
+  const utils = trpc.useUtils();
+  const [banModelId, setBanModelId] = useState<string | null>(null);
+  const [banReason, setBanReason] = useState("");
+
+  const { data: models, isLoading } = trpc.admin.llmProviderQuality.useQuery();
+
+  const recompute = trpc.admin.recomputeLlmAccuracy.useMutation({
+    onSuccess: () => {
+      toast.success("Accuracy rates recomputed");
+      utils.admin.llmProviderQuality.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const seed = trpc.admin.seedLlmModels.useMutation({
+    onSuccess: () => {
+      toast.success("Known models seeded");
+      utils.admin.llmProviderQuality.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const ban = trpc.admin.banLlmModel.useMutation({
+    onSuccess: () => {
+      toast.success(`Model banned from high-stakes verdicts`);
+      setBanModelId(null);
+      setBanReason("");
+      utils.admin.llmProviderQuality.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const unban = trpc.admin.unbanLlmModel.useMutation({
+    onSuccess: () => {
+      toast.success("Model unbanned");
+      utils.admin.llmProviderQuality.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const rows = (models ?? []) as LlmQualityRow[];
+
+  return (
+    <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <BarChart3 className="w-5 h-5 text-slate-600" />
+          <div>
+            <h2 className="font-semibold text-slate-900">LLM Provider Quality</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Per-model accuracy tracking. Free models below 70% accuracy are auto-banned from high-stakes verdicts.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => seed.mutate()}
+            disabled={seed.isPending}
+            className="gap-1.5 text-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Seed Models
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => recompute.mutate()}
+            disabled={recompute.isPending}
+            className="gap-1.5 text-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Recompute Accuracy
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-slate-400">Loading…</p>
+      ) : rows.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-sm text-slate-400 mb-3">No models tracked yet. Click "Seed Models" to populate known models.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="pb-2 pr-3 font-medium text-slate-500">Model</th>
+                <th className="pb-2 pr-3 font-medium text-slate-500">Provider</th>
+                <th className="pb-2 pr-3 font-medium text-slate-500 text-right">Claims</th>
+                <th className="pb-2 pr-3 font-medium text-slate-500 text-right">Accuracy</th>
+                <th className="pb-2 pr-3 font-medium text-slate-500">High-Stakes</th>
+                <th className="pb-2 font-medium text-slate-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((m) => (
+                <tr key={m.modelId} className="border-b border-border/50 hover:bg-slate-50">
+                  <td className="py-2 pr-3">
+                    <div className="font-medium text-slate-800 truncate max-w-[180px]" title={m.modelId}>
+                      {m.modelName}
+                    </div>
+                    <div className="text-slate-400 font-mono truncate max-w-[180px]" title={m.modelId}>
+                      {m.modelId}
+                    </div>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Badge variant="outline" className="text-xs">
+                      {m.provider}
+                    </Badge>
+                    {m.isFree && (
+                      <Badge variant="secondary" className="text-xs ml-1 bg-amber-50 text-amber-700 border-amber-200">
+                        free
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-right font-mono">{m.totalClaims}</td>
+                  <td className="py-2 pr-3 text-right">
+                    {m.accuracyRate !== null && m.accuracyRate !== undefined ? (
+                      <span className={m.accuracyRate >= 0.7 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                        {(m.accuracyRate * 100).toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3">
+                    {m.isBanned ? (
+                      <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                        <Ban className="w-3 h-3 mr-1" />
+                        Banned
+                      </Badge>
+                    ) : m.allowedForHighStakes ? (
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Allowed
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        Restricted
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="py-2">
+                    {m.isBanned ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-6 px-2"
+                        onClick={() => unban.mutate({ modelId: m.modelId })}
+                        disabled={unban.isPending}
+                      >
+                        Unban
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-6 px-2 text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => setBanModelId(m.modelId)}
+                      >
+                        <Ban className="w-3 h-3 mr-1" />
+                        Ban
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Ban confirmation dialog */}
+      {banModelId && (
+        <div className="mt-4 border border-red-200 rounded-lg p-4 bg-red-50">
+          <p className="text-sm font-semibold text-red-700 mb-2">Ban model from high-stakes verdicts</p>
+          <p className="text-xs text-red-600 mb-3">Model: <code className="font-mono">{banModelId}</code></p>
+          <textarea
+            className="w-full text-xs border border-red-200 rounded p-2 mb-3 bg-white resize-none"
+            rows={2}
+            placeholder="Reason for ban (required, min 10 characters)"
+            value={banReason}
+            onChange={(e) => setBanReason(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="bg-red-600 hover:bg-red-700 text-xs"
+              disabled={ban.isPending || banReason.trim().length < 10}
+              onClick={() => ban.mutate({ modelId: banModelId, reason: banReason })}
+            >
+              Confirm Ban
+            </Button>
+            <Button size="sm" variant="outline" className="text-xs" onClick={() => { setBanModelId(null); setBanReason(""); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -443,6 +669,8 @@ function AdminContent() {
         </div>
       )}
 
+      {/* LLM Provider Quality Panel */}
+      <LlmProviderQualityPanel />
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

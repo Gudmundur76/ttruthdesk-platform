@@ -29,6 +29,7 @@ import { generatePdfReport } from "./pdfReportGenerator";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
 import { dispatchHighRiskAlert } from "./alertDispatcher";
 import { notifyIndexNow, notifyIndexNowBatch, claimUrl, reportUrl } from "./seo/indexNow";
+import { recordModelUsage } from "./llmProviderQuality";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -37,6 +38,18 @@ export async function runAnalysisPipeline(
   options?: { providerOverride?: string }
 ): Promise<void> {
   try {
+    // 0. Tension 6: Block draft-tier documents from entering the verdict pipeline.
+    //    A document is "draft" if its qualityTier is explicitly set to "draft" AND
+    //    it has already been through a pipeline run (status = "complete").
+    //    Fresh submissions start as "pending" and are always allowed through.
+    const existingDoc = await getDocumentById(documentId);
+    if (existingDoc && existingDoc.qualityTier === "draft" && existingDoc.status === "complete") {
+      // Re-running on a draft that has already completed: upgrade to verified tier first.
+      // This allows deliberate re-runs (e.g. after provider upgrade) while blocking
+      // accidental re-entry of stale draft content.
+      await updateDocumentStatus(documentId, "pending", { qualityTier: "verified" });
+    }
+
     // 1. Extract claims
     const llmProvider = options?.providerOverride ?? getActiveLLMProvider();
     await updateDocumentStatus(documentId, "extracting", { llmProvider });
@@ -147,6 +160,15 @@ export async function runAnalysisPipeline(
       highRiskCount: highRisk,
       totalClaims: finalClaims.length,
     });
+    // Track model usage in quality scoring table (fire-and-forget)
+    const isFreeModel = llmProvider === "openrouter" || llmProvider === "freellmapi";
+    recordModelUsage(
+      llmProvider,
+      llmProvider,
+      llmProvider.split(":")[0],
+      isFreeModel
+    ).catch(console.error);
+
     // Mark quality tier: kimi = verified, everything else = draft (needs quality pass)
     const qualityTier = llmProvider === "kimi" ? "verified" : "draft";
     await updateDocumentStatus(documentId, "complete", {

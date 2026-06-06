@@ -11,6 +11,7 @@
  *  2. NCBI Taxonomy — species validation for probiotic strain claims
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import { synthesiseEvidence, applySynthesis } from "./evidenceSynthesizer";
 
 // ─── NCBI Taxonomy lookup for probiotic strains ───────────────────────────────
 
@@ -128,7 +129,7 @@ For each claim, extract: the intervention (probiotic/prebiotic/protein type), th
     // Microbiome research is inherently more variable — cap confidence
     score = Math.min(score, 0.82);
 
-    return {
+    const baseResult: EvidenceResult = {
       found: rctResult.count > 0 || strainResult.found,
       sourceId: rctResult.pmids[0] ? `PMID:${rctResult.pmids[0]}` : null,
       sourceUrl: rctResult.pmids[0]
@@ -145,6 +146,23 @@ For each claim, extract: the intervention (probiotic/prebiotic/protein type), th
       confidenceScore: score,
       confidenceFlags: flags,
     };
+    // ── LLM evidence synthesis layer ──────────────────────────────────────────
+    const synthesis = await synthesiseEvidence({
+      claimText: claim.claimText,
+      extractedValue: claim.extractedValue,
+      domainKey: "gut_microbiome",
+      domainName: "Gut Microbiome & Protein",
+      rctCount: rctResult.count,
+      topPmids: rctResult.pmids,
+      pubchemCid: null,
+      compoundName: null,
+      uniprotFound: false,
+      uniprotFlags: [],
+      fdaAdverseCount: undefined,
+      baseScore: score,
+      baseFlags: flags,
+    });
+    return applySynthesis(baseResult, synthesis);
   },
 };
 

@@ -32,6 +32,7 @@ import {
   InsertPredictionModel,
   PredictionModel,
   webhookAlerts,
+  overrideAuditLog,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -322,19 +323,71 @@ export async function overrideClaimVerdict(
   claimId: number,
   reviewerId: number,
   overriddenVerdict: string,
-  reviewNotes: string
+  reviewNotes: string,
+  options?: {
+    justification?: string;
+    overrideCategory?: "domain_expertise" | "new_evidence" | "context_clarification" | "scope_adjustment" | "error_correction";
+    documentId?: number;
+  }
 ) {
   const db = await getDb();
   if (!db) return;
+
+  // Enforce minimum justification length to preserve epistemic chain integrity
+  const justification = (options?.justification ?? reviewNotes ?? "").trim();
+  if (justification.length < 20) {
+    throw new Error(
+      "Override requires a justification of at least 20 characters to preserve epistemic chain integrity."
+    );
+  }
+
+  // Fetch original verdict before overwriting
+  const [existing] = await db
+    .select({ verdict: claims.verdict, documentId: claims.documentId })
+    .from(claims)
+    .where(eq(claims.id, claimId))
+    .limit(1);
+
+  if (!existing) throw new Error(`Claim ${claimId} not found`);
+
+  const originalVerdict = existing.verdict as string | null;
+  const documentId = options?.documentId ?? existing.documentId;
+
+  // Update the claim with the overridden verdict
   await db
     .update(claims)
     .set({
       overriddenVerdict: overriddenVerdict as never,
       reviewedBy: reviewerId,
       reviewedAt: new Date(),
-      reviewNotes,
+      reviewNotes: justification,
     })
     .where(eq(claims.id, claimId));
+
+  // Write to override_audit_log (epistemic chain record)
+  if (originalVerdict && documentId) {
+    await db.insert(overrideAuditLog).values({
+      claimId,
+      documentId,
+      overriddenBy: reviewerId,
+      originalVerdict: originalVerdict as never,
+      newVerdict: overriddenVerdict as never,
+      justification,
+      overrideCategory: (options?.overrideCategory ?? "error_correction") as never,
+      wikiLogged: false,
+    });
+  }
+}
+
+/** Retrieve override audit log entries for a document */
+export async function getOverrideAuditLog(documentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(overrideAuditLog)
+    .where(eq(overrideAuditLog.documentId, documentId))
+    .orderBy(desc(overrideAuditLog.createdAt));
 }
 
 // ─── Audit Reports ────────────────────────────────────────────────────────────

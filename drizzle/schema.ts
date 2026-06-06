@@ -838,3 +838,140 @@ export const metaAgentChecks = mysqlTable("meta_agent_checks", {
 }));
 export type MetaAgentCheck = typeof metaAgentChecks.$inferSelect;
 export type InsertMetaAgentCheck = typeof metaAgentChecks.$inferInsert;
+
+// ─── Prediction Calibration (Platt Scaling) ───────────────────────────────────
+/**
+ * Stores learned Platt scaling parameters (w, b) for the prediction engine.
+ * Updated by the calibration job after each batch of validated predictions.
+ *
+ * Platt scaling: P_calibrated = sigmoid(w * raw_score + b)
+ * where w and b are fitted by logistic regression on (raw_score, actual_outcome) pairs.
+ */
+export const predictionCalibration = mysqlTable("prediction_calibration", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Which prediction model type these weights apply to */
+  modelType: mysqlEnum("modelType", [
+    "claim_trajectory",
+    "author_reliability",
+    "consensus_velocity",
+    "market_signal",
+    "citation_decay",
+  ]).notNull(),
+  /** Platt scaling slope (w) — learned from historical data */
+  plattW: float("plattW").notNull().default(1.0),
+  /** Platt scaling intercept (b) — learned from historical data */
+  plattB: float("plattB").notNull().default(0.0),
+  /** Feature weights learned from data [claimType, author, entity, method] */
+  featureWeights: json("featureWeights").notNull().$type<number[]>(),
+  /** Number of validated predictions used to fit these weights */
+  trainingSampleSize: int("trainingSampleSize").notNull().default(0),
+  /** Brier score on the training set (lower = better calibrated) */
+  brierScore: float("brierScore"),
+  /** Log-loss on the training set */
+  logLoss: float("logLoss"),
+  /** Whether this is the active calibration for this model type */
+  isActive: boolean("isActive").notNull().default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  modelTypeIdx: index("pc_model_type_idx").on(t.modelType),
+  activeIdx: index("pc_active_idx").on(t.isActive),
+}));
+export type PredictionCalibration = typeof predictionCalibration.$inferSelect;
+export type InsertPredictionCalibration = typeof predictionCalibration.$inferInsert;
+
+// ─── Override Audit Log ───────────────────────────────────────────────────────
+/**
+ * Every human override of an LLM verdict is recorded here.
+ * Enforces epistemic chain integrity: overrides require justification,
+ * are flagged in the verdict display, and are logged for calibration.
+ */
+export const overrideAuditLog = mysqlTable("override_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  claimId: int("claimId").notNull(),
+  documentId: int("documentId").notNull(),
+  /** User who performed the override */
+  overriddenBy: int("overriddenBy").notNull(),
+  /** Original LLM-generated verdict */
+  originalVerdict: mysqlEnum("originalVerdict", [
+    "Supported",
+    "Contradicted",
+    "Partially Supported",
+    "Ambiguous",
+    "Insufficient Evidence",
+    "Out of Scope",
+    "Needs Expert Review",
+  ]).notNull(),
+  /** New verdict set by the human */
+  newVerdict: mysqlEnum("newVerdict", [
+    "Supported",
+    "Contradicted",
+    "Partially Supported",
+    "Ambiguous",
+    "Insufficient Evidence",
+    "Out of Scope",
+    "Needs Expert Review",
+  ]).notNull(),
+  /** Required justification — must be ≥20 characters */
+  justification: text("justification").notNull(),
+  /** Epistemic category of the override */
+  overrideCategory: mysqlEnum("overrideCategory", [
+    "domain_expertise",      // human has domain knowledge LLM lacks
+    "new_evidence",          // new evidence not in LLM training data
+    "context_clarification", // LLM misunderstood context
+    "scope_adjustment",      // claim scope differs from LLM interpretation
+    "error_correction",      // LLM made a factual error
+  ]).notNull(),
+  /** Whether this override was logged to the wiki audit trail */
+  wikiLogged: boolean("wikiLogged").notNull().default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  claimIdIdx: index("oal_claim_id_idx").on(t.claimId),
+  documentIdIdx: index("oal_document_id_idx").on(t.documentId),
+  overriddenByIdx: index("oal_overridden_by_idx").on(t.overriddenBy),
+  createdAtIdx: index("oal_created_at_idx").on(t.createdAt),
+}));
+export type OverrideAuditLog = typeof overrideAuditLog.$inferSelect;
+export type InsertOverrideAuditLog = typeof overrideAuditLog.$inferInsert;
+
+// ─── LLM Provider Quality Scores ─────────────────────────────────────────────
+/**
+ * Tracks per-model accuracy and quality metrics.
+ * Used to ban free/low-quality models from high-stakes verdicts.
+ */
+export const llmProviderQuality = mysqlTable("llm_provider_quality", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Model identifier, e.g. "gpt-4o", "claude-3-5-sonnet", "mistral-7b-free" */
+  modelId: varchar("modelId", { length: 128 }).notNull().unique(),
+  /** Display name */
+  modelName: varchar("modelName", { length: 256 }).notNull(),
+  /** Provider: "openai" | "anthropic" | "openrouter" | "manus_builtin" */
+  provider: varchar("provider", { length: 64 }).notNull(),
+  /** Whether this is a free/community model */
+  isFree: boolean("isFree").notNull().default(false),
+  /** Allowed for high-stakes verdicts (Supported/Contradicted on peer-reviewed claims) */
+  allowedForHighStakes: boolean("allowedForHighStakes").notNull().default(true),
+  /** Total claims processed by this model */
+  totalClaims: int("totalClaims").notNull().default(0),
+  /** Claims where model verdict matched final validated verdict */
+  correctPredictions: int("correctPredictions").notNull().default(0),
+  /** Accuracy rate (correctPredictions / totalClaims) — updated by calibration job */
+  accuracyRate: float("accuracyRate"),
+  /** Average confidence score of claims processed by this model */
+  avgConfidence: float("avgConfidence"),
+  /** Brier score for this model's probability estimates */
+  brierScore: float("brierScore"),
+  /** Whether this model is currently banned from high-stakes use */
+  isBanned: boolean("isBanned").notNull().default(false),
+  /** Reason for ban (if isBanned = true) */
+  banReason: text("banReason"),
+  /** Timestamp of last quality score update */
+  lastUpdatedAt: timestamp("lastUpdatedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  modelIdIdx: uniqueIndex("lpq_model_id_idx").on(t.modelId),
+  providerIdx: index("lpq_provider_idx").on(t.provider),
+  bannedIdx: index("lpq_banned_idx").on(t.isBanned),
+  highStakesIdx: index("lpq_high_stakes_idx").on(t.allowedForHighStakes),
+}));
+export type LlmProviderQuality = typeof llmProviderQuality.$inferSelect;
+export type InsertLlmProviderQuality = typeof llmProviderQuality.$inferInsert;
