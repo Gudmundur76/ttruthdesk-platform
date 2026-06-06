@@ -11,6 +11,7 @@
  * Creatine is the most studied ergogenic aid — high RCT count expected.
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import { searchFdaAdverseEvents, interpretFdaSignals } from "../openfdaAdapter";
 
 // ─── PubChem CID map for common ergogenics ────────────────────────────────────
 
@@ -113,9 +114,12 @@ For each claim, extract: the compound, the claimed effect, the magnitude (if sta
       matchedCid = 586;
     }
 
-    const [pubchemResult, rctResult] = await Promise.all([
+    const isSafetyClaim = /safe|kidney|liver|adverse|harm|risk|side effect|creatinine/i.test(claim.claimText);
+
+    const [pubchemResult, rctResult, fdaResult] = await Promise.all([
       lookupErgogenicPubChem(matchedCid ?? 586),
       searchPubMedPerformance(matchedCompound, claim.claimText.slice(0, 80)),
+      searchFdaAdverseEvents(matchedCompound),
     ]);
 
     const flags: string[] = [];
@@ -144,6 +148,11 @@ For each claim, extract: the compound, the claimed effect, the magnitude (if sta
       score = Math.min(score + 0.03, 0.95);
       flags.push(`PubChem CID ${matchedCid} confirmed`);
     }
+
+    // Apply FDA safety signals
+    const fdaSignals = interpretFdaSignals(fdaResult, isSafetyClaim);
+    score = Math.min(Math.max(score + fdaSignals.confidenceDelta, 0.1), 0.95);
+    flags.push(...fdaSignals.flags);
 
     return {
       found: rctResult.count > 0 || pubchemResult.found,

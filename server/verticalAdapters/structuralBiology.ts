@@ -8,6 +8,7 @@
  */
 
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import { verifyProteinViaUniProt } from "../uniprotAdapter";
 
 const PDB_ID_RE = /\b([1-9][A-Z0-9]{3})\b/gi;
 
@@ -72,15 +73,31 @@ For each claim, extract the PDB ID if mentioned, the protein name, the method, a
     const pdbId = extractedId ?? matches[0]?.[1] ?? null;
 
     if (!pdbId) {
+      // No PDB ID — try UniProt as fallback for protein name verification
+      const proteinName = claim.extractedValue ?? claim.claimText.substring(0, 80);
+      const uniprotResult = await verifyProteinViaUniProt(proteinName);
+      if (uniprotResult.found) {
+        return {
+          found: true,
+          sourceId: uniprotResult.sourceId,
+          sourceUrl: uniprotResult.sourceUrl,
+          evidenceRaw: null,
+          confidenceScore: uniprotResult.confidenceScore,
+          confidenceFlags: [
+            "No PDB ID found — verified via UniProt instead",
+            ...uniprotResult.flags,
+          ],
+        };
+      }
       return {
         found: false,
         sourceId: null,
         sourceUrl: null,
         evidenceRaw: null,
-        confidenceScore: 0.45,
+        confidenceScore: 0.2,
         confidenceFlags: [
           "No PDB ID found in claim — cannot perform direct database lookup",
-          "Claim may reference structural data without citing a specific entry",
+          "Protein name not found in UniProt",
         ],
       };
     }

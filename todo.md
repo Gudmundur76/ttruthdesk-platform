@@ -609,3 +609,50 @@
 - [x] P1-34: Wrapped atob() in try/catch in Submit.tsx — falls back to server-side extraction on malformed base64
 - [x] P1-38: Fixed setTimeout leak in MagicLinkDialog — clearTimeout in useEffect cleanup
 - [x] P1-48: Audited all server endpoints — no stub endpoints found; all handlers return real responses or proper error codes
+
+## Phase 74 — Vertical Adapter Routing + Multi-Source Evidence
+
+### Fix 1: Wire analysisPipeline.ts to vertical adapter registry
+- [ ] In analysisPipeline.ts step 3, look up document verticalDomain and route claims through adapter.lookupEvidence() instead of always calling verdictForClaim()
+- [ ] Map EvidenceResult from adapter to VerdictResult shape for updateClaimVerdict
+- [ ] Fall back to pdbAdapter.verdictForClaim() if no adapter registered for the domain
+
+### Fix 2: Wire verifyClaimRoute.ts to use vertical parameter
+- [ ] In handleVerifyClaim, route to registry.get(vertical)?.lookupEvidence() instead of verdictForClaim()
+- [ ] Map EvidenceResult to response shape (verdict, rationale, evidenceUrl)
+- [ ] Fall back to verdictForClaim() for structural_biology or unknown vertical
+
+### Fix 3a: Add UniProt REST API
+- [ ] Add fetchUniProtEntry(proteinName) helper in server/uniprotAdapter.ts
+- [ ] Wire into structuralBiology adapter as secondary evidence source
+- [ ] Wire into proteinSupplement, collagenPeptides, plantBasedProtein adapters
+
+### Fix 3b: Add OpenFDA API
+- [ ] Add fetchOpenFdaAdverseEvents(compoundName) helper in server/openFdaAdapter.ts
+- [ ] Wire into proteinSupplement adapter
+- [ ] Wire into creatineErgogenics adapter
+
+### Fix 3c: Add Europe PMC systematic review lookup
+- [ ] Add fetchEuropePmcReviews(query) helper in server/europePmcAdapter.ts
+- [ ] Wire into sportsNutritionRct adapter as systematic review evidence
+- [ ] Wire into collagenPeptides adapter
+
+### Tests
+- [ ] Write server/verticalRouting.test.ts — test pipeline routing to correct adapter per domain
+- [ ] Write server/uniprotAdapter.test.ts — test UniProt fetch and fallback
+- [ ] Write server/openFdaAdapter.test.ts — test OpenFDA adverse event lookup
+- [ ] Write server/europePmcAdapter.test.ts — test Europe PMC review search
+- [ ] Update server/verifyClaimRoute.test.ts to cover vertical routing
+
+## Phase 74 — Vertical Adapter Routing + Multi-Source Evidence
+
+- [x] Fix 1: Wire analysisPipeline.ts to route claims through the vertical adapter registry (was hardcoded to PDB only for all verticals)
+- [x] Fix 2: Wire verifyClaimRoute.ts to use the vertical parameter and adapter registry (was ignoring vertical param)
+- [x] Fix 3a: Add UniProt REST API to structuralBiology, proteinSupplement, and collagenPeptides adapters
+- [x] Fix 3b: Add OpenFDA FAERS adverse event lookup to proteinSupplement and creatineErgogenics adapters
+- [x] Fix 3c: Replace PubMed-only systematic review search in sportsNutritionRct with Europe PMC full-text API
+- [x] Create server/uniprotAdapter.ts — UniProt REST API helper (searchUniProt, verifyProteinViaUniProt)
+- [x] Create server/openfdaAdapter.ts — OpenFDA FAERS helper (searchFdaAdverseEvents, interpretFdaSignals)
+- [x] Create server/europePmcAdapter.ts — Europe PMC helper (searchSystematicReviews, interpretSystematicReviewEvidence)
+- [x] Write server/phase74.test.ts — 18 tests covering all 3 new adapters and the registry routing
+- [x] TypeScript: 0 errors | ESLint: 0 warnings | Vitest: 677 tests passing (42 files)

@@ -16,11 +16,14 @@ import {
   updateClaimVerdict,
 } from "./db";
 import { extractClaims, getActiveLLMProvider } from "./claimExtractor";
-import { verdictForClaim } from "./pdbAdapter";
+import { verdictForClaim, type VerdictResult } from "./pdbAdapter";
+import { getVertical } from "./verticalAdapters/types";
+import type { EvidenceResult } from "./verticalAdapters/types";
 import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./reportGenerator";
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { compileDocumentToWiki } from "./wikiCompiler";
+import "./verticalAdapters"; // ensure all adapters are registered
 import { generatePdfReport } from "./pdfReportGenerator";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
 import { dispatchHighRiskAlert } from "./alertDispatcher";
@@ -52,23 +55,37 @@ export async function runAnalysisPipeline(
     }));
     await insertClaims(claimInserts as never);
     await updateDocumentStatus(documentId, "validating", { claimCount: extracted.length });
-    // 3. Validate each claim against PDB — parallel with concurrency cap of 8
+    // 3. Validate each claim — route through vertical adapter if available, else PDB
     const allClaims = await getClaimsByDocument(documentId);
+    const doc0 = await getDocumentById(documentId);
+    const verticalDomain: string = (doc0 as Record<string, unknown>)?.verticalDomain as string ?? "structural_biology";
+    const adapter = getVertical(verticalDomain);
     const CLAIM_CONCURRENCY = 8;
     for (let i = 0; i < allClaims.length; i += CLAIM_CONCURRENCY) {
       const batch = allClaims.slice(i, i + CLAIM_CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(async (claim) => {
-          const result = await verdictForClaim({
-            claimType: claim.claimType,
-            pdbId: claim.pdbId,
-            proteinName: claim.proteinName,
-            experimentalMethod: claim.experimentalMethod,
-            resolution: claim.resolution ?? undefined,
-            organism: claim.organism,
-            ligand: claim.ligand,
-            extractedValue: claim.extractedValue,
-          });
+          let result: VerdictResult;
+          if (adapter) {
+            // Route through the registered vertical adapter
+            const evidence: EvidenceResult = await adapter.lookupEvidence({
+              claimText: claim.claimText,
+              extractedValue: claim.extractedValue,
+            });
+            result = evidenceToVerdict(evidence, claim.claimText);
+          } else {
+            // Fall back to PDB for unknown domains
+            result = await verdictForClaim({
+              claimType: claim.claimType,
+              pdbId: claim.pdbId,
+              proteinName: claim.proteinName,
+              experimentalMethod: claim.experimentalMethod,
+              resolution: claim.resolution ?? undefined,
+              organism: claim.organism,
+              ligand: claim.ligand,
+              extractedValue: claim.extractedValue,
+            });
+          }
           await updateClaimVerdict(claim.id, {
             verdict: result.verdict,
             verdictRationale: result.rationale,
@@ -197,4 +214,41 @@ export async function runAnalysisPipeline(
       llmProvider: getActiveLLMProvider(),
     });
   }
+}
+
+/**
+ * Map an EvidenceResult from a vertical adapter to the VerdictResult shape
+ * expected by updateClaimVerdict.
+ */
+function evidenceToVerdict(evidence: EvidenceResult, claimText: string): VerdictResult {
+  if (!evidence.found) {
+    return {
+      verdict: "Insufficient Evidence",
+      rationale: evidence.confidenceFlags.length > 0
+        ? evidence.confidenceFlags.join("; ")
+        : `No evidence found for: "${claimText.substring(0, 120)}"`,
+      evidenceUrl: evidence.sourceUrl,
+      evidenceRaw: evidence.evidenceRaw as never,
+    };
+  }
+  // Map confidence score to verdict label
+  let verdict: VerdictResult["verdict"];
+  if (evidence.confidenceScore >= 0.85) {
+    verdict = "Supported";
+  } else if (evidence.confidenceScore >= 0.60) {
+    verdict = "Partially Supported";
+  } else if (evidence.confidenceScore >= 0.30) {
+    verdict = "Ambiguous";
+  } else {
+    verdict = "Needs Expert Review";
+  }
+  const flags = evidence.confidenceFlags.length > 0
+    ? ` Flags: ${evidence.confidenceFlags.join("; ")}`
+    : "";
+  return {
+    verdict,
+    rationale: `Source: ${evidence.sourceId ?? evidence.sourceUrl ?? "unknown"} (confidence ${(evidence.confidenceScore * 100).toFixed(0)}%).${flags}`,
+    evidenceUrl: evidence.sourceUrl,
+    evidenceRaw: evidence.evidenceRaw as never,
+  };
 }

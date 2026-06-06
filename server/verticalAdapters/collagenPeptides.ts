@@ -11,6 +11,7 @@
  *  2. PubMed — RCT evidence for skin, joint, and bone outcomes
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import { verifyProteinViaUniProt } from "../uniprotAdapter";
 
 // ─── Collagen-related PubChem CIDs ───────────────────────────────────────────
 
@@ -101,7 +102,10 @@ For each claim, extract: the collagen type, the outcome measure, the magnitude, 
       compound = "gelatin";
     }
 
-    const rctResult = await searchCollagenRCTs(outcome, compound);
+    const [rctResult, uniprotResult] = await Promise.all([
+      searchCollagenRCTs(outcome, compound),
+      verifyProteinViaUniProt(`collagen ${compound}`),
+    ]);
 
     const flags: string[] = [];
     let score = 0.35;
@@ -125,6 +129,12 @@ For each claim, extract: the collagen type, the outcome measure, the magnitude, 
     if (claimLower.includes("hydroxyproline")) {
       score = Math.min(score + 0.05, 0.90);
       flags.push("PubChem CID 5810 (hydroxyproline) confirmed");
+    }
+
+    // UniProt protein identity boost
+    if (uniprotResult.found) {
+      score = Math.min(score + 0.05, 0.90);
+      flags.push(...uniprotResult.flags);
     }
 
     return {

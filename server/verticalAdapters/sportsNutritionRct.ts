@@ -16,6 +16,7 @@
  * claims that lack RCT support even if they sound plausible.
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import { searchSystematicReviews as searchEuropePmc, interpretSystematicReviewEvidence } from "../europePmcAdapter";
 
 // ─── ClinicalTrials.gov lookup ────────────────────────────────────────────────
 
@@ -58,25 +59,7 @@ async function searchClinicalTrials(query: string): Promise<{ trials: ClinicalTr
   }
 }
 
-async function searchSystematicReviews(query: string): Promise<{ count: number; pmids: string[] }> {
-  try {
-    const encoded = encodeURIComponent(
-      `${query} AND (systematic review[pt] OR meta-analysis[pt]) AND sports nutrition[tiab]`
-    );
-    const res = await fetch(
-      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encoded}&retmax=5&retmode=json`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!res.ok) return { count: 0, pmids: [] };
-    const data = await res.json() as { esearchresult?: { idlist?: string[]; count?: string } };
-    return {
-      count: parseInt(data.esearchresult?.count ?? "0", 10),
-      pmids: data.esearchresult?.idlist ?? [],
-    };
-  } catch {
-    return { count: 0, pmids: [] };
-  }
-}
+// searchSystematicReviews is now provided by europePmcAdapter (higher quality, full-text)
 
 // ─── GRADE evidence inference ─────────────────────────────────────────────────
 
@@ -141,24 +124,15 @@ For each claim, extract: the intervention, the outcome, the study design, the sa
       .slice(0, 6)
       .join(" ");
 
-    const [trialResult, reviewResult] = await Promise.all([
+    const [trialResult, europePmcResult] = await Promise.all([
       searchClinicalTrials(searchQuery),
-      searchSystematicReviews(searchQuery),
+      searchEuropePmc(`${searchQuery} sports nutrition`),
     ]);
 
     const flags: string[] = [];
     flags.push(`GRADE evidence level: ${grade}`);
 
     let baseScore = 0.40;
-
-    // Systematic review evidence
-    if (reviewResult.count >= 3) {
-      baseScore = 0.88;
-      flags.push(`${reviewResult.count} systematic reviews/meta-analyses found`);
-    } else if (reviewResult.count >= 1) {
-      baseScore = 0.72;
-      flags.push(`${reviewResult.count} systematic review found`);
-    }
 
     // Clinical trial registration
     if (trialResult.total >= 5) {
@@ -172,23 +146,29 @@ For each claim, extract: the intervention, the outcome, the study design, the sa
       }
     }
 
+    // Europe PMC systematic review evidence (higher quality than PubMed abstract search)
+    const srEvidence = interpretSystematicReviewEvidence(europePmcResult, baseScore);
+    baseScore = srEvidence.confidenceScore;
+    flags.push(...srEvidence.flags);
+
     // Apply GRADE multiplier
     const finalScore = Math.min(baseScore * multiplier, 0.95);
 
-    const primarySource = reviewResult.pmids[0]
-      ? { id: `PMID:${reviewResult.pmids[0]}`, url: `https://pubmed.ncbi.nlm.nih.gov/${reviewResult.pmids[0]}/` }
+    const primarySource = europePmcResult.topPmids[0]
+      ? { id: `PMID:${europePmcResult.topPmids[0]}`, url: `https://pubmed.ncbi.nlm.nih.gov/${europePmcResult.topPmids[0]}/` }
       : trialResult.trials[0]
       ? { id: `NCT:${trialResult.trials[0].nctId}`, url: `https://clinicaltrials.gov/study/${trialResult.trials[0].nctId}` }
       : null;
 
     return {
-      found: reviewResult.count > 0 || trialResult.total > 0,
+      found: europePmcResult.found || trialResult.total > 0,
       sourceId: primarySource?.id ?? null,
-      sourceUrl: primarySource?.url ?? null,
+      sourceUrl: primarySource?.url ?? europePmcResult.sourceUrl ?? null,
       evidenceRaw: {
         gradeLevel: grade,
-        systematicReviewCount: reviewResult.count,
-        topPmids: reviewResult.pmids,
+        systematicReviewCount: europePmcResult.systematicReviewCount,
+        metaAnalysisCount: europePmcResult.metaAnalysisCount,
+        topPmids: europePmcResult.topPmids,
         clinicalTrialCount: trialResult.total,
         topTrials: trialResult.trials.slice(0, 3).map((t) => ({
           nctId: t.nctId,

@@ -15,6 +15,8 @@
  *  - No clinical evidence → 0.20–0.40
  */
 import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import { verifyProteinViaUniProt } from "../uniprotAdapter";
+import { searchFdaAdverseEvents, interpretFdaSignals } from "../openfdaAdapter";
 
 // ─── PubChem lookup ───────────────────────────────────────────────────────────
 
@@ -124,14 +126,19 @@ For each claim, extract: the protein type, the claimed effect, the population, a
       }
     }
 
-    // Run PubChem and PubMed lookups in parallel
-    const [pubchemResult, rctResult] = await Promise.all([
+    // Detect safety claims
+    const isSafetyClaim = /safe|kidney|liver|adverse|harm|risk|side effect/i.test(claim.claimText);
+
+    // Run PubChem, PubMed, UniProt, and OpenFDA lookups in parallel
+    const [pubchemResult, rctResult, uniprotResult, fdaResult] = await Promise.all([
       compoundName ? lookupPubChem(compoundName) : Promise.resolve(null),
       searchPubMedRCTs(
         compoundName
           ? `${compoundName} ${claim.extractedValue ?? ""}`
           : claim.claimText.slice(0, 100)
       ),
+      compoundName ? verifyProteinViaUniProt(compoundName) : Promise.resolve(null),
+      compoundName ? searchFdaAdverseEvents(compoundName) : Promise.resolve(null),
     ]);
 
     const flags: string[] = [];
@@ -156,6 +163,19 @@ For each claim, extract: the protein type, the claimed effect, the population, a
     if (pubchemResult?.CID) {
       score = Math.min(score + 0.05, 0.95);
       flags.push(`PubChem CID ${pubchemResult.CID} confirmed for ${compoundName}`);
+    }
+
+    // Boost if UniProt protein identity confirmed
+    if (uniprotResult?.found) {
+      score = Math.min(score + 0.05, 0.95);
+      flags.push(...uniprotResult.flags);
+    }
+
+    // Apply FDA safety signals
+    if (fdaResult) {
+      const fdaSignals = interpretFdaSignals(fdaResult, isSafetyClaim);
+      score = Math.min(Math.max(score + fdaSignals.confidenceDelta, 0.1), 0.95);
+      flags.push(...fdaSignals.flags);
     }
 
     const primaryPmid = rctResult.pmids[0] ?? null;

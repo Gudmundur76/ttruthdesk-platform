@@ -37,8 +37,39 @@
 
 import type { Request, Response, Express } from "express";
 import { extractClaims } from "./claimExtractor";
-import { verdictForClaim } from "./pdbAdapter";
+import { verdictForClaim, type VerdictResult } from "./pdbAdapter";
 import { computeSignalDensity } from "./discoveryLoopJob";
+import { getVertical } from "./verticalAdapters/types";
+import type { EvidenceResult } from "./verticalAdapters/types";
+import "./verticalAdapters"; // ensure all adapters are registered
+
+// ─── EvidenceResult → VerdictResult mapper ────────────────────────────────────
+function evidenceToVerdict(evidence: EvidenceResult, claimText: string): VerdictResult {
+  if (!evidence.found) {
+    return {
+      verdict: "Insufficient Evidence",
+      rationale: evidence.confidenceFlags.length > 0
+        ? evidence.confidenceFlags.join("; ")
+        : `No evidence found for: "${claimText.substring(0, 120)}"`,
+      evidenceUrl: evidence.sourceUrl,
+      evidenceRaw: evidence.evidenceRaw as never,
+    };
+  }
+  let verdict: VerdictResult["verdict"];
+  if (evidence.confidenceScore >= 0.85) verdict = "Supported";
+  else if (evidence.confidenceScore >= 0.60) verdict = "Partially Supported";
+  else if (evidence.confidenceScore >= 0.30) verdict = "Ambiguous";
+  else verdict = "Needs Expert Review";
+  const flags = evidence.confidenceFlags.length > 0
+    ? ` Flags: ${evidence.confidenceFlags.join("; ")}`
+    : "";
+  return {
+    verdict,
+    rationale: `Source: ${evidence.sourceId ?? evidence.sourceUrl ?? "unknown"} (confidence ${(evidence.confidenceScore * 100).toFixed(0)}%).${flags}`,
+    evidenceUrl: evidence.sourceUrl,
+    evidenceRaw: evidence.evidenceRaw as never,
+  };
+}
 
 // ─── In-memory rate limiter ───────────────────────────────────────────────────
 
@@ -153,16 +184,27 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     // Use the first extracted claim for the verdict (most prominent claim)
     const primaryClaim = extracted[0];
 
-    const verdict = await verdictForClaim({
-      claimType: primaryClaim.claimType,
-      pdbId: primaryClaim.pdbId ?? null,
-      proteinName: primaryClaim.proteinName ?? null,
-      experimentalMethod: primaryClaim.experimentalMethod ?? null,
-      resolution: primaryClaim.resolution ?? null,
-      organism: primaryClaim.organism ?? null,
-      ligand: primaryClaim.ligand ?? null,
-      extractedValue: primaryClaim.extractedValue ?? null,
-    });
+    // Route through vertical adapter if registered, else fall back to PDB
+    const adapter = getVertical(vertical as string);
+    let verdict: VerdictResult;
+    if (adapter) {
+      const evidence: EvidenceResult = await adapter.lookupEvidence({
+        claimText: primaryClaim.claimText,
+        extractedValue: primaryClaim.extractedValue ?? null,
+      });
+      verdict = evidenceToVerdict(evidence, primaryClaim.claimText);
+    } else {
+      verdict = await verdictForClaim({
+        claimType: primaryClaim.claimType,
+        pdbId: primaryClaim.pdbId ?? null,
+        proteinName: primaryClaim.proteinName ?? null,
+        experimentalMethod: primaryClaim.experimentalMethod ?? null,
+        resolution: primaryClaim.resolution ?? null,
+        organism: primaryClaim.organism ?? null,
+        ligand: primaryClaim.ligand ?? null,
+        extractedValue: primaryClaim.extractedValue ?? null,
+      });
+    }
 
     res.json({
       ok: true,
