@@ -697,3 +697,8 @@
 - [x] /.well-known/oauth-protected-resource (RFC 9728)
 - [x] Updated Link header to include agent-skills, oauth-protected-resource, api-catalog rels
 - [x] TypeScript: 0 errors | Vitest: 698 tests passing
+
+## Phase 77 Follow-Up (full production code, no stubs)
+- [x] Compute real SHA-256 digests for SKILL.md content and update agent skills index
+- [x] Generate real RSA-2048 key pair, publish /.well-known/jwks.json with real public key JWK (kid: b5e30ba415a3dcd7)
+- [x] Register weekly wiki-engine-lint heartbeat cron schedule (task_uid: XfobFAegPui3QapN7k49tq, Sundays 02:00 UTC)

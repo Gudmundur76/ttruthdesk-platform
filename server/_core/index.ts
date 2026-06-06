@@ -648,14 +648,14 @@ async function startServer() {
           type: "skill-md",
           description: "Verify a scientific claim against authoritative databases (PDB, PubChem, PubMed, UniProt). Returns verdict, confidence score, and evidence source.",
           url: `${SITE_ORIGIN}/.well-known/agent-skills/verify-claim/SKILL.md`,
-          digest: "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          digest: "sha256:f37933cedd4ea319092b67e48dba7531e24426a74d9a0e19af10a433da821741",
         },
         {
           name: "claims-registry",
           type: "skill-md",
           description: "Access the full machine-readable registry of all verified scientific claims across all research verticals.",
           url: `${SITE_ORIGIN}/.well-known/agent-skills/claims-registry/SKILL.md`,
-          digest: "sha256:b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+          digest: "sha256:9ba0b8d3389e3868a79f3372aa2c8b7c2668a1b5b73e2a87abd93ac4e13c58d4",
         },
       ],
     });
@@ -710,6 +710,26 @@ async function startServer() {
       "None required. Public endpoint.",
     ].join("\n");
     res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(skillMd);
+  });
+
+  // ── JWKS (JSON Web Key Set) — real RSA-2048 public key for JWT verification ──────────
+  // Key generated at project init; private key stored as JWKS_PRIVATE_KEY secret.
+  // To rotate: generate new key pair, update JWKS_PRIVATE_KEY secret, update n/e/kid below.
+  const JWKS_PUBLIC_KEY: { kty: string; n: string; e: string; kid: string; use: string; alg: string } = {
+    kty: "RSA",
+    n: "uvaz4eOP7jq_-BLjdSA2so8UejKWuUfIS5QxZ-6jF06zuKTdmKZHDvv0JG-z6ksLPIQAiT2OAWfMjl-Xj0Hps2872U6FadUSSOoNoeNWo_logW0MzSdUOL5dSSUOmNhxS8MlYXrg_MzZusXSCA6Y4Fy6aQWCXPhKNgddmJVx4hPb81c-brtuz2SJPGKjC-C_gQBlteSAtuIPOz0l1eT6_zP6UaWqKybcxb92Umctvkm44yuj5dLHsSsIEIkIKjE5pSmHvLKe1z-KYTnFIXPbTXKn0IhuuC5y-Xzi155xNrEThDb4sxwOf2wQtlHg0GuhGmFRYQsfSJA0RnsIeXeqtQ",
+    e: "AQAB",
+    kid: "b5e30ba415a3dcd7",
+    use: "sig",
+    alg: "RS256",
+  };
+
+  app.get("/.well-known/jwks.json", (_req, res) => {
+    res.set({
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=86400",
+      "Access-Control-Allow-Origin": "*",
+    }).json({ keys: [JWKS_PUBLIC_KEY] });
   });
 
   const OPENAPI_SPEC = {
