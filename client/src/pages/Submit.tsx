@@ -10,6 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { PreflightModal } from "@/components/PreflightModal";
 
 export default function Submit() {
   const { isAuthenticated, loading } = useAuth();
@@ -64,8 +65,11 @@ export default function Submit() {
     (e: React.FormEvent) => {
       e.preventDefault();
       if (!pmFetched) return;
-      submitPubmed.mutate({ title: pmFetched.title, text: pmFetched.text });
+      openPreflight(pmFetched.text, () => {
+        submitPubmed.mutate({ title: pmFetched.title, text: pmFetched.text });
+      });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [pmFetched, submitPubmed]
   );
 
@@ -103,32 +107,49 @@ export default function Submit() {
     reader.readAsDataURL(file);
   };
 
+  // ── FrictionEngine preflight state ─────────────────────────────────────────
+  const [preflightOpen, setPreflightOpen] = useState(false);
+  // Pending payload to submit after preflight confirmation
+  const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null);
+  const [preflightText, setPreflightText] = useState("");
+
+  const openPreflight = (textToScan: string, onConfirm: () => void) => {
+    setPreflightText(textToScan);
+    setPendingSubmit(() => onConfirm);
+    setPreflightOpen(true);
+  };
+
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !text.trim()) return;
-    submitText.mutate({ title: title.trim(), text: text.trim() });
+    openPreflight(text.trim(), () => {
+      submitText.mutate({ title: title.trim(), text: text.trim() });
+    });
   };
 
   const handleFileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !fileBase64) return;
-    setUploading(true);
-    try {
-      const { key, url } = await uploadDoc.mutateAsync({
-        fileName,
-        contentType: "application/octet-stream",
-        base64Content: fileBase64,
-      });
-      await submitFile.mutateAsync({
-        title: title.trim(),
-        fileName,
-        storageKey: key,
-        storageUrl: url,
-        rawText: fileText || `[Uploaded file: ${fileName}]`,
-      });
-    } finally {
-      setUploading(false);
-    }
+    const textToScan = fileText || `[Uploaded file: ${fileName}]`;
+    openPreflight(textToScan, async () => {
+      setUploading(true);
+      try {
+        const { key, url } = await uploadDoc.mutateAsync({
+          fileName,
+          contentType: "application/octet-stream",
+          base64Content: fileBase64,
+        });
+        await submitFile.mutateAsync({
+          title: title.trim(),
+          fileName,
+          storageKey: key,
+          storageUrl: url,
+          rawText: textToScan,
+        });
+      } finally {
+        setUploading(false);
+      }
+    });
   };
 
   if (loading) return null;
@@ -368,6 +389,21 @@ export default function Submit() {
           </ol>
         </div>
       </div>
+
+      {/* FrictionEngine Pre-Submission Interrogation Modal */}
+      <PreflightModal
+        open={preflightOpen}
+        text={preflightText}
+        onClose={() => {
+          setPreflightOpen(false);
+          setPendingSubmit(null);
+        }}
+        onProceed={() => {
+          setPreflightOpen(false);
+          if (pendingSubmit) pendingSubmit();
+          setPendingSubmit(null);
+        }}
+      />
     </div>
   );
 }
