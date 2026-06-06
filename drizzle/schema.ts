@@ -803,3 +803,38 @@ export const wikiLog = mysqlTable("wiki_log", {
 }));
 export type WikiLogEntry = typeof wikiLog.$inferSelect;
 export type InsertWikiLogEntry = typeof wikiLog.$inferInsert;
+
+// ─── Meta-Agent Checks ───────────────────────────────────────────────────────
+// Persistent log of every check the codeGuardianAgent (swarm Agent 7) runs.
+// Each row is one invariant evaluation — not a script output, but a typed record.
+export const metaAgentChecks = mysqlTable("meta_agent_checks", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Which agent produced this check (always 'codeGuardianAgent' for now) */
+  agentName: varchar("agentName", { length: 128 }).notNull().default("codeGuardianAgent"),
+  /** Layer + check type: e.g. 'schemaDrift', 'stubOverdue', 'stuckDocuments', 'orphanedClaims' */
+  checkType: varchar("checkType", { length: 128 }).notNull(),
+  /** Structured finding — shape depends on checkType */
+  finding: json("finding").$type<Record<string, unknown>>().notNull(),
+  /** What the agent did: 'ok' | 'alerted' | 'queuedFix' | 'autoResolved' | 'escalated' */
+  actionTaken: mysqlEnum("actionTaken", ["ok", "alerted", "queuedFix", "autoResolved", "escalated"])
+    .notNull()
+    .default("ok"),
+  /** Severity of the finding: 'info' | 'warning' | 'critical' */
+  severity: mysqlEnum("severity", ["info", "warning", "critical"]).notNull().default("info"),
+  /** Agent's self-reported confidence in this finding (0.0–1.0) */
+  confidence: float("confidence").notNull().default(1.0),
+  /** Set when a human has reviewed this decision */
+  humanReviewedAt: timestamp("humanReviewedAt"),
+  /** true = human agreed, false = human overrode, null = not yet reviewed */
+  humanOverride: boolean("humanOverride"),
+  /** ISO timestamp when the check was recorded */
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  checkTypeIdx: index("mac_check_type_idx").on(t.checkType),
+  severityIdx: index("mac_severity_idx").on(t.severity),
+  actionIdx: index("mac_action_idx").on(t.actionTaken),
+  createdAtIdx: index("mac_created_at_idx").on(t.createdAt),
+  reviewIdx: index("mac_review_idx").on(t.humanReviewedAt),
+}));
+export type MetaAgentCheck = typeof metaAgentChecks.$inferSelect;
+export type InsertMetaAgentCheck = typeof metaAgentChecks.$inferInsert;

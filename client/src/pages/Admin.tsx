@@ -16,7 +16,188 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Copy, CheckCircle2, RotateCcw, ShieldAlert, KeyRound } from "lucide-react";
+import { Copy, CheckCircle2, RotateCcw, ShieldAlert, KeyRound, Activity, AlertTriangle, CheckCircle, XCircle, Clock, Cpu } from "lucide-react";
+
+// ─── Meta-Agent Panel ─────────────────────────────────────────────────────────
+
+type MetaReport = {
+  healthScore: number;
+  healthGrade: string;
+  criticalCount: number;
+  warningCount: number;
+  durationMs: number;
+  startedAt: string;
+  completedAt: string;
+  drift: Record<string, { status: string; summary: string }>;
+  stubs: {
+    total: number;
+    overdue: number;
+    byPriority: Record<string, number>;
+    overdueEscalations: Array<{
+      id: string;
+      file: string;
+      line: number;
+      priority: string;
+      daysOverdue: number;
+      escalationReason: string;
+      suggestedAction: string;
+    }>;
+  };
+  pipeline: {
+    overallStatus: string;
+    failCount: number;
+    warnCount: number;
+    invariants: Array<{
+      name: string;
+      status: string;
+      threshold: string;
+      actual: string;
+      severity: string;
+    }>;
+  };
+};
+
+function gradeColor(grade: string) {
+  if (grade === "A") return "text-emerald-600";
+  if (grade === "B") return "text-blue-600";
+  if (grade === "C") return "text-amber-600";
+  if (grade === "D") return "text-orange-600";
+  return "text-red-600";
+}
+
+function statusIcon(status: string) {
+  if (status === "pass" || status === "info" || status === "ok") return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+  if (status === "warn" || status === "warning") return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+  return <XCircle className="w-4 h-4 text-red-500" />;
+}
+
+function MetaAgentPanel() {
+  const [report, setReport] = useState<MetaReport | null>(null);
+  const run = trpc.admin.metaAgentStatus.useMutation({
+    onSuccess: (data) => {
+      setReport(data as MetaReport);
+      toast.success(`Meta-agent complete — Health: ${data.healthScore}/100 (${data.healthGrade})`);
+    },
+    onError: (err) => toast.error(`Meta-agent failed: ${err.message}`),
+  });
+
+  return (
+    <div className="bg-slate-50 rounded-xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Cpu className="w-5 h-5 text-violet-600" />
+          <h2 className="font-semibold text-slate-900">Code Guardian (Meta-Agent)</h2>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => run.mutate()}
+          disabled={run.isPending}
+          className="gap-1.5"
+        >
+          <Activity className="w-3.5 h-3.5" />
+          {run.isPending ? "Running…" : "Run Now"}
+        </Button>
+      </div>
+      <p className="text-xs text-slate-500">
+        Runs all four meta-agent layers: structural drift, stub ledger, pipeline invariants, and alert routing.
+        Fires automatically as Agent 7 on every swarm tick.
+      </p>
+
+      {report && (
+        <div className="space-y-4">
+          {/* Health Score */}
+          <div className="flex items-center gap-4 p-3 bg-white rounded-lg border border-border">
+            <div className="text-center">
+              <div className={`text-3xl font-bold ${gradeColor(report.healthGrade)}`}>{report.healthScore}</div>
+              <div className="text-xs text-slate-500">/ 100</div>
+            </div>
+            <div className="text-center">
+              <div className={`text-2xl font-bold ${gradeColor(report.healthGrade)}`}>{report.healthGrade}</div>
+              <div className="text-xs text-slate-500">Grade</div>
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex gap-3 text-xs">
+                <span className="text-red-600 font-medium">{report.criticalCount} critical</span>
+                <span className="text-amber-600 font-medium">{report.warningCount} warnings</span>
+                <span className="text-slate-500">{report.stubs.overdue} overdue stubs</span>
+              </div>
+              <div className="flex items-center gap-1 text-xs text-slate-400">
+                <Clock className="w-3 h-3" />
+                {report.durationMs}ms • {new Date(report.completedAt).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          {/* Code Drift */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Code Drift</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(report.drift).map(([key, val]) => (
+                <div key={key} className="flex items-start gap-2 p-2 bg-white rounded border border-border">
+                  {statusIcon(val.status)}
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-700 capitalize">{key}</div>
+                    <div className="text-xs text-slate-500 truncate" title={val.summary}>{val.summary.slice(0, 60)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pipeline Invariants */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">
+              Pipeline Invariants
+              <Badge variant="outline" className={`ml-2 text-xs ${report.pipeline.overallStatus === "pass" ? "border-emerald-300 text-emerald-700" : report.pipeline.overallStatus === "warn" ? "border-amber-300 text-amber-700" : "border-red-300 text-red-700"}`}>
+                {report.pipeline.overallStatus.toUpperCase()}
+              </Badge>
+            </h3>
+            <div className="space-y-1.5">
+              {report.pipeline.invariants.map((inv) => (
+                <div key={inv.name} className="flex items-center gap-2 p-2 bg-white rounded border border-border">
+                  {statusIcon(inv.status)}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-slate-700">{inv.name}</span>
+                    <span className="text-xs text-slate-400 ml-2">{inv.actual}</span>
+                  </div>
+                  <span className="text-xs text-slate-400 hidden sm:block">{inv.threshold}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stub Ledger */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Stub Ledger</h3>
+            <div className="flex gap-4 text-xs mb-2">
+              <span className="text-slate-600">{report.stubs.total} total</span>
+              <span className={report.stubs.overdue > 0 ? "text-red-600 font-medium" : "text-slate-500"}>{report.stubs.overdue} overdue</span>
+              {Object.entries(report.stubs.byPriority).map(([p, count]) => (
+                <span key={p} className="text-slate-500">{p}: {count}</span>
+              ))}
+            </div>
+            {report.stubs.overdueEscalations.length > 0 && (
+              <div className="space-y-1.5">
+                {report.stubs.overdueEscalations.slice(0, 5).map((esc) => (
+                  <div key={esc.id} className="flex items-start gap-2 p-2 bg-amber-50 rounded border border-amber-200">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-amber-800">[{esc.priority}] {esc.file}:{esc.line}</div>
+                      <div className="text-xs text-amber-700">{esc.escalationReason}</div>
+                      <div className="text-xs text-amber-600 italic">{esc.suggestedAction}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ─── Copy button ──────────────────────────────────────────────────────────────
 

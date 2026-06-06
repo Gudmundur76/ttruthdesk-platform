@@ -181,6 +181,29 @@ async function runMonitoringScannerAgent(): Promise<{ agent: string; status: str
   }
 }
 
+// ─── Agent: Code Guardian (Meta-Agent) ──────────────────────────────────────
+
+/**
+ * Runs the meta-agent (codeGuardianAgent) which checks for structural drift,
+ * stub debt, pipeline invariants, and routes alerts accordingly.
+ */
+async function runCodeGuardianAgent(): Promise<{ agent: string; status: string; detail: string }> {
+  try {
+    const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
+    const report = await runCodeGuardian();
+    return {
+      agent: "code_guardian",
+      status: report.criticalCount > 0 ? "warn" : "ok",
+      detail:
+        `Health: ${report.healthScore}/100 (${report.healthGrade}) — ` +
+        `${report.criticalCount} critical, ${report.warningCount} warnings, ` +
+        `${report.stubLedger.overdue} overdue stubs`,
+    };
+  } catch (err) {
+    return { agent: "code_guardian", status: "error", detail: String(err) };
+  }
+}
+
 // ─── Swarm Coordinator ────────────────────────────────────────────────────────
 
 export interface SwarmTickResult {
@@ -204,15 +227,16 @@ export async function runSwarmTick(): Promise<SwarmTickResult> {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
 
-  console.log("[Swarm] Starting tick — fanning out 5 agents in parallel");
+  console.log("[Swarm] Starting tick — fanning out 6 agents in parallel (Agent 7: codeGuardianAgent)");
 
-  const [harvester, wikiCompiler, qualityAuditor, backfillPredictor, monitoringScanner] =
+  const [harvester, wikiCompiler, qualityAuditor, backfillPredictor, monitoringScanner, codeGuardian] =
     await Promise.allSettled([
       runHarvesterAgent(),
       runWikiCompilerAgent(),
       runQualityAuditorAgent(),
       runBackfillPredictorAgent(),
       runMonitoringScannerAgent(),
+      runCodeGuardianAgent(),
     ]);
 
   const agentResults = [
@@ -221,6 +245,7 @@ export async function runSwarmTick(): Promise<SwarmTickResult> {
     qualityAuditor,
     backfillPredictor,
     monitoringScanner,
+    codeGuardian,
   ].map((r) =>
     r.status === "fulfilled"
       ? r.value

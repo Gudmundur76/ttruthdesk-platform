@@ -710,3 +710,17 @@
 - [x] Add apiKeys.verifyBearer tRPC procedure for external JWT verification
 - [x] Write server/jwtSigner.test.ts — 12 tests: sign, verify, tamper, expire, audience, round-trip
 - [x] TypeScript: 0 errors | Vitest: 714 tests passing (45 files)
+
+## Phase 78 — Meta-Agent (codeGuardianAgent, Swarm Agent 7)
+- [x] Add meta_agent_checks table to drizzle/schema.ts
+- [x] Generate migration 0021 and apply via webdev_execute_sql
+- [x] Build server/metaAgent/codeDriftService.ts
+- [x] Build server/metaAgent/stubLedger.ts
+- [x] Build server/metaAgent/pipelineGuardian.ts
+- [x] Build server/metaAgent/alertRouter.ts
+- [x] Build server/metaAgent/codeGuardian.ts
+- [x] Wire runCodeGuardian() into swarmTickJob.ts as Agent 7
+- [x] Add tRPC admin.metaAgentStatus procedure
+- [x] Add meta-agent panel to /admin/coordinator
+- [x] Write server/metaAgent.test.ts (47 tests, all passing)
+- [x] TypeScript: 0 errors | Vitest: 761 tests passing (46 files) | Save checkpoint

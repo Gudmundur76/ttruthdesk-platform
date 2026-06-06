@@ -987,6 +987,63 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
             ? `Key rotated. Re-deploy to activate new kid ${newPublicJwk.kid}. Old tokens remain valid until expiry.`
             : `Key generated but could not auto-persist. Copy the new kid (${newPublicJwk.kid}) and update JWKS_PRIVATE_KEY manually in Settings → Secrets.`,
         };
+            }),
+
+    /**
+     * Run the meta-agent (codeGuardianAgent) on demand and return the full report.
+     * Includes code health score, drift findings, stub ledger, and pipeline invariants.
+     */
+    metaAgentStatus: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
+        }
+        const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
+        const report = await runCodeGuardian();
+        return {
+          healthScore: report.healthScore,
+          healthGrade: report.healthGrade,
+          criticalCount: report.criticalCount,
+          warningCount: report.warningCount,
+          durationMs: report.durationMs,
+          startedAt: report.startedAt,
+          completedAt: report.completedAt,
+          drift: {
+            schema: { status: report.codeDrift.schemaDrift.severity, summary: report.codeDrift.schemaDrift.summary },
+            api: { status: report.codeDrift.apiDrift.severity, summary: report.codeDrift.apiDrift.summary },
+            test: { status: report.codeDrift.testDrift.severity, summary: report.codeDrift.testDrift.summary },
+            dependency: { status: report.codeDrift.dependencyDrift.severity, summary: report.codeDrift.dependencyDrift.summary },
+            config: { status: report.codeDrift.configDrift.severity, summary: report.codeDrift.configDrift.summary },
+            discipline: { status: report.codeDrift.disciplineDrift.severity, summary: report.codeDrift.disciplineDrift.summary },
+          },
+          stubs: {
+            total: report.stubLedger.total,
+            overdue: report.stubLedger.overdue,
+            byPriority: report.stubLedger.byPriority,
+            overdueEscalations: report.overdueEscalations.map((e) => ({
+              id: e.stub.id,
+              file: e.stub.file,
+              line: e.stub.line,
+              priority: e.stub.priority,
+              daysOverdue: e.stub.daysOverdue,
+              escalationReason: e.escalationReason,
+              suggestedAction: e.suggestedAction,
+            })),
+          },
+          pipeline: {
+            overallStatus: report.pipelineGuardian.overallStatus,
+            failCount: report.pipelineGuardian.failCount,
+            warnCount: report.pipelineGuardian.warnCount,
+            invariants: report.pipelineGuardian.invariants.map((inv) => ({
+              name: inv.name,
+              status: inv.status,
+              threshold: inv.threshold,
+              actual: inv.actual,
+              severity: inv.severity,
+            })),
+          },
+        };
       }),
 
     /**
