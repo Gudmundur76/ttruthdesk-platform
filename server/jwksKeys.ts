@@ -112,3 +112,15 @@ export const ACTIVE_JWK_PUBLIC_KEY: JwkPublicKey = envKey ?? builtInKey;
 
 /** The active private key PEM for signing JWTs. */
 export const ACTIVE_PRIVATE_KEY_PEM: string = (envKey && envPem) ? envPem : BUILT_IN_PRIVATE_KEY_PEM;
+
+/**
+ * Derive a JWK public key from a PEM-encoded public key (spki format).
+ * Used by the key-rotation procedure to return the new public JWK to the caller.
+ */
+export function derivePublicJwk(publicKeyPem: string): JwkPublicKey {
+  const pubKeyObj = crypto.createPublicKey({ key: publicKeyPem, format: "pem" });
+  const jwk = pubKeyObj.export({ format: "jwk" }) as { kty: string; n: string; e: string };
+  const der = pubKeyObj.export({ type: "spki", format: "der" }) as Buffer;
+  const kid = crypto.createHash("sha256").update(der).digest("hex").slice(0, 16);
+  return { kty: jwk.kty, n: jwk.n, e: jwk.e, kid, use: "sig", alg: "RS256" };
+}

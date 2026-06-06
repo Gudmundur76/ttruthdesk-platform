@@ -5,7 +5,8 @@
  *
  * Features:
  *   - List all active API keys with prefix, scopes, last used, created dates
- *   - Create a new key (label + scope selection) — raw key shown ONCE
+ *   - Create a new key (label + scope selection) — raw key AND RS256 bearer
+ *     token shown ONCE in a tabbed copy-once dialog
  *   - Revoke a key with confirmation dialog
  */
 
@@ -41,12 +42,23 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Key, Plus, Trash2, Copy, Eye, EyeOff, ShieldCheck, AlertTriangle } from "lucide-react";
+import {
+  Key,
+  Plus,
+  Trash2,
+  Copy,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,19 +76,83 @@ const SCOPE_COLORS: Record<Scope, string> = {
   admin: "bg-red-500/10 text-red-400 border-red-400/30",
 };
 
+// ─── Copy-once token row ──────────────────────────────────────────────────────
+
+function CopyOnceRow({
+  value,
+  label,
+  mono = true,
+}: {
+  value: string;
+  label: string;
+  mono?: boolean;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      toast.success(`${label} copied!`);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const masked =
+    value.length > 16
+      ? `${value.slice(0, 8)}${"•".repeat(Math.min(value.length - 16, 48))}${value.slice(-8)}`
+      : "•".repeat(value.length);
+
+  return (
+    <div className="rounded-lg bg-slate-800 border border-slate-600 p-3">
+      <div className="flex items-center gap-2">
+        <code
+          className={`flex-1 text-sm break-all ${mono ? "font-mono" : ""} text-emerald-400`}
+          style={{ wordBreak: "break-all" }}
+        >
+          {revealed ? value : masked}
+        </code>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => setRevealed((v) => !v)}
+            className="text-slate-400 hover:text-white transition-colors p-1"
+            title={revealed ? "Hide" : "Reveal"}
+          >
+            {revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={handleCopy}
+            className="text-slate-400 hover:text-white transition-colors p-1"
+            title={`Copy ${label}`}
+          >
+            {copied ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Create Key Dialog ────────────────────────────────────────────────────────
+
+interface CreatedResult {
+  rawKey: string;
+  bearerToken: string;
+}
 
 function CreateKeyDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [scopes, setScopes] = useState<Set<Scope>>(new Set<Scope>(["read"]));
-  const [newKey, setNewKey] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  const [created, setCreated] = useState<CreatedResult | null>(null);
 
   const createMutation = trpc.apiKeys.create.useMutation({
     onSuccess: (result) => {
-      setNewKey(result.rawKey);
-      setRevealed(false);
+      setCreated({ rawKey: result.rawKey, bearerToken: result.bearerToken });
       onCreated();
     },
     onError: (err) => {
@@ -100,14 +176,7 @@ function CreateKeyDialog({ onCreated }: { onCreated: () => void }) {
     setOpen(false);
     setLabel("");
     setScopes(new Set<Scope>(["read"]));
-    setNewKey(null);
-    setRevealed(false);
-  };
-
-  const copyKey = () => {
-    if (newKey) {
-      navigator.clipboard.writeText(newKey).then(() => toast.success("API key copied!"));
-    }
+    setCreated(null);
   };
 
   const toggleScope = (scope: Scope) => {
@@ -130,8 +199,8 @@ function CreateKeyDialog({ onCreated }: { onCreated: () => void }) {
           New API Key
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md">
-        {!newKey ? (
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-lg">
+        {!created ? (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -139,7 +208,7 @@ function CreateKeyDialog({ onCreated }: { onCreated: () => void }) {
                 Create API Key
               </DialogTitle>
               <DialogDescription className="text-slate-400">
-                The raw key will be shown once. Store it securely.
+                Both the raw key and a signed RS256 bearer token will be shown once. Store them securely.
               </DialogDescription>
             </DialogHeader>
 
@@ -202,43 +271,76 @@ function CreateKeyDialog({ onCreated }: { onCreated: () => void }) {
                 Key Created Successfully
               </DialogTitle>
               <DialogDescription className="text-slate-400">
-                Copy your API key now. It will not be shown again.
+                Copy both credentials now — they will not be shown again after closing.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-2">
-              <div className="rounded-lg bg-slate-800 border border-slate-600 p-3">
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-sm font-mono text-emerald-400 break-all">
-                    {revealed ? newKey : `${newKey.slice(0, 8)}${"•".repeat(56)}`}
-                  </code>
-                  <button
-                    onClick={() => setRevealed((v) => !v)}
-                    className="text-slate-400 hover:text-white transition-colors flex-shrink-0"
-                    title={revealed ? "Hide key" : "Reveal key"}
+            <div className="space-y-4 py-2">
+              <Tabs defaultValue="raw" className="w-full">
+                <TabsList className="bg-slate-800 border border-slate-700 w-full">
+                  <TabsTrigger
+                    value="raw"
+                    className="flex-1 data-[state=active]:bg-slate-700 data-[state=active]:text-white text-slate-400"
                   >
-                    {revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+                    Raw Key
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="bearer"
+                    className="flex-1 data-[state=active]:bg-slate-700 data-[state=active]:text-white text-slate-400"
+                  >
+                    Bearer Token (JWT)
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="raw" className="mt-3 space-y-2">
+                  <p className="text-xs text-slate-400">
+                    Use as <code className="text-violet-400">Authorization: Bearer &lt;raw-key&gt;</code> for
+                    direct API calls. Validated server-side against the database.
+                  </p>
+                  <CopyOnceRow value={created.rawKey} label="Raw API key" />
+                </TabsContent>
+
+                <TabsContent value="bearer" className="mt-3 space-y-2">
+                  <p className="text-xs text-slate-400">
+                    RS256-signed JWT. Verifiable offline via{" "}
+                    <a
+                      href="/.well-known/jwks.json"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-violet-400 hover:underline"
+                    >
+                      /.well-known/jwks.json
+                    </a>{" "}
+                    without calling this server. Expires in 365 days.
+                  </p>
+                  <CopyOnceRow value={created.bearerToken} label="Bearer token" />
+                  <p className="text-xs text-slate-500">
+                    Decode at{" "}
+                    <a
+                      href="https://jwt.io"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-violet-400 hover:underline"
+                    >
+                      jwt.io
+                    </a>{" "}
+                    to inspect claims (sub, scope, label, iss, exp).
+                  </p>
+                </TabsContent>
+              </Tabs>
 
               <div className="flex items-start gap-2 text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg p-3">
                 <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>Store this key securely. You will not be able to view it again after closing this dialog.</span>
+                <span>
+                  Both credentials are shown only once. Store them in a secrets manager (e.g. GitHub Actions
+                  Secrets, Vault) before closing.
+                </span>
               </div>
             </div>
 
             <DialogFooter>
-              <Button
-                onClick={copyKey}
-                variant="outline"
-                className="gap-2 border-slate-600 text-slate-300 hover:text-white"
-              >
-                <Copy className="w-4 h-4" />
-                Copy Key
-              </Button>
               <Button onClick={handleClose} className="bg-violet-600 hover:bg-violet-500">
-                Done
+                Done — I've saved my credentials
               </Button>
             </DialogFooter>
           </>
@@ -290,13 +392,21 @@ export default function ApiKeys() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-slate-300">Using API Keys</CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-400 space-y-1">
-            <p>Pass your key in the <code className="text-violet-400">Authorization</code> header:</p>
+          <CardContent className="text-xs text-slate-400 space-y-2">
+            <p>
+              Pass either the raw key or the RS256 bearer token in the{" "}
+              <code className="text-violet-400">Authorization</code> header:
+            </p>
             <pre className="bg-slate-950 rounded p-2 text-slate-300 overflow-x-auto">
-              {`Authorization: Bearer <your-api-key>`}
+              {`Authorization: Bearer <raw-key-or-jwt>`}
             </pre>
-            <p className="pt-1">
-              Base URL: <code className="text-violet-400">/api/v2/</code> — see{" "}
+            <p>
+              Bearer tokens are verifiable offline via{" "}
+              <a href="/.well-known/jwks.json" className="text-violet-400 hover:underline" target="_blank">
+                /.well-known/jwks.json
+              </a>
+              . Base URL:{" "}
+              <code className="text-violet-400">/api/v2/</code> — see{" "}
               <a href="/llms.txt" className="text-violet-400 hover:underline" target="_blank">
                 /llms.txt
               </a>{" "}

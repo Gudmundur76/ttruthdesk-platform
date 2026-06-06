@@ -2,13 +2,15 @@
  * Magic Link Authentication
  *
  * Security properties:
- * - Tokens are 32 cryptographically random bytes (URL-safe base64)
- * - Only the SHA-256 hash is stored in the DB — raw token never persisted
+ * - Tokens are short-lived RS256 JWTs (exp: 15 minutes, purpose: magic-link)
+ * - Self-describing: email, purpose, jti (unique ID) encoded in payload
+ * - Only the SHA-256 hash of the JWT is stored in the DB — raw token never persisted
  * - Single-use: usedAt is set on first consumption; subsequent uses are rejected
- * - 15-minute expiry
+ * - 15-minute expiry enforced both by JWT exp claim and DB expiresAt column
  * - Rate-limited: max 3 requests per email per 10 minutes
  * - Email enumeration protection: always returns the same response
  * - Token is delivered only via email, never in a redirect or log
+ * - Verifiable offline via /.well-known/jwks.json (RS256, kid matches active key)
  */
 
 import crypto from "crypto";
@@ -18,16 +20,48 @@ import * as db from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { ENV } from "./_core/env";
+import { signJwt, verifyJwt } from "./jwtSigner";
 
 const MAGIC_LINK_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 const RATE_LIMIT_MAX = 3; // max requests per window
 
-/** Generate a cryptographically random URL-safe token and its SHA-256 hash */
-function generateToken(): { raw: string; hash: string } {
-  const raw = crypto.randomBytes(32).toString("base64url");
+/**
+ * Generate a short-lived RS256 JWT for magic link authentication.
+ *
+ * Payload:
+ *   sub     — the email address
+ *   purpose — "magic-link" (distinguishes from API tokens)
+ *   jti     — 16 random bytes (URL-safe base64) for uniqueness
+ *
+ * Returns:
+ *   raw  — the signed JWT string (sent in the email link)
+ *   hash — SHA-256 hex of the JWT (stored in DB for single-use enforcement)
+ */
+async function generateToken(email: string): Promise<{ raw: string; hash: string }> {
+  const jti = crypto.randomBytes(16).toString("base64url");
+  const raw = await signJwt(
+    { sub: email, purpose: "magic-link", jti },
+    { expiresIn: "15m", audience: "ttruthdesk.claims/magic-link" }
+  );
   const hash = crypto.createHash("sha256").update(raw).digest("hex");
   return { raw, hash };
+}
+
+/**
+ * Verify a magic link JWT.
+ * Checks RS256 signature, expiry, audience, and purpose claim.
+ * Returns the email (sub) on success, throws on failure.
+ */
+export async function verifyMagicLinkToken(raw: string): Promise<{ email: string; jti: string }> {
+  const payload = await verifyJwt(raw, { audience: "ttruthdesk.claims/magic-link" });
+  if (payload.purpose !== "magic-link") {
+    throw new Error("Invalid token purpose");
+  }
+  if (typeof payload.sub !== "string" || !payload.sub.includes("@")) {
+    throw new Error("Invalid token subject");
+  }
+  return { email: payload.sub, jti: String(payload.jti ?? "") };
 }
 
 /** Send the magic link email via the Manus built-in LLM/notification API */
@@ -40,7 +74,6 @@ async function sendMagicLinkEmail(email: string, magicUrl: string): Promise<void
     return;
   }
 
-  // Use the Manus built-in email endpoint
   const endpoint = `${forgeApiUrl.replace(/\/$/, "")}/webdevtoken.v1.WebDevService/SendEmail`;
 
   try {
@@ -103,20 +136,22 @@ export function registerMagicLinkRoutes(app: Express) {
         return res.json({ ok: true });
       }
 
-      const { raw, hash } = generateToken();
+      // Generate RS256 JWT magic link token
+      const { raw, hash } = await generateToken(email);
       const expiresAt = new Date(Date.now() + MAGIC_LINK_EXPIRY_MS);
 
+      // Store only the hash — raw JWT is never persisted
       await db.createMagicLinkToken({ email, tokenHash: hash, expiresAt });
 
-      // Build the magic link URL
+      // Build the magic link URL — token is the full JWT
       const origin = req.headers["x-forwarded-host"]
         ? `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"]}`
         : `${req.protocol}://${req.get("host")}`;
-      const magicUrl = `${origin}/api/auth/magic-link/verify?token=${raw}`;
+      const magicUrl = `${origin}/api/auth/magic-link/verify?token=${encodeURIComponent(raw)}`;
 
       await sendMagicLinkEmail(email, magicUrl);
 
-      console.log(`[MagicLink] Link generated for ${email} (expires ${expiresAt.toISOString()})`);
+      console.log(`[MagicLink] RS256 JWT link generated for ${email} (expires ${expiresAt.toISOString()})`);
     } catch (err) {
       console.error("[MagicLink] Request error:", err);
       // Still return 200 — don't leak errors to the client
@@ -126,33 +161,44 @@ export function registerMagicLinkRoutes(app: Express) {
   });
 
   // ── GET /api/auth/magic-link/verify ────────────────────────────────────────
-  // Query: ?token=<raw_token>
+  // Query: ?token=<jwt>
   // On success: creates session cookie and redirects to /
   app.get("/api/auth/magic-link/verify", async (req: Request, res: Response) => {
-    const rawToken = (req.query.token ?? "").toString().trim();
+    const rawToken = decodeURIComponent((req.query.token ?? "").toString().trim());
 
     if (!rawToken) {
       return res.redirect("/?auth_error=missing_token");
     }
 
     try {
+      // Step 1: Verify RS256 signature, expiry, audience, and purpose
+      let email: string;
+      try {
+        const verified = await verifyMagicLinkToken(rawToken);
+        email = verified.email;
+      } catch {
+        return res.redirect("/?auth_error=invalid_or_expired");
+      }
+
+      // Step 2: Look up the DB record by hash (single-use enforcement)
       const hash = crypto.createHash("sha256").update(rawToken).digest("hex");
       const record = await db.findValidMagicLinkToken(hash);
 
       if (!record) {
+        // Token may have been used already or was never issued by this server
         return res.redirect("/?auth_error=invalid_or_expired");
       }
 
-      // Mark token as used immediately (single-use)
+      // Step 3: Mark token as used immediately (single-use)
       await db.markMagicLinkTokenUsed(record.id);
 
-      // Upsert the email user
-      const emailUser = await db.upsertEmailUser(record.email);
+      // Step 4: Upsert the email user
+      const emailUser = await db.upsertEmailUser(email);
       if (!emailUser) {
         return res.redirect("/?auth_error=user_create_failed");
       }
 
-      // Create a JWT session using the email as the openId (prefixed to avoid collisions)
+      // Step 5: Create a session cookie
       const openId = `email_${emailUser.id}`;
       const sessionToken = await sdk.createSessionToken(openId, {
         name: emailUser.email,
@@ -162,7 +208,7 @@ export function registerMagicLinkRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      console.log(`[MagicLink] User ${emailUser.email} signed in via magic link`);
+      console.log(`[MagicLink] User ${emailUser.email} signed in via RS256 JWT magic link`);
       return res.redirect("/");
     } catch (err) {
       console.error("[MagicLink] Verify error:", err);

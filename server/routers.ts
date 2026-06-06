@@ -911,6 +911,85 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
       }),
 
     /**
+     * Rotate the JWKS RSA key pair.
+     * Generates a new RSA-2048 key pair, persists the private key via the Manus Forge
+     * secrets API (JWKS_PRIVATE_KEY), appends the old kid to the wiki audit log,
+     * and returns the new public JWK. Re-deploy is required to activate the new key.
+     */
+    rotateJwksKey: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
+        }
+
+        const crypto = await import("crypto");
+        const { ACTIVE_JWK_PUBLIC_KEY, derivePublicJwk } = await import("./jwksKeys");
+        const { appendLog } = await import("./wikiEngine");
+
+        // Capture the old kid before rotation for audit trail
+        const oldKid = ACTIVE_JWK_PUBLIC_KEY.kid as string;
+
+        // Generate a new RSA-2048 key pair
+        const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
+          modulusLength: 2048,
+          publicKeyEncoding: { type: "spki", format: "pem" },
+          privateKeyEncoding: { type: "pkcs8", format: "pem" },
+        });
+
+        // Derive the new public JWK to return to the caller
+        const newPublicJwk = derivePublicJwk(publicKey as string);
+
+        // Persist the new private key via the Manus Forge secrets API
+        const forgeApiUrl = ENV.forgeApiUrl;
+        const forgeApiKey = ENV.forgeApiKey;
+        const appId = process.env.VITE_APP_ID ?? "";
+        let secretPersisted = false;
+        if (forgeApiUrl && forgeApiKey && appId) {
+          try {
+            const endpoint = `${forgeApiUrl.replace(/\/$/, "")}/webdevtoken.v1.WebDevService/SetSecret`;
+            const resp = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                accept: "application/json",
+                authorization: `Bearer ${forgeApiKey}`,
+                "content-type": "application/json",
+                "connect-protocol-version": "1",
+              },
+              body: JSON.stringify({
+                app_id: appId,
+                key: "JWKS_PRIVATE_KEY",
+                value: (privateKey as string).replace(/\n/g, "\\n"),
+              }),
+            });
+            secretPersisted = resp.ok;
+          } catch (err) {
+            console.warn("[RotateJwks] Could not persist new key via Forge API:", err);
+          }
+        }
+
+        // Append rotation event to the wiki audit log
+        await appendLog(
+          "update",
+          `RSA key rotated by admin ${ctx.user.name ?? ctx.user.openId}. Old kid: ${oldKid}. New kid: ${newPublicJwk.kid}. Re-deploy to activate. All bearer tokens issued with the old key remain valid until their exp claim.`,
+          0,
+          "jwks-key-rotation"
+        );
+
+        console.log(`[RotateJwks] Key rotated by ${ctx.user.openId}. Old kid: ${oldKid} \u2192 New kid: ${newPublicJwk.kid}. Secret persisted: ${secretPersisted}`);
+
+        return {
+          oldKid,
+          newKid: newPublicJwk.kid as string,
+          newPublicJwk,
+          secretPersisted,
+          message: secretPersisted
+            ? `Key rotated. Re-deploy to activate new kid ${newPublicJwk.kid}. Old tokens remain valid until expiry.`
+            : `Key generated but could not auto-persist. Copy the new kid (${newPublicJwk.kid}) and update JWKS_PRIVATE_KEY manually in Settings → Secrets.`,
+        };
+      }),
+
+    /**
      * Full analytics dashboard data — overview, verdicts, verticals, trend, quality, top entities, activity.
      * All data fetched in parallel for fast response.
      */
