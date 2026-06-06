@@ -738,3 +738,16 @@
 - [x] FE2-3: Upgrade PreflightModal.tsx to surface friction_question, inferred_intent, validation_criteria, and recommended_action with appropriate UX (block submit when ask_user, hard-block when reject)
 - [x] FE2-4: Add Answer Audit loop (Output Critic) to graph.query — after LLM returns, run Output Audit Prompt; if audit fails, retry with reframed prompt (max 1 retry)
 - [x] FE2-5: Add Answer Audit loop to analysisPipeline verdict assignment — audit each verdict against deeper intent before persisting
+
+## Frontier Engine (Layer 3)
+- [x] FE3-1: Schema — knowledge_gaps and frontier_log tables + migration
+- [x] FE3-2: server/frontier/gapMapper.ts — structural, evidence, contradiction, temporal gap detection
+- [x] FE3-3: server/frontier/gapRanker.ts — priority scoring (contradictionSeverity × entityCentrality × recency × communityDemand)
+- [x] FE3-4: server/frontier/evidencePursuer.ts — queue evidence pursuit for top gaps
+- [x] FE3-5: server/frontier/hypothesisGenerator.ts — homology and contradiction pattern hypothesis generation
+- [x] FE3-6: server/frontier/uncertaintyTracker.ts — gap lifecycle, stale detection, metrics
+- [x] FE3-7: server/frontier/frontierEngine.ts — orchestrator (5-stage pipeline)
+- [x] FE3-8: Wire Frontier into analysisPipeline — gap detection trigger on Insufficient Evidence verdicts
+- [x] FE3-9: tRPC frontier router — run, metrics, listGaps, gapTimeline, topGaps, recentLog
+- [x] FE3-10: /admin/frontier dashboard page — metrics, gaps table, activity log, manual run trigger
+- [x] FE3-11: Admin page link card to Frontier Engine dashboard

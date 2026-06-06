@@ -671,6 +671,23 @@ function AdminContent() {
 
       {/* LLM Provider Quality Panel */}
       <LlmProviderQualityPanel />
+
+      {/* Frontier Engine */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Frontier Engine</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Layer 3 of the three-layer architecture. Detects knowledge gaps, ranks them by priority,
+          pursues evidence autonomously, and generates testable hypotheses — all without writing
+          to the knowledge graph directly.
+        </p>
+        <a
+          href="/admin/frontier"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Frontier Dashboard
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

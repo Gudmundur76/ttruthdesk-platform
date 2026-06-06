@@ -2505,6 +2505,89 @@ Respond in this exact structure:
       }),
   }),
 
+  // ─── Frontier Engine ───────────────────────────────────────────────────────────────────────────────────────
+  frontier: router({
+    /** Run the full Frontier Engine pipeline (admin only) */
+    run: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { runFrontierEngine } = await import("./frontier/frontierEngine");
+      return runFrontierEngine();
+    }),
+
+    /** Get Frontier Engine metrics */
+    metrics: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getFrontierMetrics } = await import("./frontier/frontierEngine");
+      return getFrontierMetrics();
+    }),
+
+    /** List all knowledge gaps (paginated) */
+    listGaps: protectedProcedure
+      .input(
+        z.object({
+          status: z
+            .enum(["open", "pursued", "narrowing", "closed_verified", "closed_resolved", "stale", "all"])
+            .default("all"),
+          limit: z.number().int().min(1).max(100).default(20),
+          offset: z.number().int().min(0).default(0),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const { knowledgeGaps } = await import("../drizzle/schema");
+        const { eq, sql } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return { gaps: [], total: 0 };
+        const statusFilter = input.status === "all" ? undefined : eq(knowledgeGaps.status, input.status);
+        const [gaps, countResult] = await Promise.all([
+          db
+            .select()
+            .from(knowledgeGaps)
+            .where(statusFilter)
+            .orderBy(sql`priorityScore DESC`)
+            .limit(input.limit)
+            .offset(input.offset),
+          db.select({ cnt: sql<number>`COUNT(*)` }).from(knowledgeGaps).where(statusFilter),
+        ]);
+        return { gaps, total: countResult[0]?.cnt ?? 0 };
+      }),
+
+    /** Get full timeline for a single gap */
+    gapTimeline: protectedProcedure
+      .input(z.object({ gapId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getGapTimeline } = await import("./frontier/frontierEngine");
+        return getGapTimeline(input.gapId);
+      }),
+
+    /** Get top N highest-priority open gaps */
+    topGaps: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getTopGaps } = await import("./frontier/frontierEngine");
+        return getTopGaps(input.limit);
+      }),
+
+    /** Get recent frontier_log entries */
+    recentLog: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const { frontierLog } = await import("../drizzle/schema");
+        const db = await getDb();
+        if (!db) return [];
+        return db
+          .select()
+          .from(frontierLog)
+          .orderBy(frontierLog.createdAt)
+          .limit(input.limit);
+      }),
+  }),
+
 });
 
 export type AppRouter = typeof appRouter;

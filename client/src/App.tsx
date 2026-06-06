@@ -37,6 +37,7 @@ import ClaimProvenance from "@/pages/ClaimProvenance";
 import ExportData from "@/pages/ExportData";
 import CooccurrenceGraph from "@/pages/CooccurrenceGraph";
 import ApiKeys from "@/pages/ApiKeys";
+import Frontier from "@/pages/Frontier";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -78,6 +79,7 @@ function Router() {
       <Route path="/timeline" component={EvidenceTimeline} />
       <Route path="/leaderboard" component={VerticalLeaderboard} />
       <Route path="/admin/webhooks" component={WebhookDeliveryLog} />
+      <Route path="/admin/frontier" component={Frontier} />
       <Route path="/compare" component={AuditComparison} />
       <Route path="/trust" component={Trust} />
       <Route path="/docs/api" component={ApiDocs} />

@@ -131,6 +131,21 @@ export async function runAnalysisPipeline(
             pdbEvidenceRaw: result.evidenceRaw ?? undefined,
             pdbEvidenceCheckedAt: new Date(),
           });
+          // ── Frontier Engine: Gap Detection Trigger ──────────────────────
+          // When a claim returns "Insufficient Evidence", the Frontier Engine
+          // detects the gap and queues evidence pursuit.
+          // This is the loopback: Insufficient Evidence → Frontier → Discovery
+          // → new papers → same pipeline → Supported/Contradicted.
+          // The Frontier Engine NEVER writes verdicts or graph edges.
+          if (auditedVerdict === "Insufficient Evidence") {
+            import("./frontier/frontierEngine")
+              .then(({ detectEvidenceGapForDocument }) =>
+                detectEvidenceGapForDocument(documentId, 1, claim.claimText)
+              )
+              .catch((e) =>
+                console.warn("[FrontierEngine] Gap detection trigger failed (non-fatal):", e)
+              );
+          }
         })
       );
       // Log any individual claim failures without aborting the whole document

@@ -975,3 +975,130 @@ export const llmProviderQuality = mysqlTable("llm_provider_quality", {
 }));
 export type LlmProviderQuality = typeof llmProviderQuality.$inferSelect;
 export type InsertLlmProviderQuality = typeof llmProviderQuality.$inferInsert;
+
+// ─── Frontier Engine ──────────────────────────────────────────────────────────
+/**
+ * knowledge_gaps — Frontier Engine's gap registry.
+ *
+ * The Frontier Engine has WRITE access to this table only.
+ * It NEVER writes to graph_entities, graphRelations, claims, or verdicts.
+ * Every claim it generates goes through the full Truth Desk pipeline.
+ */
+export const knowledgeGaps = mysqlTable("knowledge_gaps", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Optional: entity A involved in the gap (e.g. a protein) */
+  entityAId: int("entityAId"),
+  /** Optional: entity B involved in the gap (e.g. a ligand or method) */
+  entityBId: int("entityBId"),
+  /**
+   * Gap type:
+   *   structural      — entity has no relations in the graph
+   *   evidence        — claims exist but no source could verify them
+   *   contradiction   — multiple contradicts edges between related entities
+   *   temporal        — claims verified with old data; newer data unavailable
+   *   hypothesis      — Frontier-generated hypothesis awaiting verification
+   */
+  gapType: mysqlEnum("gapType", [
+    "structural",
+    "evidence",
+    "contradiction",
+    "temporal",
+    "hypothesis",
+  ]).notNull(),
+  /**
+   * Priority score: contradictionSeverity × entityCentrality × recencyOfConflict × communityDemand
+   * Higher = more urgent to close.
+   */
+  priorityScore: float("priorityScore").notNull().default(0),
+  /** Human-readable description of the gap */
+  description: text("description").notNull(),
+  /** Source that detected this gap: "frontier_scan" | "pipeline_trigger" | "manual" */
+  detectionSource: varchar("detectionSource", { length: 64 }).notNull().default("frontier_scan"),
+  /**
+   * Gap lifecycle status:
+   *   open            — detected, not yet pursued
+   *   pursued         — evidence pursuit queued or in progress
+   *   narrowing       — partial evidence found, gap partially closed
+   *   closed_verified — closed by new verified evidence (Supported/Contradicted)
+   *   closed_resolved — closed by contradiction resolution
+   *   stale           — no progress after extended pursuit; deprioritized
+   */
+  status: mysqlEnum("status", [
+    "open",
+    "pursued",
+    "narrowing",
+    "closed_verified",
+    "closed_resolved",
+    "stale",
+  ]).notNull().default("open"),
+  /** Number of evidence pursuit attempts made */
+  evidenceAttempts: int("evidenceAttempts").notNull().default(0),
+  /** Number of claims that contributed to detecting this gap */
+  contributingClaimCount: int("contributingClaimCount").notNull().default(0),
+  /** ID of the coord_queue item that was created to pursue this gap */
+  pursuitQueueId: int("pursuitQueueId"),
+  /** ID of the claim/evidence that closed this gap (if closed) */
+  closingEvidenceId: int("closingEvidenceId"),
+  /** Estimated time to closure based on swarm throughput */
+  projectedClosureAt: timestamp("projectedClosureAt"),
+  /** When evidence pursuit was last attempted */
+  lastPursuedAt: timestamp("lastPursuedAt"),
+  openedAt: timestamp("openedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+}, (t) => ({
+  gapTypeIdx: index("kg_gap_type_idx").on(t.gapType),
+  statusIdx: index("kg_status_idx").on(t.status),
+  priorityIdx: index("kg_priority_idx").on(t.priorityScore),
+  entityAIdx: index("kg_entity_a_idx").on(t.entityAId),
+  entityBIdx: index("kg_entity_b_idx").on(t.entityBId),
+}));
+export type KnowledgeGap = typeof knowledgeGaps.$inferSelect;
+export type InsertKnowledgeGap = typeof knowledgeGaps.$inferInsert;
+
+/**
+ * frontier_log — Audit trail of the Frontier Engine's reasoning.
+ *
+ * Records every action the Frontier Engine takes: gap detection, hypothesis
+ * generation, search term expansion, queue priority adjustments.
+ * This is the only place the Frontier Engine's name appears in the DB.
+ * The knowledge graph itself (graph_entities, graphRelations) never references
+ * the Frontier Engine — all graph writes go through the Truth Desk pipeline.
+ */
+export const frontierLog = mysqlTable("frontier_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /**
+   * Action type:
+   *   gap_detected        — a new gap was written to knowledge_gaps
+   *   hypothesis_queued   — a hypothesis was submitted to coord_queue
+   *   search_expanded     — MeSH/search terms expanded for a vertical
+   *   priority_adjusted   — a coord_queue item's priority was raised
+   *   gap_closed          — a gap was closed by verified evidence
+   *   hypothesis_verified — a Frontier hypothesis became a Supported claim
+   *   hypothesis_refuted  — a Frontier hypothesis was Contradicted
+   */
+  actionType: mysqlEnum("actionType", [
+    "gap_detected",
+    "hypothesis_queued",
+    "search_expanded",
+    "priority_adjusted",
+    "gap_closed",
+    "hypothesis_verified",
+    "hypothesis_refuted",
+  ]).notNull(),
+  /** ID of the knowledge_gap this action relates to (if any) */
+  gapId: int("gapId"),
+  /** ID of the coord_queue item this action relates to (if any) */
+  queueItemId: int("queueItemId"),
+  /** Structured reasoning snapshot: what pattern was detected, what action was taken */
+  reasoning: json("reasoning"),
+  /** Outcome of the action (if known at log time) */
+  outcome: varchar("outcome", { length: 256 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  actionTypeIdx: index("fl_action_type_idx").on(t.actionType),
+  gapIdIdx: index("fl_gap_id_idx").on(t.gapId),
+  createdAtIdx: index("fl_created_at_idx").on(t.createdAt),
+}));
+export type FrontierLogEntry = typeof frontierLog.$inferSelect;
+export type InsertFrontierLogEntry = typeof frontierLog.$inferInsert;

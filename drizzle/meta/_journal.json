@@ -162,6 +162,13 @@
       "when": 1780785608636,
       "tag": "0022_steep_maginty",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1780788746773,
+      "tag": "0023_lucky_nicolaos",
+      "breakpoints": true
     }
   ]
 }
