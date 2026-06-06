@@ -20,6 +20,18 @@ import { gt, eq, and } from "drizzle-orm";
 
 export type AlertSeverity = "info" | "warning" | "critical";
 
+/**
+ * FrictionEngine-structured assumption entry.
+ * Each finding exposes the hidden premise it detected and the test
+ * that would disprove it — mirroring FrictionEngine's cognitive schema.
+ */
+export interface FrictionAssumption {
+  statement: string;
+  type: "technical" | "epistemic" | "pipeline" | "security";
+  risk: "low" | "medium" | "high" | "critical";
+  test: string;
+}
+
 export interface MetaFinding {
   checkType: string;
   severity: AlertSeverity;
@@ -27,6 +39,8 @@ export interface MetaFinding {
   summary: string;
   details: Record<string, unknown>;
   actionTaken?: "ok" | "alerted" | "queuedFix" | "autoResolved" | "escalated";
+  assumptions?: FrictionAssumption[];
+  recommended_action?: "ok" | "alerted" | "queuedFix" | "autoResolved" | "escalated" | "investigate";
 }
 
 // ─── Deduplication ────────────────────────────────────────────────────────────
@@ -66,10 +80,15 @@ export async function persistFinding(finding: MetaFinding): Promise<number | nul
   const db = await getDb();
   if (!db) return null;
   try {
+    const enrichedDetails: Record<string, unknown> = {
+      ...finding.details,
+      ...(finding.assumptions ? { friction_assumptions: finding.assumptions } : {}),
+      ...(finding.recommended_action ? { friction_recommended_action: finding.recommended_action } : {}),
+    };
     const result = await db.insert(metaAgentChecks).values({
       agentName: "codeGuardianAgent",
       checkType: finding.checkType,
-      finding: finding.details as Record<string, unknown>,
+      finding: enrichedDetails,
       actionTaken: finding.actionTaken ?? "ok",
       severity: finding.severity,
       confidence: finding.confidence,
@@ -173,21 +192,37 @@ export async function routeFindings(findings: MetaFinding[]): Promise<void> {
 // ─── Converters ───────────────────────────────────────────────────────────────
 
 export function driftFindingToMetaFinding(df: DriftFinding): MetaFinding {
+  const assumption: FrictionAssumption = {
+    statement: `This assumes the codebase is free of ${df.checkType} drift`,
+    type: "technical",
+    risk: df.severity === "critical" ? "critical" : df.severity === "warning" ? "high" : "medium",
+    test: `Re-run drift check after resolving: ${df.checkType}`,
+  };
   return {
     checkType: df.checkType,
     severity: df.severity,
     confidence: df.confidence,
     summary: df.summary,
     details: df.details,
+    assumptions: [assumption],
+    recommended_action: df.severity === "critical" ? "escalated" : df.severity === "warning" ? "alerted" : "ok",
   };
 }
 
 export function invariantResultToMetaFinding(ir: InvariantResult): MetaFinding {
+  const assumption: FrictionAssumption = {
+    statement: `This assumes ${ir.name} stays within threshold (${ir.threshold})`,
+    type: "pipeline",
+    risk: ir.severity === "critical" ? "critical" : ir.severity === "warning" ? "high" : "low",
+    test: `Verify ${ir.name}: actual=${ir.actual}, threshold=${ir.threshold}`,
+  };
   return {
     checkType: `pipeline.${ir.name}`,
     severity: ir.severity,
     confidence: 0.95,
     summary: `[${ir.status.toUpperCase()}] ${ir.name}: ${ir.actual} (threshold: ${ir.threshold})`,
     details: ir.details,
+    assumptions: [assumption],
+    recommended_action: ir.status === "fail" ? "alerted" : ir.status === "warn" ? "investigate" : "ok",
   };
 }

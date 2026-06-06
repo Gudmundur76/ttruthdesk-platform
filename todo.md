@@ -724,3 +724,10 @@
 - [x] Add meta-agent panel to /admin/coordinator
 - [x] Write server/metaAgent.test.ts (47 tests, all passing)
 - [x] TypeScript: 0 errors | Vitest: 761 tests passing (46 files) | Save checkpoint
+
+## FrictionEngine Integration (from architecture document)
+
+- [ ] FE-1: Pre-submission interrogation layer — `server/frictionEngine.ts` service + `documents.preflightScan` tRPC procedure + PreflightModal.tsx UI
+- [ ] FE-2: Extend `claimQualityScorer.ts` with Intent Gate, Assumption Gate, Falsification Gate
+- [ ] FE-3: FrictionEngine interaction model for `graph.query` — expose assumption framing in responses
+- [ ] FE-4: Upgrade `codeGuardianAgent` findings to emit structured FrictionEngine JSON schema

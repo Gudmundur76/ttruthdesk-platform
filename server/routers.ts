@@ -291,6 +291,18 @@ export const appRouter = router({
           message: "Could not retrieve this paper. It may not be indexed in PubMed or Europe PMC. Please paste the text manually.",
         });
       }),
+
+    /**
+     * FrictionEngine Pre-Submission Interrogation
+     * Runs a fast (~5s) preflight scan before the user submits for full audit.
+     * Returns claim counts by category + recommendation.
+     */
+    preflightScan: protectedProcedure
+      .input(z.object({ text: z.string().min(10).max(50_000) }))
+      .mutation(async ({ input }) => {
+        const { runPreflightScan } = await import("./frictionEngine");
+        return runPreflightScan(input.text);
+      }),
   }),
 
   // ─── Claims ─────────────────────────────────────────────────────────────────
@@ -632,7 +644,17 @@ export const appRouter = router({
           })
           .join("\n");
 
-        const systemPrompt = `You are the Truth Desk knowledge graph assistant. You answer questions about scientific claims, proteins, PDB structures, and experimental methods using the graph context below.
+        // ── FrictionEngine Interaction Model ──────────────────────────────────
+        // Before answering, the system exposes what assumptions the question carries.
+        // "You asked X. This assumes Y. The evidence shows Z."
+        // This is the FrictionEngine principle: don't just answer — surface the premise.
+
+        const systemPrompt = `You are the Truth Desk knowledge graph assistant — a FrictionEngine applied to scientific knowledge.
+
+Your job is NOT just to answer the question. Your job is to:
+1. EXPOSE the hidden assumptions the question carries ("This assumes that...")
+2. IDENTIFY what evidence would disprove the question's premise ("This would be false if...")
+3. ANSWER using only what the graph evidence supports
 
 Graph entities (${entities.length} total):
 ${entityIndex.slice(0, 3000)}
@@ -642,7 +664,13 @@ ${relationIndex.slice(0, 2000)}
 
 ${contradictionIndex ? `Known contradictions:\n${contradictionIndex}` : ""}
 
-Answer the user's question concisely. Cite entity IDs like [42] when referencing specific entities. If you find contradictions relevant to the question, highlight them.`;
+Respond in this exact structure:
+
+**Assumption exposed:** [What hidden premise does this question carry?]
+
+**Falsification test:** [What evidence would prove the premise wrong?]
+
+**Evidence-based answer:** [Answer using only graph evidence. Cite entity IDs like [42]. If contradictions are relevant, highlight them. If evidence is insufficient, say "Insufficient Evidence" rather than guessing.]`;
 
         const response = await invokeLLM({
           messages: [
@@ -651,9 +679,19 @@ Answer the user's question concisely. Cite entity IDs like [42] when referencing
           ],
         });
 
-        const answer = response?.choices?.[0]?.message?.content ?? "No answer available.";
+        const rawAnswer = response?.choices?.[0]?.message?.content ?? "No answer available.";
+        const answerText = typeof rawAnswer === "string" ? rawAnswer : JSON.stringify(rawAnswer);
+
+        // Parse the structured sections for the frontend to render distinctly
+        const assumptionMatch = answerText.match(/\*\*Assumption exposed:\*\*\s*([\s\S]*?)(?=\n\n\*\*|$)/);
+        const falsificationMatch = answerText.match(/\*\*Falsification test:\*\*\s*([\s\S]*?)(?=\n\n\*\*|$)/);
+        const evidenceMatch = answerText.match(/\*\*Evidence-based answer:\*\*\s*([\s\S]*)$/);
+
         return {
-          answer: typeof answer === "string" ? answer : JSON.stringify(answer),
+          answer: answerText,
+          assumptionExposed: assumptionMatch?.[1]?.trim() ?? null,
+          falsificationTest: falsificationMatch?.[1]?.trim() ?? null,
+          evidenceAnswer: evidenceMatch?.[1]?.trim() ?? answerText,
           entityCount: entities.length,
           relationCount: relations.length,
           contradictionCount: contradictions.length,

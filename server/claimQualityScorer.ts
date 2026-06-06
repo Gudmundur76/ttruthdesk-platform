@@ -202,6 +202,98 @@ function scoreVertical(verticalDomain: string): { score: number; flags: string[]
   return { score, flags };
 }
 
+
+// ─── FrictionEngine Gates ─────────────────────────────────────────────────────
+//
+// Three deterministic gates derived from FrictionEngine's cognitive architecture:
+//
+//   Intent Gate        — Does this claim address the paper's actual research question?
+//   Assumption Gate    — Are the experimental assumptions named in the methods?
+//   Falsification Gate — What evidence would prove this claim wrong?
+//
+// Each gate is a DEDUCTION from the composite score (not an additive component).
+// This keeps the existing 0–1 scale intact while surfacing epistemic weaknesses.
+
+/**
+ * Intent Gate: Deduct 0.05 if the claim is off-topic relative to the document's
+ * vertical domain. A structural biology document making a clinical efficacy claim
+ * is out of scope — the claim may be technically accurate but epistemically misplaced.
+ */
+function applyIntentGate(
+  claimType: string,
+  verticalDomain: string
+): { deduction: number; flags: string[] } {
+  const flags: string[] = [];
+  let deduction = 0;
+
+  const outOfScopeMap: Record<string, string[]> = {
+    structural_biology: ["clinical_efficacy", "regulatory_approval", "market_claim"],
+    salmon_biotech:     ["human_clinical", "regulatory_approval"],
+    sports_nutrition_rct: ["structural_property", "molecular_mechanism"],
+  };
+
+  const blocked = outOfScopeMap[verticalDomain] ?? [];
+  if (blocked.includes(claimType)) {
+    deduction = 0.05;
+    flags.push("intent_gate_out_of_scope");
+  }
+
+  return { deduction, flags };
+}
+
+/**
+ * Assumption Gate: Deduct 0.05 if the claim text contains assumption-smuggling
+ * language patterns — phrases that assert a conclusion without citing evidence.
+ */
+function applyAssumptionGate(claimText: string): { deduction: number; flags: string[] } {
+  const flags: string[] = [];
+  let deduction = 0;
+
+  const smugglingPatterns = [
+    /\bis the primary driver\b/i,
+    /\bclearly demonstrates?\b/i,
+    /\bproves? that\b/i,
+    /\bundeniably\b/i,
+    /\bwithout doubt\b/i,
+    /\bconclusive(?:ly)?\b/i,
+    /\bestablishes? that\b/i,
+    /\bconfirms? that\b/i,
+    /\bshows? that .{0,30} is (?:the|a) (?:cause|driver|mechanism)\b/i,
+  ];
+
+  if (smugglingPatterns.some((p) => p.test(claimText))) {
+    deduction = 0.05;
+    flags.push("assumption_gate_smuggled_premise");
+  }
+
+  return { deduction, flags };
+}
+
+/**
+ * Falsification Gate: Deduct 0.05 if the claim is not falsifiable — i.e., it
+ * contains no measurable value, identifier, or testable assertion that could
+ * be contradicted by database evidence.
+ */
+function applyFalsificationGate(
+  extractedValue: string | null,
+  claimType: string
+): { deduction: number; flags: string[] } {
+  const flags: string[] = [];
+  let deduction = 0;
+
+  const unfalsifiableTypes = ["opinion", "narrative", "general_statement", "market_claim"];
+
+  if (unfalsifiableTypes.includes(claimType)) {
+    deduction = 0.05;
+    flags.push("falsification_gate_unfalsifiable_type");
+  } else if (!extractedValue || extractedValue.trim().length === 0) {
+    deduction = 0.03;
+    flags.push("falsification_gate_no_measurable_value");
+  }
+
+  return { deduction, flags };
+}
+
 // ─── Composite scorer ─────────────────────────────────────────────────────────
 
 export interface ClaimQualityScore {
@@ -238,9 +330,24 @@ export function computeClaimScore(claim: {
   );
   const { score: verticalScore, flags: verticalFlags } = scoreVertical(claim.verticalDomain);
 
+  // ── FrictionEngine gates (deductions) ────────────────────────────────────
+  const { deduction: intentDeduction, flags: intentFlags } = applyIntentGate(
+    claim.claimType,
+    claim.verticalDomain
+  );
+  const { deduction: assumptionDeduction, flags: assumptionFlags } = applyAssumptionGate(
+    claim.claimText
+  );
+  const { deduction: falsificationDeduction, flags: falsificationFlags } = applyFalsificationGate(
+    claim.extractedValue,
+    claim.claimType
+  );
+
+  const totalDeduction = intentDeduction + assumptionDeduction + falsificationDeduction;
+
   const compositeScore = Math.min(
     1.0,
-    evidenceScore + recencyScore + specificityScore + verticalScore
+    Math.max(0, evidenceScore + recencyScore + specificityScore + verticalScore - totalDeduction)
   );
 
   return {
@@ -250,7 +357,10 @@ export function computeClaimScore(claim: {
     recencyScore: Math.round(recencyScore * 1000) / 1000,
     specificityScore: Math.round(specificityScore * 1000) / 1000,
     verticalScore: Math.round(verticalScore * 1000) / 1000,
-    flags: [...evidenceFlags, ...recencyFlags, ...specificityFlags, ...verticalFlags],
+    flags: [
+      ...evidenceFlags, ...recencyFlags, ...specificityFlags, ...verticalFlags,
+      ...intentFlags, ...assumptionFlags, ...falsificationFlags,
+    ],
   };
 }
 
