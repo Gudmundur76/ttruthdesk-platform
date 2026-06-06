@@ -294,8 +294,13 @@ export const appRouter = router({
 
     /**
      * FrictionEngine Pre-Submission Interrogation
-     * Runs a fast (~5s) preflight scan before the user submits for full audit.
-     * Returns claim counts by category + recommendation.
+     * Runs the full 7-stage FrictionEngine self-prompting loop before submission.
+     * Returns the complete FrictionEngineResult including:
+     *   - inferred_intent, assumptions[], constraints[]
+     *   - friction_question (if needed)
+     *   - optimized_prompt, validation_criteria
+     *   - recommended_action: execute | ask_user | reject | reframe
+     *   - claim-level detail (category, assumptionExposed, falsificationTest)
      */
     preflightScan: protectedProcedure
       .input(z.object({ text: z.string().min(10).max(50_000) }))
@@ -672,6 +677,15 @@ Respond in this exact structure:
 
 **Evidence-based answer:** [Answer using only graph evidence. Cite entity IDs like [42]. If contradictions are relevant, highlight them. If evidence is insufficient, say "Insufficient Evidence" rather than guessing.]`;
 
+        // ── Optimized prompt for the audit loop ──────────────────────────────
+        const optimizedPrompt = `${systemPrompt}\n\nQuestion: ${input.question}`;
+        const validationCriteria = [
+          "The answer must expose the hidden assumption in the question.",
+          "The answer must identify what evidence would disprove the premise.",
+          "The answer must cite specific entity IDs from the graph.",
+          "The answer must not guess when evidence is insufficient — say 'Insufficient Evidence'.",
+        ];
+
         const response = await invokeLLM({
           messages: [
             { role: "system", content: systemPrompt },
@@ -679,8 +693,37 @@ Respond in this exact structure:
           ],
         });
 
-        const rawAnswer = response?.choices?.[0]?.message?.content ?? "No answer available.";
-        const answerText = typeof rawAnswer === "string" ? rawAnswer : JSON.stringify(rawAnswer);
+        let rawAnswer = response?.choices?.[0]?.message?.content ?? "No answer available.";
+        let answerText = typeof rawAnswer === "string" ? rawAnswer : JSON.stringify(rawAnswer);
+
+        // ── FrictionEngine Output Audit (Output Critic) ───────────────────────
+        // Audit the answer against the optimized prompt. If it fails, retry once
+        // with the suggested revision. This implements the paper's Answer Audit loop.
+        try {
+          const { runOutputAudit } = await import("./frictionEngine");
+          const audit = await runOutputAudit(optimizedPrompt, answerText, validationCriteria);
+          if (audit.verdict === "revise" && audit.suggestedRevision) {
+            // One retry with the suggested revision injected into the prompt
+            const retryResponse = await invokeLLM({
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: input.question },
+                { role: "assistant", content: answerText },
+                {
+                  role: "user",
+                  content: `The Output Critic flagged this answer. Please revise it:\n${audit.suggestedRevision}\n\nReason: ${audit.reason}`,
+                },
+              ],
+            });
+            const retryRaw = retryResponse?.choices?.[0]?.message?.content;
+            if (retryRaw && typeof retryRaw === "string") {
+              answerText = retryRaw;
+            }
+          }
+        } catch (auditErr) {
+          // Audit failure is non-fatal — proceed with original answer
+          console.warn("[FrictionEngine] Output audit error (non-fatal):", auditErr);
+        }
 
         // Parse the structured sections for the frontend to render distinctly
         const assumptionMatch = answerText.match(/\*\*Assumption exposed:\*\*\s*([\s\S]*?)(?=\n\n\*\*|$)/);

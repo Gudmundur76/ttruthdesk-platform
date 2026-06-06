@@ -1,87 +1,181 @@
 /**
  * frictionEngine.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * FrictionEngine Pre-Submission Interrogation Layer
+ * FrictionEngine — Self-Prompting Prompt Optimization Layer
  *
- * Before a user submits a document for full audit, this service runs a fast
- * (< 5 second) preflight scan that surfaces:
+ * Implements the full 7-stage self-prompting loop from the FrictionEngine paper
+ * (Manus AI, June 2026):
  *
- *   1. How many claims are extractable
- *   2. How many are verifiable against known databases
- *   3. How many smuggle assumptions not supported by the methods
- *   4. How many contradict known structures
+ *   Raw Prompt → Intent Extraction → Assumption Detection → Why Interrogation
+ *   → Constraint Classification → Prompt Reframe → Execution Prompt
+ *   → Output Review → Final Response
  *
- * This is the FrictionEngine "Intent Inference + Assumption Mapping" phase
- * applied to scientific documents. The user sees:
+ * Applied to Truth Desk as a pre-submission interrogation layer. Before a user
+ * submits a document for full audit, this service:
  *
- *   "Your text contains 23 claims. 12 are verifiable against databases.
- *    8 assume conclusions not in the methods. 3 contradict known PDB structures.
- *    Submit for full audit?"
- *
- * The preflight does NOT run the full verdict pipeline — it uses a lightweight
- * LLM pass to classify claims by type and estimate verifiability.
+ *   1. Infers the submitter's deeper intent (not just "audit this doc")
+ *   2. Maps all hidden assumptions with type, risk level, and falsification test
+ *   3. Classifies constraints as hard vs. soft vs. preference
+ *   4. Selects the single highest-leverage friction question (if needed)
+ *   5. Generates an optimized reframed prompt for the downstream pipeline
+ *   6. Adds validation criteria for the audit
+ *   7. Applies the Friction Decision Policy to route: execute | ask_user | reject | reframe
  *
  * Exports:
- *   runPreflightScan(text)  → PreflightResult
+ *   runPreflightScan(text)  → FrictionEngineResult
+ *   runOutputAudit(prompt, answer) → OutputAuditResult
  */
 
 import { invokeMultiLLM } from "./_core/multiLLM";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types — Full Paper JSON Schema ──────────────────────────────────────────
 
-export type ClaimCategory =
-  | "database_verifiable"   // Can be checked against PDB, UniProt, OpenFDA, etc.
-  | "assumption_smuggled"   // Assumes a conclusion not supported by the methods
-  | "likely_contradicted"   // Likely to contradict known structures/data
-  | "out_of_scope"          // Cannot be verified with available databases
-  | "opinion_or_narrative"; // Not a factual claim — narrative or interpretation
+export type AssumptionType =
+  | "factual"
+  | "strategic"
+  | "emotional"
+  | "market"
+  | "technical"
+  | "scientific"
+  | "operational";
 
-export interface PreflightClaim {
-  text: string;
-  category: ClaimCategory;
-  assumptionExposed: string | null; // The hidden premise, if any
-  falsificationTest: string | null; // "What would disprove this?" — Falsification Gate
+export type AssumptionRisk = "low" | "medium" | "high";
+
+export type ConstraintClassification =
+  | "hard"
+  | "soft"
+  | "assumption"
+  | "preference"
+  | "unknown";
+
+export type RecommendedAction =
+  | "execute"       // Intent clear, assumptions low-risk → proceed silently
+  | "ask_user"      // One high-risk assumption → ask single friction question, block until answered
+  | "reject"        // Contradictory goals or unfalsifiable document → refuse with reason
+  | "reframe";      // Better prompt available → show optimized_prompt, let user confirm
+
+export interface FrictionAssumption {
+  statement: string;          // "This assumes that…"
+  type: AssumptionType;
+  risk: AssumptionRisk;
+  test: string;               // How to verify or falsify this assumption
 }
 
-export interface PreflightResult {
+export interface FrictionConstraint {
+  constraint: string;
+  classification: ConstraintClassification;
+  evidence: string;           // What evidence supports classifying it this way
+}
+
+/** The full FrictionEngine structured JSON schema from Section 13 of the paper */
+export interface FrictionEngineResult {
+  // ── Core schema fields ──────────────────────────────────────────────────────
+  raw_prompt: string;
+  surface_request: string;
+  inferred_intent: string;
+  assumptions: FrictionAssumption[];
+  constraints: FrictionConstraint[];
+  friction_question: string;        // Single highest-leverage why-question (empty if not needed)
+  optimized_prompt: string;         // Reframed execution-ready prompt
+  validation_criteria: string[];    // What a good answer must satisfy
+  remaining_uncertainty: string;    // What cannot be resolved before submission
+  recommended_action: RecommendedAction;
+
+  // ── Truth Desk claim-level detail ───────────────────────────────────────────
+  claims: PreflightClaim[];
   totalClaims: number;
   databaseVerifiable: number;
   assumptionSmuggled: number;
   likelyContradicted: number;
   outOfScope: number;
   opinionOrNarrative: number;
-  claims: PreflightClaim[];
-  /** Human-readable summary for the confirmation dialog */
-  summary: string;
-  /** Whether the document is worth submitting for full audit */
-  recommendSubmit: boolean;
-  /** Reason for the recommendation */
-  recommendReason: string;
+
+  // ── Meta ────────────────────────────────────────────────────────────────────
   durationMs: number;
 }
 
-// ─── System prompt ────────────────────────────────────────────────────────────
+export type ClaimCategory =
+  | "database_verifiable"
+  | "assumption_smuggled"
+  | "likely_contradicted"
+  | "out_of_scope"
+  | "opinion_or_narrative";
 
-const FRICTION_SYSTEM_PROMPT = `You are the FrictionEngine pre-submission interrogator for Truth Desk, a scientific claim verification platform.
+export interface PreflightClaim {
+  text: string;
+  category: ClaimCategory;
+  assumptionExposed: string | null;
+  falsificationTest: string | null;
+}
 
-Your task is to rapidly scan a scientific document and classify every factual claim it makes into one of five categories:
+// ─── Output Audit Types ───────────────────────────────────────────────────────
 
-1. "database_verifiable" — The claim can be checked against a structured database (PDB, UniProt, PubMed, OpenFDA, USDA, etc.). Example: "PDB 1LYZ was solved at 1.8Å resolution by X-ray crystallography."
+export type AuditVerdict = "pass" | "revise" | "ask_user" | "reject";
 
-2. "assumption_smuggled" — The claim assumes a conclusion that is NOT supported by the methods section or available evidence. Example: "This protein is the primary driver of disease X" (when the paper only shows correlation).
+export interface OutputAuditResult {
+  verdict: AuditVerdict;
+  satisfiesDeepIntent: boolean;
+  reliesOnUnverifiedAssumptions: boolean;
+  distinguishesFactsFromGuesses: boolean;
+  addressesValidationCriteria: boolean;
+  reason: string;
+  suggestedRevision: string | null;
+}
 
-3. "likely_contradicted" — The claim is likely to contradict known database records. Example: "PDB 1LYZ has resolution 1.8Å" when the actual PDB record shows 2.0Å.
+// ─── System Prompts ───────────────────────────────────────────────────────────
 
-4. "out_of_scope" — The claim cannot be verified with available scientific databases. Example: "This therapy will be approved by regulators."
+const FRICTION_ENGINE_SYSTEM_PROMPT = `You are FrictionEngine, a self-prompting prompt optimization layer applied to scientific document submission.
 
-5. "opinion_or_narrative" — Not a factual claim. Narrative, interpretation, or opinion. Example: "This is a landmark study."
+Your role is NOT to answer the user's request immediately. Your role is to transform it.
 
-For each claim, also identify:
-- assumptionExposed: The hidden premise the claim smuggles (e.g., "This assumes the protein was expressed in E. coli"), or null if none.
-- falsificationTest: What evidence would disprove this claim (e.g., "PDB record showing different resolution"), or null if not applicable.
+The user is submitting a scientific document for claim verification against authoritative databases (PDB, UniProt, PubMed, OpenFDA, etc.).
 
-Return a JSON object with this exact schema:
+For this document, you must:
+
+1. IDENTIFY the surface request: what the user literally wants (audit this document).
+2. INFER the deeper intent: what they are actually trying to achieve (validate specific claims, find contradictions, build credibility, etc.).
+3. MAP all hidden assumptions in the document with type, risk level, and how to test each one.
+4. CLASSIFY constraints as hard (cannot be changed), soft (preferred), assumption (treated as fact but unverified), preference (stylistic), or unknown.
+5. SELECT the single highest-leverage friction question — only if answering it would materially change how the audit is run. If the intent is clear and assumptions are low-risk, leave friction_question empty.
+6. GENERATE an optimized reframed prompt for the downstream audit pipeline.
+7. ADD validation criteria: what a good audit result must satisfy.
+8. APPLY the Friction Decision Policy:
+   - "execute": intent is clear, all assumptions are low-risk → proceed
+   - "ask_user": intent is clear but ONE assumption is high-risk → ask the friction_question, block until answered
+   - "reject": document contains contradictory goals, no verifiable claims, or is entirely unfalsifiable
+   - "reframe": a significantly better framing exists → show optimized_prompt for user confirmation
+
+9. CLASSIFY every factual claim in the document into:
+   - "database_verifiable": can be checked against PDB, UniProt, PubMed, OpenFDA, etc.
+   - "assumption_smuggled": assumes a conclusion not supported by the methods
+   - "likely_contradicted": likely contradicts known database records
+   - "out_of_scope": cannot be verified with available databases
+   - "opinion_or_narrative": not a factual claim
+
+Return a JSON object with this EXACT schema:
 {
+  "surface_request": "string",
+  "inferred_intent": "string",
+  "assumptions": [
+    {
+      "statement": "This assumes that...",
+      "type": "factual|strategic|emotional|market|technical|scientific|operational",
+      "risk": "low|medium|high",
+      "test": "string — how to verify or falsify this assumption"
+    }
+  ],
+  "constraints": [
+    {
+      "constraint": "string",
+      "classification": "hard|soft|assumption|preference|unknown",
+      "evidence": "string"
+    }
+  ],
+  "friction_question": "string (empty string if not needed)",
+  "optimized_prompt": "string — the reframed execution-ready prompt for the audit pipeline",
+  "validation_criteria": ["string"],
+  "remaining_uncertainty": "string",
+  "recommended_action": "execute|ask_user|reject|reframe",
   "claims": [
     {
       "text": "exact claim text",
@@ -92,54 +186,99 @@ Return a JSON object with this exact schema:
   ]
 }
 
-Be conservative — only extract claims that are specific and factual. Ignore vague statements. Return at most 30 claims.`;
+Never create friction for its own sake. Use friction to increase truth, clarity, and value.
+Only ask the friction_question if the answer would materially change the audit.
+Return at most 30 claims.`;
 
-// ─── Core function ────────────────────────────────────────────────────────────
+const OUTPUT_AUDIT_SYSTEM_PROMPT = `You are the FrictionEngine Output Critic. Your job is to audit an AI-generated answer against the original optimized prompt.
 
-export async function runPreflightScan(text: string): Promise<PreflightResult> {
+Check:
+1. Does the answer satisfy the deeper intent (not just the surface request)?
+2. Does it rely on unverified assumptions?
+3. Does it distinguish facts from guesses?
+4. Does it address the validation criteria?
+5. Does it answer the wrong version of the question?
+
+Return a JSON object:
+{
+  "satisfiesDeepIntent": true|false,
+  "reliesOnUnverifiedAssumptions": true|false,
+  "distinguishesFactsFromGuesses": true|false,
+  "addressesValidationCriteria": true|false,
+  "verdict": "pass|revise|ask_user|reject",
+  "reason": "string — why this verdict",
+  "suggestedRevision": "string or null — if revise, what to change in the prompt"
+}`;
+
+// ─── Core: runPreflightScan ───────────────────────────────────────────────────
+
+export async function runPreflightScan(text: string): Promise<FrictionEngineResult> {
   const start = Date.now();
 
   // Truncate to avoid token limits — preflight is a fast scan
-  const truncated = text.length > 8000
-    ? text.substring(0, 8000) + "\n[Document truncated for preflight scan]"
-    : text;
+  const truncated =
+    text.length > 8000
+      ? text.substring(0, 8000) + "\n[Document truncated for preflight scan]"
+      : text;
 
-  let claims: PreflightClaim[] = [];
+  const raw_prompt = `Audit this scientific document for verifiable claims:\n\n${truncated}`;
+
+  let parsed: Partial<FrictionEngineResult> = {};
 
   try {
     const response = await invokeMultiLLM(
       {
         messages: [
-          { role: "system", content: FRICTION_SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: `Run the FrictionEngine preflight scan on this document:\n\n${truncated}`,
-          },
+          { role: "system", content: FRICTION_ENGINE_SYSTEM_PROMPT },
+          { role: "user", content: raw_prompt },
         ],
         response_format: {
           type: "json_schema",
           json_schema: {
-            name: "preflight_claims",
+            name: "friction_engine_result",
             strict: false,
             schema: {
               type: "object",
               properties: {
+                surface_request: { type: "string" },
+                inferred_intent: { type: "string" },
+                assumptions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      statement: { type: "string" },
+                      type: { type: "string" },
+                      risk: { type: "string" },
+                      test: { type: "string" },
+                    },
+                    required: ["statement", "type", "risk", "test"],
+                  },
+                },
+                constraints: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      constraint: { type: "string" },
+                      classification: { type: "string" },
+                      evidence: { type: "string" },
+                    },
+                    required: ["constraint", "classification", "evidence"],
+                  },
+                },
+                friction_question: { type: "string" },
+                optimized_prompt: { type: "string" },
+                validation_criteria: { type: "array", items: { type: "string" } },
+                remaining_uncertainty: { type: "string" },
+                recommended_action: { type: "string" },
                 claims: {
                   type: "array",
                   items: {
                     type: "object",
                     properties: {
                       text: { type: "string" },
-                      category: {
-                        type: "string",
-                        enum: [
-                          "database_verifiable",
-                          "assumption_smuggled",
-                          "likely_contradicted",
-                          "out_of_scope",
-                          "opinion_or_narrative",
-                        ],
-                      },
+                      category: { type: "string" },
                       assumptionExposed: { type: "string" },
                       falsificationTest: { type: "string" },
                     },
@@ -147,40 +286,42 @@ export async function runPreflightScan(text: string): Promise<PreflightResult> {
                   },
                 },
               },
-              required: ["claims"],
+              required: [
+                "surface_request",
+                "inferred_intent",
+                "assumptions",
+                "constraints",
+                "friction_question",
+                "optimized_prompt",
+                "validation_criteria",
+                "remaining_uncertainty",
+                "recommended_action",
+                "claims",
+              ],
             },
           },
         },
         temperature: 0.1,
-        max_tokens: 2048,
+        max_tokens: 3000,
       },
       "draft"
     );
 
     const content = response.choices?.[0]?.message?.content as string | undefined;
     if (content) {
-      const parsed = JSON.parse(content);
-      claims = (parsed.claims ?? []) as PreflightClaim[];
+      parsed = JSON.parse(content) as Partial<FrictionEngineResult>;
     }
   } catch (err) {
     console.error("[FrictionEngine] Preflight scan LLM error:", err);
-    // Return a minimal result on failure — don't block submission
-    return {
-      totalClaims: 0,
-      databaseVerifiable: 0,
-      assumptionSmuggled: 0,
-      likelyContradicted: 0,
-      outOfScope: 0,
-      opinionOrNarrative: 0,
-      claims: [],
-      summary: "Preflight scan unavailable. You can still submit for full audit.",
-      recommendSubmit: true,
-      recommendReason: "Preflight scan failed — proceeding without pre-screening.",
-      durationMs: Date.now() - start,
-    };
+    // Return a safe fallback — never block submission on FrictionEngine failure
+    return buildFallbackResult(raw_prompt, Date.now() - start);
   }
 
-  // ─── Tally by category ───────────────────────────────────────────────────
+  // ─── Normalise and tally ──────────────────────────────────────────────────
+  const claims = (parsed.claims ?? []) as PreflightClaim[];
+  const assumptions = (parsed.assumptions ?? []) as FrictionAssumption[];
+  const constraints = (parsed.constraints ?? []) as FrictionConstraint[];
+
   const counts = {
     database_verifiable: 0,
     assumption_smuggled: 0,
@@ -192,52 +333,153 @@ export async function runPreflightScan(text: string): Promise<PreflightResult> {
     if (c.category in counts) counts[c.category as keyof typeof counts]++;
   }
 
-  const total = claims.length;
-  const verifiable = counts.database_verifiable;
-  const smuggled = counts.assumption_smuggled;
-  const contradicted = counts.likely_contradicted;
+  // ─── Apply Friction Decision Policy ──────────────────────────────────────
+  // Override the LLM's recommended_action with deterministic rules where clear
+  let recommended_action = (parsed.recommended_action ?? "execute") as RecommendedAction;
+  const highRiskCount = assumptions.filter((a) => a.risk === "high").length;
 
-  // ─── Build human-readable summary ────────────────────────────────────────
-  const parts: string[] = [];
-  if (total === 0) {
-    parts.push("No verifiable claims detected.");
-  } else {
-    parts.push(`${total} claim${total !== 1 ? "s" : ""} detected.`);
-    if (verifiable > 0) parts.push(`${verifiable} verifiable against scientific databases.`);
-    if (smuggled > 0) parts.push(`${smuggled} smuggle${smuggled !== 1 ? "" : "s"} assumptions not in the methods.`);
-    if (contradicted > 0) parts.push(`${contradicted} likely contradict${contradicted !== 1 ? "" : "s"} known database records.`);
-  }
-  const summary = parts.join(" ");
-
-  // ─── Recommendation logic ─────────────────────────────────────────────────
-  let recommendSubmit = true;
-  let recommendReason = "This document contains verifiable claims worth auditing.";
-
-  if (total === 0) {
-    recommendSubmit = false;
-    recommendReason = "No verifiable claims found. Full audit may return empty results.";
-  } else if (verifiable === 0 && smuggled === 0 && contradicted === 0) {
-    recommendSubmit = false;
-    recommendReason = "All claims are out of scope or narrative. Full audit may return empty results.";
-  } else if (contradicted > 0) {
-    recommendSubmit = true;
-    recommendReason = `${contradicted} claim${contradicted !== 1 ? "s" : ""} likely contradict known database records — full audit recommended.`;
-  } else if (smuggled > 0) {
-    recommendSubmit = true;
-    recommendReason = `${smuggled} claim${smuggled !== 1 ? "s" : ""} carry hidden assumptions — full audit will expose them.`;
+  if (counts.database_verifiable === 0 && counts.assumption_smuggled === 0 && counts.likely_contradicted === 0) {
+    // No verifiable content → reject
+    recommended_action = "reject";
+  } else if (highRiskCount >= 2) {
+    // Multiple high-risk assumptions → ask_user (pick the most important friction_question)
+    recommended_action = "ask_user";
+  } else if (highRiskCount === 1 && !parsed.friction_question) {
+    // One high-risk assumption but no friction question generated → ask_user
+    recommended_action = "ask_user";
   }
 
   return {
-    totalClaims: total,
-    databaseVerifiable: verifiable,
-    assumptionSmuggled: smuggled,
-    likelyContradicted: contradicted,
+    raw_prompt,
+    surface_request: parsed.surface_request ?? "Audit this scientific document.",
+    inferred_intent: parsed.inferred_intent ?? "Verify factual claims against authoritative databases.",
+    assumptions,
+    constraints,
+    friction_question: parsed.friction_question ?? "",
+    optimized_prompt: parsed.optimized_prompt ?? raw_prompt,
+    validation_criteria: parsed.validation_criteria ?? [
+      "All verifiable claims must be checked against at least one authoritative database.",
+      "Contradicted claims must include the specific conflicting database record.",
+      "Smuggled assumptions must be flagged with the missing evidence.",
+    ],
+    remaining_uncertainty: parsed.remaining_uncertainty ?? "",
+    recommended_action,
+    claims,
+    totalClaims: claims.length,
+    databaseVerifiable: counts.database_verifiable,
+    assumptionSmuggled: counts.assumption_smuggled,
+    likelyContradicted: counts.likely_contradicted,
     outOfScope: counts.out_of_scope,
     opinionOrNarrative: counts.opinion_or_narrative,
-    claims,
-    summary,
-    recommendSubmit,
-    recommendReason,
     durationMs: Date.now() - start,
+  };
+}
+
+// ─── Core: runOutputAudit ─────────────────────────────────────────────────────
+
+/**
+ * Runs the FrictionEngine Output Critic (Section 10.5 of the paper).
+ * Audits a downstream LLM answer against the optimized prompt.
+ * Returns a verdict: pass | revise | ask_user | reject
+ */
+export async function runOutputAudit(
+  optimizedPrompt: string,
+  modelAnswer: string,
+  validationCriteria: string[] = []
+): Promise<OutputAuditResult> {
+  const criteriaText =
+    validationCriteria.length > 0
+      ? `\n\nValidation criteria:\n${validationCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
+      : "";
+
+  try {
+    const response = await invokeMultiLLM(
+      {
+        messages: [
+          { role: "system", content: OUTPUT_AUDIT_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `Optimized prompt:\n${optimizedPrompt}${criteriaText}\n\nModel answer:\n${modelAnswer}`,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "output_audit_result",
+            strict: false,
+            schema: {
+              type: "object",
+              properties: {
+                satisfiesDeepIntent: { type: "boolean" },
+                reliesOnUnverifiedAssumptions: { type: "boolean" },
+                distinguishesFactsFromGuesses: { type: "boolean" },
+                addressesValidationCriteria: { type: "boolean" },
+                verdict: { type: "string" },
+                reason: { type: "string" },
+                suggestedRevision: { type: "string" },
+              },
+              required: [
+                "satisfiesDeepIntent",
+                "reliesOnUnverifiedAssumptions",
+                "distinguishesFactsFromGuesses",
+                "addressesValidationCriteria",
+                "verdict",
+                "reason",
+              ],
+            },
+          },
+        },
+        temperature: 0.1,
+        max_tokens: 512,
+      },
+      "draft"
+    );
+
+    const content = response.choices?.[0]?.message?.content as string | undefined;
+    if (content) {
+      const parsed = JSON.parse(content) as OutputAuditResult;
+      return parsed;
+    }
+  } catch (err) {
+    console.error("[FrictionEngine] Output audit LLM error:", err);
+  }
+
+  // Fallback: pass through on error — never block on audit failure
+  return {
+    verdict: "pass",
+    satisfiesDeepIntent: true,
+    reliesOnUnverifiedAssumptions: false,
+    distinguishesFactsFromGuesses: true,
+    addressesValidationCriteria: true,
+    reason: "Output audit unavailable — passing through.",
+    suggestedRevision: null,
+  };
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function buildFallbackResult(raw_prompt: string, durationMs: number): FrictionEngineResult {
+  return {
+    raw_prompt,
+    surface_request: "Audit this scientific document.",
+    inferred_intent: "Verify factual claims against authoritative databases.",
+    assumptions: [],
+    constraints: [],
+    friction_question: "",
+    optimized_prompt: raw_prompt,
+    validation_criteria: [
+      "All verifiable claims must be checked against at least one authoritative database.",
+      "Contradicted claims must include the specific conflicting database record.",
+    ],
+    remaining_uncertainty: "Preflight scan unavailable.",
+    recommended_action: "execute",
+    claims: [],
+    totalClaims: 0,
+    databaseVerifiable: 0,
+    assumptionSmuggled: 0,
+    likelyContradicted: 0,
+    outOfScope: 0,
+    opinionOrNarrative: 0,
+    durationMs,
   };
 }

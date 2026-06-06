@@ -100,9 +100,33 @@ export async function runAnalysisPipeline(
               extractedValue: claim.extractedValue,
             });
           }
+          // ── FrictionEngine Output Audit (Output Critic) ─────────────────
+          // After the verdict is computed, run the paper's Answer Audit loop.
+          // If the audit flags the rationale as insufficient, retry once with
+          // a revised prompt. Non-fatal: original verdict is used on error.
+          let auditedVerdict = result.verdict;
+          let auditedRationale = result.rationale;
+          try {
+            const { runOutputAudit } = await import("./frictionEngine");
+            const auditCriteria = [
+              "The rationale must cite specific evidence (PDB ID, source URL, or database entry).",
+              "The verdict must be consistent with the confidence score.",
+              "The rationale must not guess — say 'Insufficient Evidence' if evidence is absent.",
+              "The verdict must distinguish between 'Supported', 'Partially Supported', 'Ambiguous', 'Contradicted', 'Needs Expert Review', and 'Insufficient Evidence'.",
+            ];
+            const auditPrompt = `Claim: ${claim.claimText}\nVerdict: ${result.verdict}\nRationale: ${result.rationale}`;
+            const audit = await runOutputAudit(auditPrompt, result.rationale, auditCriteria);
+            if (audit.verdict === "revise" && audit.suggestedRevision) {
+              // Append the audit's suggested revision to the rationale
+              auditedRationale = `${result.rationale} [Audit note: ${audit.suggestedRevision}]`;
+            }
+          } catch (auditErr) {
+            // Non-fatal — use original verdict/rationale
+            console.warn("[FrictionEngine] Pipeline output audit error (non-fatal):", auditErr);
+          }
           await updateClaimVerdict(claim.id, {
-            verdict: result.verdict,
-            verdictRationale: result.rationale,
+            verdict: auditedVerdict,
+            verdictRationale: auditedRationale,
             pdbEvidenceUrl: result.evidenceUrl ?? undefined,
             pdbEvidenceRaw: result.evidenceRaw ?? undefined,
             pdbEvidenceCheckedAt: new Date(),

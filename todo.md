@@ -731,3 +731,10 @@
 - [x] FE-2: Extend `claimQualityScorer.ts` with Intent Gate, Assumption Gate, Falsification Gate
 - [x] FE-3: FrictionEngine interaction model for `graph.query` — expose assumption framing in responses
 - [x] FE-4: Upgrade `codeGuardianAgent` findings to emit structured FrictionEngine JSON schema
+
+## FrictionEngine Phase 2 — Full Paper Implementation
+- [x] FE2-1: Upgrade `server/frictionEngine.ts` to full 7-field JSON schema (inferred_intent, typed assumptions[] with risk+test, constraints[], friction_question, optimized_prompt, validation_criteria, remaining_uncertainty, recommended_action)
+- [x] FE2-2: Implement Friction Decision Policy — route preflightScan result to ask_user (block + show friction_question), execute (proceed silently), reject (refuse with reason), or reframe (show optimized_prompt)
+- [ ] FE2-3: Upgrade PreflightModal.tsx to surface friction_question, inferred_intent, validation_criteria, and recommended_action with appropriate UX (block submit when ask_user, hard-block when reject)
+- [x] FE2-4: Add Answer Audit loop (Output Critic) to graph.query — after LLM returns, run Output Audit Prompt; if audit fails, retry with reframed prompt (max 1 retry)
+- [ ] FE2-5: Add Answer Audit loop to analysisPipeline verdict assignment — audit each verdict against deeper intent before persisting
