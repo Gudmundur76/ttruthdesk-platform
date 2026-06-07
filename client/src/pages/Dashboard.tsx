@@ -4,6 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerdictBadge } from "@/components/VerdictBadge";
+import CorpusGrowthWidget from "@/components/CorpusGrowthWidget";
 import { trpc } from "@/lib/trpc";
 import { Link, useLocation } from "wouter";
 
@@ -124,6 +125,11 @@ function DashboardContent() {
           ))}
         </div>
       )}
+
+      {/* Live Corpus Growth Widget */}
+      <div className="mb-6">
+        <CorpusGrowthWidget />
+      </div>
 
       {/* Documents table */}
       {isLoading ? (

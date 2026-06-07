@@ -454,6 +454,24 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
     }
   }
 
+  // Publish paper_discovered events for each PubMed result so the Frontier
+  // Layer can autonomously generate follow-up hypotheses.
+  for (const pmResult of pubmedResults) {
+    if (pmResult.pmid) {
+      publishEvent("paper_discovered", {
+        pmid: pmResult.pmid,
+        title: pmResult.title,
+        abstractSnippet: pmResult.abstractSnippet,
+        citationUrl: pmResult.citationUrl,
+        journal: pmResult.journal ?? null,
+        year: pmResult.year ?? null,
+        documentId,
+        query,
+        source: "autonomousIngest",
+      }).catch(() => { /* non-critical */ });
+    }
+  }
+
   // Publish event to autonomous loop so downstream layers can react
   try {
     await publishEvent("document_submitted", {

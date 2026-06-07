@@ -985,3 +985,14 @@
 - [x] Wire post-query autonomous trigger — after every CopilotKit tool call (verifyClaim, searchUniProt, queryGraph, searchPubMed), call autonomousIngest.processQueryResults() asynchronously
 - [x] Update CopilotKit system prompt — add searchPubMed to AVAILABLE ACTIONS, mandate PMID and UniProt accession citations in every answer
 - [x] TypeScript clean, 790 tests passing (10 new autonomousIngest tests), checkpoint saved
+
+## Sprint M: Corpus Growth Widget + PubMed Cards + paper_discovered Events
+
+- [x] Publish paper_discovered events from searchPubMed action in copilotRuntime.ts
+- [x] Publish paper_discovered events from autonomousIngest.ts for each PubMed result
+- [x] Add tRPC procedure graph.corpusGrowthStats — returns today's new claims, graph nodes, edges, and PubMed papers added
+- [x] Build CorpusGrowthWidget.tsx — real-time dashboard card showing today's growth counters with animated numbers
+- [x] Add CorpusGrowthWidget to Dashboard.tsx
+- [x] Build PubMedCardRenderer in CopilotRenderers.tsx — rich card (title, journal, year, authors, abstract snippet, PMID badge, link)
+- [x] Register searchPubMed useCopilotAction renderer in CopilotRenderers.tsx
+- [x] TypeScript clean, 790 tests passing, checkpoint saved

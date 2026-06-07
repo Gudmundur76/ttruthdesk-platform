@@ -29,6 +29,7 @@ import {
 import { verdictForClaim } from "./pdbAdapter";
 import { searchUniProt } from "./uniprotAdapter";
 import { triggerAutonomousIngest, type PubMedResult, type UniProtEntry } from "./autonomousIngest";
+import { publishEvent } from "./autonomousLoop/eventBus";
 
 // ─── EuropePMC search (for searchPubMed action) ───────────────────────────────
 
@@ -177,6 +178,23 @@ const actions = [
           pubmedResults: results,
           vertical: "structural_biology",
         });
+
+        // Publish paper_discovered events for each result so the Frontier Layer
+        // can autonomously generate follow-up hypotheses and gap-closing queries.
+        for (const r of results) {
+          if (r.pmid) {
+            publishEvent("paper_discovered", {
+              pmid: r.pmid,
+              title: r.title,
+              abstractSnippet: r.abstractSnippet,
+              citationUrl: r.citationUrl,
+              journal: r.journal ?? null,
+              year: r.year ?? null,
+              query,
+              source: "copilot_search",
+            }).catch(() => { /* non-critical */ });
+          }
+        }
 
         return {
           results: results.map((r) => ({

@@ -1207,3 +1207,72 @@ export async function getGlobalPlatformStats() {
     verifiedSources: 4, // RCSB PDB, PubMed, UniProt, ClinicalTrials.gov
   };
 }
+
+/**
+ * Returns today's corpus growth counters for the Live Corpus Growth widget.
+ * "Today" is defined as the UTC calendar day of the call.
+ */
+export async function getCorpusGrowthStats(): Promise<{
+  claimsToday: number;
+  graphNodesToday: number;
+  graphEdgesToday: number;
+  papersToday: number;
+  totalClaims: number;
+  totalGraphNodes: number;
+  totalGraphEdges: number;
+}> {
+  const db = await getDb();
+  if (!db) {
+    return {
+      claimsToday: 0, graphNodesToday: 0, graphEdgesToday: 0, papersToday: 0,
+      totalClaims: 0, totalGraphNodes: 0, totalGraphEdges: 0,
+    };
+  }
+
+  // Start of today in UTC as a MySQL DATETIME string
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayStr = todayStart.toISOString().replace("T", " ").slice(0, 19);
+
+  const [claimsToday] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(claims)
+    .where(sql`${claims.createdAt} >= ${todayStr}`);
+
+  const [totalClaims] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(claims);
+
+  const [graphNodesToday] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(graphEntities)
+    .where(sql`${graphEntities.createdAt} >= ${todayStr}`);
+
+  const [totalGraphNodes] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(graphEntities);
+
+  const [graphEdgesToday] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(graphRelations)
+    .where(sql`${graphRelations.createdAt} >= ${todayStr}`);
+
+  const [totalGraphEdges] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(graphRelations);
+
+  const [papersToday] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(autoIngestedPapers)
+    .where(sql`${autoIngestedPapers.ingestedAt} >= ${todayStr}`);
+
+  return {
+    claimsToday: Number(claimsToday?.count ?? 0),
+    graphNodesToday: Number(graphNodesToday?.count ?? 0),
+    graphEdgesToday: Number(graphEdgesToday?.count ?? 0),
+    papersToday: Number(papersToday?.count ?? 0),
+    totalClaims: Number(totalClaims?.count ?? 0),
+    totalGraphNodes: Number(totalGraphNodes?.count ?? 0),
+    totalGraphEdges: Number(totalGraphEdges?.count ?? 0),
+  };
+}

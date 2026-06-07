@@ -23,6 +23,7 @@ import {
   getAllGraphEntities,
   getAllGraphRelations,
   getContradictionRelations,
+  getCorpusGrowthStats,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { fetchWikiPage } from "./wikiCompiler";
@@ -594,6 +595,10 @@ export const appRouter = router({
   graph: router({
     data: publicProcedure.query(async () => {
       return getGraphData();
+    }),
+
+    corpusGrowthStats: publicProcedure.query(async () => {
+      return getCorpusGrowthStats();
     }),
 
     entities: publicProcedure.query(async () => {

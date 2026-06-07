@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, XCircle, AlertCircle, HelpCircle, Loader2, BarChart3, Dna, BookOpen } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, HelpCircle, Loader2, BarChart3, Dna, BookOpen, FileText, ExternalLink, Calendar, Users } from "lucide-react";
 
 // ─── Verdict helpers ──────────────────────────────────────────────────────────
 
@@ -571,6 +571,121 @@ function GraphSummaryRenderer({ result, status }: {
   );
 }
 
+// ─── 9. searchPubMed ─────────────────────────────────────────────────────────
+
+function PubMedCardRenderer({ args, result, status }: {
+  args: { query: string; limit?: number };
+  result?: {
+    results?: Array<{
+      pmid: string;
+      title: string;
+      abstractSnippet: string;
+      citationUrl: string;
+      authors?: string[];
+      journal?: string | null;
+      year?: number | null;
+    }>;
+    total?: number;
+    query?: string;
+    note?: string;
+    error?: string;
+  };
+  status: string;
+}) {
+  if (status === "inProgress") {
+    return (
+      <Card className="my-2 border-blue-200 bg-blue-50/50">
+        <CardContent className="pt-4 pb-3 flex items-center gap-2 text-sm text-blue-700">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Searching PubMed for <strong>{args.query}</strong>…
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!result) return null;
+  const papers = result.results ?? [];
+  return (
+    <Card className="my-2">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <FileText className="h-4 w-4 text-green-600" />
+          PubMed: {args.query}
+          <span className="text-muted-foreground font-normal">({papers.length} results)</span>
+        </CardTitle>
+        {result.note && (
+          <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 mt-1">
+            ✓ {result.note}
+          </p>
+        )}
+      </CardHeader>
+      <CardContent className="px-4 pb-4">
+        {papers.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">No papers found for this query.</p>
+        ) : (
+          <div className="space-y-3">
+            {papers.map((p) => (
+              <div key={p.pmid} className="rounded-lg border bg-card p-3 space-y-2 hover:border-green-300 transition-colors">
+                {/* Title + PMID badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <a
+                    href={p.citationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-foreground hover:text-green-700 leading-snug flex-1"
+                  >
+                    {p.title}
+                  </a>
+                  <Badge variant="outline" className="shrink-0 text-xs font-mono text-green-700 border-green-300">
+                    PMID:{p.pmid}
+                  </Badge>
+                </div>
+                {/* Meta row: journal, year, authors */}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  {p.journal && (
+                    <span className="flex items-center gap-1">
+                      <BookOpen className="h-3 w-3" />
+                      {p.journal}
+                    </span>
+                  )}
+                  {p.year && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {p.year}
+                    </span>
+                  )}
+                  {p.authors && p.authors.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {p.authors.slice(0, 3).join(", ")}{p.authors.length > 3 ? " et al." : ""}
+                    </span>
+                  )}
+                </div>
+                {/* Abstract snippet */}
+                {p.abstractSnippet && (
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                    {p.abstractSnippet}
+                    {p.abstractSnippet.length >= 399 && "…"}
+                  </p>
+                )}
+                {/* Link */}
+                <a
+                  href={p.citationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-green-600 hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View on PubMed
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Hook: register all renderers ────────────────────────────────────────────
 
 export function useCopilotRenderers() {
@@ -645,6 +760,16 @@ export function useCopilotRenderers() {
     description: "Get knowledge graph summary",
     parameters: [],
     render: (props) => <GraphSummaryRenderer {...(props as Parameters<typeof GraphSummaryRenderer>[0])} />,
+  });
+
+  useCopilotAction({
+    name: "searchPubMed",
+    description: "Search PubMed / EuropePMC for peer-reviewed literature",
+    parameters: [
+      { name: "query", type: "string", description: "Scientific search query", required: true },
+      { name: "limit", type: "number", description: "Max results (1-5)", required: false },
+    ],
+    render: (props) => <PubMedCardRenderer {...(props as Parameters<typeof PubMedCardRenderer>[0])} />,
   });
 }
 
