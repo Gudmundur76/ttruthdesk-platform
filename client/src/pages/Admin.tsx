@@ -791,6 +791,23 @@ function AdminContent() {
         </div>
       </div>
 
+      {/* Source Whitelist */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Source Whitelist</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Priority 2 — the authoritative list of approved data sources for deterministic
+          verdict verification. Shows health status, failure mode (hard stop vs degrade),
+          schema fields, and approval gate for each source. Includes RCSB PDB, PubMed,
+          UniProt, and ClinicalTrials.gov. Run live health checks against all sources.
+        </p>
+        <a
+          href="/admin/sources"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Source Whitelist
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

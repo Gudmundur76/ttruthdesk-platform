@@ -25,3 +25,5 @@ import "./gutMicrobiome";
 import "./collagenPeptides";
 import "./plantBasedProtein";
 import "./sportsNutritionRct";
+import "./uniprotVertical";
+import "./clinicalTrialsVertical";

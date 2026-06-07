@@ -425,8 +425,7 @@ export const appRouter = router({
         if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
         const allClaims = await getClaimsByDocument(input.documentId);
         const { computeDeterminismMetrics } = await import("./verdictEngine");
-        type VerdictMethod = "deterministic_source" | "confidence_threshold" | "completeness_gate" | "override" | "fallback";
-        const methods = allClaims.map((c) => (c as Record<string, unknown>).verdictMethod as VerdictMethod | null | undefined);
+        const methods = allClaims.map((c) => (c as Record<string, unknown>).verdictMethod) as Array<import("./verdictEngine").VerdictMethod | null | undefined>;
         const metrics = computeDeterminismMetrics(methods);
         // Per-claim breakdown
         const breakdown = allClaims.map((c) => ({
@@ -3040,6 +3039,50 @@ Respond in this exact structure:
         if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Dream session failed to start" });
         return result;
       }),
+  }),
+
+  // ── Source Whitelist ────────────────────────────────────────────────────────
+  sources: router({
+    /**
+     * List all sources in the whitelist with their metadata.
+     * Approved and pending sources are both returned; UI filters by status.
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { SOURCE_WHITELIST } = await import("./sourceRegistry");
+      return SOURCE_WHITELIST.map((s) => ({
+        id: s.id,
+        displayName: s.displayName,
+        description: s.description,
+        apiBaseUrl: s.apiBaseUrl,
+        schema: s.schema,
+        failureMode: s.failureMode,
+        approved: s.approved,
+        approvedAt: s.approvedAt,
+      }));
+    }),
+
+    /**
+     * Run a live health check against a single source.
+     */
+    healthCheck: protectedProcedure
+      .input(z.object({ sourceId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { runHealthCheck } = await import("./sourceRegistry");
+        const result = await runHealthCheck(input.sourceId);
+        if (!result) throw new TRPCError({ code: "NOT_FOUND", message: `Source "${input.sourceId}" not found in whitelist` });
+        return result;
+      }),
+
+    /**
+     * Run health checks against all sources simultaneously.
+     */
+    healthCheckAll: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { runAllHealthChecks } = await import("./sourceRegistry");
+      return runAllHealthChecks();
+    }),
   }),
 });
 export type AppRouter = typeof appRouter;

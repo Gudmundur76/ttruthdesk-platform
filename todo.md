@@ -814,3 +814,22 @@
 - [x] Add determinismMetrics tRPC procedure to claims router
 - [x] Add provenance badges (◆ deterministic, ⚠ gated, ∼ heuristic, ✎ override) to claim cards in AuditReport.tsx
 - [x] Add Deterministic Verdict Engine info card to Admin.tsx
+
+## Priority 2: Source Whitelist Expansion
+- [ ] UniProt adapter: schema, health check, deterministic verdict wiring (protein_name, organism, function)
+- [ ] ClinicalTrials.gov adapter: schema, health check, deterministic verdict wiring (trial_id, trial_status, intervention)
+- [ ] Register both adapters in verticalAdapters registry
+- [ ] Wire new adapters into analysisPipeline.ts claim routing
+- [ ] Add source whitelist admin UI with health status, approval gate, failure mode display
+- [ ] Add source health check tRPC procedures
+- [ ] Tests for both adapters
+
+## Priority 2: Source Whitelist Expansion
+- [x] Create server/verticalAdapters/uniprotVertical.ts with deterministic verdicts and health check
+- [x] Create server/clinicalTrialsAdapter.ts — ClinicalTrials.gov REST API v2 client
+- [x] Create server/verticalAdapters/clinicalTrialsVertical.ts with deterministic verdicts and health check
+- [x] Create server/sourceRegistry.ts — source whitelist with schema, failure mode, approval gate
+- [x] Register both adapters in verticalAdapters/index.ts
+- [x] Add sources.list, sources.healthCheck, sources.healthCheckAll tRPC procedures
+- [x] Create client/src/pages/SourceWhitelist.tsx admin page
+- [x] Wire /admin/sources route and Admin landing page card
