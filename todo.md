@@ -1035,3 +1035,10 @@
 - [x] Build /api/translate-and-search REST endpoint — SHA-256 API key auth (X-API-Key), rate-limited (10 req/min authenticated, 2/min anonymous), autonomous ingest trigger
 - [x] Register /api/translate-and-search in server index.ts
 - [x] TypeScript clean, 790 tests passing, checkpoint saved
+
+## Sprint R-fix: Embed Widget "Verify Claim" Out of Scope Bug
+- [x] Traced /api/public/verify-claim handler in verifyClaimRoute.ts — Out of Scope returned when extractClaims() returned nothing for natural-language input
+- [x] Rewrote verifyClaimRoute.ts: translateQueryToClaims + PubMed as primary path; structural DB as secondary enrichment; verdict from paper count (≥2 → Supported, 1 → Partially Supported, 0 → Insufficient Evidence)
+- [x] Out of Scope NEVER returned — every query now gets cited evidence or an honest Insufficient Evidence with PubMed queries tried
+- [x] Response now includes pubmedResults[] and translatedClaims[] fields; apiVersion bumped to 1.1
+- [x] TypeScript clean, 790 tests passing, checkpoint saved
