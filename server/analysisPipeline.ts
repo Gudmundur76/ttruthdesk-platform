@@ -31,6 +31,7 @@ import { dispatchHighRiskAlert } from "./alertDispatcher";
 import { notifyIndexNow, notifyIndexNowBatch, claimUrl, reportUrl } from "./seo/indexNow";
 import { recordModelUsage } from "./llmProviderQuality";
 import { runSelfPromptCycle } from "./selfPrompt/engine";
+import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -257,6 +258,40 @@ export async function runAnalysisPipeline(
       documentId,
       verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
     }).catch((e) => console.warn("[SelfPromptEngine] Post-pipeline cycle error (non-fatal):", e));
+
+    // ── Inverse Prompt Architecture: Supported verdicts → graph questions ──────
+    // For each Supported claim linked to a known graph entity, fire the Inverse
+    // Prompt Engine so verified truth seeds new testable claims.
+    // Authority boundary: inversePromptEngine only writes to generated_claims
+    // and coord_queue — never to the knowledge graph itself.
+    const supportedClaims = finalClaims.filter((c) => c.verdict === "Supported" && (c.pdbId || c.proteinName));
+    if (supportedClaims.length > 0) {
+      (async () => {
+        try {
+          const { getDb } = await import("./db");
+          const { graphEntities } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const db = await getDb();
+          if (!db) return;
+          for (const claim of supportedClaims.slice(0, 3)) {
+            const entityName = claim.pdbId ?? claim.proteinName ?? "";
+            if (!entityName) continue;
+            const [entity] = await db
+              .select({ id: graphEntities.id })
+              .from(graphEntities)
+              .where(eq(graphEntities.canonicalName, entityName))
+              .limit(1);
+            if (entity) {
+              runInversePromptForEntity(entity.id).catch((e) =>
+                console.warn("[InversePrompt] Entity generation error (non-fatal):", e)
+              );
+            }
+          }
+        } catch (e) {
+          console.warn("[InversePrompt] Entity lookup error (non-fatal):", e);
+        }
+      })();
+    }
     // Compute claim trajectory predictions (non-fatal, fire-and-forget)
     (async () => {
       try {

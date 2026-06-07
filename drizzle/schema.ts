@@ -1153,3 +1153,51 @@ export const selfPromptLog = mysqlTable("self_prompt_log", {
 }));
 export type SelfPromptLogEntry = typeof selfPromptLog.$inferSelect;
 export type InsertSelfPromptLogEntry = typeof selfPromptLog.$inferInsert;
+
+// ─── Inverse Prompt Architecture ──────────────────────────────────────────────
+
+/**
+ * generated_claims — structured, verifiable claims produced by the
+ * GraphQuestionGenerator from verified graph truth.
+ */
+export const generatedClaims = mysqlTable("generated_claims", {
+  id: int("id").autoincrement().primaryKey(),
+  claimText: text("claimText").notNull(),
+  claimType: varchar("claimType", { length: 64 }).notNull(),
+  inferenceType: mysqlEnum("inferenceType", [
+    "gap_fill",
+    "homology_projection",
+    "contradiction_chase",
+  ]).notNull(),
+  requiredSources: json("requiredSources").$type<string[]>().notNull(),
+  sourceQuery: text("sourceQuery"),
+  parentVerifications: json("parentVerifications").$type<number[]>().notNull(),
+  entityId: int("entityId"),
+  reasoning: text("reasoning").notNull(),
+  passedGate: boolean("passedGate").notNull().default(false),
+  rejectionReason: varchar("rejectionReason", { length: 256 }),
+  status: mysqlEnum("status", [
+    "pending",
+    "queued",
+    "processing",
+    "verified",
+    "contradicted",
+    "insufficient",
+    "failed",
+    "rejected",
+    "deferred",
+  ]).notNull().default("pending"),
+  coordQueueId: int("coordQueueId"),
+  priority: int("priority").notNull().default(50),
+  documentId: int("documentId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
+}, (t) => ({
+  statusIdx: index("gc_status_idx").on(t.status),
+  entityIdIdx: index("gc_entity_id_idx").on(t.entityId),
+  inferenceTypeIdx: index("gc_inference_type_idx").on(t.inferenceType),
+  passedGateIdx: index("gc_passed_gate_idx").on(t.passedGate),
+  createdAtIdx: index("gc_created_at_idx").on(t.createdAt),
+}));
+export type GeneratedClaim = typeof generatedClaims.$inferSelect;
+export type InsertGeneratedClaim = typeof generatedClaims.$inferInsert;

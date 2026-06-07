@@ -757,3 +757,10 @@
 - [x] SPE-2: Wire Self-Prompting Engine into analysisPipeline — fire post-pipeline cycle after every verdict assignment
 - [x] SPE-3: Add selfPrompt tRPC router (listCycles, getMetrics, triggerCycle) + /admin/self-prompt dashboard page
 - [x] SPE-4: Add self_prompt_log DB table + migration
+
+## Inverse Prompt Architecture
+
+- [x] IP-1: Schema — add generated_claims table + migration
+- [x] IP-2: Build server/inversePrompt/ module (graphQuestionGenerator, verifiabilityGate, claimQueueWriter, inversePromptEngine)
+- [x] IP-3: Wire into analysisPipeline — trigger after Supported verdicts
+- [x] IP-4: Add tRPC procedures (list, metrics, trigger) + /admin/inverse-prompt dashboard page

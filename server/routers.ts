@@ -2668,6 +2668,72 @@ Respond in this exact structure:
       }),
   }),
 
+  inversePrompt: router({
+    // List generated claims with optional status filter
+    list: protectedProcedure
+      .input(z.object({
+        status: z.enum(["pending", "queued", "processing", "rejected", "deferred"]).optional(),
+        inferenceType: z.enum(["gap_fill", "homology_projection", "contradiction_chase"]).optional(),
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return { items: [], total: 0 };
+        const { generatedClaims } = await import("../drizzle/schema");
+        const { eq, and, count, sql } = await import("drizzle-orm");
+        const conditions: ReturnType<typeof eq>[] = [];
+        if (input.status) conditions.push(eq(generatedClaims.status, input.status as "pending" | "queued" | "processing" | "rejected" | "deferred"));
+        if (input.inferenceType) conditions.push(eq(generatedClaims.inferenceType, input.inferenceType));
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+        const [{ total }] = await db.select({ total: count() }).from(generatedClaims).where(where);
+        const items = await db.select().from(generatedClaims).where(where)
+          .orderBy(sql`${generatedClaims.priority} DESC, ${generatedClaims.createdAt} DESC`)
+          .limit(input.limit).offset(input.offset);
+        return { items, total };
+      }),
+
+    // Aggregate metrics
+    metrics: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return null;
+      const { generatedClaims } = await import("../drizzle/schema");
+      const { count, eq } = await import("drizzle-orm");
+      const [total] = await db.select({ total: count() }).from(generatedClaims);
+      const [queued] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.status, "queued"));
+      const [rejected] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.status, "rejected"));
+      const [deferred] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.status, "deferred"));
+      const [gapFill] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.inferenceType, "gap_fill"));
+      const [homology] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.inferenceType, "homology_projection"));
+      const [contradiction] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.inferenceType, "contradiction_chase"));
+      return {
+        total: total.total,
+        queued: queued.total,
+        rejected: rejected.total,
+        deferred: deferred.total,
+        byInferenceType: {
+          gap_fill: gapFill.total,
+          homology_projection: homology.total,
+          contradiction_chase: contradiction.total,
+        },
+      };
+    }),
+
+    // Trigger a full Inverse Prompt Engine run (admin only)
+    trigger: protectedProcedure
+      .input(z.object({ topN: z.number().min(1).max(100).default(20) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { runInversePromptEngine } = await import("./inversePrompt/inversePromptEngine");
+        const result = await runInversePromptEngine(input.topN);
+        return result;
+      }),
+  }),
+
 });
 
 export type AppRouter = typeof appRouter;

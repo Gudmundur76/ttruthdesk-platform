@@ -39,6 +39,7 @@ import CooccurrenceGraph from "@/pages/CooccurrenceGraph";
 import ApiKeys from "@/pages/ApiKeys";
 import Frontier from "@/pages/Frontier";
 import SelfPromptDashboard from "@/pages/SelfPromptDashboard";
+import InversePromptDashboard from "@/pages/InversePromptDashboard";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -82,6 +83,7 @@ function Router() {
       <Route path="/admin/webhooks" component={WebhookDeliveryLog} />
       <Route path="/admin/frontier" component={Frontier} />
       <Route path="/admin/self-prompt" component={SelfPromptDashboard} />
+      <Route path="/admin/inverse-prompt" component={InversePromptDashboard} />
       <Route path="/compare" component={AuditComparison} />
       <Route path="/trust" component={Trust} />
       <Route path="/docs/api" component={ApiDocs} />

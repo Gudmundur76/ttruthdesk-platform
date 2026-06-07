@@ -704,6 +704,22 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Inverse Prompt Architecture */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Inverse Prompt Architecture</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Turns verified graph truth into a self-generating seed bank. Scans the knowledge graph for
+          gap-fill, homology-projection, and contradiction-chase opportunities, runs four verifiability
+          gates, and queues passing claims for evidence pursuit — without ever writing to the graph directly.
+        </p>
+        <a
+          href="/admin/inverse-prompt"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Inverse Prompt Dashboard
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

@@ -183,6 +183,13 @@
       "when": 1780791048796,
       "tag": "0025_parallel_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1780791760177,
+      "tag": "0026_special_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }
