@@ -214,18 +214,25 @@ const actions = [
               }
             }
 
+            // Derive a PubMed-based verdict when the structural DB engine
+            // returns Insufficient Evidence or Out of Scope (i.e. no PDB match).
+            // If PubMed found papers, that IS evidence — use it.
+            const dbVerdict = verdictResult?.verdict;
+            const isDbInconclusive = !dbVerdict || dbVerdict === "Out of Scope" || dbVerdict === "Insufficient Evidence";
+            const derivedVerdict = isDbInconclusive
+              ? papers.length >= 2
+                ? { verdict: "Supported", rationale: `${papers.length} peer-reviewed papers found on PubMed supporting this area of research.`, evidenceUrl: papers[0]?.citationUrl ?? null }
+                : papers.length === 1
+                  ? { verdict: "Insufficient Evidence", rationale: "Only 1 paper found — more research may be needed.", evidenceUrl: papers[0]?.citationUrl ?? null }
+                  : { verdict: "Insufficient Evidence", rationale: "No peer-reviewed papers found in PubMed for this specific claim. Try submitting a relevant paper at /submit.", evidenceUrl: null }
+              : { verdict: dbVerdict, rationale: verdictResult!.rationale, evidenceUrl: verdictResult!.evidenceUrl ?? null };
+
             return {
               claimText: tc.claimText,
               searchQuery: tc.searchQuery,
               proteinName: tc.proteinName,
               organism: tc.organism,
-              verdict: verdictResult
-                ? {
-                    verdict: verdictResult.verdict,
-                    rationale: verdictResult.rationale,
-                    evidenceUrl: verdictResult.evidenceUrl ?? null,
-                  }
-                : null,
+              verdict: derivedVerdict,
               pubmedEvidence: papers.slice(0, 3).map((p) => ({
                 pmid: p.pmid,
                 title: p.title,

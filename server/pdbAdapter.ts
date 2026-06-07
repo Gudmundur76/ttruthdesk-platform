@@ -369,11 +369,15 @@ export async function verdictForClaim(claim: {
     };
   }
 
-  // ── General molecular / out of scope ──────────────────────────────────────
+  // ── General molecular / broad biotech claims ─────────────────────────────
+  // For claims that reach here (general_molecular, salmon_biotech, etc.) we
+  // return "Insufficient Evidence" rather than "Out of Scope" so the AI can
+  // still present PubMed results.  The translateAndSearch action supplies its
+  // own PubMed evidence; the verdict engine is advisory only for these types.
   return {
-    verdict: "Out of Scope",
+    verdict: "Insufficient Evidence",
     rationale:
-      "This claim type cannot be automatically verified against the Protein Data Bank. Expert review recommended.",
+      "No direct structural database match found. Check the PubMed evidence returned by the search for peer-reviewed support.",
     evidenceUrl: null,
     evidenceRaw: null,
   };

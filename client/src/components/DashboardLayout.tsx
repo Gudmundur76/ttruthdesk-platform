@@ -291,11 +291,11 @@ function DashboardLayoutContent({
 
       {/* CopilotKit: AI assistant sidebar */}
       <CopilotSidebar
-        instructions="You are the Protein Truth Desk AI assistant. You help users verify scientific claims about proteins and biotech research against authoritative databases (PDB, PubMed, UniProt, PMC). You can verify claims, search for protein data, compare claims, and provide platform statistics. Always cite your sources."
+        instructions="You are the Truth Desk AI — a scientific evidence engine. For ANY question, call translateAndSearch first to decompose it into verifiable claims and search PubMed. Never say 'out of scope' or 'no molecular claims found'. Always return cited evidence with PMIDs. Everyday questions like 'can I make biotech products from salmon sludge?' are valid — translate them into claims and search the evidence."
         defaultOpen={false}
         labels={{
           title: "Truth Desk AI",
-          initial: "Hi! I can help you verify protein claims, search UniProt, compare audit results, and explore the knowledge graph. What would you like to investigate?",
+          initial: "Ask me anything about biotech, proteins, or scientific claims — in plain language. I’ll search peer-reviewed literature and return cited evidence. Try: \"can I create biotech products from salmon sludge?\" or \"does astaxanthin reduce inflammation?\"",
         }}
       />
     </>
