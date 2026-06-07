@@ -804,3 +804,13 @@
 - [x] /admin/dream route added to App.tsx
 - [x] Dream State card added to Admin.tsx with indigo CTA button
 - [x] 761 tests passing, 0 TypeScript errors
+
+## Phase 79: Deterministic Verdict Engine
+- [x] Implement verdictEngine.ts with deterministic resolution verdict (Δ ≤ 0.05 Å → Supported, ≤ 0.20 Å → Partially Supported, > 0.20 Å → Contradicted)
+- [x] Implement completenessCheck.ts with hard source completeness gate (blocks positive verdicts on missing/stale data)
+- [x] Add verdictMethod and sourceCompletenessScore columns to claims table (migration 0029)
+- [x] Update updateClaimVerdict in db.ts to accept verdictMethod and sourceCompletenessScore
+- [x] Wire deterministic engine into analysisPipeline.ts: resolution claims use verdictForResolution, adapter claims use classifyByConfidence with completeness gate
+- [x] Add determinismMetrics tRPC procedure to claims router
+- [x] Add provenance badges (◆ deterministic, ⚠ gated, ∼ heuristic, ✎ override) to claim cards in AuditReport.tsx
+- [x] Add Deterministic Verdict Engine info card to Admin.tsx

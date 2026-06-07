@@ -772,6 +772,25 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Phase 79: Deterministic Verdict Engine */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Deterministic Verdict Engine</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Phase 79 — all resolution claims are now verified against live RCSB PDB data using exact
+          numeric thresholds (Δ ≤ 0.05 Å → Supported, ≤ 0.20 Å → Partially Supported). A
+          completeness gate blocks positive verdicts when source data is missing or stale. Each
+          verdict is stamped with a <code className="text-xs bg-slate-100 px-1 rounded">verdictMethod</code> provenance
+          field (<span className="font-mono text-xs text-blue-700">◆ deterministic</span>,{" "}
+          <span className="font-mono text-xs text-amber-700">⚠ gated</span>,{" "}
+          <span className="font-mono text-xs text-slate-500">∼ heuristic</span>) visible on every
+          claim card in the Audit Report.
+        </p>
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+          Active — all new analyses use the deterministic engine
+        </div>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

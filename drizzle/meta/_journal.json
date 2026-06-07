@@ -204,6 +204,13 @@
       "when": 1780795259274,
       "tag": "0028_next_lord_tyger",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1780796430531,
+      "tag": "0029_faithful_otto_octavius",
+      "breakpoints": true
     }
   ]
 }

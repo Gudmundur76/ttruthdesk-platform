@@ -416,6 +416,28 @@ export const appRouter = router({
         const { getOverrideAuditLog } = await import("./db");
         return getOverrideAuditLog(input.documentId);
       }),
+
+    /** Phase 79: Determinism metrics for a document's claims */
+    determinismMetrics: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const doc = await getDocumentById(input.documentId);
+        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        const allClaims = await getClaimsByDocument(input.documentId);
+        const { computeDeterminismMetrics } = await import("./verdictEngine");
+        type VerdictMethod = "deterministic_source" | "confidence_threshold" | "completeness_gate" | "override" | "fallback";
+        const methods = allClaims.map((c) => (c as Record<string, unknown>).verdictMethod as VerdictMethod | null | undefined);
+        const metrics = computeDeterminismMetrics(methods);
+        // Per-claim breakdown
+        const breakdown = allClaims.map((c) => ({
+          id: c.id,
+          claimText: c.claimText.slice(0, 120),
+          verdict: c.verdict,
+          verdictMethod: (c as Record<string, unknown>).verdictMethod as string | null,
+          sourceCompletenessScore: (c as Record<string, unknown>).sourceCompletenessScore as number | null,
+        }));
+        return { metrics, breakdown };
+      }),
   }),
 
   // ─── Reports ─────────────────────────────────────────────────────────────────

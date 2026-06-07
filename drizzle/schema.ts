@@ -109,6 +109,15 @@ export const claims = mysqlTable("claims", {
   // Confidence scoring
   confidenceScore: float("confidenceScore"),  // 0.0–1.0; null = not yet scored
   confidenceFlags: json("confidenceFlags"),   // array of flag strings explaining low confidence
+  // Deterministic verdict provenance (Phase 79)
+  verdictMethod: mysqlEnum("verdictMethod", [
+    "deterministic_source",
+    "confidence_threshold",
+    "completeness_gate",
+    "override",
+    "fallback",
+  ]),
+  sourceCompletenessScore: float("sourceCompletenessScore"), // 0.0–1.0 at time of verdict
   // Review
   reviewedBy: int("reviewedBy"),
   reviewedAt: timestamp("reviewedAt"),

@@ -245,6 +245,8 @@ type ClaimRow = {
   pdbEvidenceUrl: string | null;
   overriddenVerdict: VerdictType | null;
   confidenceScore: number | null;
+  verdictMethod?: string | null;
+  sourceCompletenessScore?: number | null;
 };
 
 function getFinalVerdict(claim: ClaimRow): VerdictType {
@@ -618,6 +620,22 @@ function AuditReportContent() {
                           </span>
                         )}
                         {isAuthenticated && <ClaimTrajectoryBadge claimId={claim.id} />}
+                        {(claim as { verdictMethod?: string | null }).verdictMethod && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 rounded border"
+                            style={{
+                              background: (claim as { verdictMethod?: string | null }).verdictMethod === "deterministic_source" ? "#eff6ff" : "#f8fafc",
+                              color: (claim as { verdictMethod?: string | null }).verdictMethod === "deterministic_source" ? "#1d4ed8" : "#64748b",
+                              borderColor: (claim as { verdictMethod?: string | null }).verdictMethod === "deterministic_source" ? "#bfdbfe" : "#e2e8f0",
+                            }}
+                            title={`Verdict method: ${ (claim as { verdictMethod?: string | null }).verdictMethod }${ (claim as { sourceCompletenessScore?: number | null }).sourceCompletenessScore != null ? ` | Source completeness: ${((claim as { sourceCompletenessScore?: number | null }).sourceCompletenessScore! * 100).toFixed(0)}%` : "" }`}
+                          >
+                            {(claim as { verdictMethod?: string | null }).verdictMethod === "deterministic_source" ? "◆ deterministic" :
+                             (claim as { verdictMethod?: string | null }).verdictMethod === "completeness_gate" ? "⚠ gated" :
+                             (claim as { verdictMethod?: string | null }).verdictMethod === "confidence_threshold" ? "∼ heuristic" :
+                             (claim as { verdictMethod?: string | null }).verdictMethod === "override" ? "✎ override" : "— fallback"}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-slate-700 leading-relaxed">{claim.claimText}</p>
                     </div>

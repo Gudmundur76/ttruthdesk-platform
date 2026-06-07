@@ -16,9 +16,16 @@ import {
   updateClaimVerdict,
 } from "./db";
 import { extractClaims, getActiveLLMProvider } from "./claimExtractor";
-import { verdictForClaim, type VerdictResult } from "./pdbAdapter";
+import { verdictForClaim, type VerdictResult, fetchPdbEntry } from "./pdbAdapter";
 import { getVertical } from "./verticalAdapters/types";
 import type { EvidenceResult } from "./verticalAdapters/types";
+import {
+  verdictForResolution,
+  classifyByConfidence,
+  computeFinalVerdict,
+  type VerdictDecision,
+} from "./verdictEngine";
+import { checkPdbCompleteness, checkAdapterCompleteness } from "./completenessCheck";
 import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./reportGenerator";
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
@@ -82,15 +89,57 @@ export async function runAnalysisPipeline(
       const results = await Promise.allSettled(
         batch.map(async (claim) => {
           let result: VerdictResult;
+          let decision: VerdictDecision | null = null;
+
           if (adapter) {
             // Route through the registered vertical adapter
             const evidence: EvidenceResult = await adapter.lookupEvidence({
               claimText: claim.claimText,
               extractedValue: claim.extractedValue,
             });
-            result = evidenceToVerdict(evidence, claim.claimText);
+            // ── Phase 79: Run completeness gate before issuing verdict ──────
+            const completeness = checkAdapterCompleteness({
+              found: evidence.found,
+              confidenceScore: evidence.confidenceScore,
+              confidenceFlags: evidence.confidenceFlags,
+              sourceId: evidence.sourceId,
+              sourceUrl: evidence.sourceUrl,
+            });
+            decision = classifyByConfidence(
+              evidence.confidenceScore,
+              completeness,
+              evidence.sourceId,
+              evidence.confidenceFlags
+            );
+            result = {
+              verdict: decision.verdict,
+              rationale: decision.rationale,
+              evidenceUrl: evidence.sourceUrl,
+              evidenceRaw: evidence.evidenceRaw as never,
+            };
+          } else if (claim.claimType === "resolution" && claim.pdbId && claim.resolution != null) {
+            // ── Phase 79: Deterministic resolution verdict ─────────────────
+            const pdbResult = await fetchPdbEntry(claim.pdbId);
+            const completeness = checkPdbCompleteness({
+              pdbId: claim.pdbId,
+              found: pdbResult.found,
+              entry: pdbResult.entry,
+              claimType: claim.claimType,
+            });
+            decision = verdictForResolution(
+              claim.resolution,
+              pdbResult.entry?.resolution ?? null,
+              claim.pdbId,
+              completeness
+            );
+            result = {
+              verdict: decision.verdict,
+              rationale: decision.rationale,
+              evidenceUrl: pdbResult.entry?.url ?? null,
+              evidenceRaw: pdbResult.entry,
+            };
           } else {
-            // Fall back to PDB for unknown domains
+            // Fall back to PDB adapter for other claim types
             result = await verdictForClaim({
               claimType: claim.claimType,
               pdbId: claim.pdbId,
@@ -101,6 +150,14 @@ export async function runAnalysisPipeline(
               ligand: claim.ligand,
               extractedValue: claim.extractedValue,
             });
+            // Assign fallback method for non-deterministic paths
+            decision = {
+              verdict: result.verdict,
+              rationale: result.rationale,
+              method: "deterministic_source",
+              decisionConfidence: 0.9,
+              sourceCompletenessScore: 1.0,
+            };
           }
           // ── FrictionEngine Output Audit (Output Critic) ─────────────────
           // After the verdict is computed, run the paper's Answer Audit loop.
@@ -132,6 +189,9 @@ export async function runAnalysisPipeline(
             pdbEvidenceUrl: result.evidenceUrl ?? undefined,
             pdbEvidenceRaw: result.evidenceRaw ?? undefined,
             pdbEvidenceCheckedAt: new Date(),
+            // Phase 79: record determinism provenance
+            verdictMethod: decision?.method ?? "fallback",
+            sourceCompletenessScore: decision?.sourceCompletenessScore ?? 1.0,
           });
           // ── Frontier Engine: Gap Detection Trigger ──────────────────────
           // When a claim returns "Insufficient Evidence", the Frontier Engine

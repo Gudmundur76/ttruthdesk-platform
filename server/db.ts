@@ -303,17 +303,21 @@ export async function updateClaimVerdict(
     pdbEvidenceUrl?: string;
     pdbEvidenceRaw?: unknown;
     pdbEvidenceCheckedAt?: Date;
+    verdictMethod?: string;
+    sourceCompletenessScore?: number;
   }
 ) {
   const db = await getDb();
   if (!db) return;
-  const { verdict, verdictRationale, pdbEvidenceUrl, pdbEvidenceRaw, pdbEvidenceCheckedAt } = update;
+  const { verdict, verdictRationale, pdbEvidenceUrl, pdbEvidenceRaw, pdbEvidenceCheckedAt, verdictMethod, sourceCompletenessScore } = update;
   const setData: Record<string, unknown> = {};
   if (verdict !== undefined) setData.verdict = verdict;
   if (verdictRationale !== undefined) setData.verdictRationale = verdictRationale;
   if (pdbEvidenceUrl !== undefined) setData.pdbEvidenceUrl = pdbEvidenceUrl;
   if (pdbEvidenceRaw !== undefined) setData.pdbEvidenceRaw = pdbEvidenceRaw;
   if (pdbEvidenceCheckedAt !== undefined) setData.pdbEvidenceCheckedAt = pdbEvidenceCheckedAt;
+  if (verdictMethod !== undefined) setData.verdictMethod = verdictMethod;
+  if (sourceCompletenessScore !== undefined) setData.sourceCompletenessScore = sourceCompletenessScore;
   if (Object.keys(setData).length > 0) {
     await db.update(claims).set(setData as never).where(eq(claims.id, claimId));
   }
