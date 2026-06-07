@@ -44,6 +44,7 @@ import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
 import { createCopilotRouter } from "../copilotRuntime";
 import { registerHostingerWebhookRoute } from "../hostingerWebhook";
+import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -1077,6 +1078,8 @@ async function startServer() {
   registerEmbedRoutes(app);
   // Hostinger inbound signed webhook — receives events from all Hostinger-hosted sites
   registerHostingerWebhookRoute(app);
+  // Public translate-and-search REST API — natural language → cited evidence
+  registerTranslateAndSearchApi(app);
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
 
   // PDF report export endpoint (authenticated)

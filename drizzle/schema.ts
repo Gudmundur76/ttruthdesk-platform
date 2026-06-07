@@ -1547,3 +1547,19 @@ export const sourceRegistryEntries = mysqlTable("source_registry_entries", {
 }));
 export type SourceRegistryEntry = typeof sourceRegistryEntries.$inferSelect;
 export type InsertSourceRegistryEntry = typeof sourceRegistryEntries.$inferInsert;
+
+// ─── Saved Research ───────────────────────────────────────────────────────────
+export const savedResearch = mysqlTable("saved_research", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  question: text("question").notNull(),
+  claimsJson: json("claimsJson").$type<unknown[]>().notNull().default([]),
+  totalPapers: int("totalPapers").notNull().default(0),
+  supportedClaims: int("supportedClaims").notNull().default(0),
+  claimsAnalysed: int("claimsAnalysed").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  userIdIdx: index("sr_user_id_idx").on(t.userId),
+}));
+export type SavedResearch = typeof savedResearch.$inferSelect;
+export type InsertSavedResearch = typeof savedResearch.$inferInsert;

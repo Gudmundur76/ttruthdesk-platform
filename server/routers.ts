@@ -3535,6 +3535,61 @@ Respond in this exact structure:
     }),
   }),
 
+  // ─── Saved Research ──────────────────────────────────────────────────────────────────────
+  savedResearch: router({
+    save: protectedProcedure
+      .input(z.object({
+        question: z.string().min(1).max(2000),
+        claimsJson: z.array(z.unknown()),
+        totalPapers: z.number().int().min(0),
+        supportedClaims: z.number().int().min(0),
+        claimsAnalysed: z.number().int().min(0),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("./db");
+        const { savedResearch } = await import("../drizzle/schema");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        const result = await db.insert(savedResearch).values({
+          userId: ctx.user.id,
+          question: input.question,
+          claimsJson: input.claimsJson,
+          totalPapers: input.totalPapers,
+          supportedClaims: input.supportedClaims,
+          claimsAnalysed: input.claimsAnalysed,
+        });
+        return { id: (result as unknown as { insertId: number }).insertId, saved: true };
+      }),
+    list: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(100).optional() }))
+      .query(async ({ ctx, input }) => {
+        const { getDb } = await import("./db");
+        const { savedResearch } = await import("../drizzle/schema");
+        const { desc, eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return [];
+        return db
+          .select()
+          .from(savedResearch)
+          .where(eq(savedResearch.userId, ctx.user.id))
+          .orderBy(desc(savedResearch.createdAt))
+          .limit(input.limit ?? 50);
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("./db");
+        const { savedResearch } = await import("../drizzle/schema");
+        const { and, eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        await db
+          .delete(savedResearch)
+          .where(and(eq(savedResearch.id, input.id), eq(savedResearch.userId, ctx.user.id)));
+        return { deleted: true };
+      }),
+  }),
+
   // ─── Embed ────────────────────────────────────────────────────────────────
   embed: router({
     generateCode: protectedProcedure

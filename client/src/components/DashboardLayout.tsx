@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, FileText, Upload, Activity, TrendingUp, Bell, Zap, BarChart3, ArrowLeftRight, Webhook, GitBranch, Download, Network, Key, Moon, Database, ShieldCheck, Telescope, RefreshCw, Search, Rocket, Radar, Code2, Layers } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, FileText, Upload, Activity, TrendingUp, Bell, Zap, BarChart3, ArrowLeftRight, Webhook, GitBranch, Download, Network, Key, Moon, Database, ShieldCheck, Telescope, RefreshCw, Search, Rocket, Radar, Code2, Layers, BookMarked } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -33,6 +33,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "My Audits", path: "/dashboard" },
   { icon: Upload, label: "New Audit", path: "/submit" },
   { icon: Search, label: "Semantic Search", path: "/search" },
+  { icon: BookMarked, label: "Saved Research", path: "/saved-research" },
   { icon: Activity, label: "Monitoring", path: "/monitoring" },
   { icon: FileText, label: "Registry", path: "/registry" },
   { icon: TrendingUp, label: "Predictions", path: "/admin/predictions" },

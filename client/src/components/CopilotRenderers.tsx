@@ -12,6 +12,7 @@
  */
 
 import { useCopilotAction } from "@copilotkit/react-core";
+import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -22,7 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, XCircle, AlertCircle, HelpCircle, Loader2, BarChart3, Dna, BookOpen, FileText, ExternalLink, Calendar, Users, Copy, Check } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, HelpCircle, Loader2, BarChart3, Dna, BookOpen, FileText, ExternalLink, Calendar, Users, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 
@@ -760,6 +762,208 @@ function PubMedCardRenderer({ args, result, status }: {
   );
 }
 
+// ─── 10. translateAndSearch ──────────────────────────────────────────────────
+
+type TranslateResult = {
+  question: string;
+  claimsAnalysed: number;
+  totalPapersFound: number;
+  supportedClaims: number;
+  note?: string;
+  error?: string;
+  claims: Array<{
+    claimText: string;
+    searchQuery: string;
+    proteinName?: string | null;
+    organism?: string | null;
+    verdict: { verdict: string; rationale: string; evidenceUrl?: string | null } | null;
+    pubmedEvidence: Array<{
+      pmid: string;
+      title: string;
+      abstractSnippet: string;
+      citationUrl: string;
+      authors?: string[];
+      journal?: string | null;
+      year?: number | null;
+    }>;
+  }>;
+};
+
+function TranslateAndSearchRenderer({
+  args,
+  result,
+  status,
+}: {
+  args: { question: string };
+  result?: TranslateResult;
+  status: string;
+}) {
+  const [openClaims, setOpenClaims] = useState<Record<number, boolean>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const utils = trpc.useUtils();
+
+  const saveMutation = trpc.savedResearch.save.useMutation({
+    onSuccess: () => {
+      setSaved(true);
+      setSaving(false);
+      toast.success("Research saved to your library");
+      utils.savedResearch.list.invalidate();
+    },
+    onError: (e) => {
+      setSaving(false);
+      toast.error("Failed to save: " + e.message);
+    },
+  });
+
+  const handleSave = useCallback(() => {
+    if (!result || saving || saved) return;
+    setSaving(true);
+    saveMutation.mutate({
+      question: result.question,
+      claimsJson: result.claims,
+      totalPapers: result.totalPapersFound,
+      supportedClaims: result.supportedClaims,
+      claimsAnalysed: result.claimsAnalysed,
+    });
+  }, [result, saving, saved, saveMutation]);
+
+  if (status === "inProgress") {
+    return (
+      <Card className="my-3 border-violet-200 bg-violet-50/40">
+        <CardContent className="pt-4 pb-3">
+          <div className="flex items-center gap-2 text-sm text-violet-700 mb-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Translating question into verifiable claims and searching PubMed…</span>
+          </div>
+          <p className="text-xs text-muted-foreground italic">"{args.question}"</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!result) return null;
+  if (result.error) {
+    return (
+      <Card className="my-3 border-red-200 bg-red-50/40">
+        <CardContent className="pt-4 pb-3 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 inline mr-1" />
+          {result.error}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const claims = result.claims ?? [];
+
+  return (
+    <Card className="my-3 border-violet-200">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-sm font-semibold text-foreground leading-snug">
+              "{result.question}"
+            </CardTitle>
+            <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><FileText className="h-3 w-3" />{result.claimsAnalysed} claims analysed</span>
+              <span className="flex items-center gap-1"><BookOpen className="h-3 w-3" />{result.totalPapersFound} papers found</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-600" />{result.supportedClaims} supported</span>
+            </div>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving || saved}
+            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border transition-colors ${
+              saved
+                ? "border-green-300 bg-green-50 text-green-700 cursor-default"
+                : "border-violet-300 bg-violet-50 hover:bg-violet-100 text-violet-700"
+            }`}
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : saved ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {saved ? "Saved" : saving ? "Saving…" : "Save Research"}
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 pb-4 space-y-3">
+        {claims.map((claim, i) => (
+          <div key={i} className="rounded-lg border bg-card p-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground leading-snug">{claim.claimText}</p>
+                {(claim.proteinName || claim.organism) && (
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {claim.proteinName && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                        <Dna className="h-2.5 w-2.5" />{claim.proteinName}
+                      </span>
+                    )}
+                    {claim.organism && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-100">
+                        {claim.organism}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              {claim.verdict && <VerdictBadge verdict={claim.verdict.verdict} />}
+            </div>
+            {claim.verdict?.rationale && (
+              <p className="text-[11px] text-muted-foreground leading-relaxed border-l-2 border-violet-200 pl-2">
+                {claim.verdict.rationale}
+              </p>
+            )}
+            {claim.pubmedEvidence.length > 0 && (
+              <Collapsible
+                open={openClaims[i] ?? false}
+                onOpenChange={(v) => setOpenClaims((p) => ({ ...p, [i]: v }))}
+              >
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-1 text-[11px] text-violet-600 hover:text-violet-800 transition-colors">
+                    {openClaims[i] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    {claim.pubmedEvidence.length} peer-reviewed source{claim.pubmedEvidence.length > 1 ? "s" : ""}
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 space-y-2">
+                  {claim.pubmedEvidence.map((p, pi) => (
+                    <div key={pi} className="rounded border bg-muted/30 p-2 space-y-1">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-green-100 text-green-800 border border-green-200 shrink-0">PMID {p.pmid}</span>
+                        <a href={p.citationUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-[11px] font-medium text-foreground hover:underline leading-snug">
+                          {p.title}
+                        </a>
+                      </div>
+                      {(p.journal || p.year) && (
+                        <div className="flex gap-2 text-[10px] text-muted-foreground">
+                          {p.journal && <span className="flex items-center gap-1"><BookOpen className="h-2.5 w-2.5" />{p.journal}</span>}
+                          {p.year && <span className="flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />{p.year}</span>}
+                        </div>
+                      )}
+                      {p.abstractSnippet && (
+                        <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">{p.abstractSnippet}</p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <a href={p.citationUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] text-green-600 hover:underline">
+                          <ExternalLink className="h-2.5 w-2.5" />View on PubMed
+                        </a>
+                        <CiteButton paper={p} />
+                      </div>
+                    </div>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+        ))}
+        {result.note && (
+          <p className="text-[11px] text-muted-foreground text-center pt-1">{result.note}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Hook: register all renderers ────────────────────────────────────────────
 
 export function useCopilotRenderers() {
@@ -844,6 +1048,15 @@ export function useCopilotRenderers() {
       { name: "limit", type: "number", description: "Max results (1-5)", required: false },
     ],
     render: (props) => <PubMedCardRenderer {...(props as Parameters<typeof PubMedCardRenderer>[0])} />,
+  });
+
+  useCopilotAction({
+    name: "translateAndSearch",
+    description: "Translate everyday question into verifiable claims and search PubMed",
+    parameters: [
+      { name: "question", type: "string", description: "The everyday question to translate and search", required: true },
+    ],
+    render: (props) => <TranslateAndSearchRenderer {...(props as Parameters<typeof TranslateAndSearchRenderer>[0])} />,
   });
 }
 

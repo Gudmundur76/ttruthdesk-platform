@@ -1022,3 +1022,16 @@
 - [x] Add translateAndSearch CopilotKit action — decomposes question, runs PubMed + verdict engine in parallel for each claim, fires paper_discovered events, returns cited results
 - [x] Rewrite CopilotKit system prompt — mandates translateAndSearch FIRST for all everyday questions, bans "out of scope" responses, requires PMID/UniProt citations in every answer
 - [x] TypeScript clean, 790 tests passing, checkpoint saved
+
+## Sprint Q: translateAndSearch Renderer + Save Research + Public API
+- [x] Build TranslateAndSearchRenderer component in CopilotRenderers.tsx — collapsible claim cards with verdict badges (Supported/Contradicted/Insufficient Evidence), PubMed evidence cards, and citation block
+- [x] Register translateAndSearch useCopilotAction renderer in CopilotRenderers.tsx
+- [x] Add saved_research DB table (drizzle/schema.ts) — userId, question, claimsJson, totalPapers, supportedClaims, createdAt
+- [x] Generate and apply migration SQL for saved_research table
+- [x] Add savedResearch.save and savedResearch.list tRPC procedures
+- [x] Add Save Research button to TranslateAndSearchRenderer — calls saveResearch mutation, shows toast on success
+- [x] Build SavedResearch.tsx page — lists saved research with question, date, claim count, verdict summary, expandable detail
+- [x] Register /saved-research route in App.tsx and add Saved Research nav item in DashboardLayout sidebar
+- [x] Build /api/translate-and-search REST endpoint — SHA-256 API key auth (X-API-Key), rate-limited (10 req/min authenticated, 2/min anonymous), autonomous ingest trigger
+- [x] Register /api/translate-and-search in server index.ts
+- [x] TypeScript clean, 790 tests passing, checkpoint saved

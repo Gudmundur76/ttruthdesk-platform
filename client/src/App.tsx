@@ -68,6 +68,7 @@ const VerticalManagement   = lazy(() => import("@/pages/admin/VerticalManagement
 const AuditComparison      = lazy(() => import("@/pages/AuditComparison"));
 const Trust                = lazy(() => import("@/pages/Trust"));
 const ApiDocs              = lazy(() => import("@/pages/ApiDocs"));
+const SavedResearch        = lazy(() => import("@/pages/SavedResearch"));
 
 // ─── CopilotKit: lazy-loaded so it never blocks first paint ──────────────────
 const CopilotKitProvider = lazy(() =>
@@ -125,6 +126,7 @@ function Router() {
         <Route path="/compare" component={AuditComparison} />
         <Route path="/trust" component={Trust} />
         <Route path="/docs/api" component={ApiDocs} />
+        <Route path="/saved-research" component={SavedResearch} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
