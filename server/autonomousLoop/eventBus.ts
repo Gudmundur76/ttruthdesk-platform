@@ -3,8 +3,23 @@
  *
  * All events that enter the system are persisted to event_queue before
  * processing. This ensures every event is traceable, replayable, and
- * auditable. The bus does NOT execute events — it only persists and
- * retrieves them. The loopOrchestrator is responsible for execution.
+ * auditable.
+ *
+ * REACTIVE DRAIN MODEL (v2)
+ * ─────────────────────────
+ * publishEvent() now schedules a non-blocking drain pass via setImmediate()
+ * after every call. This means the loop reacts to events within milliseconds
+ * rather than waiting up to 2 hours for the cron tick.
+ *
+ * Safety properties:
+ *   • Re-entrancy guard  — only one drain pass runs at a time.
+ *   • Concurrency cap    — drains at most MAX_DRAIN_PER_PASS events per pass.
+ *   • Back-pressure      — if a pass finds more pending events after finishing,
+ *                          it schedules another pass immediately (cascade).
+ *   • Error isolation    — a failed processEvent() does not abort the drain.
+ *   • Cron safety net    — the 2-hour cron tick still works; it just rarely
+ *                          finds pending work because the reactive drain already
+ *                          processed everything.
  */
 
 import { getDb } from "../db";
@@ -63,11 +78,71 @@ export interface LoopEvent {
   processedAt: Date | null;
 }
 
+// ─── Reactive Drain Worker ─────────────────────────────────────────────────────
+
+/** Maximum events processed in a single drain pass. */
+const MAX_DRAIN_PER_PASS = 10;
+
+/** Re-entrancy guard — true while a drain pass is running. */
+let _draining = false;
+
+/**
+ * Run a single drain pass: claim and process up to MAX_DRAIN_PER_PASS pending
+ * events. If more events remain after the pass, schedule another pass.
+ *
+ * This function is always called outside the current call stack via
+ * setImmediate() so it never blocks the HTTP response that triggered it.
+ */
+async function _drainPass(): Promise<void> {
+  if (_draining) return;   // another pass is already running
+  _draining = true;
+
+  let processed = 0;
+  try {
+    // Lazy-import to avoid circular dependency at module load time
+    const { processEvent } = await import("./loopOrchestrator");
+
+    for (let i = 0; i < MAX_DRAIN_PER_PASS; i++) {
+      const event = await claimNextEvent();
+      if (!event) break;
+
+      try {
+        await processEvent(event);
+        processed++;
+      } catch (err) {
+        // Mark failed and continue — do not abort the whole drain pass
+        await markEventFailed(event.id, String(err));
+        console.error(`[EventBus] processEvent(${event.id}) failed:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("[EventBus] drain pass error:", err);
+  } finally {
+    _draining = false;
+  }
+
+  // If we processed a full batch there may be more pending events — cascade.
+  if (processed >= MAX_DRAIN_PER_PASS) {
+    setImmediate(_drainPass);
+  }
+}
+
+/**
+ * Schedule a non-blocking drain pass after the current call stack unwinds.
+ * Safe to call from inside an HTTP handler or pipeline — will not block.
+ */
+export function scheduleDrain(): void {
+  setImmediate(_drainPass);
+}
+
 // ─── Publish ───────────────────────────────────────────────────────────────────
 
 /**
  * Publish a new event to the event bus.
  * Returns the persisted event ID.
+ *
+ * After persisting, schedules a reactive drain pass so the loop processes
+ * the event within milliseconds rather than waiting for the next cron tick.
  */
 export async function publishEvent(
   eventType: LoopEventType,
@@ -75,6 +150,7 @@ export async function publishEvent(
 ): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
   const entryLayer = EVENT_ENTRY_LAYERS[eventType];
   const [result] = await db.insert(eventQueue).values({
     eventType,
@@ -83,6 +159,10 @@ export async function publishEvent(
     entryLayer,
     attempts: 0,
   });
+
+  // Schedule reactive drain — non-blocking, outside current call stack
+  scheduleDrain();
+
   return result.insertId;
 }
 

@@ -943,36 +943,33 @@ async function startServer() {
       res.status(500).json({ ok: false, error: (err as Error).message });
     }
   });
-  // Autonomous Loop tick — fires every 2 hours to drain the event queue
+  // ─── Autonomous Loop tick (safety-net fallback) ─────────────────────────────
+  //
+  // Since eventBus v2, publishEvent() schedules a reactive drain via setImmediate()
+  // after every call. Events are processed within milliseconds of being published.
+  //
+  // This 2-hour cron tick is now a SAFETY NET only:
+  //   1. Publishes scheduled_tick (triggers Dream State eligibility check)
+  //   2. Calls scheduleDrain() to catch events that may have accumulated
+  //      while the process was restarting or the reactive drain was busy
+  //
+  // The synchronous drain loop has been removed — the reactive worker handles it.
   app.post("/api/scheduled/autonomous-loop-tick", requireCronOrAdmin, async (_req, res) => {
     try {
-      const { publishEvent } = await import("../autonomousLoop/eventBus");
-      const { processEvent } = await import("../autonomousLoop/loopOrchestrator");
-      const { getDb } = await import("../db");
-      const { eventQueue: eqTable } = await import("../../drizzle/schema");
-      const { eq: eqFn } = await import("drizzle-orm");
+      const { publishEvent, scheduleDrain, getPendingEventCount } = await import("../autonomousLoop/eventBus");
 
-      // Publish the scheduled_tick event so layers can react
-      await publishEvent("scheduled_tick", { source: "cron" });
+      // Publish scheduled_tick so L0/L2 layers can react (Dream eligibility etc.)
+      await publishEvent("scheduled_tick", { source: "cron", mode: "safety_net" });
 
-      // Drain up to 20 pending events
-      const db = await getDb();
-      const results: unknown[] = [];
-      if (db) {
-        for (let i = 0; i < 20; i++) {
-          const [nextEvent] = await db.select().from(eqTable).where(eqFn(eqTable.status, "pending")).limit(1);
-          if (!nextEvent) break;
-          const result = await processEvent(nextEvent as never);
-          results.push(result);
-        }
-      }
+      // Trigger a drain pass for any events that accumulated while process was idle
+      scheduleDrain();
+      const pendingBefore = await getPendingEventCount();
 
-      // After draining, check if the system is eligible for a Dream State session
+      // Check Dream State eligibility (converged = low queue depth)
       let dreamResult: unknown = null;
       try {
         const { checkDreamEligibility, runDreamSession } = await import("../dream/dreamEngine");
-        // Use a lightweight health proxy: if we drained 0 events the system is converged
-        const healthProxy = results.length === 0 ? 80 : 50;
+        const healthProxy = pendingBefore === 0 ? 80 : 50;
         const eligibility = await checkDreamEligibility(healthProxy);
         if (eligibility.eligible) {
           console.log("[DreamEngine] Entering Dream State:", eligibility.reason);
@@ -982,9 +979,16 @@ async function startServer() {
         console.error("[DreamEngine] Dream check failed (non-fatal):", dreamErr);
       }
 
-      res.json({ ok: true, tickPublished: true, drained: results.length, dream: dreamResult });
+      res.json({
+        ok: true,
+        mode: "safety_net",
+        tickPublished: true,
+        pendingEventsAtTick: pendingBefore,
+        drainScheduled: true,
+        dream: dreamResult,
+      });
     } catch (err) {
-      console.error("[AutonomousLoop] Scheduled tick failed:", err);
+      console.error("[AutonomousLoop] Safety-net tick failed:", err);
       res.status(500).json({ ok: false, error: (err as Error).message });
     }
   });

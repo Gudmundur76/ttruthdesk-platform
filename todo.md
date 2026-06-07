@@ -893,3 +893,9 @@
 - [x] Add verticalConfigs.list, create, update tRPC procedures (admin-only)
 - [x] Build /admin/verticals Vertical Expansion Wizard page (4-step wizard + active verticals toggle list)
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint E: Reactive Event-Driven Loop (no cron dependency)
+- [x] Add reactive drain worker to eventBus.ts (scheduleDrain, _drainPass, re-entrancy guard, MAX_DRAIN_PER_PASS=10, cascade on full batch)
+- [x] publishEvent() now calls scheduleDrain() after every insert — loop reacts within milliseconds
+- [x] autonomous-loop-tick cron converted to safety-net fallback (publishes scheduled_tick + calls scheduleDrain, no manual drain loop)
+- [x] TypeScript clean, 780 tests passing, checkpoint saved
