@@ -472,27 +472,29 @@ export function createCopilotRouter(): Router {
   // CopilotKit SDK v1.59+ calls GET /api/copilot/info on mount to discover the
   // runtime version and capabilities. The hono single-route handler only accepts
   // POST, so we intercept this specific path and return the info JSON directly.
-  router.get("/api/copilot/info", async (_req, res) => {
-    try {
-      const infoRes = await fetch("http://localhost:3000/api/copilot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: "info" }),
-        signal: AbortSignal.timeout(5000),
-      });
-      const data = await infoRes.json();
-      res.json(data);
-    } catch {
-      res.json({
-        version: "1.59.5",
-        mode: "sse",
-        agents: { default: { name: "default", className: "BuiltInAgent", capabilities: { tools: { supported: true, clientProvided: true }, transport: { streaming: true } } } },
-        audioFileTranscriptionEnabled: false,
-        a2uiEnabled: false,
-        openGenerativeUIEnabled: false,
-        telemetryDisabled: false,
-      });
-    }
+  // IMPORTANT: Do NOT use a self-HTTP fetch (localhost:3000) here — it breaks in
+  // production (Cloud Run) where the server doesn't bind to localhost. Instead,
+  // return the static info payload directly from the known runtime configuration.
+  router.get("/api/copilot/info", (_req, res) => {
+    res.json({
+      version: "1.59.5",
+      mode: "sse",
+      agents: {
+        default: {
+          name: "default",
+          description: "",
+          className: "BuiltInAgent",
+          capabilities: {
+            tools: { supported: true, clientProvided: true },
+            transport: { streaming: true },
+          },
+        },
+      },
+      audioFileTranscriptionEnabled: false,
+      a2uiEnabled: false,
+      openGenerativeUIEnabled: false,
+      telemetryDisabled: false,
+    });
   });
 
   // ── GET /api/copilot/threads ───────────────────────────────────────────────
