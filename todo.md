@@ -926,7 +926,7 @@
 - [x] Add logCronRun calls to discoveryLoopJob, pmcFeedJob, qualityPassJob, swarmTickJob, qualityScorerJob
 - [x] Add crons.history tRPC procedure (admin-only) returning last N runs per job
 - [x] Add collapsible history panel to AdminCrons.tsx (per-job, shows status, duration, summary, error)
-- [ ] Export project to GitHub (private repo) — user action via Settings → GitHub panel
+- [x] Export project to GitHub (private repo) — user action via Settings → GitHub panel
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
 
 ## Sprint H: CopilotKit Integration

@@ -11,7 +11,7 @@ import {
   OpenAIAdapter,
   copilotRuntimeNodeExpressEndpoint,
 } from "@copilotkit/runtime";
-import { Router } from "express";
+import { type Request, type Response, Router } from "express";
 import { ENV } from "./_core/env";
 import {
   getAllGraphEntities,
@@ -463,6 +463,17 @@ export function createCopilotRouter(): Router {
   });
 
   const router = Router();
-  router.use("/api/copilot", handler);
+  // The hono app uses basePath: '/api/copilot' internally and checks the full
+  // path from req.url. If we mount at '/api/copilot', Express strips that prefix
+  // and hono sees '/' which doesn't match its basePath check, returning 404.
+  // Solution: mount at root but guard with a path check so non-copilot routes
+  // fall through to the next Express handler.
+  router.use((req, res, next) => {
+    const url = req.originalUrl ?? req.url ?? "";
+    if (!url.startsWith("/api/copilot")) {
+      return next();
+    }
+    return (handler as (req: Request, res: Response) => void)(req, res);
+  });
   return router;
 }
