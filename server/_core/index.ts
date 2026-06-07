@@ -28,6 +28,7 @@ import { registerClaimPageRoute } from "../claimPageRoute";
 import { registerWikiPageRoute } from "../wikiPageRoute";
 import { registerBadgeRoute } from "../badgeRoute";
 import { registerEmbedWidgetRoutes } from "../embedWidgetRoute";
+import { registerEmbedRoutes } from "../embedRoutes";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
 import { createCoordRouter } from "../coordApi/index";
 import { createApiV2Router } from "../apiV2Router";
@@ -1069,6 +1070,7 @@ async function startServer() {
   });
   registerBadgeRoute(app);
   registerEmbedWidgetRoutes(app);
+  registerEmbedRoutes(app);
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
 
   // PDF report export endpoint (authenticated)

@@ -47,6 +47,10 @@ import SourceWhitelist from "@/pages/SourceWhitelist";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import AdminCrons from "@/pages/AdminCrons";
 import AdminVerticals from "@/pages/AdminVerticals";
+import DeploymentDashboard from "@/pages/admin/DeploymentDashboard";
+import DiscoveryPanel from "@/pages/admin/DiscoveryPanel";
+import EmbedGenerator from "@/pages/admin/EmbedGenerator";
+import VerticalManagement from "@/pages/admin/VerticalManagement";
 import { CopilotKit } from "@copilotkit/react-core";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
@@ -98,6 +102,10 @@ function Router() {
       <Route path="/admin/sources" component={SourceWhitelist} />
       <Route path="/admin/crons" component={AdminCrons} />
       <Route path="/admin/verticals" component={AdminVerticals} />
+      <Route path="/admin/deployments" component={DeploymentDashboard} />
+      <Route path="/admin/discovery" component={DiscoveryPanel} />
+      <Route path="/admin/embed" component={EmbedGenerator} />
+      <Route path="/admin/vertical-mgmt" component={VerticalManagement} />
       <Route path="/checkout/success" component={CheckoutSuccess} />
       <Route path="/compare" component={AuditComparison} />
       <Route path="/trust" component={Trust} />

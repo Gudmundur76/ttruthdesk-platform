@@ -938,3 +938,21 @@
 - [x] Wrap App.tsx in CopilotKit provider pointing at /api/copilot
 - [x] Add CopilotSidebar to DashboardLayout with Truth Desk branding
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint I: Deployment Architecture
+- [x] Add micron_deployments, discovery_runs, source_registry_entries tables to schema.ts and apply migration 0032
+- [x] Create server/embedRoutes.ts — iFrame widget endpoint (/api/embed/widget), JS SDK endpoint (/api/embed/sdk.js), event broadcasting, theme detection
+- [x] Register embed routes in server/_core/index.ts
+- [x] Create server/micronDeploy.ts — POST /api/micron/deploy with Vercel/Netlify/Docker/IPFS targets, full site template generator, DB-backed deployment records
+- [x] Create server/discoveryEngine.ts — 15+ built-in source registry (PDB, UniProt, PubMed, ChEMBL, ClinicalTrials, OMIM, Ensembl, Reactome, IntAct, STRING, DrugBank, DSLD, HMDB, GEO, Open Targets), probe, adapter codegen, health monitoring
+- [x] Create server/privateMode.ts — Docker Compose config generator, SAML/OAuth stubs, audit logging, internal DB adapter interface
+- [x] Create server/verticalCopilotActions.ts — per-vertical action sets for Laxey (structural), Alvotech (biosimilar), Academic (literature) tiers
+- [x] Add deployment, discovery, embed tRPC routers to appRouter in routers.ts
+- [x] Add verticals.list, verticals.create, verticals.toggle procedures to verticals router
+- [x] Create client/src/pages/admin/DeploymentDashboard.tsx — deployment list, new deploy form, status tracking
+- [x] Create client/src/pages/admin/DiscoveryPanel.tsx — built-in sources browser, run discovery, source registry
+- [x] Create client/src/pages/admin/EmbedGenerator.tsx — embed code generator with live preview, iFrame and SDK tabs
+- [x] Create client/src/pages/admin/VerticalManagement.tsx — vertical CRUD, enable/disable toggle, quality tier management
+- [x] Register all four admin pages in App.tsx (/admin/deployments, /admin/discovery, /admin/embed, /admin/vertical-mgmt)
+- [x] Add Rocket/Radar/Code2/Layers nav items to DashboardLayout sidebar
+- [x] TypeScript clean, 780 tests passing

@@ -1416,3 +1416,134 @@ export const cronRunLog = mysqlTable("cron_run_log", {
 }));
 export type CronRunLog = typeof cronRunLog.$inferSelect;
 export type InsertCronRunLog = typeof cronRunLog.$inferInsert;
+
+// ─── Sprint I: Deployment Architecture ────────────────────────────────────────
+
+/**
+ * micron_deployments — tracks each "Micron" standalone site deployment.
+ * A Micron is a lightweight, auto-generated static site for a vertical that
+ * can be deployed to Vercel, Netlify, Docker, or IPFS.
+ */
+export const micronDeployments = mysqlTable("micron_deployments", {
+  id: int("id").primaryKey().autoincrement(),
+  /** FK to vertical_configs.domainKey */
+  verticalKey: varchar("verticalKey", { length: 64 }).notNull(),
+  /** Human-readable display name for this deployment */
+  displayName: varchar("displayName", { length: 256 }).notNull(),
+  /** Custom domain for the deployed site */
+  domain: varchar("domain", { length: 512 }),
+  /** Deploy target: vercel | netlify | docker | ipfs */
+  deployTarget: mysqlEnum("deployTarget", ["vercel", "netlify", "docker", "ipfs"]).notNull(),
+  /** Deployment status */
+  status: mysqlEnum("status", ["pending", "building", "deployed", "failed", "cancelled"])
+    .default("pending")
+    .notNull(),
+  /** Public URL of the deployed site */
+  siteUrl: varchar("siteUrl", { length: 2048 }),
+  /** Deployment-target-specific config (API tokens, project IDs, etc.) */
+  config: json("config").$type<Record<string, string>>().notNull().default({}),
+  /** Error message if status = failed */
+  errorMessage: text("errorMessage"),
+  /** Owner user ID */
+  userId: int("userId").notNull(),
+  deployedAt: timestamp("deployedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
+}, (t) => ({
+  verticalKeyIdx: index("md_vertical_key_idx").on(t.verticalKey),
+  statusIdx: index("md_status_idx").on(t.status),
+  userIdx: index("md_user_idx").on(t.userId),
+}));
+export type MicronDeployment = typeof micronDeployments.$inferSelect;
+export type InsertMicronDeployment = typeof micronDeployments.$inferInsert;
+
+/**
+ * discovery_runs — records each Auto-Discovery Engine run.
+ * A run probes a set of candidate sources and produces adapter stubs.
+ */
+export const discoveryRuns = mysqlTable("discovery_runs", {
+  id: int("id").primaryKey().autoincrement(),
+  /** Vertical domain this run targeted */
+  verticalKey: varchar("verticalKey", { length: 64 }).notNull(),
+  /** Run status */
+  status: mysqlEnum("status", ["running", "complete", "failed"]).default("running").notNull(),
+  /** Phase currently executing: match | search | test | configure | register | monitor */
+  currentPhase: varchar("currentPhase", { length: 32 }).default("match"),
+  /** Number of sources matched */
+  sourcesMatched: int("sourcesMatched").notNull().default(0),
+  /** Number of sources successfully probed */
+  sourcesProbed: int("sourcesProbed").notNull().default(0),
+  /** Number of adapter stubs generated */
+  adaptersGenerated: int("adaptersGenerated").notNull().default(0),
+  /** JSON array of source IDs that were registered */
+  registeredSources: json("registeredSources").$type<string[]>().notNull().default([]),
+  /** JSON array of generated adapter file paths in S3 */
+  adapterFiles: json("adapterFiles").$type<string[]>().notNull().default([]),
+  /** Error message if status = failed */
+  errorMessage: text("errorMessage"),
+  /** Full structured log of the run phases */
+  runLog: json("runLog").$type<Array<{ phase: string; message: string; ts: number }>>().notNull().default([]),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, (t) => ({
+  verticalKeyIdx: index("dr_vertical_key_idx").on(t.verticalKey),
+  statusIdx: index("dr_status_idx").on(t.status),
+  startedAtIdx: index("dr_started_at_idx").on(t.startedAt),
+}));
+export type DiscoveryRun = typeof discoveryRuns.$inferSelect;
+export type InsertDiscoveryRun = typeof discoveryRuns.$inferInsert;
+
+/**
+ * source_registry_entries — persisted registry of discovered/approved sources.
+ * Complements the in-memory SOURCE_WHITELIST with DB-backed entries that
+ * survive restarts and can be managed via the admin UI.
+ */
+export const sourceRegistryEntries = mysqlTable("source_registry_entries", {
+  id: int("id").primaryKey().autoincrement(),
+  /** Stable machine-readable source ID, e.g. "rcsb_pdb" */
+  sourceId: varchar("sourceId", { length: 128 }).notNull().unique(),
+  /** Human-readable name */
+  displayName: varchar("displayName", { length: 256 }).notNull(),
+  /** Base URL of the source API */
+  baseUrl: varchar("baseUrl", { length: 2048 }).notNull(),
+  /** Source category */
+  category: mysqlEnum("category", [
+    "protein_structure",
+    "sequence",
+    "literature",
+    "clinical",
+    "chemistry",
+    "genomics",
+    "nutrition",
+    "regulatory",
+    "other",
+  ]).notNull().default("other"),
+  /** Approval status */
+  approvalStatus: mysqlEnum("approvalStatus", ["pending", "approved", "rejected"])
+    .default("pending")
+    .notNull(),
+  /** Whether the source is currently healthy */
+  isHealthy: boolean("isHealthy").notNull().default(true),
+  /** Last health check timestamp */
+  lastHealthCheckAt: timestamp("lastHealthCheckAt"),
+  /** HTTP status code from last health check */
+  lastHealthStatus: int("lastHealthStatus"),
+  /** Verticals this source is assigned to */
+  verticals: json("verticals").$type<string[]>().notNull().default([]),
+  /** Auto-generated adapter stub code (TypeScript) */
+  adapterStub: text("adapterStub"),
+  /** Discovery run that found this source (nullable for manually added sources) */
+  discoveryRunId: int("discoveryRunId"),
+  /** Schema description inferred during probing */
+  schemaDescription: text("schemaDescription"),
+  /** Rate limit info (requests per minute) */
+  rateLimitRpm: int("rateLimitRpm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
+}, (t) => ({
+  sourceIdIdx: uniqueIndex("sre_source_id_idx").on(t.sourceId),
+  categoryIdx: index("sre_category_idx").on(t.category),
+  approvalStatusIdx: index("sre_approval_status_idx").on(t.approvalStatus),
+}));
+export type SourceRegistryEntry = typeof sourceRegistryEntries.$inferSelect;
+export type InsertSourceRegistryEntry = typeof sourceRegistryEntries.$inferInsert;

@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, FileText, Upload, Activity, TrendingUp, Bell, Zap, BarChart3, ArrowLeftRight, Webhook, GitBranch, Download, Network, Key, Moon, Database, ShieldCheck, Telescope, RefreshCw, Search } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, FileText, Upload, Activity, TrendingUp, Bell, Zap, BarChart3, ArrowLeftRight, Webhook, GitBranch, Download, Network, Key, Moon, Database, ShieldCheck, Telescope, RefreshCw, Search, Rocket, Radar, Code2, Layers } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -51,6 +51,10 @@ const menuItems = [
   { icon: Moon, label: "Dream State", path: "/admin/dream" },
   { icon: ShieldCheck, label: "Override Audit", path: "/admin/overrides" },
   { icon: Database, label: "Source Whitelist", path: "/admin/sources" },
+  { icon: Rocket, label: "Deployments", path: "/admin/deployments" },
+  { icon: Radar, label: "Auto-Discovery", path: "/admin/discovery" },
+  { icon: Code2, label: "Embed Generator", path: "/admin/embed" },
+  { icon: Layers, label: "Vertical Mgmt", path: "/admin/vertical-mgmt" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

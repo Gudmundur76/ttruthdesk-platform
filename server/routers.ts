@@ -1048,6 +1048,62 @@ Respond in this exact structure:
           topClaims,
         };
       }),
+
+    /**
+     * Admin: list all verticals from DB (verticalConfigs table).
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      const { verticalConfigs } = await import("../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      return db.select().from(verticalConfigs).orderBy(desc(verticalConfigs.createdAt));
+    }),
+
+    /**
+     * Admin: create a new vertical in DB.
+     */
+    create: protectedProcedure
+      .input(z.object({
+        domainKey: z.string().min(1).max(64),
+        displayName: z.string().min(1).max(128),
+        description: z.string().optional(),
+        qualityTier: z.enum(["draft", "verified"]).default("draft"),
+        enabled: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { verticalConfigs } = await import("../drizzle/schema");
+        const result = await db.insert(verticalConfigs).values({
+          domainKey: input.domainKey,
+          displayName: input.displayName,
+          description: input.description ?? null,
+          qualityTier: input.qualityTier,
+          enabled: input.enabled,
+        });
+        return { id: Number((result as { insertId?: number }).insertId ?? 0) };
+      }),
+
+    /**
+     * Admin: toggle a vertical enabled/disabled.
+     */
+    toggle: protectedProcedure
+      .input(z.object({ id: z.number(), enabled: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { verticalConfigs } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(verticalConfigs).set({ enabled: input.enabled }).where(eq(verticalConfigs.id, input.id));
+        return { success: true };
+      }),
   }),
   // ─── LLM text extraction from PDF text ────────────────────────────────────
   extractText: protectedProcedure
@@ -3342,6 +3398,155 @@ Respond in this exact structure:
         const ok = rejectSource(input.sourceId);
         if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: `Source "${input.sourceId}" not found` });
         return { success: true, sourceId: input.sourceId };
+      }),
+  }),
+
+  // ─── Deployment (Micron + Private) ────────────────────────────────────────────────
+  deployment: router({
+    deploy: protectedProcedure
+      .input(z.object({
+        verticalKey: z.string(),
+        displayName: z.string(),
+        deployTarget: z.enum(["vercel", "netlify", "docker", "ipfs"]),
+        domain: z.string().optional(),
+        deployConfig: z.record(z.string(), z.string()).optional(),
+        apiBase: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { createMicronDeployment, deployMicron } = await import("./micronDeploy");
+        const deployment = await createMicronDeployment({
+          verticalKey: input.verticalKey,
+          displayName: input.displayName,
+          domain: input.domain,
+          deployTarget: input.deployTarget,
+          config: (input.deployConfig ?? {}) as Record<string, string>,
+          userId: ctx.user.id,
+        });
+        deployMicron({
+          deploymentId: deployment.id,
+          verticalKey: input.verticalKey,
+          displayName: input.displayName,
+          domain: input.domain,
+          deployTarget: input.deployTarget,
+          config: (input.deployConfig ?? {}) as Record<string, string>,
+          apiBase: input.apiBase ?? "",
+        }).catch(console.error);
+        return { deploymentId: deployment.id, status: "building" };
+      }),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const { getMicronDeploymentsByUser } = await import("./micronDeploy");
+      return getMicronDeploymentsByUser(ctx.user.id);
+    }),
+    listAll: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getAllMicronDeployments } = await import("./micronDeploy");
+      return getAllMicronDeployments();
+    }),
+    generateDockerCompose: protectedProcedure
+      .input(z.object({
+        verticalKey: z.string(),
+        domain: z.string().optional(),
+        includeLocalDb: z.boolean().optional(),
+        includeNginx: z.boolean().optional(),
+        includeSaml: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateDockerCompose, generateNginxConfig } = await import("./privateMode");
+        return {
+          composeYml: generateDockerCompose(input),
+          nginxConf: input.includeNginx ? generateNginxConfig({ domain: input.domain ?? "localhost" }) : null,
+        };
+      }),
+    generateSiteHtml: protectedProcedure
+      .input(z.object({
+        verticalKey: z.string(),
+        displayName: z.string(),
+        domain: z.string().optional(),
+        apiBase: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateSiteConfig, generateSiteHtml } = await import("./micronDeploy");
+        const config = generateSiteConfig({
+          verticalKey: input.verticalKey,
+          displayName: input.displayName,
+          domain: input.domain,
+          apiBase: input.apiBase ?? "",
+        });
+        return { html: generateSiteHtml(config), config };
+      }),
+  }),
+
+  // ─── Discovery Engine ──────────────────────────────────────────────────────
+  discovery: router({
+    run: protectedProcedure
+      .input(z.object({
+        verticalKey: z.string(),
+        skipProbe: z.boolean().optional(),
+        skipCodegen: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { createDiscoveryRun, runDiscovery } = await import("./discoveryEngine");
+        const runId = await createDiscoveryRun(input.verticalKey);
+        runDiscovery({ runId, verticalKey: input.verticalKey, skipProbe: input.skipProbe, skipCodegen: input.skipCodegen }).catch(console.error);
+        return { runId, status: "running" };
+      }),
+    get: protectedProcedure
+      .input(z.object({ runId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDiscoveryRun } = await import("./discoveryEngine");
+        const run = await getDiscoveryRun(input.runId);
+        if (!run) throw new TRPCError({ code: "NOT_FOUND" });
+        return run;
+      }),
+    sources: protectedProcedure
+      .input(z.object({ verticalKey: z.string() }))
+      .query(async ({ input }) => {
+        const { getRegistryEntriesByVertical } = await import("./discoveryEngine");
+        return getRegistryEntriesByVertical(input.verticalKey);
+      }),
+    builtInSources: protectedProcedure
+      .input(z.object({ verticalKey: z.string().optional(), category: z.string().optional() }))
+      .query(async ({ input }) => {
+        const { BUILT_IN_SOURCES } = await import("./discoveryEngine");
+        let sources = BUILT_IN_SOURCES;
+        if (input.verticalKey) sources = sources.filter((s) => s.verticals.includes(input.verticalKey!));
+        if (input.category) sources = sources.filter((s) => s.category === input.category);
+        return sources;
+      }),
+    probe: protectedProcedure
+      .input(z.object({ sourceId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { BUILT_IN_SOURCES, probeSource } = await import("./discoveryEngine");
+        const source = BUILT_IN_SOURCES.find((s) => s.sourceId === input.sourceId);
+        if (!source) throw new TRPCError({ code: "NOT_FOUND" });
+        return probeSource(source);
+      }),
+    allSources: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getAllRegistryEntries } = await import("./discoveryEngine");
+      return getAllRegistryEntries();
+    }),
+  }),
+
+  // ─── Embed ────────────────────────────────────────────────────────────────
+  embed: router({
+    generateCode: protectedProcedure
+      .input(z.object({
+        vertical: z.string(),
+        theme: z.enum(["auto", "light", "dark"]).optional(),
+        position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left"]).optional(),
+        apiBase: z.string().optional(),
+      }))
+      .mutation(({ input }) => {
+        const { vertical, theme = "auto", position = "bottom-right", apiBase = "" } = input;
+        const base = apiBase || "https://protein-desk-5r5rzpyg.manus.space";
+        return {
+          iframeCode: `<!-- Truth Desk Embed Widget -->\n<iframe\n  src="${base}/api/embed/frame?vertical=${vertical}&theme=${theme}"\n  width="400" height="440" frameborder="0"\n  style="border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.15);"\n  title="Truth Desk Claim Verifier"\n  sandbox="allow-scripts allow-same-origin allow-popups"\n></iframe>`,
+          sdkCode: `<!-- Truth Desk Floating Widget SDK -->\n<script>\n  window.TruthDesk = { config: { vertical: '${vertical}', theme: '${theme}', position: '${position}', apiBase: '${base}' } };\n</script>\n<script src="${base}/embed/sdk.js" async></script>`,
+          previewUrl: `${base}/api/embed/frame?vertical=${vertical}&theme=${theme}`,
+        };
       }),
   }),
 
