@@ -30,6 +30,7 @@ import { verdictForClaim } from "./pdbAdapter";
 import { searchUniProt } from "./uniprotAdapter";
 import { triggerAutonomousIngest, type PubMedResult, type UniProtEntry } from "./autonomousIngest";
 import { publishEvent } from "./autonomousLoop/eventBus";
+import { translateQueryToClaims } from "./_queryTranslator";
 
 // ─── EuropePMC search (for searchPubMed action) ───────────────────────────────
 
@@ -82,69 +83,179 @@ function buildForgeClient() {
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are the Truth Desk AI — a scientific research assistant powered exclusively by Truth Desk data and live scientific databases.
+const SYSTEM_PROMPT = `You are the Truth Desk AI — a scientific evidence engine. Your ONLY job is to return cited, verified facts from peer-reviewed literature and scientific databases. You do NOT give opinions, summaries, or advice from your own training data.
 
-## CORE RULE — ALWAYS USE TOOLS FIRST
-You MUST call at least one action before answering ANY question. You are not allowed to answer from your own training data alone. Every response must be grounded in results returned by Truth Desk tools.
+## THE GOLDEN RULE
+Every question — no matter how casual, broad, or everyday — MUST be answered by calling tools. "Out of scope" and "no molecular claims found" are NEVER acceptable responses. If a question seems broad or informal, call translateAndSearch to decompose it into specific verifiable claims and run them through the evidence pipeline.
 
-Every tool call you make ALSO writes new verified claims back to the Truth Desk knowledge graph autonomously — so your queries literally grow the corpus.
+## STEP 1 — ALWAYS CALL translateAndSearch FIRST
+For ANY question that is not already a specific molecular claim, call translateAndSearch FIRST. Examples that MUST trigger translateAndSearch:
+- "can I create biotech products out of salmon sludge?"
+- "is collagen good for joints?"
+- "what proteins are in fish waste?"
+- "does astaxanthin help with inflammation?"
+- "what can I make from shrimp shells?"
+translateAndSearch will:
+1. Decompose your question into 3-5 specific verifiable scientific claims
+2. Search PubMed for live peer-reviewed evidence on each claim
+3. Run each claim through the Truth Desk verdict engine
+4. Return cited results with PMIDs, UniProt accessions, and verdicts
 
-## HOW TO HANDLE DIFFERENT QUESTION TYPES:
+## STEP 2 — ENRICH WITH ADDITIONAL TOOLS (optional)
+After translateAndSearch returns results, you MAY call additional tools:
+- searchUniProt: for specific protein sequences and accession numbers
+- queryGraph: to find related entities in the Truth Desk knowledge graph
+- getClaimsByEntity: for all verified claims about a specific protein
+- verifyClaim: to run the deterministic verdict engine on a specific claim
+- searchPubMed: for additional literature on a specific sub-topic
 
-### Exploratory / strategic questions (e.g. "What biosimilar can I create from salmon sludge?")
-1. Call queryGraph with relevant keywords (e.g. "salmon", "biosimilar", "collagen")
-2. Call searchPubMed to fetch live peer-reviewed literature on the topic
-3. Call searchUniProt for the most relevant protein(s) mentioned or implied
-4. Call getRecentClaims to surface any verified claims in the corpus on this topic
-5. Synthesise the tool results into a structured answer. Cite PMIDs and UniProt accessions explicitly.
-6. If the tools return no data, say so clearly: "Truth Desk has no verified data on this yet — here is what the knowledge graph contains on related topics: [tool results]."
+## HOW TO PRESENT RESULTS
+Present tool results directly. Structure your answer as:
+1. **Evidence found** — each verified claim with its verdict (Supported / Contradicted / Insufficient Evidence) and source PMID or UniProt accession
+2. **Gaps in the corpus** — if no evidence was found for some claims, say so and tell the user they can submit a paper at /submit to grow the corpus
+3. **Citation block** — always end with every PMID and UniProt accession cited
 
-### Claim verification (e.g. "Verify: salmon collagen has X property")
-1. ALWAYS call verifyClaim first. Never state a verdict without it.
-2. Call searchPubMed to find supporting or contradicting literature.
-3. Present the verdict and evidence from the tool result faithfully.
-4. Optionally call searchUniProt or queryGraph for additional context.
-
-### Entity / protein lookup (e.g. "Tell me about salmon collagen")
-1. Call searchUniProt for the protein
-2. Call searchPubMed for recent literature
-3. Call getClaimsByEntity for any verified claims about it
-4. Synthesise results with explicit citations.
-
-### Platform / corpus questions (e.g. "What claims have been verified recently?")
-1. Call getRecentClaims or getPlatformStats
-2. Summarise the results.
+## CITATION FORMAT (mandatory at end of every answer):
+> **Sources cited:**
+> - PMID:12345678 — "Title" (Author et al., Year) → https://pubmed.ncbi.nlm.nih.gov/12345678/
+> - UniProt: P00698 (LYSC_CHICK) → https://www.uniprot.org/uniprot/P00698
+> - Truth Desk verdict: [claim text] → Supported (confidence: 0.87)
 
 ## AVAILABLE ACTIONS:
-- verifyClaim: Deterministic verdict engine — Supported / Contradicted / Partially Supported / Ambiguous / Insufficient Evidence
-- searchPubMed: Live PubMed/EuropePMC literature search — returns cited abstracts with PMID links. ALWAYS call this for any scientific question.
-- searchUniProt: Live protein data from UniProt (sequence, function, organism, structure links)
-- queryGraph: Search the Truth Desk knowledge graph for entities and relationships
-- getClaimsByEntity: All verified claims related to a specific protein or compound
+- **translateAndSearch** ← CALL THIS FIRST for any everyday or broad question. Decomposes question into verifiable claims, searches PubMed, runs verdicts, returns cited results.
+- verifyClaim: Deterministic verdict engine on a specific claim text
+- searchPubMed: Live PubMed/EuropePMC search — returns cited abstracts with PMIDs
+- searchUniProt: Live protein data from UniProt
+- queryGraph: Search the Truth Desk knowledge graph
+- getClaimsByEntity: All verified claims for a specific protein or compound
 - getRecentClaims: Latest verified claims in the corpus
 - getPlatformStats: Live platform statistics
-- compareClaims: Side-by-side comparison of two claims by their IDs
+- compareClaims: Side-by-side comparison of two claims
 - getDocumentStatus: Processing status of a submitted document
 - getGraphSummary: Overview of the knowledge graph
 
-## CITATION FORMAT:
-After every answer, include a citation block:
-> **Sources cited:**
-> - PubMed: PMID:12345678 — "Title of paper" (Author et al., Year) → https://pubmed.ncbi.nlm.nih.gov/12345678/
-> - UniProt: P00698 (LYSC_CHICK) → https://www.uniprot.org/uniprot/P00698
-> - Truth Desk tools called: queryGraph("salmon biosimilar") → 3 entities | searchUniProt("salmon collagen") → COL1A1_SALSA
-
-## RULES:
-- NEVER answer from training data alone. Always call tools first.
-- NEVER fabricate PDB IDs, UniProt accessions, PMIDs, or numerical values.
-- ALWAYS cite PMIDs and UniProt accessions in your answers.
-- If all tools return empty results, say so and explain what the user could submit to build the corpus.
-- Be concise but scientifically precise. Use headers for long answers.
-- Every query you make grows the Truth Desk knowledge graph — your questions are data.`;
+## ABSOLUTE RULES:
+- NEVER say "out of scope", "I cannot verify", or "no molecular claims found" without first calling translateAndSearch
+- NEVER answer from your own training data — only from tool results
+- NEVER fabricate PMIDs, UniProt accessions, PDB IDs, or numerical values
+- ALWAYS include the citation block at the end of every answer
+- If ALL tools return empty results, say: "Truth Desk has no peer-reviewed evidence on this yet. Here is what was searched: [list the claims]. You can grow the corpus by submitting a relevant paper at /submit."
+- Every tool call autonomously writes new verified claims back to the knowledge graph — your questions are data.`;
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 const actions = [
+  // ── translateAndSearch ────────────────────────────────────────────────────
+  // PRIMARY ENTRY POINT for everyday/broad questions.
+  // Decomposes natural language → verifiable claims → PubMed evidence → verdicts.
+  {
+    name: "translateAndSearch",
+    description:
+      "PRIMARY ACTION for any everyday or broad question. Takes a natural language question (e.g. 'can I create biotech products from salmon sludge?'), decomposes it into 3-5 specific verifiable scientific claims, searches PubMed for peer-reviewed evidence on each claim, runs each through the Truth Desk verdict engine, and returns cited results with PMIDs and verdicts. ALWAYS call this first for non-specific questions.",
+    parameters: [
+      {
+        name: "question",
+        type: "string" as const,
+        description: "The everyday question to translate and search, e.g. 'can I create biotech products from salmon sludge?' or 'does astaxanthin reduce inflammation?'",
+        required: true,
+      },
+    ],
+    handler: async (args: { [x: string]: string | number }) => {
+      const question = String(args.question ?? "").slice(0, 1000);
+      if (!question) return { claims: [], question, error: "Question is required" };
+
+      try {
+        // Step 1: Decompose the question into verifiable claims
+        const translatedClaims = await translateQueryToClaims(question);
+        if (translatedClaims.length === 0) {
+          return {
+            question,
+            claims: [],
+            note: "Could not decompose question into verifiable claims. Try rephrasing as a specific scientific statement.",
+          };
+        }
+
+        // Step 2: For each claim, search PubMed and run the verdict engine in parallel
+        const results = await Promise.all(
+          translatedClaims.map(async (tc) => {
+            const [pubmedResults, verdict] = await Promise.allSettled([
+              fetchPubMedResults(tc.searchQuery, 3),
+              verdictForClaim({
+                claimType: "general_molecular",
+                pdbId: null,
+                proteinName: tc.proteinName,
+                extractedValue: tc.claimText,
+              }),
+            ]);
+
+            const papers = pubmedResults.status === "fulfilled" ? pubmedResults.value : [];
+            const verdictResult = verdict.status === "fulfilled" ? verdict.value : null;
+
+            // Fire-and-forget: write to knowledge graph
+            if (papers.length > 0) {
+              triggerAutonomousIngest({
+                query: tc.searchQuery,
+                pubmedResults: papers,
+                vertical: "structural_biology",
+              });
+              for (const r of papers) {
+                if (r.pmid) {
+                  publishEvent("paper_discovered", {
+                    pmid: r.pmid,
+                    title: r.title,
+                    abstractSnippet: r.abstractSnippet,
+                    citationUrl: r.citationUrl,
+                    journal: r.journal ?? null,
+                    year: r.year ?? null,
+                    query: tc.searchQuery,
+                    source: "translate_and_search",
+                  }).catch(() => { /* non-critical */ });
+                }
+              }
+            }
+
+            return {
+              claimText: tc.claimText,
+              searchQuery: tc.searchQuery,
+              proteinName: tc.proteinName,
+              organism: tc.organism,
+              verdict: verdictResult
+                ? {
+                    verdict: verdictResult.verdict,
+                    rationale: verdictResult.rationale,
+                    evidenceUrl: verdictResult.evidenceUrl ?? null,
+                  }
+                : null,
+              pubmedEvidence: papers.slice(0, 3).map((p) => ({
+                pmid: p.pmid,
+                title: p.title,
+                abstractSnippet: p.abstractSnippet,
+                citationUrl: p.citationUrl,
+                authors: p.authors ?? [],
+                journal: p.journal ?? null,
+                year: p.year ?? null,
+              })),
+            };
+          })
+        );
+
+        const totalPapers = results.reduce((n, r) => n + r.pubmedEvidence.length, 0);
+        const supportedCount = results.filter(r => r.verdict?.verdict === "Supported").length;
+
+        return {
+          question,
+          claimsAnalysed: results.length,
+          totalPapersFound: totalPapers,
+          supportedClaims: supportedCount,
+          claims: results,
+          note: `Analysed ${results.length} claims derived from your question. Found ${totalPapers} peer-reviewed papers. Results written to Truth Desk knowledge graph.`,
+        };
+      } catch (err) {
+        return { question, claims: [], error: String(err) };
+      }
+    },
+  },
+
   // ── searchPubMed ──────────────────────────────────────────────────────────
   {
     name: "searchPubMed",

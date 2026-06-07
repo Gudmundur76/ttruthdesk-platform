@@ -1016,3 +1016,9 @@
 - [x] Build buildHostingerJs() in embedRoutes.ts — SubtleCrypto HMAC, search/verify/paper-click/widget telemetry
 - [x] Serve /embed/hostinger.js route
 - [x] TypeScript clean, 790 tests passing, checkpoint saved
+
+## Sprint P: Natural Language Query Translation → Cited Evidence
+- [x] Add server/_queryTranslator.ts — translateQueryToClaims() uses structured LLM output to decompose everyday question into 3-5 verifiable scientific claims with searchQuery, proteinName, organism
+- [x] Add translateAndSearch CopilotKit action — decomposes question, runs PubMed + verdict engine in parallel for each claim, fires paper_discovered events, returns cited results
+- [x] Rewrite CopilotKit system prompt — mandates translateAndSearch FIRST for all everyday questions, bans "out of scope" responses, requires PMID/UniProt citations in every answer
+- [x] TypeScript clean, 790 tests passing, checkpoint saved
