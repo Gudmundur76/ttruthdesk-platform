@@ -816,13 +816,13 @@
 - [x] Add Deterministic Verdict Engine info card to Admin.tsx
 
 ## Priority 2: Source Whitelist Expansion
-- [ ] UniProt adapter: schema, health check, deterministic verdict wiring (protein_name, organism, function)
-- [ ] ClinicalTrials.gov adapter: schema, health check, deterministic verdict wiring (trial_id, trial_status, intervention)
-- [ ] Register both adapters in verticalAdapters registry
-- [ ] Wire new adapters into analysisPipeline.ts claim routing
-- [ ] Add source whitelist admin UI with health status, approval gate, failure mode display
-- [ ] Add source health check tRPC procedures
-- [ ] Tests for both adapters
+- [x] UniProt adapter: schema, health check, deterministic verdict wiring (protein_name, organism, function)
+- [x] ClinicalTrials.gov adapter: schema, health check, deterministic verdict wiring (trial_id, trial_status, intervention)
+- [x] Register both adapters in verticalAdapters registry
+- [x] Wire new adapters into analysisPipeline.ts claim routing
+- [x] Add source whitelist admin UI with health status, approval gate, failure mode display
+- [x] Add source health check tRPC procedures
+- [x] Tests for both adapters (verticalAdapters.test.ts — 19 new tests)
 
 ## Priority 2: Source Whitelist Expansion
 - [x] Create server/verticalAdapters/uniprotVertical.ts with deterministic verdicts and health check
