@@ -684,7 +684,7 @@ export function createCopilotRouter(): Router {
       audioFileTranscriptionEnabled: false,
       a2uiEnabled: false,
       openGenerativeUIEnabled: false,
-      telemetryDisabled: false,
+      telemetryDisabled: true, // disabled: cold-start DNS failure on Cloud Run
     });
   });
 

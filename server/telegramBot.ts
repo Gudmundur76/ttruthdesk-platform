@@ -13,7 +13,10 @@
 import { Bot, type Context } from "grammy";
 import { ENV } from "./_core/env";
 import * as db from "./db";
+
 import { runAnalysisPipeline } from "./analysisPipeline";
+
+const APP_URL = () => ENV.appUrl || "https://ttruthdesk.claims";
 
 // ─── Singleton bot instance ───────────────────────────────────────────────────
 let botInstance: Bot | null = null;
@@ -61,7 +64,7 @@ function registerHandlers(bot: Bot) {
         `• Completed papers: ${papers.length}\n` +
         `• Recent claims verified: ${recentClaims.length}\n` +
         `• Contradictions detected: ${contradictions}\n\n` +
-        `[View full registry](https://protein\\-desk\\-5r5rzpyg\\.manus\\.space/registry)`;
+        `[View full registry](${APP_URL().replace(/\./g, '\\.')}/registry)`;
       await ctx.reply(msg, { parse_mode: "MarkdownV2" });
     } catch (err) {
       console.error("[TelegramBot] /status error:", err);
@@ -112,7 +115,7 @@ function registerHandlers(bot: Bot) {
           `🧬 *Audit Report — Doc \\#${docId}*\n\n` +
           `📊 *${claims.length} claims* extracted\n\n` +
           `*Verdict breakdown:*\n${verdictLines}\n\n` +
-          `[View full report](https://protein\\-desk\\-5r5rzpyg\\.manus\\.space/audit/${docId})`;
+          `[View full report](${APP_URL().replace(/\./g, '\\.')}/audit/${docId})`;
 
         await ctx.reply(msg, { parse_mode: "MarkdownV2" });
         return;
@@ -147,7 +150,7 @@ function registerHandlers(bot: Bot) {
       await ctx.reply(
         `✅ Paper queued for analysis \\(doc \\#${docId}\\)\\.\n` +
           `Results will be available in 1\\-2 minutes at:\n` +
-          `https://protein\\-desk\\-5r5rzpyg\\.manus\\.space/audit/${docId}`,
+          `${APP_URL().replace(/\./g, '\\.')}/audit/${docId}`,
         { parse_mode: "MarkdownV2" }
       );
     } catch (err) {
@@ -234,7 +237,7 @@ export async function postDailyDigest(channelId: string): Promise<void> {
   }
 
   lines.push(
-    `[View full registry](https://protein\\-desk\\-5r5rzpyg\\.manus\\.space/registry)`
+    `[View full registry](${APP_URL().replace(/\./g, '\\.')}/registry)`
   );
 
   try {
@@ -267,7 +270,7 @@ export async function postContradictionAlert(params: {
   const channelId = ENV.telegramChannelId;
   if (!bot || !channelId) return;
 
-  const origin = params.baseUrl ?? "https://protein-desk-5r5rzpyg.manus.space";
+  const origin = params.baseUrl ?? APP_URL();
   const claimUrl = `${origin}/claim/${params.claimId}`;
   const wikiUrl = `${origin}/wiki/${params.entityType}/${params.entityName.toLowerCase().replace(/\s+/g, "_")}`;
 

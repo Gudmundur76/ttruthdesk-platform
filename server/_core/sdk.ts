@@ -76,10 +76,14 @@ class OAuthService {
   }
 }
 
+// Use a shorter timeout for OAuth calls — 30s is too long for Cloud Run cold-start
+// DNS failures. 8s is enough for a healthy network; cold-start failures surface quickly.
+const OAUTH_TIMEOUT_MS = 8_000;
+
 const createOAuthHttpClient = (): AxiosInstance =>
   axios.create({
     baseURL: ENV.oAuthServerUrl,
-    timeout: AXIOS_TIMEOUT_MS,
+    timeout: OAUTH_TIMEOUT_MS,
   });
 
 class SDKServer {
@@ -308,7 +312,18 @@ class SDKServer {
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
+        const isNetworkError = error instanceof Error &&
+          (error.message.includes('ENOTFOUND') ||
+           error.message.includes('ECONNREFUSED') ||
+           error.message.includes('getaddrinfo') ||
+           error.message.includes('os error') ||
+           error.message.includes('host lookup') ||
+           error.message.includes('timeout'));
+        if (isNetworkError) {
+          console.error("[Auth] OAuth server unreachable (DNS/network error) — treating as unauthenticated:", (error as Error).message);
+        } else {
+          console.error("[Auth] Failed to sync user from OAuth:", error);
+        }
         throw ForbiddenError("Failed to sync user info");
       }
     }
