@@ -402,6 +402,26 @@ export async function runAnalysisPipeline(
         console.warn("[Pipeline] Prediction engine error (non-fatal):", predErr);
       }
     })().catch((predErr) => console.warn("[Pipeline] Prediction IIFE error (non-fatal):", predErr));
+    // ── TurboVec: auto-index all verified/supported claims into FAISS sidecar ──
+    // Non-fatal fire-and-forget. If the Python sidecar is unavailable the
+    // vectorStore falls back to SQL FULLTEXT search automatically.
+    (async () => {
+      try {
+        const { indexClaim } = await import("./vectorStore");
+        const verifiedClaims = finalClaims.filter(
+          (c) => c.verdict === "Supported" || c.verdict === "Partially Supported"
+        );
+        const domainKey = (doc as Record<string, unknown>)?.verticalDomain as string ?? "structural_biology";
+        for (const claim of verifiedClaims) {
+          await indexClaim(claim.id, claim.claimText);
+        }
+        if (verifiedClaims.length > 0) {
+          console.log(`[TurboVec] Auto-indexed ${verifiedClaims.length} verified claims for doc ${documentId}`);
+        }
+      } catch (vecErr) {
+        console.warn("[TurboVec] Auto-indexing error (non-fatal):", vecErr);
+      }
+    })().catch((vecErr) => console.warn("[TurboVec] Auto-index IIFE error (non-fatal):", vecErr));
   } catch (err) {
     console.error("[Pipeline] Error:", err);
     await updateDocumentStatus(documentId, "failed", {

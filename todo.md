@@ -849,19 +849,19 @@
 - [x] Sprint 4: Wire verticalDomain into submitText and submitFile tRPC procedures
 
 ## Sprint A: Live Home Page Stats
-- [ ] Add globalStats tRPC public procedure (totalDocuments, totalClaims, supportedVerdicts, verifiedSources)
-- [ ] Wire live stats into Home page hero section replacing static copy
-- [ ] Add animated counter component for stat numbers
+- [x] Add globalStats tRPC public procedure (totalDocuments, totalClaims, supportedVerdicts, verifiedSources)
+- [x] Wire live stats into Home page hero section replacing static copy
+- [x] Add animated counter component for stat numbers
 
 ## Sprint B-D: TurboVec Semantic Search
-- [ ] Install turbovec Python package and sentence-transformers
-- [ ] Create server/vectorSidecar.py — FastAPI sidecar with /embed and /search endpoints
-- [ ] Create server/vectorStore.ts — Node.js bridge to Python sidecar with graceful fallback
-- [ ] Embed verified claims on analysis pipeline completion
-- [ ] Add searchSimilar tRPC procedure (SQL pre-filter + TurboVec re-rank)
-- [ ] Persist TurboVec index on swarm tick and graceful shutdown
-- [ ] Create /search Semantic Search UI page with query input, filter chips, result cards
-- [ ] Wire /search into sidebar nav and top nav
+- [x] Install turbovec Python package and sentence-transformers
+- [x] Create server/vectorSidecar.py — FastAPI sidecar with /embed and /search endpoints
+- [x] Create server/vectorStore.ts — Node.js bridge to Python sidecar with graceful fallback
+- [x] Embed verified claims on analysis pipeline completion
+- [x] Add searchSimilar tRPC procedure (SQL pre-filter + TurboVec re-rank)
+- [x] Persist TurboVec index on swarm tick and graceful shutdown
+- [x] Create /search Semantic Search UI page with query input, filter chips, result cards
+- [x] Wire /search into sidebar nav and top nav
 
 ## Sprint A & B Completion (Jun 2026)
 - [x] Add getGlobalPlatformStats helper to server/db.ts (totalDocuments, totalClaims, supportedVerdicts, verifiedSources)
@@ -875,3 +875,10 @@
 - [x] Upgrade Search.tsx: keyword/semantic mode toggle, TurboVec results with similarity scores, sidecar status pill
 - [x] Add Semantic Search to DashboardLayout sidebar nav (Search icon, /search path)
 - [x] 780 tests passing, TypeScript clean
+
+## Sprint C: Close Autonomous Loop Gaps
+- [x] Wire indexClaim() into analysisPipeline.ts — auto-index every verified claim in TurboVec after pipeline completes
+- [x] Register pmc-feed heartbeat cron (nightly 01:00 UTC) via manus-heartbeat CLI — task_uid: h2QAmaESjsBDZJo7NTsya4
+- [x] Register quality-pass heartbeat cron (nightly 02:00 UTC, after pmc-feed) via manus-heartbeat CLI — task_uid: kEgPRbBMwrf2oCWKtdHm4w
+- [x] Register quality-scorer heartbeat cron (every 6 hours) via manus-heartbeat CLI — task_uid: WxVXtW8Zfgd78BFk5fKLhp
+- [x] TypeScript clean, 780 tests passing, checkpoint saved
