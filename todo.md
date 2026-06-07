@@ -882,3 +882,14 @@
 - [x] Register quality-pass heartbeat cron (nightly 02:00 UTC, after pmc-feed) via manus-heartbeat CLI — task_uid: kEgPRbBMwrf2oCWKtdHm4w
 - [x] Register quality-scorer heartbeat cron (every 6 hours) via manus-heartbeat CLI — task_uid: WxVXtW8Zfgd78BFk5fKLhp
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint D: Cron Dashboard + S3 FAISS + Vertical Wizard
+- [x] Add crons.list and crons.runNow tRPC procedures (admin-only)
+- [x] Build /admin/crons Cron Health Dashboard page (job cards, last-run, next-run, Run Now, auto-refresh 30s)
+- [x] Wire /admin/crons and /admin/verticals routes in App.tsx; add cards to Admin page
+- [x] Add S3 FAISS index persistence to vectorSidecar.py (save async on /index, load from S3 on startup, POST /save endpoint)
+- [x] Wire swarm-tick to call /save on sidecar after each tick
+- [x] Add vertical_configs table to drizzle/schema.ts and apply migration
+- [x] Add verticalConfigs.list, create, update tRPC procedures (admin-only)
+- [x] Build /admin/verticals Vertical Expansion Wizard page (4-step wizard + active verticals toggle list)
+- [x] TypeScript clean, 780 tests passing, checkpoint saved

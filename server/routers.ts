@@ -3141,7 +3141,113 @@ Respond in this exact structure:
       }),
   }),
 
-  // ── Source Whitelist ────────────────────────────────────────────────────────
+  // ── Cron Health Dashboard ────────────────────────────────────────────────────────────────────────────────────
+  crons: router({
+    /** List all heartbeat jobs with their status. Admin-only. */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { listHeartbeatJobs } = await import("./_core/heartbeat");
+      return listHeartbeatJobs("");
+    }),
+    /** Trigger a heartbeat job to run immediately. Admin-only. */
+    runNow: protectedProcedure
+      .input(z.object({ taskUid: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { ENV } = await import("./_core/env");
+        const resp = await fetch(
+          `${ENV.forgeApiUrl}/webdev.v1.WebDevHeartbeatService/RunHeartbeatJobNow`,
+          {
+            method: "POST",
+            headers: {
+              accept: "application/json",
+              authorization: `Bearer ${ENV.forgeApiKey}`,
+              "content-type": "application/json",
+              "connect-protocol-version": "1",
+            },
+            body: JSON.stringify({ taskUid: input.taskUid }),
+          }
+        );
+        if (!resp.ok) {
+          const detail = await resp.text().catch(() => "");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `RunNow failed: ${detail}` });
+        }
+        return { success: true };
+      }),
+  }),
+
+  // ── Vertical Expansion Wizard ─────────────────────────────────────────────────────────────────────────────
+  verticalConfigs: router({
+    /** List all admin-managed vertical configs. Admin-only. */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      const { verticalConfigs } = await import("../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      return db.select().from(verticalConfigs).orderBy(desc(verticalConfigs.createdAt));
+    }),
+    /** Create a new vertical config. Admin-only. */
+    create: protectedProcedure
+      .input(z.object({
+        domainKey: z.string().min(2).max(64).regex(/^[a-z0-9_]+$/),
+        displayName: z.string().min(2).max(128),
+        description: z.string().max(1024).optional(),
+        meshTerms: z.array(z.string()).default([]),
+        sourceWhitelist: z.array(z.string()).default([]),
+        qualityTier: z.enum(["draft", "verified"]).default("draft"),
+        enabled: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        const { verticalConfigs } = await import("../drizzle/schema");
+        await db.insert(verticalConfigs).values({
+          domainKey: input.domainKey,
+          displayName: input.displayName,
+          description: input.description ?? null,
+          meshTerms: input.meshTerms,
+          sourceWhitelist: input.sourceWhitelist,
+          qualityTier: input.qualityTier,
+          enabled: input.enabled,
+        });
+        return { success: true, domainKey: input.domainKey };
+      }),
+    /** Update an existing vertical config. Admin-only. */
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        displayName: z.string().min(2).max(128).optional(),
+        description: z.string().max(1024).optional(),
+        meshTerms: z.array(z.string()).optional(),
+        sourceWhitelist: z.array(z.string()).optional(),
+        qualityTier: z.enum(["draft", "verified"]).optional(),
+        enabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        const { verticalConfigs } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const patch: Record<string, unknown> = {};
+        if (input.displayName !== undefined) patch.displayName = input.displayName;
+        if (input.description !== undefined) patch.description = input.description;
+        if (input.meshTerms !== undefined) patch.meshTerms = input.meshTerms;
+        if (input.sourceWhitelist !== undefined) patch.sourceWhitelist = input.sourceWhitelist;
+        if (input.qualityTier !== undefined) patch.qualityTier = input.qualityTier;
+        if (input.enabled !== undefined) patch.enabled = input.enabled;
+        if (Object.keys(patch).length === 0) return { success: true };
+        await db.update(verticalConfigs).set(patch).where(eq(verticalConfigs.id, input.id));
+        return { success: true };
+      }),
+  }),
+
+  // ── Source Whitelist ────────────────────────────────────────────────────────────────────────────────────
   sources: router({
     /**
      * List all sources in the whitelist with their metadata.

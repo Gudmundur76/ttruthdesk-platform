@@ -1364,3 +1364,29 @@ export const loopConfig = mysqlTable("loop_config", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
 });
 export type LoopConfig = typeof loopConfig.$inferSelect;
+
+/**
+ * vertical_configs — admin-managed research vertical definitions.
+ * Allows adding new verticals without code changes via the Vertical Expansion Wizard.
+ */
+export const verticalConfigs = mysqlTable("vertical_configs", {
+  id: int("id").primaryKey().autoincrement(),
+  domainKey: varchar("domainKey", { length: 64 }).notNull().unique(),
+  displayName: varchar("displayName", { length: 128 }).notNull(),
+  description: text("description"),
+  /** JSON array of PubMed MeSH search terms */
+  meshTerms: json("meshTerms").$type<string[]>().notNull().default([]),
+  /** JSON array of approved source IDs for this vertical */
+  sourceWhitelist: json("sourceWhitelist").$type<string[]>().notNull().default([]),
+  /** Quality tier: 'draft' uses free LLM, 'verified' uses Kimi K2 */
+  qualityTier: varchar("qualityTier", { length: 16 }).notNull().default("draft"),
+  /** Whether this vertical is active and included in feed jobs */
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
+}, (t) => ({
+  domainKeyIdx: index("vc_domain_key_idx").on(t.domainKey),
+  enabledIdx: index("vc_enabled_idx").on(t.enabled),
+}));
+export type VerticalConfig = typeof verticalConfigs.$inferSelect;
+export type InsertVerticalConfig = typeof verticalConfigs.$inferInsert;

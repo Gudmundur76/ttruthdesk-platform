@@ -45,6 +45,8 @@ import OverridesDashboard from "@/pages/OverridesDashboard";
 import DreamDashboard from "@/pages/DreamDashboard";
 import SourceWhitelist from "@/pages/SourceWhitelist";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
+import AdminCrons from "@/pages/AdminCrons";
+import AdminVerticals from "@/pages/AdminVerticals";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -93,6 +95,8 @@ function Router() {
       <Route path="/admin/overrides" component={OverridesDashboard} />
       <Route path="/admin/dream" component={DreamDashboard} />
       <Route path="/admin/sources" component={SourceWhitelist} />
+      <Route path="/admin/crons" component={AdminCrons} />
+      <Route path="/admin/verticals" component={AdminVerticals} />
       <Route path="/checkout/success" component={CheckoutSuccess} />
       <Route path="/compare" component={AuditComparison} />
       <Route path="/trust" component={Trust} />

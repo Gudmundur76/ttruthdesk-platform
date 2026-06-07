@@ -211,6 +211,13 @@
       "when": 1780796430531,
       "tag": "0029_faithful_otto_octavius",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1780802321093,
+      "tag": "0030_burly_norman_osborn",
+      "breakpoints": true
     }
   ]
 }

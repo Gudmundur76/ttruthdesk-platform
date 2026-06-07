@@ -268,6 +268,13 @@ export async function runSwarmTick(): Promise<SwarmTickResult> {
     console.log(`  ${icon} [${r.agent}] ${r.detail.slice(0, 120)}`);
   });
 
+  // Persist TurboVec FAISS index to S3 (fire-and-forget, non-fatal)
+  const sidecarPort = process.env.VECTOR_SIDECAR_PORT ?? "5001";
+  fetch(`http://127.0.0.1:${sidecarPort}/save`, { method: "POST" })
+    .then((r) => r.json())
+    .then((d) => console.log(`[Swarm] TurboVec S3 save: ${JSON.stringify(d)}`))
+    .catch((e) => console.warn(`[Swarm] TurboVec S3 save skipped (sidecar not running): ${e.message}`));
+
   return { startedAt, completedAt, durationMs, agents: agentResults, summary };
 }
 

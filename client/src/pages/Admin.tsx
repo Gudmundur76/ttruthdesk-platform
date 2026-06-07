@@ -808,6 +808,37 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Cron Health Dashboard */}
+      <div className="bg-slate-50 rounded-xl border border-border p-5">
+        <h2 className="font-semibold text-slate-900 mb-2">Cron Health Dashboard</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Monitor all 9 scheduled heartbeat jobs — last run, next run, cron expression, and
+          status. Trigger any job to run immediately without waiting for its schedule.
+        </p>
+        <a
+          href="/admin/crons"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Cron Dashboard
+        </a>
+      </div>
+
+      {/* Vertical Expansion Wizard */}
+      <div className="bg-slate-50 rounded-xl border border-border p-5">
+        <h2 className="font-semibold text-slate-900 mb-2">Vertical Expansion Wizard</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Add a new research vertical (e.g. Clinical Nutrition) without any code changes.
+          Define MeSH terms, quality tier, and source whitelist — the nightly PMC feed will
+          pick it up automatically on its next run.
+        </p>
+        <a
+          href="/admin/verticals"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Vertical Wizard
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 
