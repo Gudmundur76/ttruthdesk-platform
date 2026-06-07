@@ -5,6 +5,8 @@
  * GET /embed/sdk.js                           — floating button JS SDK
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import type { Express, Request, Response } from "express";
 
 // ─── Allowed verticals for embed ─────────────────────────────────────────────
@@ -311,5 +313,20 @@ export function registerEmbedRoutes(app: Express): void {
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.send(js);
+  });
+
+  // Micron client SDK — served for static micron sites on Hostinger
+  app.get("/embed/micron-client.js", (req: Request, res: Response) => {
+    // Try to serve from embed-sdk/ directory (project root)
+    const sdkPath = path.resolve(process.cwd(), "embed-sdk", "micron-client.js");
+    if (fs.existsSync(sdkPath)) {
+      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+      res.setHeader("Cache-Control", "public, max-age=86400"); // 24h cache
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.sendFile(sdkPath);
+    } else {
+      // Fallback: redirect to the floating SDK
+      res.redirect("/embed/sdk.js");
+    }
   });
 }

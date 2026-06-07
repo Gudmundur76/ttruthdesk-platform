@@ -968,3 +968,13 @@
 - [x] [CLEAN] Replaced 4 hardcoded stale domain references in verticalCopilotActions.ts with ttruthdesk.claims
 - [x] [BUG] Fixed getEntityClaims — now filters by canonicalName match on claimText/proteinName/pdbId
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint K: Micron Architecture (Manus + Hostinger Pro)
+- [x] Build embed-sdk/micron-client.js — 11 KB self-contained browser SDK with verify + recent claims + auto-init
+- [x] Build scripts/generate-micron.ts — static site generator producing 8 files per vertical (21 KB total)
+- [x] Build scripts/deploy-to-hostinger.sh — one-command SFTP deploy via lftp with dry-run support
+- [x] Write docs/micron-architecture.md — full architecture diagram, cost model, API reference
+- [x] Wire GET /embed/micron-client.js endpoint on ttruthdesk.claims (24h cache, CORS *)
+- [x] Fix ESM __dirname compatibility in generate-micron.ts
+- [x] Tested: generates 8 files / 21 KB for structural_biology vertical in <1s
+- [x] TypeScript clean, 780 tests passing, checkpoint saved
