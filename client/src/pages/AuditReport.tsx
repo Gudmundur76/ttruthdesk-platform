@@ -8,6 +8,133 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useState, useCallback, useEffect } from "react";
 import { Link } from "wouter";
+import { Badge } from "@/components/ui/badge";
+
+// ─── PreflightSummaryCard ─────────────────────────────────────────────────────
+/**
+ * Renders the FrictionEngine pre-submission scan result stored on the document.
+ * Shows inferred intent, recommended action, claim category breakdown, and
+ * high-risk assumptions so reviewers can see what FrictionEngine flagged before
+ * the full pipeline ran.
+ */
+function PreflightSummaryCard({ preflightResult }: { preflightResult: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!preflightResult || typeof preflightResult !== "object") return null;
+  const r = preflightResult as {
+    inferred_intent?: string;
+    recommended_action?: string;
+    friction_question?: string;
+    remaining_uncertainty?: string;
+    totalClaims?: number;
+    databaseVerifiable?: number;
+    assumptionSmuggled?: number;
+    likelyContradicted?: number;
+    outOfScope?: number;
+    opinionOrNarrative?: number;
+    assumptions?: Array<{ statement: string; risk: string; type: string; test: string }>;
+    validation_criteria?: string[];
+  };
+
+  const actionColor: Record<string, string> = {
+    execute: "bg-emerald-50 border-emerald-200 text-emerald-800",
+    ask_user: "bg-amber-50 border-amber-200 text-amber-800",
+    reject: "bg-red-50 border-red-200 text-red-800",
+    reframe: "bg-blue-50 border-blue-200 text-blue-800",
+  };
+  const actionLabel: Record<string, string> = {
+    execute: "Proceed",
+    ask_user: "Clarification Required",
+    reject: "Rejected",
+    reframe: "Reframe Suggested",
+  };
+  const action = r.recommended_action ?? "execute";
+  const colorClass = actionColor[action] ?? actionColor.execute;
+
+  const highRisk = (r.assumptions ?? []).filter((a) => a.risk === "high");
+
+  return (
+    <div className={`rounded-xl border p-4 mb-6 ${colorClass}`}>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide opacity-70">FrictionEngine Preflight</span>
+          <Badge variant="outline" className="text-xs">{actionLabel[action] ?? action}</Badge>
+        </div>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs underline opacity-60 hover:opacity-100 transition-opacity"
+        >
+          {expanded ? "Hide details" : "Show details"}
+        </button>
+      </div>
+      {r.inferred_intent && (
+        <p className="text-sm font-medium mb-2">
+          <span className="opacity-60">Inferred intent: </span>{r.inferred_intent}
+        </p>
+      )}
+      {/* Claim category breakdown */}
+      {r.totalClaims !== undefined && (
+        <div className="flex flex-wrap gap-2 text-xs mb-2">
+          {r.databaseVerifiable !== undefined && r.databaseVerifiable > 0 && (
+            <span className="bg-emerald-100 text-emerald-800 rounded px-2 py-0.5">{r.databaseVerifiable} verifiable</span>
+          )}
+          {r.assumptionSmuggled !== undefined && r.assumptionSmuggled > 0 && (
+            <span className="bg-red-100 text-red-800 rounded px-2 py-0.5">{r.assumptionSmuggled} smuggled assumption{r.assumptionSmuggled !== 1 ? "s" : ""}</span>
+          )}
+          {r.likelyContradicted !== undefined && r.likelyContradicted > 0 && (
+            <span className="bg-orange-100 text-orange-800 rounded px-2 py-0.5">{r.likelyContradicted} likely contradicted</span>
+          )}
+          {r.outOfScope !== undefined && r.outOfScope > 0 && (
+            <span className="bg-slate-100 text-slate-700 rounded px-2 py-0.5">{r.outOfScope} out of scope</span>
+          )}
+          {r.opinionOrNarrative !== undefined && r.opinionOrNarrative > 0 && (
+            <span className="bg-slate-100 text-slate-600 rounded px-2 py-0.5">{r.opinionOrNarrative} opinion/narrative</span>
+          )}
+        </div>
+      )}
+      {/* High-risk assumptions always visible */}
+      {highRisk.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs font-semibold mb-1 opacity-70">High-risk assumptions flagged:</p>
+          <ul className="space-y-1">
+            {highRisk.map((a, i) => (
+              <li key={i} className="text-xs bg-white/50 rounded px-2 py-1">
+                <span className="font-medium">{a.statement}</span>
+                {a.test && <span className="opacity-60"> — Test: {a.test}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {/* Expanded details */}
+      {expanded && (
+        <div className="mt-3 space-y-3 border-t border-current/10 pt-3">
+          {r.friction_question && (
+            <div>
+              <p className="text-xs font-semibold mb-0.5 opacity-70">Friction question asked:</p>
+              <p className="text-sm italic">"{r.friction_question}"</p>
+            </div>
+          )}
+          {r.remaining_uncertainty && (
+            <div>
+              <p className="text-xs font-semibold mb-0.5 opacity-70">Remaining uncertainty:</p>
+              <p className="text-sm">{r.remaining_uncertainty}</p>
+            </div>
+          )}
+          {r.validation_criteria && r.validation_criteria.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold mb-1 opacity-70">Validation criteria applied:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                {r.validation_criteria.map((c, i) => (
+                  <li key={i} className="text-xs">{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── ClaimTrajectoryBadge ─────────────────────────────────────────────────────
 function ClaimTrajectoryBadge({ claimId }: { claimId: number }) {
@@ -357,6 +484,9 @@ function AuditReportContent() {
           </div>
         )}
       </div>
+
+      {/* FrictionEngine Preflight Summary — shown when a preflight scan was stored at submission time */}
+      <PreflightSummaryCard preflightResult={(doc as unknown as Record<string, unknown>).preflightResult} />
 
       {/* Processing state */}
       {isProcessing && (

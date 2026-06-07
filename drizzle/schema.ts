@@ -56,6 +56,8 @@ export const documents = mysqlTable("documents", {
   qualityTier: mysqlEnum("qualityTier", ["draft", "verified"]).default("draft").notNull(),
   needsReview: boolean("needsReview").default(true).notNull(),
   wikiCompiledAt: timestamp("wikiCompiledAt"),
+  /** FrictionEngine pre-submission scan result stored at submission time */
+  preflightResult: json("preflightResult"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({

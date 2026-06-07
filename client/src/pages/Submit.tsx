@@ -109,11 +109,11 @@ export default function Submit() {
 
   // ── FrictionEngine preflight state ─────────────────────────────────────────
   const [preflightOpen, setPreflightOpen] = useState(false);
-  // Pending payload to submit after preflight confirmation
-  const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null);
+  // Pending payload to submit after preflight confirmation (receives scan result)
+  const [pendingSubmit, setPendingSubmit] = useState<((result: unknown) => void) | null>(null);
   const [preflightText, setPreflightText] = useState("");
 
-  const openPreflight = (textToScan: string, onConfirm: () => void) => {
+  const openPreflight = (textToScan: string, onConfirm: (result: unknown) => void) => {
     setPreflightText(textToScan);
     setPendingSubmit(() => onConfirm);
     setPreflightOpen(true);
@@ -122,8 +122,8 @@ export default function Submit() {
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !text.trim()) return;
-    openPreflight(text.trim(), () => {
-      submitText.mutate({ title: title.trim(), text: text.trim() });
+    openPreflight(text.trim(), (preflightResult) => {
+      submitText.mutate({ title: title.trim(), text: text.trim(), preflightResult });
     });
   };
 
@@ -131,7 +131,7 @@ export default function Submit() {
     e.preventDefault();
     if (!title.trim() || !fileBase64) return;
     const textToScan = fileText || `[Uploaded file: ${fileName}]`;
-    openPreflight(textToScan, async () => {
+    openPreflight(textToScan, async (preflightResult) => {
       setUploading(true);
       try {
         const { key, url } = await uploadDoc.mutateAsync({
@@ -145,6 +145,7 @@ export default function Submit() {
           storageKey: key,
           storageUrl: url,
           rawText: textToScan,
+          preflightResult,
         });
       } finally {
         setUploading(false);
@@ -398,9 +399,9 @@ export default function Submit() {
           setPreflightOpen(false);
           setPendingSubmit(null);
         }}
-        onProceed={() => {
+        onProceed={(result) => {
           setPreflightOpen(false);
-          if (pendingSubmit) pendingSubmit();
+          if (pendingSubmit) pendingSubmit(result);
           setPendingSubmit(null);
         }}
       />

@@ -165,7 +165,8 @@ interface PreflightModalProps {
   open: boolean;
   text: string;
   onClose: () => void;
-  onProceed: () => void;
+  /** Called when the user confirms proceed; receives the scan result so the parent can persist it */
+  onProceed: (result: FrictionEngineResult | null) => void;
 }
 
 export function PreflightModal({ open, text, onClose, onProceed }: PreflightModalProps) {
@@ -518,7 +519,7 @@ export function PreflightModal({ open, text, onClose, onProceed }: PreflightModa
           </Button>
           {result?.recommended_action !== "reject" && (
             <Button
-              onClick={onProceed}
+              onClick={() => onProceed(result)}
               disabled={scan.isPending || !canProceed()}
               className="gap-2"
             >

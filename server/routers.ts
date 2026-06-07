@@ -71,6 +71,8 @@ export const appRouter = router({
         z.object({
           title: z.string().min(1).max(512),
           text: z.string().min(10),
+          /** Optional: FrictionEngine pre-submission scan result to persist alongside the document */
+          preflightResult: z.unknown().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -90,6 +92,7 @@ export const appRouter = router({
           title: input.title,
           sourceType: "paste",
           rawText: input.text,
+          preflightResult: input.preflightResult ?? null,
         });
         // Increment audit count for email users
         if (ctx.user.openId?.startsWith("email_")) {
@@ -109,6 +112,8 @@ export const appRouter = router({
           storageKey: z.string(),
           storageUrl: z.string(),
           rawText: z.string(),
+          /** Optional: FrictionEngine pre-submission scan result to persist alongside the document */
+          preflightResult: z.unknown().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -131,6 +136,7 @@ export const appRouter = router({
           storageKey: input.storageKey,
           storageUrl: input.storageUrl,
           rawText: input.rawText,
+          preflightResult: input.preflightResult ?? null,
         });
         // Increment audit count for email users
         if (ctx.user.openId?.startsWith("email_")) {
@@ -372,6 +378,15 @@ export const appRouter = router({
             input.documentId
           ).catch(console.error)
         ).catch(console.error);
+        // Calibration loop: record that the model which produced the original verdict was incorrect.
+        // We look up the document's llmProvider to identify the responsible model.
+        // This feeds the LLM quality scoring system and can trigger auto-bans on low-accuracy models.
+        getDocumentById(input.documentId).then((doc) => {
+          if (!doc?.llmProvider) return;
+          import("./llmProviderQuality").then(({ recordModelOutcome }) =>
+            recordModelOutcome(doc.llmProvider, false).catch(console.error)
+          ).catch(console.error);
+        }).catch(console.error);
         return { success: true };
       }),
 

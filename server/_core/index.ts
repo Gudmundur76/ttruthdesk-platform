@@ -932,6 +932,17 @@ async function startServer() {
   });
   // DB-backed wiki engine lint + index rebuild (weekly)
   app.post("/api/scheduled/wiki-engine-lint", requireCronOrAdmin, wikiEngineLintJobHandler);
+  // Frontier Engine — gap detection, ranking, evidence pursuit, hypothesis generation (every 6 hours)
+  app.post("/api/scheduled/frontier-engine", requireCronOrAdmin, async (_req, res) => {
+    try {
+      const { runFrontierEngine } = await import("../frontier/frontierEngine");
+      const result = await runFrontierEngine();
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      console.error("[FrontierEngine] Scheduled run failed:", err);
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
   // Admin re-process: re-runs the analysis pipeline on all failed documents
   app.post("/api/admin/reprocess-failed", requireOwnerOrAdmin, async (req, res) => {

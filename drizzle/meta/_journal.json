@@ -169,6 +169,13 @@
       "when": 1780788746773,
       "tag": "0023_lucky_nicolaos",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1780790227641,
+      "tag": "0024_legal_prowler",
+      "breakpoints": true
     }
   ]
 }
