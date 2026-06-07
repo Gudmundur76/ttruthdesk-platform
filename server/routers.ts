@@ -101,6 +101,10 @@ export const appRouter = router({
         }
         // Run pipeline async (fire and forget)
         runAnalysisPipeline(docId, input.text, ctx.user.id).catch(console.error);
+        // Publish to autonomous loop event bus (fire and forget)
+        import("./autonomousLoop/eventBus").then(({ publishEvent }) =>
+          publishEvent("document_submitted", { documentId: docId, userId: ctx.user.id, sourceType: "paste" }).catch(() => {})
+        ).catch(() => {});
         return { documentId: docId };
       }),
 
@@ -144,6 +148,10 @@ export const appRouter = router({
           await incrementEmailUserAuditCount(emailUserId).catch(() => {});
         }
         runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(console.error);
+        // Publish to autonomous loop event bus (fire and forget)
+        import("./autonomousLoop/eventBus").then(({ publishEvent }) =>
+          publishEvent("document_submitted", { documentId: docId, userId: ctx.user.id, sourceType: "upload" }).catch(() => {})
+        ).catch(() => {});
         return { documentId: docId };
       }),
 
@@ -2723,7 +2731,7 @@ Respond in this exact structure:
       };
     }),
 
-    // Trigger a full Inverse Prompt Engine run (admin only)
+        // Trigger a full Inverse Prompt Engine run (admin only)
     trigger: protectedProcedure
       .input(z.object({ topN: z.number().min(1).max(100).default(20) }))
       .mutation(async ({ ctx, input }) => {
@@ -2734,6 +2742,124 @@ Respond in this exact structure:
       }),
   }),
 
-});
+  // ─── Autonomous Loop ───────────────────────────────────────────────────────
+  autonomousLoop: router({
+    // Get current loop status: safe mode, last run, event counts
+    status: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getDb } = await import("./db");
+      const { loopRun, loopConfig, eventQueue } = await import("../drizzle/schema");
+      const { desc, count, sql: sqlFn } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [lastRun] = await db.select().from(loopRun).orderBy(desc(loopRun.createdAt)).limit(1);
+      const [cfg] = await db.select().from(loopConfig).limit(1);
+      const [eventStats] = await db
+        .select({ total: count(), pending: sqlFn<number>`SUM(CASE WHEN ${eventQueue.status} = 'pending' THEN 1 ELSE 0 END)` })
+        .from(eventQueue);
+      return {
+        safeMode: cfg?.safeMode ?? false,
+        lastRun: lastRun ?? null,
+        totalEvents: Number(eventStats?.total ?? 0),
+        pendingEvents: Number(eventStats?.pending ?? 0),
+      };
+    }),
 
+    // Get recent event log with filtering
+    eventLog: protectedProcedure
+      .input(z.object({
+        limit: z.number().min(1).max(200).default(50),
+        eventType: z.string().optional(),
+        status: z.enum(["pending", "processing", "complete", "failed", "skipped"]).optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const { eventQueue } = await import("../drizzle/schema");
+        const { desc, eq, and } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const conditions = [];
+        if (input.eventType) conditions.push(eq(eventQueue.eventType, input.eventType as never));
+        if (input.status) conditions.push(eq(eventQueue.status, input.status === "complete" ? "processed" : input.status as never));
+        const rows = await db
+          .select()
+          .from(eventQueue)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(eventQueue.createdAt))
+          .limit(input.limit);
+        return rows;
+      }),
+
+    // Get recent loop run history
+    runHistory: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+      const { loopRun } = await import("../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      return db.select().from(loopRun).orderBy(desc(loopRun.createdAt)).limit(input.limit);
+      }),
+
+    // Manually trigger an event through the loop
+    triggerEvent: protectedProcedure
+      .input(z.object({
+        eventType: z.string(),
+        payload: z.record(z.string(), z.unknown()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { publishEvent } = await import("./autonomousLoop/eventBus");
+        const { processEvent } = await import("./autonomousLoop/loopOrchestrator");
+        const eventId = await publishEvent(input.eventType as never, input.payload ?? {});
+        // Fetch the event and process it immediately
+        const { getDb } = await import("./db");
+        const { eventQueue: eq2 } = await import("../drizzle/schema");
+        const { eq: eqFn } = await import("drizzle-orm");
+        const db2 = await getDb();
+        if (!db2) return { eventId, result: null };
+        const [event] = await db2.select().from(eq2).where(eqFn(eq2.id, eventId)).limit(1);
+        const result = event ? await processEvent(event as never) : null;
+        return { eventId, result };
+      }),
+
+    // Toggle safe mode
+    setSafeMode: protectedProcedure
+      .input(z.object({ enabled: z.boolean(), reason: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { enterSafeMode, exitSafeMode } = await import("./autonomousLoop/safeModeController");
+        if (input.enabled) {
+          await enterSafeMode(input.reason ?? "Manual toggle by admin");
+        } else {
+          await exitSafeMode();
+        }
+        return { safeMode: input.enabled };
+      }),
+
+    // Process all pending events (batch drain)
+    drainQueue: protectedProcedure
+      .input(z.object({ maxEvents: z.number().min(1).max(50).default(10) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { processEvent } = await import("./autonomousLoop/loopOrchestrator");
+        const { getDb } = await import("./db");
+        const { eventQueue: eq3 } = await import("../drizzle/schema");
+        const { eq: eqFn3 } = await import("drizzle-orm");
+        const db3 = await getDb();
+        if (!db3) return { processed: 0, results: [] };
+        const results = [];
+        for (let i = 0; i < input.maxEvents; i++) {
+          const [nextEvent] = await db3.select().from(eq3).where(eqFn3(eq3.status, "pending")).limit(1);
+          if (!nextEvent) break;
+          const result = await processEvent(nextEvent as never);
+          results.push(result);
+        }
+        return { processed: results.length, results };
+      }),
+  }),
+});
 export type AppRouter = typeof appRouter;

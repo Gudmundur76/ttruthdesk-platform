@@ -40,6 +40,7 @@ import ApiKeys from "@/pages/ApiKeys";
 import Frontier from "@/pages/Frontier";
 import SelfPromptDashboard from "@/pages/SelfPromptDashboard";
 import InversePromptDashboard from "@/pages/InversePromptDashboard";
+import AutonomousLoopDashboard from "@/pages/AutonomousLoopDashboard";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/admin/frontier" component={Frontier} />
       <Route path="/admin/self-prompt" component={SelfPromptDashboard} />
       <Route path="/admin/inverse-prompt" component={InversePromptDashboard} />
+      <Route path="/admin/loop" component={AutonomousLoopDashboard} />
       <Route path="/compare" component={AuditComparison} />
       <Route path="/trust" component={Trust} />
       <Route path="/docs/api" component={ApiDocs} />

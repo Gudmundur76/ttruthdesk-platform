@@ -720,6 +720,23 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Autonomous Loop */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Autonomous Loop</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Event-driven orchestration layer that unifies all five cognitive layers (Friction, Truth,
+          Self-Prompt, Frontier, Meta) into a single autonomous loop. Every document submission,
+          verdict, contradiction, and gap closure flows through the event bus and is routed to the
+          appropriate layers automatically. Includes safe mode control and manual queue drain.
+        </p>
+        <a
+          href="/admin/loop"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Autonomous Loop Dashboard
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

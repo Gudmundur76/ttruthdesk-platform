@@ -258,6 +258,21 @@ export async function runAnalysisPipeline(
       documentId,
       verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
     }).catch((e) => console.warn("[SelfPromptEngine] Post-pipeline cycle error (non-fatal):", e));
+    // ── Autonomous Loop: publish events to the event bus ─────────────────────
+    import("./autonomousLoop/eventBus").then(({ publishEvent }) => {
+      const eventPayload = {
+        documentId,
+        claimCount: finalClaims.length,
+        contradictedCount: contradictedCount2,
+        insufficientCount,
+        verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
+      };
+      publishEvent("verdict_complete", eventPayload).catch(() => {});
+      if (contradictedCount2 > 0) {
+        const firstContradicted = finalClaims.find((c) => c.verdict === "Contradicted");
+        publishEvent("contradiction_found", { ...eventPayload, claimId: firstContradicted?.id }).catch(() => {});
+      }
+    }).catch(() => {});
 
     // ── Inverse Prompt Architecture: Supported verdicts → graph questions ──────
     // For each Supported claim linked to a known graph entity, fire the Inverse

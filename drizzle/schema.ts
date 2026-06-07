@@ -1201,3 +1201,105 @@ export const generatedClaims = mysqlTable("generated_claims", {
 }));
 export type GeneratedClaim = typeof generatedClaims.$inferSelect;
 export type InsertGeneratedClaim = typeof generatedClaims.$inferInsert;
+
+// ─── Autonomous Loop ───────────────────────────────────────────────────────────
+/**
+ * event_queue — the central event bus for the autonomous loop.
+ * Every event that enters the system is persisted here before processing.
+ */
+export const eventQueue = mysqlTable("event_queue", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: mysqlEnum("eventType", [
+    "document_submitted",
+    "paper_discovered",
+    "source_data_changed",
+    "verdict_complete",
+    "contradiction_found",
+    "gap_closed",
+    "source_status_change",
+    "system_health_change",
+    "hypothesis_resolved",
+    "manual_review_complete",
+    "scheduled_tick",
+    "loop_action_complete",
+  ]).notNull(),
+  payload: json("payload").$type<Record<string, unknown>>().notNull(),
+  status: mysqlEnum("status", [
+    "pending",
+    "processing",
+    "processed",
+    "skipped",
+    "failed",
+  ]).notNull().default("pending"),
+  /** Layer the event entered at (0=Friction, 1=Truth, 2=SelfPrompt, 3=Frontier, 4=Meta) */
+  entryLayer: int("entryLayer").notNull().default(0),
+  /** ID of the loop_run that processed this event */
+  loopRunId: int("loopRunId"),
+  /** Why the event was skipped (redundant/no-payload) */
+  skipReason: varchar("skipReason", { length: 256 }),
+  /** How many times processing was attempted */
+  attempts: int("attempts").notNull().default(0),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+}, (t) => ({
+  statusIdx: index("eq_status_idx").on(t.status),
+  eventTypeIdx: index("eq_event_type_idx").on(t.eventType),
+  createdAtIdx: index("eq_created_at_idx").on(t.createdAt),
+}));
+export type EventQueueEntry = typeof eventQueue.$inferSelect;
+export type InsertEventQueueEntry = typeof eventQueue.$inferInsert;
+
+/**
+ * loop_run — one full pass through the autonomous loop for a single event.
+ * Tracks which layers were executed, what actions were taken, and whether
+ * the system converged.
+ */
+export const loopRun = mysqlTable("loop_run", {
+  id: int("id").autoincrement().primaryKey(),
+  eventQueueId: int("eventQueueId").notNull(),
+  eventType: varchar("eventType", { length: 64 }).notNull(),
+  /** Layers executed as a bitmask: bit 0=L0, bit 1=L1, ... bit 4=L4 */
+  layersExecuted: int("layersExecuted").notNull().default(0),
+  /** JSON array of action objects: { type, description, priority, result } */
+  actionsExecuted: json("actionsExecuted").$type<Array<{
+    type: string;
+    description: string;
+    priority: number;
+    result: "success" | "skipped" | "failed";
+    error?: string;
+  }>>().notNull(),
+  converged: boolean("converged").notNull().default(false),
+  convergenceReason: varchar("convergenceReason", { length: 512 }),
+  /** Health score at the time of this run */
+  healthScore: int("healthScore"),
+  /** Whether the system entered safe mode during this run */
+  safeModeTriggered: boolean("safeModeTriggered").notNull().default(false),
+  durationMs: int("durationMs"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  eventQueueIdIdx: index("lr_event_queue_id_idx").on(t.eventQueueId),
+  eventTypeIdx: index("lr_event_type_idx").on(t.eventType),
+  convergedIdx: index("lr_converged_idx").on(t.converged),
+  createdAtIdx: index("lr_created_at_idx").on(t.createdAt),
+}));
+export type LoopRun = typeof loopRun.$inferSelect;
+export type InsertLoopRun = typeof loopRun.$inferInsert;
+
+/**
+ * loop_config — singleton row for system-wide autonomous loop configuration.
+ * Only one row should ever exist (id=1).
+ */
+export const loopConfig = mysqlTable("loop_config", {
+  id: int("id").primaryKey().default(1),
+  safeMode: boolean("safeMode").notNull().default(false),
+  safeModeReason: varchar("safeModeReason", { length: 512 }),
+  safeModeTriggeredAt: timestamp("safeModeTriggeredAt"),
+  convergeThreshold: int("convergeThreshold").notNull().default(30),
+  healthyThreshold: int("healthyThreshold").notNull().default(80),
+  safeModeThreshold: int("safeModeThreshold").notNull().default(40),
+  haltThreshold: int("haltThreshold").notNull().default(60),
+  maxLoopDepth: int("maxLoopDepth").notNull().default(10),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
+});
+export type LoopConfig = typeof loopConfig.$inferSelect;

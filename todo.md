@@ -764,3 +764,11 @@
 - [x] IP-2: Build server/inversePrompt/ module (graphQuestionGenerator, verifiabilityGate, claimQueueWriter, inversePromptEngine)
 - [x] IP-3: Wire into analysisPipeline — trigger after Supported verdicts
 - [x] IP-4: Add tRPC procedures (list, metrics, trigger) + /admin/inverse-prompt dashboard page
+
+## Autonomous Loop (Event-Driven Orchestration)
+- [x] AL-1: Schema — event_queue, loop_run, loop_config tables + migration
+- [x] AL-2: server/autonomousLoop/ module — eventBus, loopOrchestrator (L0-L4), convergenceGate, safeModeController
+- [x] AL-3: Layer modules — frictionLayer (L0), truthLayer (L1), selfPromptLayer (L2), frontierLayer (L3), metaLayer (L4)
+- [x] AL-4: Wire all event sources — document_submitted (submitText/submitFile), verdict_complete + contradiction_found (analysisPipeline)
+- [x] AL-5: tRPC procedures — status, eventLog, runHistory, triggerEvent, setSafeMode, drainQueue
+- [x] AL-6: /admin/loop dashboard — event log, run history, layer metrics, safe mode control, manual trigger
