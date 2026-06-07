@@ -33,6 +33,7 @@ import { computeSignalDensity } from "./discoveryLoopJob";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import { publishEvent } from "./autonomousLoop/eventBus";
+import { logCronRun } from "./cronRunLogger";
 import {
   VERTICAL_FEED_CONFIGS,
   type VerticalFeedConfig,
@@ -439,6 +440,7 @@ function delay(ms: number): Promise<void> {
 // ─── HTTP handler ─────────────────────────────────────────────────────────────
 
 export async function pmcFeedJobHandler(req: Request, res: Response): Promise<void> {
+  const startMs = Date.now();
   // Auth: bearer token check (same pattern as other scheduled handlers)
   const authHeader = req.headers["authorization"] ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
@@ -459,9 +461,12 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
 
   // Allow caller to restrict to a single vertical (useful for testing)
   const targetVertical: string | undefined = req.body?.vertical;
+  // Merge static configs with any active DB-managed verticals from the Vertical Wizard
+  const { getActiveVerticalFeedConfigs } = await import("./verticalFeedMerger");
+  const allActiveConfigs = await getActiveVerticalFeedConfigs();
   const configs = targetVertical
-    ? VERTICAL_FEED_CONFIGS.filter((c) => c.domainKey === targetVertical)
-    : VERTICAL_FEED_CONFIGS;
+    ? allActiveConfigs.filter((c) => c.domainKey === targetVertical)
+    : allActiveConfigs;
 
   if (configs.length === 0) {
     res.status(400).json({ error: `Unknown vertical: ${targetVertical}` });
@@ -497,6 +502,12 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
       });
     }
 
+    void logCronRun(
+      "pmc-feed-nightly",
+      "ok",
+      Date.now() - startMs,
+      `Submitted ${totalSubmitted} papers across ${configs.length} verticals`
+    );
     res.json({
       ok: true,
       lookbackDays,
@@ -506,6 +517,7 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
     });
   } catch (err) {
     console.error("[pmcFeedJob] Fatal error:", err);
+    void logCronRun("pmc-feed-nightly", "error", 0, undefined, String(err));
     res.status(500).json({ ok: false, error: String(err) });
   }
 }

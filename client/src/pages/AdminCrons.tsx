@@ -6,7 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Clock, Play, RefreshCw, CheckCircle2, AlertCircle, Timer } from "lucide-react";
+import {
+  Clock, Play, RefreshCw, CheckCircle2, AlertCircle,
+  Timer, ChevronDown, ChevronRight, XCircle, SkipForward,
+} from "lucide-react";
 
 function formatNextRun(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -35,6 +38,12 @@ function formatLastRun(iso: string | null | undefined): string {
   return `${diffD}d ago`;
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
+}
+
 const CRON_DESCRIPTIONS: Record<string, string> = {
   "pmc-feed-nightly": "Queries PubMed for each vertical's MeSH terms, fetches abstracts, deduplicates, queues new papers through the audit pipeline.",
   "quality-pass-nightly": "Re-processes draft-tier documents with Kimi K2, upgrades qualityTier to verified.",
@@ -47,9 +56,66 @@ const CRON_DESCRIPTIONS: Record<string, string> = {
   "pubmed-decode-weekly": "deCODE Genetics-specific PubMed scan.",
 };
 
+function HistoryPanel({ jobName }: { jobName: string }) {
+  const { data, isLoading } = trpc.crons.history.useQuery(
+    { jobName, limit: 10 },
+    { refetchInterval: 60_000 }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-1.5 pt-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-7 rounded" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground pt-2 italic">
+        No run history yet — history appears after the first execution.
+      </p>
+    );
+  }
+
+  return (
+    <div className="pt-2 space-y-1">
+      {data.map((row) => (
+        <div
+          key={row.id}
+          className="flex items-start gap-2 text-xs rounded-md px-2 py-1.5 bg-muted/40 hover:bg-muted/70 transition-colors"
+        >
+          {row.status === "ok" ? (
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
+          ) : row.status === "skipped" ? (
+            <SkipForward className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+          ) : (
+            <XCircle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1 min-w-0">
+            <span className="text-muted-foreground">
+              {new Date(row.ranAt).toLocaleString()} &middot;{" "}
+              {formatDuration(row.durationMs)}
+            </span>
+            {row.summary && (
+              <p className="text-foreground/80 truncate">{row.summary}</p>
+            )}
+            {row.errorMessage && (
+              <p className="text-destructive truncate">{row.errorMessage}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminCrons() {
   const { user } = useAuth();
   const [runningUids, setRunningUids] = useState<Set<string>>(new Set());
+  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
 
   const { data, isLoading, error, refetch } = trpc.crons.list.useQuery(undefined, {
     refetchInterval: 30_000,
@@ -69,6 +135,15 @@ export default function AdminCrons() {
       toast.error(`Failed to trigger job: ${err.message}`);
     },
   });
+
+  function toggleHistory(name: string) {
+    setExpandedJobs((prev) => {
+      const s = new Set(prev);
+      if (s.has(name)) s.delete(name);
+      else s.add(name);
+      return s;
+    });
+  }
 
   if (user?.role !== "admin") {
     return (
@@ -119,6 +194,7 @@ export default function AdminCrons() {
             const isRunning = runningUids.has(job.taskUid);
             const nextIn = formatNextRun(job.nextExecutionAt);
             const isOverdue = nextIn === "overdue";
+            const historyOpen = expandedJobs.has(job.name);
             return (
               <Card
                 key={job.taskUid}
@@ -154,7 +230,7 @@ export default function AdminCrons() {
                     Run Now
                   </Button>
                 </CardHeader>
-                <CardContent className="pt-0">
+                <CardContent className="pt-0 space-y-2">
                   <div className="flex items-center gap-6 text-sm flex-wrap">
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
@@ -168,6 +244,21 @@ export default function AdminCrons() {
                       uid: {job.taskUid.slice(0, 12)}…
                     </span>
                   </div>
+
+                  {/* History toggle */}
+                  <button
+                    onClick={() => toggleHistory(job.name)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+                  >
+                    {historyOpen ? (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    )}
+                    Run history
+                  </button>
+
+                  {historyOpen && <HistoryPanel jobName={job.name} />}
                 </CardContent>
               </Card>
             );

@@ -917,3 +917,14 @@
 - [x] [FE-4] Verified: no hardcoded localhost URLs in client-side code
 - [x] [FE-5] Verified: no sensitive data leaking through public tRPC procedures
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint G: Vertical Wizard End-to-End + Cron History Log + GitHub Export
+- [x] Wire vertical_configs DB records into pmcFeedJob at runtime via server/verticalFeedMerger.ts (merges static + DB configs)
+- [x] Add cron_run_log table to drizzle/schema.ts (jobName, status, durationMs, summary, errorMessage, ranAt)
+- [x] Apply DB migration for cron_run_log table
+- [x] Create server/cronRunLogger.ts with logCronRun() helper
+- [x] Add logCronRun calls to discoveryLoopJob, pmcFeedJob, qualityPassJob, swarmTickJob, qualityScorerJob
+- [x] Add crons.history tRPC procedure (admin-only) returning last N runs per job
+- [x] Add collapsible history panel to AdminCrons.tsx (per-job, shows status, duration, summary, error)
+- [ ] Export project to GitHub (private repo) — user action via Settings → GitHub panel
+- [x] TypeScript clean, 780 tests passing, checkpoint saved

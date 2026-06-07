@@ -28,6 +28,7 @@ import { compileDocumentToWiki } from "./wikiCompiler";
 import { getDb } from "./db";
 import { documents } from "../drizzle/schema";
 import { eq, and, lt } from "drizzle-orm";
+import { logCronRun } from "./cronRunLogger";
 
 // ─── Agent: Harvester ─────────────────────────────────────────────────────────
 
@@ -284,9 +285,16 @@ export async function runSwarmTick(): Promise<SwarmTickResult> {
 export async function swarmTickHandler(req: Request, res: Response): Promise<void> {
   try {
     const result = await runSwarmTick();
+    void logCronRun(
+      "swarm-tick-daily",
+      "ok",
+      result.durationMs,
+      `${result.summary.ok}/${result.summary.total} agents OK, ${result.summary.error} errors`
+    );
     res.json(result);
   } catch (err) {
     console.error("[Swarm] Fatal coordinator error:", err);
+    void logCronRun("swarm-tick-daily", "error", 0, undefined, String(err));
     res.status(500).json({ error: String(err) });
   }
 }

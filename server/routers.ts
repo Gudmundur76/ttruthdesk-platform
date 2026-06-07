@@ -3183,6 +3183,27 @@ Respond in this exact structure:
         }
         return { success: true };
       }),
+    /** Get the last N run records for a specific job (or all jobs). Admin-only. */
+    history: protectedProcedure
+      .input(z.object({
+        jobName: z.string().max(128).optional(),
+        limit: z.number().int().min(1).max(100).default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { cronRunLog } = await import("../drizzle/schema");
+        const { desc, eq } = await import("drizzle-orm");
+        const query = db.select().from(cronRunLog)
+          .orderBy(desc(cronRunLog.ranAt))
+          .limit(input.limit);
+        if (input.jobName) {
+          return query.where(eq(cronRunLog.jobName, input.jobName));
+        }
+        return query;
+      }),
   }),
 
   // ── Vertical Expansion Wizard ─────────────────────────────────────────────────────────────────────────────

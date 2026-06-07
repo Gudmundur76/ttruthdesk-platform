@@ -18,6 +18,7 @@ import { getDraftDocuments, updateDocumentStatus, deleteClaimsByDocument } from 
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
+import { logCronRun } from "./cronRunLogger";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,12 @@ export async function qualityPassJobHandler(req: Request, res: Response) {
       }).catch(() => {/* non-fatal */});
     }
 
+    void logCronRun(
+      "quality-pass-nightly",
+      result.failed > 0 && result.processed === 0 ? "error" : "ok",
+      0,
+      summary
+    );
     res.json({
       ok: true,
       ...result,
@@ -174,6 +181,7 @@ export async function qualityPassJobHandler(req: Request, res: Response) {
     });
   } catch (err) {
     console.error("[QualityPass] Fatal error:", err);
+    void logCronRun("quality-pass-nightly", "error", 0, undefined, String(err));
     res.status(500).json({ ok: false, error: String(err) });
   }
 }

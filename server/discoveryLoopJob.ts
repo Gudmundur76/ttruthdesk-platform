@@ -24,6 +24,7 @@ import {
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
+import { logCronRun } from "./cronRunLogger";
 
 // ─── Claim signal density check ───────────────────────────────────────────────
 
@@ -178,7 +179,9 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
     );
 
     if (discovery.candidates.length === 0) {
-      res.json({ ok: true, stats, durationMs: Date.now() - startedAt });
+      const dur0 = Date.now() - startedAt;
+      void logCronRun("discovery-loop-daily", "ok", dur0, "No new candidates found");
+      res.json({ ok: true, stats, durationMs: dur0 });
       return;
     }
 
@@ -307,14 +310,22 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
       }
     }
 
+    const finalDur = Date.now() - startedAt;
+    void logCronRun(
+      "discovery-loop-daily",
+      "ok",
+      finalDur,
+      `Submitted ${stats.submitted} papers, ${stats.alreadyIngested} already ingested, ${stats.lowSignal} low-signal, ${stats.failed} failed`
+    );
     res.json({
       ok: true,
       stats,
       sourceBreakdown: discovery.sourceBreakdown,
-      durationMs: Date.now() - startedAt,
+      durationMs: finalDur,
     });
   } catch (err) {
     console.error("[DiscoveryLoop] Fatal error:", err);
+    void logCronRun("discovery-loop-daily", "error", Date.now() - startedAt, undefined, String(err));
     res.status(500).json({ ok: false, error: String(err), stats });
   }
 }

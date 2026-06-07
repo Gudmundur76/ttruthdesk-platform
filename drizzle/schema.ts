@@ -1390,3 +1390,29 @@ export const verticalConfigs = mysqlTable("vertical_configs", {
 }));
 export type VerticalConfig = typeof verticalConfigs.$inferSelect;
 export type InsertVerticalConfig = typeof verticalConfigs.$inferInsert;
+
+/**
+ * cron_run_log — execution history for all scheduled heartbeat jobs.
+ * Each job handler writes one row per run so the Cron Health Dashboard
+ * can show the last N runs per job with status, duration, and summary.
+ */
+export const cronRunLog = mysqlTable("cron_run_log", {
+  id: int("id").primaryKey().autoincrement(),
+  /** Matches the job name used in the heartbeat schedule (e.g. "discovery-loop-daily") */
+  jobName: varchar("jobName", { length: 128 }).notNull(),
+  /** "ok" | "error" | "skipped" */
+  status: varchar("status", { length: 16 }).notNull().default("ok"),
+  /** Wall-clock duration in milliseconds */
+  durationMs: int("durationMs").notNull().default(0),
+  /** Human-readable summary of what the run did (e.g. "Ingested 12 papers, 3 skipped") */
+  summary: text("summary"),
+  /** Error message if status = "error" */
+  errorMessage: text("errorMessage"),
+  /** UTC timestamp when the run started */
+  ranAt: timestamp("ranAt").defaultNow().notNull(),
+}, (t) => ({
+  jobNameIdx: index("crl_job_name_idx").on(t.jobName),
+  ranAtIdx: index("crl_ran_at_idx").on(t.ranAt),
+}));
+export type CronRunLog = typeof cronRunLog.$inferSelect;
+export type InsertCronRunLog = typeof cronRunLog.$inferInsert;

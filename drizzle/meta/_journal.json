@@ -218,6 +218,13 @@
       "when": 1780802321093,
       "tag": "0030_burly_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1780833987523,
+      "tag": "0031_stormy_trish_tilby",
+      "breakpoints": true
     }
   ]
 }
