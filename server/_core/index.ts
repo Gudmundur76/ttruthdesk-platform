@@ -943,6 +943,37 @@ async function startServer() {
       res.status(500).json({ ok: false, error: (err as Error).message });
     }
   });
+  // Autonomous Loop tick — fires every 2 hours to drain the event queue
+  app.post("/api/scheduled/autonomous-loop-tick", requireCronOrAdmin, async (_req, res) => {
+    try {
+      const { publishEvent } = await import("../autonomousLoop/eventBus");
+      const { processEvent } = await import("../autonomousLoop/loopOrchestrator");
+      const { getDb } = await import("../db");
+      const { eventQueue: eqTable } = await import("../../drizzle/schema");
+      const { eq: eqFn } = await import("drizzle-orm");
+
+      // Publish the scheduled_tick event so layers can react
+      await publishEvent("scheduled_tick", { source: "cron" });
+
+      // Drain up to 20 pending events
+      const db = await getDb();
+      const results: unknown[] = [];
+      if (db) {
+        for (let i = 0; i < 20; i++) {
+          const [nextEvent] = await db.select().from(eqTable).where(eqFn(eqTable.status, "pending")).limit(1);
+          if (!nextEvent) break;
+          const result = await processEvent(nextEvent as never);
+          results.push(result);
+        }
+      }
+
+      res.json({ ok: true, tickPublished: true, drained: results.length });
+    } catch (err) {
+      console.error("[AutonomousLoop] Scheduled tick failed:", err);
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
   // Admin re-process: re-runs the analysis pipeline on all failed documents
   app.post("/api/admin/reprocess-failed", requireOwnerOrAdmin, async (req, res) => {

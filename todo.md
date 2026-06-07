@@ -772,3 +772,18 @@
 - [x] AL-4: Wire all event sources — document_submitted (submitText/submitFile), verdict_complete + contradiction_found (analysisPipeline)
 - [x] AL-5: tRPC procedures — status, eventLog, runHistory, triggerEvent, setSafeMode, drainQueue
 - [x] AL-6: /admin/loop dashboard — event log, run history, layer metrics, safe mode control, manual trigger
+
+## Autonomous Loop Completion
+- [x] ALC-1: Wire paper_discovered event source in pmcFeedJob.ts
+- [x] ALC-2: Wire source_status_change event source in pdbAdapter.ts
+- [x] ALC-3: Wire manual_review_complete event source in claims.override mutation
+- [x] ALC-4: Complete L2 Self-Prompt action matrix — all four verdict branches (Supported, Contradicted, Insufficient Evidence, Partially Supported) in selfPromptLayer.ts
+- [x] ALC-5: Add resolveGap mutation to frontier tRPC router
+- [x] ALC-6: Add overrides tRPC router (summary, list, flipAnalysis procedures)
+- [x] ALC-7: Create /admin/overrides OverridesDashboard page
+- [x] ALC-8: Add "Mark Resolved" dropdown button to Frontier.tsx GapsTable (Actions column)
+- [x] ALC-9: Wire OverridesDashboard into App.tsx routing (/admin/overrides)
+- [x] ALC-10: Add Override Audit Log link card to Admin.tsx
+- [x] ALC-11: Add /api/scheduled/autonomous-loop-tick route to server/_core/index.ts
+- [x] ALC-12: Register autonomous-loop-tick heartbeat cron (every 2h, task_uid: GVAmEEVdw7CPp7rmm9AejT)
+- [x] ALC-13: Publish system_health_change event from metaLayer.ts when health score drops below threshold (60)

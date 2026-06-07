@@ -37,6 +37,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -152,6 +158,16 @@ function GapsTable() {
   const [statusFilter, setStatusFilter] = useState<GapStatus>("all");
   const [offset, setOffset] = useState(0);
   const limit = 15;
+  const utils = trpc.useUtils();
+
+  const resolveGap = trpc.frontier.resolveGap.useMutation({
+    onSuccess: () => {
+      toast.success("Gap marked as resolved");
+      utils.frontier.listGaps.invalidate();
+      utils.frontier.metrics.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const { data, isLoading } = trpc.frontier.listGaps.useQuery({
     status: statusFilter,
@@ -200,6 +216,7 @@ function GapsTable() {
               <TableHead className="w-20 text-right">Priority</TableHead>
               <TableHead className="w-20 text-right">Attempts</TableHead>
               <TableHead className="w-32">Opened</TableHead>
+              <TableHead className="w-28">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -215,7 +232,7 @@ function GapsTable() {
               ))
             ) : gaps.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   No gaps found. Run the Frontier Engine to detect gaps.
                 </TableCell>
               </TableRow>
@@ -239,6 +256,53 @@ function GapsTable() {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(gap.openedAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    {["open", "pursued", "narrowing"].includes(gap.status) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={resolveGap.isPending}
+                          >
+                            Resolve ▾
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              resolveGap.mutate({
+                                gapId: gap.id,
+                                resolution: "closed_verified",
+                              })
+                            }
+                          >
+                            ✅ Closed — Verified
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              resolveGap.mutate({
+                                gapId: gap.id,
+                                resolution: "closed_resolved",
+                              })
+                            }
+                          >
+                            🔒 Closed — Resolved
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              resolveGap.mutate({
+                                gapId: gap.id,
+                                resolution: "stale",
+                              })
+                            }
+                          >
+                            🕳 Mark Stale
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

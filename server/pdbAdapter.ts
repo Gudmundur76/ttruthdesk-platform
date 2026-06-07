@@ -25,6 +25,14 @@ export interface PdbValidationResult {
 const PDB_DATA_API = "https://data.rcsb.org/rest/v1/core/entry";
 const PDB_SEARCH_API = "https://search.rcsb.org/rcsbsearch/v2/query";
 
+// Lazy import to avoid circular deps
+async function emitSourceEvent(status: "down" | "up", detail: string) {
+  try {
+    const { publishEvent } = await import("./autonomousLoop/eventBus");
+    await publishEvent("source_status_change", { source: "pdb", status, detail });
+  } catch { /* non-fatal */ }
+}
+
 /** Fetch a single PDB entry by its 4-character ID */
 export async function fetchPdbEntry(pdbId: string): Promise<PdbValidationResult> {
   const id = pdbId.trim().toUpperCase();
@@ -102,7 +110,12 @@ export async function fetchPdbEntry(pdbId: string): Promise<PdbValidationResult>
 
     return { found: true, entry, error: null };
   } catch (err) {
-    return { found: false, entry: null, error: String(err) };
+    const msg = String(err);
+    // Network-level failure (not a 404) — emit source_status_change
+    if (!msg.includes("not found") && !msg.includes("404")) {
+      emitSourceEvent("down", `fetchPdbEntry failed: ${msg}`).catch(() => {});
+    }
+    return { found: false, entry: null, error: msg };
   }
 }
 

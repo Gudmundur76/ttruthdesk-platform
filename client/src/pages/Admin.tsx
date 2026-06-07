@@ -737,6 +737,23 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Override Audit Log */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Override Audit Log</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Full audit trail of every human override applied to AI-generated verdicts. Grouped by
+          epistemic category (domain expertise, new evidence, context clarification, scope
+          adjustment, error correction). Includes verdict flip analysis and paginated override
+          records with justification text.
+        </p>
+        <a
+          href="/admin/overrides"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Override Audit Log
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

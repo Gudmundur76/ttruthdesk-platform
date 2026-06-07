@@ -395,6 +395,16 @@ export const appRouter = router({
             recordModelOutcome(doc.llmProvider, false).catch(console.error)
           ).catch(console.error);
         }).catch(console.error);
+        // Publish manual_review_complete event into the Autonomous Loop
+        import("./autonomousLoop/eventBus").then(({ publishEvent }) =>
+          publishEvent("manual_review_complete", {
+            claimId: input.claimId,
+            documentId: input.documentId,
+            overriddenVerdict: input.overriddenVerdict,
+            overrideCategory: input.overrideCategory,
+            reviewerId: ctx.user.id,
+          }).catch(console.error)
+        ).catch(console.error);
         return { success: true };
       }),
 
@@ -2670,9 +2680,103 @@ Respond in this exact structure:
         if (!db) return [];
         return db
           .select()
-          .from(frontierLog)
+                    .from(frontierLog)
           .orderBy(frontierLog.createdAt)
           .limit(input.limit);
+      }),
+
+    /** Mark a knowledge gap as resolved by an operator */
+    resolveGap: protectedProcedure
+      .input(z.object({
+        gapId: z.number().int().positive(),
+        resolution: z.enum(["closed_verified", "closed_resolved", "stale"]),
+        note: z.string().max(500).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        const { knowledgeGaps, frontierLog: fLog } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [gap] = await db.select().from(knowledgeGaps).where(eq(knowledgeGaps.id, input.gapId)).limit(1);
+        if (!gap) throw new TRPCError({ code: "NOT_FOUND", message: "Gap not found" });
+        await db.update(knowledgeGaps)
+          .set({ status: input.resolution })
+          .where(eq(knowledgeGaps.id, input.gapId));
+        await db.insert(fLog).values({
+          actionType: "gap_closed",
+          gapId: input.gapId,
+          reasoning: { resolution: input.resolution, note: input.note ?? null, resolvedBy: ctx.user.id },
+          outcome: `manually_${input.resolution}`,
+        });
+        return { success: true, gapId: input.gapId, newStatus: input.resolution };
+      }),
+  }),
+
+  // ─── Override Audit Log ────────────────────────────────────────────────────
+  overrides: router({
+    /** List overrides grouped by epistemic category */
+    summary: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { overrideAuditLog } = await import("../drizzle/schema");
+        const { sql: sqlFn, count } = await import("drizzle-orm");
+        return db.select({
+          overrideCategory: overrideAuditLog.overrideCategory,
+          total: count(),
+          // count where originalVerdict != newVerdict (all overrides change verdict by definition)
+          avgJustificationLength: sqlFn<number>`AVG(CHAR_LENGTH(${overrideAuditLog.justification}))`,
+        })
+        .from(overrideAuditLog)
+        .groupBy(overrideAuditLog.overrideCategory)
+        .orderBy(sqlFn`COUNT(*) DESC`);
+      }),
+
+    /** Paginated list of all override records */
+    list: protectedProcedure
+      .input(z.object({
+        category: z.enum(["domain_expertise","new_evidence","context_clarification","scope_adjustment","error_correction"]).optional(),
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return { items: [], total: 0 };
+        const { overrideAuditLog } = await import("../drizzle/schema");
+        const { eq, count, desc } = await import("drizzle-orm");
+        const where = input.category ? eq(overrideAuditLog.overrideCategory, input.category) : undefined;
+        const [{ total }] = await db.select({ total: count() }).from(overrideAuditLog).where(where);
+        const items = await db.select().from(overrideAuditLog).where(where)
+          .orderBy(desc(overrideAuditLog.createdAt))
+          .limit(input.limit)
+          .offset(input.offset);
+        return { items, total };
+      }),
+
+    /** Verdict flip analysis — which LLM verdicts are most often overridden */
+    flipAnalysis: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { overrideAuditLog } = await import("../drizzle/schema");
+        const { sql: sqlFn, count } = await import("drizzle-orm");
+        return db.select({
+          originalVerdict: overrideAuditLog.originalVerdict,
+          newVerdict: overrideAuditLog.newVerdict,
+          total: count(),
+        })
+        .from(overrideAuditLog)
+        .groupBy(overrideAuditLog.originalVerdict, overrideAuditLog.newVerdict)
+        .orderBy(sqlFn`COUNT(*) DESC`)
+        .limit(30);
       }),
   }),
 

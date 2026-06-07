@@ -32,6 +32,7 @@ import { runAnalysisPipeline } from "./analysisPipeline";
 import { computeSignalDensity } from "./discoveryLoopJob";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
+import { publishEvent } from "./autonomousLoop/eventBus";
 import {
   VERTICAL_FEED_CONFIGS,
   type VerticalFeedConfig,
@@ -384,6 +385,14 @@ async function runVerticalFeed(
         });
 
         await updateAutoIngestedPaperStatus(pmid, "submitted", { documentId: docId });
+
+        // Publish paper_discovered event into the Autonomous Loop
+        publishEvent("paper_discovered", {
+          documentId: docId,
+          pmid,
+          title: meta.title,
+          vertical: config.domainKey,
+        }).catch(() => {/* non-fatal */});
 
         // Fire-and-forget pipeline — runs async, does not block the seed loop
         runAnalysisPipeline(docId, rawText, SYSTEM_USER_ID)

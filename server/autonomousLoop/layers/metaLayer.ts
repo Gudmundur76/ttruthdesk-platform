@@ -9,9 +9,14 @@
 import type { LoopEvent } from "../eventBus";
 import type { LoopAction } from "../loopOrchestrator";
 import { evaluateHealthAndTriggerSafeMode } from "../safeModeController";
+import { publishEvent } from "../eventBus";
 import { getDb } from "../../db";
 import { metaAgentChecks } from "../../../drizzle/schema";
 import { sql } from "drizzle-orm";
+
+// Track last known health score to detect changes
+let _lastPublishedHealthScore: number | null = null;
+const HEALTH_CHANGE_THRESHOLD = 60; // Publish event when score drops below this
 
 export interface MetaLayerResult {
   actions: LoopAction[];
@@ -28,6 +33,22 @@ export async function runMetaLayer(
 
   // Get the latest health score from meta_agent_checks
   const healthScore = await getLatestHealthScore();
+
+  // Publish system_health_change event when health drops below threshold
+  if (
+    healthScore < HEALTH_CHANGE_THRESHOLD &&
+    (_lastPublishedHealthScore === null || _lastPublishedHealthScore >= HEALTH_CHANGE_THRESHOLD)
+  ) {
+    try {
+      await publishEvent(
+        "system_health_change",
+        { score: healthScore, threshold: HEALTH_CHANGE_THRESHOLD, previousScore: _lastPublishedHealthScore }
+      );
+    } catch {
+      // Non-fatal: don't block the meta layer if event publishing fails
+    }
+  }
+  _lastPublishedHealthScore = healthScore;
 
   // Check if we need to enter safe mode
   if (healthScore < 40) {
