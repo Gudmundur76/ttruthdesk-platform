@@ -43,6 +43,7 @@ import { runWikiLint } from "../wikiLinter";
 import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
 import { createCopilotRouter } from "../copilotRuntime";
+import { registerHostingerWebhookRoute } from "../hostingerWebhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -838,6 +839,9 @@ async function startServer() {
     res.set({ "Content-Type": "application/json", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" }).json(OPENAPI_SPEC);
   });
 
+  // Raw body parser for webhook signature verification (MUST be before express.json)
+  app.use("/api/webhook", express.raw({ type: "application/json", limit: "1mb" }));
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ limit: "10mb", extended: true }));
@@ -1071,6 +1075,8 @@ async function startServer() {
   registerBadgeRoute(app);
   registerEmbedWidgetRoutes(app);
   registerEmbedRoutes(app);
+  // Hostinger inbound signed webhook — receives events from all Hostinger-hosted sites
+  registerHostingerWebhookRoute(app);
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
 
   // PDF report export endpoint (authenticated)

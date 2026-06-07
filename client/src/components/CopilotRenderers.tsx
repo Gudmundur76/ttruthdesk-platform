@@ -22,7 +22,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, XCircle, AlertCircle, HelpCircle, Loader2, BarChart3, Dna, BookOpen, FileText, ExternalLink, Calendar, Users } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, HelpCircle, Loader2, BarChart3, Dna, BookOpen, FileText, ExternalLink, Calendar, Users, Copy, Check } from "lucide-react";
+import { useState, useCallback } from "react";
+import { toast } from "sonner";
 
 // ─── Verdict helpers ──────────────────────────────────────────────────────────
 
@@ -571,6 +573,75 @@ function GraphSummaryRenderer({ result, status }: {
   );
 }
 
+// ─── Cite This Paper button ──────────────────────────────────────────────────
+
+function CiteButton({ paper }: {
+  paper: {
+    pmid: string;
+    title: string;
+    authors?: string[];
+    journal?: string | null;
+    year?: number | null;
+    citationUrl: string;
+  };
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const buildApa = useCallback(() => {
+    const authorStr = paper.authors && paper.authors.length > 0
+      ? paper.authors.length > 6
+        ? paper.authors.slice(0, 6).join(", ") + ", et al."
+        : paper.authors.join(", ")
+      : "[Author(s) unknown]";
+    const year = paper.year ? `(${paper.year})` : "(n.d.)";
+    const journal = paper.journal ?? "[Journal unknown]";
+    return `${authorStr} ${year}. ${paper.title}. ${journal}. PMID: ${paper.pmid}. ${paper.citationUrl}`;
+  }, [paper]);
+
+  const buildVancouver = useCallback(() => {
+    const authorStr = paper.authors && paper.authors.length > 0
+      ? paper.authors.length > 6
+        ? paper.authors.slice(0, 6).join(", ") + ", et al"
+        : paper.authors.join(", ")
+      : "[Author(s) unknown]";
+    const year = paper.year ?? "n.d.";
+    const journal = paper.journal ?? "[Journal unknown]";
+    return `${authorStr}. ${paper.title}. ${journal}. ${year}. PMID: ${paper.pmid}. Available from: ${paper.citationUrl}`;
+  }, [paper]);
+
+  const handleCopy = useCallback((format: "apa" | "vancouver") => {
+    const text = format === "apa" ? buildApa() : buildVancouver();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      toast.success(`${format.toUpperCase()} citation copied to clipboard`);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      toast.error("Failed to copy — please copy manually");
+    });
+  }, [buildApa, buildVancouver]);
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <button
+        onClick={() => handleCopy("apa")}
+        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors"
+        title="Copy APA citation"
+      >
+        {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+        APA
+      </button>
+      <button
+        onClick={() => handleCopy("vancouver")}
+        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors"
+        title="Copy Vancouver citation"
+      >
+        {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+        Vancouver
+      </button>
+    </div>
+  );
+}
+
 // ─── 9. searchPubMed ─────────────────────────────────────────────────────────
 
 function PubMedCardRenderer({ args, result, status }: {
@@ -667,16 +738,19 @@ function PubMedCardRenderer({ args, result, status }: {
                     {p.abstractSnippet.length >= 399 && "…"}
                   </p>
                 )}
-                {/* Link */}
-                <a
-                  href={p.citationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-green-600 hover:underline"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  View on PubMed
-                </a>
+                {/* Actions row: link + cite buttons */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <a
+                    href={p.citationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-green-600 hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    View on PubMed
+                  </a>
+                  <CiteButton paper={p} />
+                </div>
               </div>
             ))}
           </div>

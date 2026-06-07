@@ -275,6 +275,82 @@ function buildSdkJs(apiBase: string): string {
 `;
 }
 
+
+// ─── Hostinger integration snippet ───────────────────────────────────────────
+function buildHostingerJs(apiBase: string): string {
+  return `/* Truth Desk Hostinger Integration v1.0
+ * Fires signed events to the Truth Desk autonomous knowledge loop.
+ * Add to any Hostinger-hosted page <head> or footer:
+ *   <script src="${apiBase}/embed/hostinger.js" data-site-key="YOUR_SITE_KEY" async></script>
+ * Get your site key from Truth Desk Settings -> Integrations -> Hostinger.
+ */
+(function(w, d) {
+  'use strict';
+  var TD_HOST = '${apiBase}';
+  var script = d.currentScript || d.querySelector('script[data-site-key]');
+  var SITE_KEY = (script && script.getAttribute('data-site-key')) || '';
+  if (!SITE_KEY) { console.warn('[TruthDesk] Missing data-site-key attribute'); return; }
+
+  async function hmacSign(message) {
+    var enc = new TextEncoder();
+    var key = await w.crypto.subtle.importKey(
+      'raw', enc.encode(SITE_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    var sig = await w.crypto.subtle.sign('HMAC', key, enc.encode(message));
+    return Array.from(new Uint8Array(sig)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+  }
+
+  async function fire(eventType, payload) {
+    try {
+      var body = JSON.stringify({
+        eventType: eventType, siteKey: SITE_KEY,
+        origin: w.location.origin, url: w.location.href,
+        timestamp: Date.now(), payload: payload,
+      });
+      var sig = await hmacSign(body);
+      await fetch(TD_HOST + '/api/webhook/hostinger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-TruthDesk-Signature': 'sha256=' + sig },
+        body: body, keepalive: true,
+      });
+    } catch (e) { /* silent fail */ }
+  }
+
+  var lastQuery = '';
+  function watchSearch() {
+    var inputs = d.querySelectorAll('input[type="search"],input[name="s"],input[name="q"],.search-input,#search-input');
+    inputs.forEach(function(inp) {
+      inp.addEventListener('change', function() {
+        var q = inp.value.trim();
+        if (q && q !== lastQuery && q.length > 3) { lastQuery = q; fire('search_query', { searchQuery: q, vertical: 'auto' }); }
+      });
+    });
+  }
+
+  w.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'truthdesk:claimVerified') return;
+    var p = e.data.payload || {};
+    fire('claim_verified', { claimText: p.claim, verdict: p.verdict, confidence: p.confidence, vertical: p.vertical });
+  });
+
+  d.addEventListener('click', function(e) {
+    var a = e.target.closest('a[href*="pubmed"],a[href*="europepmc"],a[href*="doi.org"]');
+    if (!a) return;
+    var href = a.href || '';
+    var pmid = (href.match(/\/pubmed\/(\d+)/) || href.match(/\/articles\/PMC(\d+)/) || [])[1] || null;
+    fire('paper_clicked', { url: href, pmid: pmid, title: a.textContent.trim().slice(0, 120) });
+  });
+
+  w.addEventListener('truthdesk:widgetOpen', function() { fire('widget_opened', {}); });
+  w.addEventListener('truthdesk:widgetClose', function() { fire('widget_closed', {}); });
+  fire('page_view', { title: d.title, path: w.location.pathname });
+
+  if (d.readyState === 'loading') { d.addEventListener('DOMContentLoaded', watchSearch); } else { watchSearch(); }
+  w.TruthDeskHostinger = { fire: fire };
+})(window, document);
+`;
+}
+
 // ─── Route registration ───────────────────────────────────────────────────────
 export function registerEmbedRoutes(app: Express): void {
   // iFrame widget endpoint
@@ -309,6 +385,18 @@ export function registerEmbedRoutes(app: Express): void {
       process.env.VITE_APP_URL ||
       `${req.protocol}://${req.get("host")}`;
     const js = buildSdkJs(apiBase);
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.send(js);
+  });
+
+  // Hostinger integration snippet — fires signed events to Truth Desk autonomous loop
+  app.get("/embed/hostinger.js", (req: Request, res: Response) => {
+    const apiBase =
+      process.env.VITE_APP_URL ||
+      `${req.protocol}://${req.get("host")}`;
+    const js = buildHostingerJs(apiBase);
     res.setHeader("Content-Type", "application/javascript; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.setHeader("Access-Control-Allow-Origin", "*");

@@ -25,12 +25,17 @@ export async function runFrictionGate(event: LoopEvent): Promise<FrictionLayerRe
   // Event-specific payload validation
   switch (event.eventType) {
     case "document_submitted": {
-      if (!event.payload.documentId) {
+      // Accept either a persisted documentId OR a Hostinger-sourced claimText
+      const hasDocId = !!event.payload.documentId;
+      const hasClaimText = typeof event.payload.claimText === "string" && (event.payload.claimText as string).length > 5;
+      if (!hasDocId && !hasClaimText) {
         return { shouldProcess: false, reason: "missing_document_id", actions };
       }
       actions.push({
         type: "friction_check",
-        description: `Document ${event.payload.documentId} passed friction gate`,
+        description: hasDocId
+          ? `Document ${event.payload.documentId} passed friction gate`
+          : `Hostinger claim "${(event.payload.claimText as string).slice(0, 60)}" passed friction gate`,
         priority: 10,
         result: "success",
       });

@@ -16,6 +16,7 @@ import { getLoginUrl } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { TopNav } from "@/components/TopNav";
 import { VerdictBadge } from "@/components/VerdictBadge";
+import CorpusGrowthWidget from "@/components/CorpusGrowthWidget";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
@@ -499,6 +500,17 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── LIVE CORPUS GROWTH ─────────────────────────────────────────── */}
+      <section className="td-section" aria-labelledby="corpus-growth-heading">
+        <div className="td-container">
+          <div className="td-section-header" style={{ marginBottom: "1.5rem" }}>
+            <h2 className="td-section-title" id="corpus-growth-heading">The knowledge graph grows with every query</h2>
+            <p className="td-section-sub">Every claim verified, paper searched, and protein looked up autonomously seeds new hypotheses, graph nodes, and evidence edges — compounding the value of the corpus in real time.</p>
+          </div>
+          <CorpusGrowthWidget />
         </div>
       </section>
 

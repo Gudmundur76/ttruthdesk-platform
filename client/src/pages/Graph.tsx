@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { GraphQueryBox } from "@/components/GraphQueryBox";
+import CorpusGrowthWidget from "@/components/CorpusGrowthWidget";
 
 // ─── Colour maps ─────────────────────────────────────────────────────────────
 
@@ -400,6 +401,14 @@ export default function Graph() {
                 </div>
               </div>
             )}
+
+            {/* Live Corpus Growth */}
+            <div className="pt-2 border-t border-white/10">
+              <label className="text-slate-400 text-[10px] uppercase tracking-wider block mb-2">Live corpus growth</label>
+              <div className="[&_.rounded-xl]:rounded-lg [&_.text-2xl]:text-base [&_.text-xs]:text-[10px] [&_p.text-xs]:text-[9px] [&_.p-4]:p-2 [&_.gap-3]:gap-1.5 [&_.grid-cols-2]:grid-cols-2">
+                <CorpusGrowthWidget />
+              </div>
+            </div>
 
             {/* Embed snippet */}
             <div className="pt-2 border-t border-white/10">

@@ -13,6 +13,7 @@
 import type { LoopEvent } from "../eventBus";
 import type { LoopAction } from "../loopOrchestrator";
 import { runFrontierEngine } from "../../frontier/frontierEngine";
+import { handlePaperDiscovered } from "../../frontier/paperDiscoveredHandler";
 
 export interface FrontierLayerResult {
   ran: boolean;
@@ -24,6 +25,7 @@ const FRONTIER_TRIGGER_EVENTS = new Set([
   "gap_closed",
   "hypothesis_resolved",
   "scheduled_tick",
+  "paper_discovered",
 ]);
 
 export async function runFrontierLayer(
@@ -41,6 +43,24 @@ export async function runFrontierLayer(
   const alreadyRan = priorActions.some((a) => a.type.startsWith("frontier_"));
   if (alreadyRan) {
     return { ran: false, actions };
+  }
+
+  // paper_discovered: generate gap-closing hypotheses from the paper, then
+  // also run the full Frontier Engine to pick up any new structural gaps.
+  if (event.eventType === "paper_discovered") {
+    try {
+      const { actions: paperActions } = await handlePaperDiscovered(event);
+      actions.push(...paperActions);
+    } catch (err) {
+      actions.push({
+        type: "paper_discovered_hypotheses",
+        description: `Paper hypothesis generation failed: ${err instanceof Error ? err.message : String(err)}`,
+        priority: 45,
+        result: "failed",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return { ran: true, actions };
   }
 
   try {

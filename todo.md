@@ -996,3 +996,17 @@
 - [x] Build PubMedCardRenderer in CopilotRenderers.tsx — rich card (title, journal, year, authors, abstract snippet, PMID badge, link)
 - [x] Register searchPubMed useCopilotAction renderer in CopilotRenderers.tsx
 - [x] TypeScript clean, 790 tests passing, checkpoint saved
+
+## Sprint N: Frontier Handler + Public Widget + Cite Button + Hostinger Webhook Loop
+
+- [x] Build server/frontier/paperDiscoveredHandler.ts — LLM generates 2-3 gap-closing hypothesis queries per paper, queues via hypothesisGenerator
+- [x] Register paper_discovered handler in frontierLayer.ts FRONTIER_TRIGGER_EVENTS
+- [x] Fix frictionLayer.ts to accept Hostinger document_submitted events with claimText (no documentId)
+- [x] Add CorpusGrowthWidget to public landing page (Home.tsx) — Live Knowledge Growth section
+- [x] Add CorpusGrowthWidget to /graph page sidebar
+- [x] Add "Cite This Paper" button to PubMedCardRenderer in CopilotRenderers.tsx — APA + Vancouver copy with toast
+- [x] Build server/hostingerWebhook.ts — HMAC-SHA256 signed, rate-limited, maps 6 event types to loop events, publishes to event bus
+- [x] Register /api/webhook/hostinger with express.raw() before express.json() in index.ts
+- [x] Build buildHostingerJs() in embedRoutes.ts — SubtleCrypto HMAC, search/verify/paper-click/widget telemetry
+- [x] Serve /embed/hostinger.js route
+- [x] TypeScript clean, 790 tests passing, checkpoint saved
