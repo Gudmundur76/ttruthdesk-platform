@@ -467,6 +467,42 @@ export function createCopilotRouter(): Router {
   });
 
   const router = Router();
+
+  // ── GET /api/copilot/info ──────────────────────────────────────────────────
+  // CopilotKit SDK v1.59+ calls GET /api/copilot/info on mount to discover the
+  // runtime version and capabilities. The hono single-route handler only accepts
+  // POST, so we intercept this specific path and return the info JSON directly.
+  router.get("/api/copilot/info", async (_req, res) => {
+    try {
+      const infoRes = await fetch("http://localhost:3000/api/copilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: "info" }),
+        signal: AbortSignal.timeout(5000),
+      });
+      const data = await infoRes.json();
+      res.json(data);
+    } catch {
+      res.json({
+        version: "1.59.5",
+        mode: "sse",
+        agents: { default: { name: "default", className: "BuiltInAgent", capabilities: { tools: { supported: true, clientProvided: true }, transport: { streaming: true } } } },
+        audioFileTranscriptionEnabled: false,
+        a2uiEnabled: false,
+        openGenerativeUIEnabled: false,
+        telemetryDisabled: false,
+      });
+    }
+  });
+
+  // ── GET /api/copilot/threads ───────────────────────────────────────────────
+  // The SDK polls GET /api/copilot/threads?agentId=default for persistent thread
+  // state. Return an empty threads list so the SDK doesn't show an error.
+  router.get("/api/copilot/threads", (_req, res) => {
+    res.json({ threads: [] });
+  });
+
+  // ── All other /api/copilot/* requests → hono handler ──────────────────────
   // The hono app uses basePath: '/api/copilot' internally and checks the full
   // path from req.url. If we mount at '/api/copilot', Express strips that prefix
   // and hono sees '/' which doesn't match its basePath check, returning 404.
