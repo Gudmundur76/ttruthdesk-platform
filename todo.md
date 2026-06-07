@@ -997,6 +997,12 @@
 - [x] Register searchPubMed useCopilotAction renderer in CopilotRenderers.tsx
 - [x] TypeScript clean, 790 tests passing, checkpoint saved
 
+## Sprint O: Blank Screen Fix + Performance
+- [x] Diagnose blank white screen on live site — root cause: 1.7 MB main JS bundle blocking first paint (11s download)
+- [x] Rewrite App.tsx with aggressive lazy-loading — all 40+ pages now async chunks; CopilotKit (3.6 MB) deferred until dashboard opens
+- [x] Main index.js bundle reduced from 1,716 KB to 262 KB (6.5x smaller)
+- [x] TypeScript clean, 790 tests passing, checkpoint saved
+
 ## Sprint N: Frontier Handler + Public Widget + Cite Button + Hostinger Webhook Loop
 
 - [x] Build server/frontier/paperDiscoveredHandler.ts — LLM generates 2-3 gap-closing hypothesis queries per paper, queues via hypothesisGenerator
