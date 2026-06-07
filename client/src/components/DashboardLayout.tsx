@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CopilotSidebar } from "@copilotkit/react-ui";
 import CopilotRenderers from "@/components/CopilotRenderers";
+import { ExampleQueryCarousel } from "@/components/ExampleQueryCarousel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -288,6 +289,7 @@ function DashboardLayoutContent({
 
       {/* CopilotKit: generative UI renderers (no DOM output) */}
       <CopilotRenderers />
+      <ExampleQueryCarousel />
 
       {/* CopilotKit: AI assistant sidebar */}
       <CopilotSidebar
