@@ -787,3 +787,20 @@
 - [x] ALC-11: Add /api/scheduled/autonomous-loop-tick route to server/_core/index.ts
 - [x] ALC-12: Register autonomous-loop-tick heartbeat cron (every 2h, task_uid: GVAmEEVdw7CPp7rmm9AejT)
 - [x] ALC-13: Publish system_health_change event from metaLayer.ts when health score drops below threshold (60)
+
+## Dream State Engine (Layer 5)
+- [x] dream_sessions table added to drizzle/schema.ts with all 5-cycle result columns
+- [x] Migration 0028 applied (dream_sessions, new event types in event_queue enum)
+- [x] LoopEventType extended with dream_pattern_detected, hypothesis_queued, confidence_review_needed, dream_session_complete
+- [x] server/dream/graphConsolidator.ts — Cycle 1: orphaned nodes, duplicate edges, stale confidence
+- [x] server/dream/latentPatternDetector.ts — Cycle 2: contradiction clusters, temporal drift, evidence deserts
+- [x] server/dream/topologyHypothesisGenerator.ts — Cycle 3: graph-derived hypotheses queued for pursuit
+- [x] server/dream/confidenceRecalibrator.ts — Cycle 4: temporal decay + contradiction pressure recalibration
+- [x] server/dream/contradictionSimulator.ts — Cycle 5: LLM-powered what-if stress tests
+- [x] server/dream/dreamEngine.ts — orchestrator with eligibility gate, 5-cycle runner, query helpers
+- [x] autonomous-loop-tick route wired to check dream eligibility and run session after draining events
+- [x] dream tRPC router added (getSessions, getSession, getStats, checkEligibility, triggerSession)
+- [x] client/src/pages/DreamDashboard.tsx — admin dashboard with stats, architecture overview, session history
+- [x] /admin/dream route added to App.tsx
+- [x] Dream State card added to Admin.tsx with indigo CTA button
+- [x] 761 tests passing, 0 TypeScript errors

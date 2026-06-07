@@ -1203,6 +1203,55 @@ export type GeneratedClaim = typeof generatedClaims.$inferSelect;
 export type InsertGeneratedClaim = typeof generatedClaims.$inferInsert;
 
 // ─── Autonomous Loop ───────────────────────────────────────────────────────────
+// ─── Dream State ──────────────────────────────────────────────────────────────
+/**
+ * dream_sessions — audit log of every Dream State session.
+ * One row per completed (or interrupted) dream cycle.
+ * The Dream State is Layer 5 (L5): offline consolidation that runs only when
+ * the system has converged and no external events are pending.
+ */
+export const dreamSessions = mysqlTable("dream_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  wokeAt: timestamp("wokeAt"),
+  durationMs: int("durationMs"),
+  cyclesCompleted: int("cyclesCompleted").notNull().default(0),
+  /** Why the dream ended: max_cycles | external_event | critical_pattern | health_drop | duration_cap | in_progress */
+  reasonForWaking: varchar("reasonForWaking", { length: 128 }),
+  patternsFound: int("patternsFound").notNull().default(0),
+  hypothesesGenerated: int("hypothesesGenerated").notNull().default(0),
+  graphOptimizations: int("graphOptimizations").notNull().default(0),
+  confidenceRecalibrations: int("confidenceRecalibrations").notNull().default(0),
+  simulatedScenarios: int("simulatedScenarios").notNull().default(0),
+  patternLog: json("patternLog").$type<Array<{
+    type: string;
+    description: string;
+    urgency: "low" | "medium" | "high" | "critical";
+    entityIds: number[];
+    evidence: string;
+  }>>(),
+  simulationLog: json("simulationLog").$type<Array<{
+    scenario: string;
+    impactedClaimCount: number;
+    impactedEntityCount: number;
+    recommendation: string;
+  }>>(),
+  recalibrationLog: json("recalibrationLog").$type<Array<{
+    claimId: number;
+    currentConfidence: number;
+    suggestedConfidence: number;
+    reason: string;
+  }>>(),
+  manualTrigger: boolean("manualTrigger").notNull().default(false),
+  healthScoreAtEntry: int("healthScoreAtEntry"),
+  entityCountAtEntry: int("entityCountAtEntry"),
+}, (t) => ({
+  startedAtIdx: index("ds_started_at_idx").on(t.startedAt),
+  wokeAtIdx: index("ds_woke_at_idx").on(t.wokeAt),
+}));
+export type DreamSession = typeof dreamSessions.$inferSelect;
+export type InsertDreamSession = typeof dreamSessions.$inferInsert;
+
 /**
  * event_queue — the central event bus for the autonomous loop.
  * Every event that enters the system is persisted here before processing.
@@ -1222,6 +1271,9 @@ export const eventQueue = mysqlTable("event_queue", {
     "manual_review_complete",
     "scheduled_tick",
     "loop_action_complete",
+    "dream_pattern_detected",
+    "confidence_review_needed",
+    "dream_session_complete",
   ]).notNull(),
   payload: json("payload").$type<Record<string, unknown>>().notNull(),
   status: mysqlEnum("status", [

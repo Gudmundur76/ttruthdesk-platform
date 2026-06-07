@@ -25,7 +25,10 @@ export type LoopEventType =
   | "hypothesis_resolved"
   | "manual_review_complete"
   | "scheduled_tick"
-  | "loop_action_complete";
+  | "loop_action_complete"
+  | "dream_pattern_detected"
+  | "confidence_review_needed"
+  | "dream_session_complete";
 
 /** Entry layer for each event type (per the spec) */
 export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
@@ -41,6 +44,9 @@ export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
   manual_review_complete: 0,   // L0: Friction (re-evaluation)
   scheduled_tick: 0,           // L0: Friction
   loop_action_complete: 0,     // L0: Friction (state change → new event)
+  dream_pattern_detected: 4,   // L5: Dream → Meta-Agent for health check
+  confidence_review_needed: 2, // L5: Dream → Self-Prompt for recalibration
+  dream_session_complete: 0,   // L5: Dream → Friction (new knowledge available)
 };
 
 export interface LoopEvent {

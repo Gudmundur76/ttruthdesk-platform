@@ -2965,5 +2965,59 @@ Respond in this exact structure:
         return { processed: results.length, results };
       }),
   }),
+
+  // ─── Dream State ─────────────────────────────────────────────────────────────
+  dream: router({
+    // Get recent dream sessions
+    getSessions: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(100).default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getRecentDreamSessions } = await import("./dream/dreamEngine");
+        return getRecentDreamSessions(input.limit);
+      }),
+
+    // Get a single dream session by ID
+    getSession: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDreamSession } = await import("./dream/dreamEngine");
+        const session = await getDreamSession(input.id);
+        if (!session) throw new TRPCError({ code: "NOT_FOUND" });
+        return session;
+      }),
+
+    // Get aggregate dream stats
+    getStats: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDreamStats } = await import("./dream/dreamEngine");
+        return getDreamStats();
+      }),
+
+    // Check dream eligibility
+    checkEligibility: protectedProcedure
+      .input(z.object({ healthScore: z.number().min(0).max(100).default(80) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { checkDreamEligibility } = await import("./dream/dreamEngine");
+        return checkDreamEligibility(input.healthScore);
+      }),
+
+    // Manually trigger a dream session
+    triggerSession: protectedProcedure
+      .input(z.object({ healthScore: z.number().min(0).max(100).default(80) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { runDreamSession } = await import("./dream/dreamEngine");
+        const result = await runDreamSession({
+          healthScore: input.healthScore,
+          manualTrigger: true,
+        });
+        if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Dream session failed to start" });
+        return result;
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

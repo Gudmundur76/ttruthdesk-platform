@@ -754,6 +754,24 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Dream State */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Dream State</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Layer 5 of the Autonomous Loop — offline graph consolidation and latent pattern
+          discovery. Runs 5 cycles (graph consolidation, pattern detection, topology hypothesis
+          generation, confidence recalibration, contradiction simulation) when the event queue is
+          empty and the system has converged. View session history, cycle outcomes, and trigger
+          manual dream sessions.
+        </p>
+        <a
+          href="/admin/dream"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Dream State Dashboard
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

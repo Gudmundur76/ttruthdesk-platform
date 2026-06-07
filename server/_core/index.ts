@@ -967,7 +967,22 @@ async function startServer() {
         }
       }
 
-      res.json({ ok: true, tickPublished: true, drained: results.length });
+      // After draining, check if the system is eligible for a Dream State session
+      let dreamResult: unknown = null;
+      try {
+        const { checkDreamEligibility, runDreamSession } = await import("../dream/dreamEngine");
+        // Use a lightweight health proxy: if we drained 0 events the system is converged
+        const healthProxy = results.length === 0 ? 80 : 50;
+        const eligibility = await checkDreamEligibility(healthProxy);
+        if (eligibility.eligible) {
+          console.log("[DreamEngine] Entering Dream State:", eligibility.reason);
+          dreamResult = await runDreamSession({ healthScore: healthProxy });
+        }
+      } catch (dreamErr) {
+        console.error("[DreamEngine] Dream check failed (non-fatal):", dreamErr);
+      }
+
+      res.json({ ok: true, tickPublished: true, drained: results.length, dream: dreamResult });
     } catch (err) {
       console.error("[AutonomousLoop] Scheduled tick failed:", err);
       res.status(500).json({ ok: false, error: (err as Error).message });

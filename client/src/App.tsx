@@ -42,6 +42,7 @@ import SelfPromptDashboard from "@/pages/SelfPromptDashboard";
 import InversePromptDashboard from "@/pages/InversePromptDashboard";
 import AutonomousLoopDashboard from "@/pages/AutonomousLoopDashboard";
 import OverridesDashboard from "@/pages/OverridesDashboard";
+import DreamDashboard from "@/pages/DreamDashboard";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -88,6 +89,7 @@ function Router() {
       <Route path="/admin/inverse-prompt" component={InversePromptDashboard} />
       <Route path="/admin/loop" component={AutonomousLoopDashboard} />
       <Route path="/admin/overrides" component={OverridesDashboard} />
+      <Route path="/admin/dream" component={DreamDashboard} />
       <Route path="/compare" component={AuditComparison} />
       <Route path="/trust" component={Trust} />
       <Route path="/docs/api" component={ApiDocs} />
