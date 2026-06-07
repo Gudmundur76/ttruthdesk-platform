@@ -5,12 +5,41 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TopNav } from "@/components/TopNav";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { PreflightModal } from "@/components/PreflightModal";
+
+const VERTICAL_DOMAINS = [
+  {
+    value: "structural_biology",
+    label: "Structural Biology (PDB)",
+    description: "PDB IDs, resolution, experimental method, protein names",
+  },
+  {
+    value: "uniprot",
+    label: "UniProt — Protein Sequences",
+    description: "Protein identity, organism, function, Swiss-Prot annotations",
+  },
+  {
+    value: "clinical_trials",
+    label: "ClinicalTrials.gov",
+    description: "Trial IDs, status, interventions, phases",
+  },
+  {
+    value: "nutrition",
+    label: "Nutrition & Food Science",
+    description: "Nutritional claims, supplement efficacy, dietary studies",
+  },
+  {
+    value: "chemistry",
+    label: "Chemistry & Small Molecules",
+    description: "Compound names, molecular weights, reaction claims",
+  },
+];
 
 export default function Submit() {
   const { isAuthenticated, loading } = useAuth();
@@ -21,6 +50,7 @@ export default function Submit() {
   const [fileBase64, setFileBase64] = useState("");
   const [fileText, setFileText] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [verticalDomain, setVerticalDomain] = useState("structural_biology");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const submitText = trpc.documents.submitText.useMutation({
@@ -31,7 +61,7 @@ export default function Submit() {
     onError: (err) => toast.error(err.message),
   });
 
-  // ── PubMed fetch state ───────────────────────────────────────────────────────────────────
+  // ── PubMed fetch state ───────────────────────────────────────────────────────
   const [pmQuery, setPmQuery] = useState("");
   const [pmFetched, setPmFetched] = useState<{ title: string; text: string; citation: string } | null>(null);
 
@@ -65,12 +95,12 @@ export default function Submit() {
     (e: React.FormEvent) => {
       e.preventDefault();
       if (!pmFetched) return;
-      openPreflight(pmFetched.text, () => {
-        submitPubmed.mutate({ title: pmFetched.title, text: pmFetched.text });
+      openPreflight(pmFetched.text, (preflightResult) => {
+        submitPubmed.mutate({ title: pmFetched.title, text: pmFetched.text, verticalDomain, preflightResult });
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pmFetched, submitPubmed]
+    [pmFetched, submitPubmed, verticalDomain]
   );
 
   const uploadDoc = trpc.storage.uploadDocument.useMutation();
@@ -90,17 +120,14 @@ export default function Submit() {
     reader.onload = async (ev) => {
       const base64 = (ev.target?.result as string).split(",")[1];
       setFileBase64(base64);
-      // Extract text from file
       if (file.type === "text/plain") {
         try {
           const txt = atob(base64);
           setFileText(txt);
         } catch {
-          // Malformed base64 — fall back to server-side extraction
           setFileText(`[File: ${file.name} — text will be extracted server-side]`);
         }
       } else {
-        // For PDFs and other types, use raw base64 text extraction hint
         setFileText(`[File: ${file.name} — text will be extracted server-side]`);
       }
     };
@@ -109,7 +136,6 @@ export default function Submit() {
 
   // ── FrictionEngine preflight state ─────────────────────────────────────────
   const [preflightOpen, setPreflightOpen] = useState(false);
-  // Pending payload to submit after preflight confirmation (receives scan result)
   const [pendingSubmit, setPendingSubmit] = useState<((result: unknown) => void) | null>(null);
   const [preflightText, setPreflightText] = useState("");
 
@@ -123,7 +149,7 @@ export default function Submit() {
     e.preventDefault();
     if (!title.trim() || !text.trim()) return;
     openPreflight(text.trim(), (preflightResult) => {
-      submitText.mutate({ title: title.trim(), text: text.trim(), preflightResult });
+      submitText.mutate({ title: title.trim(), text: text.trim(), preflightResult, verticalDomain });
     });
   };
 
@@ -146,6 +172,7 @@ export default function Submit() {
           storageUrl: url,
           rawText: textToScan,
           preflightResult,
+          verticalDomain,
         });
       } finally {
         setUploading(false);
@@ -170,6 +197,7 @@ export default function Submit() {
   }
 
   const isSubmitting = submitText.isPending || submitFile.isPending || uploading;
+  const selectedDomain = VERTICAL_DOMAINS.find((d) => d.value === verticalDomain);
 
   return (
     <div className="min-h-screen bg-background">
@@ -178,11 +206,12 @@ export default function Submit() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Submit Document for Audit</h1>
           <p className="text-slate-500 text-sm">
-            Upload or paste your biotech document. We'll extract and verify all molecular claims against the Protein Data Bank.
+            Upload or paste your document. Claims will be verified against the selected source domain using deterministic rules.
           </p>
         </div>
 
         <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+          {/* Document title */}
           <div className="mb-5">
             <Label htmlFor="title" className="text-sm font-medium text-slate-700">
               Document title <span className="text-red-500">*</span>
@@ -196,6 +225,33 @@ export default function Submit() {
             />
           </div>
 
+          {/* Vertical domain selector */}
+          <div className="mb-6">
+            <Label className="text-sm font-medium text-slate-700">
+              Verification domain <span className="text-red-500">*</span>
+            </Label>
+            <Select value={verticalDomain} onValueChange={setVerticalDomain}>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Select verification domain" />
+              </SelectTrigger>
+              <SelectContent>
+                {VERTICAL_DOMAINS.map((d) => (
+                  <SelectItem key={d.value} value={d.value}>
+                    <div className="py-0.5">
+                      <div className="font-medium text-sm">{d.label}</div>
+                      <div className="text-xs text-muted-foreground">{d.description}</div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedDomain && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                <span className="font-medium">Verifies:</span> {selectedDomain.description}
+              </p>
+            )}
+          </div>
+
           <Tabs defaultValue="pubmed">
             <TabsList className="mb-5 w-full">
               <TabsTrigger value="pubmed" className="flex-1">PubMed / DOI</TabsTrigger>
@@ -203,7 +259,7 @@ export default function Submit() {
               <TabsTrigger value="upload" className="flex-1">Upload File</TabsTrigger>
             </TabsList>
 
-            {/* ── PubMed / DOI tab ─────────────────────────────────────────────────────────────────── */}
+            {/* ── PubMed / DOI tab ─────────────────────────────────────────────── */}
             <TabsContent value="pubmed">
               <form onSubmit={handlePubmedFetch} className="space-y-4">
                 <div>
@@ -212,7 +268,7 @@ export default function Submit() {
                     <Input
                       value={pmQuery}
                       onChange={(e) => { setPmQuery(e.target.value); setPmFetched(null); }}
-                      placeholder="e.g. 37234567 · 10.1038/s41586-023-06415-8 · pubmed.ncbi.nlm.nih.gov/37234567"
+                      placeholder="e.g. 37234567 · 10.1038/s41586-023-06415-8"
                       className="flex-1 font-mono text-sm"
                     />
                     <Button
@@ -281,6 +337,7 @@ export default function Submit() {
               )}
             </TabsContent>
 
+            {/* ── Paste text tab ───────────────────────────────────────────────── */}
             <TabsContent value="paste">
               <form onSubmit={handleTextSubmit} className="space-y-4">
                 <div>
@@ -290,7 +347,7 @@ export default function Submit() {
                   <Textarea
                     id="text"
                     className="mt-1.5 min-h-[220px] font-mono text-sm"
-                    placeholder="Paste the full text of your biotech document here. Include any PDB IDs, protein names, experimental methods, resolution values, and organism information."
+                    placeholder="Paste the full text of your document here. Include any claim-bearing statements relevant to the selected verification domain."
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                   />
@@ -316,6 +373,7 @@ export default function Submit() {
               </form>
             </TabsContent>
 
+            {/* ── Upload file tab ──────────────────────────────────────────────── */}
             <TabsContent value="upload">
               <form onSubmit={handleFileSubmit} className="space-y-4">
                 <div>
@@ -383,9 +441,9 @@ export default function Submit() {
         <div className="mt-5 rounded-lg border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-semibold text-blue-700 mb-1">What happens next</p>
           <ol className="text-xs text-blue-600 space-y-1 list-decimal list-inside">
-            <li>LLM extracts all verifiable molecular claims from your document</li>
-            <li>Each claim is checked against the RCSB Protein Data Bank APIs</li>
-            <li>A scoped verdict is assigned with rationale and evidence links</li>
+            <li>LLM extracts all verifiable claims from your document</li>
+            <li>Each claim is checked against the selected verification domain using deterministic rules</li>
+            <li>A scoped verdict is assigned with rationale, source coverage, and provenance stamp</li>
             <li>An HTML + PDF audit report is generated and stored securely</li>
           </ol>
         </div>

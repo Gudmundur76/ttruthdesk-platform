@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   Activity, AlertTriangle, CheckCircle2, Clock, Cpu, Layers,
   Play, RefreshCw, Shield, ShieldOff, Zap, ChevronDown, ChevronRight,
-  BarChart3, List, History
+  BarChart3, List, History, Moon, ExternalLink
 } from "lucide-react";
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
@@ -58,6 +58,65 @@ function formatRelative(ts: Date | string | null | undefined): string {
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   return d.toLocaleDateString();
+}
+
+// ─── Last Dream Widget ───────────────────────────────────────────────────────
+function LastDreamWidget() {
+  const { data: sessions, isLoading } = trpc.dream.getSessions.useQuery({ limit: 1 }, { refetchInterval: 30000 });
+  const last = sessions?.[0];
+
+  const cycleLabels: Record<string, string> = {
+    graph_consolidation: "C1 Graph",
+    latent_patterns: "C2 Patterns",
+    topology_hypotheses: "C3 Hypotheses",
+    confidence_recalibration: "C4 Confidence",
+    contradiction_simulation: "C5 Simulation",
+  };
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Moon className="h-4 w-4 text-indigo-400" /> Last Dream Session
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-4">
+        {isLoading ? (
+          <div className="flex justify-center py-4"><Spinner /></div>
+        ) : !last ? (
+          <p className="text-xs text-muted-foreground text-center py-3">No dream sessions yet</p>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Started</span>
+              <span className="text-xs font-mono">{formatRelative(last.startedAt)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Wake reason</span>
+              <span className="text-xs font-mono truncate max-w-28" title={last.reasonForWaking ?? undefined}>{last.reasonForWaking ?? "—"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Cycles</span>
+              <span className="text-xs font-mono">{last.cyclesCompleted ?? 0} / 5</span>
+            </div>
+            {last.cyclesCompleted != null && last.cyclesCompleted > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {Object.entries(cycleLabels).slice(0, last.cyclesCompleted).map(([, label]) => (
+                  <span key={label} className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">{label}</span>
+                ))}
+              </div>
+            )}
+            <a
+              href="/admin/dream"
+              className="flex items-center gap-1 text-xs text-indigo-400 hover:underline pt-1"
+            >
+              <ExternalLink className="h-3 w-3" /> View all sessions
+            </a>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function AutonomousLoopDashboard() {
@@ -516,6 +575,9 @@ export default function AutonomousLoopDashboard() {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Last Dream Session */}
+            <LastDreamWidget />
 
             {/* Layer legend */}
             <Card className="border-border/50">

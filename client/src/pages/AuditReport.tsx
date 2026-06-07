@@ -365,6 +365,106 @@ function HowWeVerifyPanel({
   );
 }
 
+// ─── ProvenanceSummaryPanel ──────────────────────────────────────────────────
+type DeterminismMetrics = {
+  total: number;
+  deterministic: number;
+  heuristic: number;
+  gated: number;
+  overridden: number;
+  determinismRate: number;
+};
+type BreakdownRow = {
+  id: number;
+  claimText: string;
+  verdict: string | null;
+  verdictMethod: string | null;
+  sourceCompletenessScore: number | null;
+};
+
+function ProvenanceSummaryPanel({
+  metrics,
+  breakdown,
+}: {
+  metrics: DeterminismMetrics;
+  breakdown: BreakdownRow[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const pct = metrics.determinismRate * 100;
+  const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
+  const label = pct >= 80 ? "High" : pct >= 50 ? "Moderate" : "Low";
+  const labelColor = pct >= 80 ? "text-emerald-700" : pct >= 50 ? "text-amber-700" : "text-red-700";
+
+  const methodLabel: Record<string, string> = {
+    deterministic_source: "◆ Deterministic",
+    confidence_threshold: "∼ Heuristic",
+    completeness_gate: "⚠ Gated",
+    override: "✎ Override",
+    fallback: "— Fallback",
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-border shadow-sm mb-6 overflow-hidden">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-slate-900">Provenance Summary</span>
+          <span className={`text-xs font-medium ${labelColor}`}>{label} determinism · {pct.toFixed(0)}%</span>
+        </div>
+        <svg
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          className={`text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {/* Determinism progress bar */}
+      <div className="px-5 pb-3">
+        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${barColor}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+          <span>{metrics.deterministic} deterministic · {metrics.heuristic} heuristic · {metrics.gated} gated · {metrics.overridden} override</span>
+          <span className="font-mono">{metrics.total} total</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="px-5 pb-5">
+          <div className="border-t border-border pt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Per-claim breakdown</p>
+            <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+              {breakdown.map((row) => (
+                <div key={row.id} className="flex items-start gap-3 px-3 py-2.5">
+                  <span className="text-xs font-mono text-slate-400 shrink-0 w-6 text-right">{row.id}</span>
+                  <p className="text-xs text-slate-700 flex-1 leading-relaxed truncate">{row.claimText}</p>
+                  <span className="text-xs font-mono text-slate-500 shrink-0">
+                    {row.verdictMethod ? (methodLabel[row.verdictMethod] ?? row.verdictMethod) : "—"}
+                  </span>
+                  {row.sourceCompletenessScore != null && (
+                    <span
+                      className="text-xs font-mono shrink-0"
+                      style={{ color: row.sourceCompletenessScore >= 0.8 ? "#16a34a" : row.sourceCompletenessScore >= 0.5 ? "#d97706" : "#dc2626" }}
+                    >
+                      {(row.sourceCompletenessScore * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AuditReportContent() {
   const params = useParams<{ id: string }>();
   const docId = parseInt(params.id ?? "0");
@@ -394,6 +494,10 @@ function AuditReportContent() {
   const { data: auditReport } = trpc.reports.byDocument.useQuery(
     { documentId: docId },
     { enabled: isAuthenticated && !!docId }
+  );
+  const { data: provenanceData } = trpc.claims.determinismMetrics.useQuery(
+    { documentId: docId },
+    { enabled: isAuthenticated && !!docId && doc?.status === "complete" }
   );
 
   const claims = rawClaims as ClaimRow[] | undefined;
@@ -516,6 +620,23 @@ function AuditReportContent() {
         </div>
       )}
 
+      {/* Completeness-gate warning banner */}
+      {claims && claims.some((c) => (c as { verdictMethod?: string | null }).verdictMethod === "completeness_gate") && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+          <span className="text-amber-500 text-lg mt-0.5">⚠</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800 mb-1">Incomplete source data detected</p>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              {claims.filter((c) => (c as { verdictMethod?: string | null }).verdictMethod === "completeness_gate").length} claim
+              {claims.filter((c) => (c as { verdictMethod?: string | null }).verdictMethod === "completeness_gate").length > 1 ? "s were" : " was"} blocked
+              from receiving a positive verdict because the required source data was missing or incomplete.
+              These claims are marked <span className="font-mono font-semibold">⚠ gated</span> below.
+              Verdicts will update automatically when source data becomes available.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Verdict summary */}
       {claims && claims.length > 0 && (
         <div className="bg-white rounded-xl border border-border p-5 mb-6 shadow-sm">
@@ -537,6 +658,11 @@ function AuditReportContent() {
             })}
           </div>
         </div>
+      )}
+
+      {/* Provenance Summary — determinism metrics for this document */}
+      {provenanceData && isComplete && (
+        <ProvenanceSummaryPanel metrics={provenanceData.metrics} breakdown={provenanceData.breakdown} />
       )}
 
       {/* Machine-readable output */}

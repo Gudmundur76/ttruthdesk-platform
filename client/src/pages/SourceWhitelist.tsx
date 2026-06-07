@@ -1,7 +1,7 @@
 /**
  * SourceWhitelist.tsx
  * Admin page: Source Whitelist — shows all approved and pending sources,
- * their health status, failure mode, schema, and approval gate.
+ * their health status, failure mode, schema, approval gate, and approve/reject actions.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -21,6 +21,8 @@ import {
   RefreshCw,
   Database,
   ExternalLink,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -90,6 +92,7 @@ function HealthBadge({ result }: { result: HealthResult | null | undefined }) {
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function SourceWhitelist() {
+  const utils = trpc.useUtils();
   const { data: sources, isLoading } = trpc.sources.list.useQuery();
   const [healthResults, setHealthResults] = useState<Record<string, HealthResult>>({});
   const [checkingAll, setCheckingAll] = useState(false);
@@ -128,6 +131,22 @@ export default function SourceWhitelist() {
       setCheckingAll(false);
       toast.error(`Health check all failed: ${err.message}`);
     },
+  });
+
+  const approveMutation = trpc.sources.approve.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success(`Source "${variables.sourceId}" approved and added to the pipeline.`);
+      utils.sources.list.invalidate();
+    },
+    onError: (err) => toast.error(`Approve failed: ${err.message}`),
+  });
+
+  const rejectMutation = trpc.sources.reject.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success(`Source "${variables.sourceId}" rejected.`);
+      utils.sources.list.invalidate();
+    },
+    onError: (err) => toast.error(`Reject failed: ${err.message}`),
   });
 
   const handleCheckAll = () => {
@@ -227,6 +246,10 @@ export default function SourceWhitelist() {
             <Clock className="h-5 w-5 text-yellow-500" />
             <h2 className="text-lg font-semibold">Pending Approval ({pending.length})</h2>
           </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            These sources have been identified but not yet approved for use in the verdict pipeline.
+            Run a health check before approving.
+          </p>
           <div className="space-y-3">
             {pending.map((source) => (
               <SourceCard
@@ -235,6 +258,10 @@ export default function SourceWhitelist() {
                 health={healthResults[source.id] ?? null}
                 checking={checkingId === source.id}
                 onCheck={() => handleCheckOne(source.id)}
+                onApprove={() => approveMutation.mutate({ sourceId: source.id })}
+                onReject={() => rejectMutation.mutate({ sourceId: source.id })}
+                approving={approveMutation.isPending && approveMutation.variables?.sourceId === source.id}
+                rejecting={rejectMutation.isPending && rejectMutation.variables?.sourceId === source.id}
               />
             ))}
           </div>
@@ -251,11 +278,19 @@ function SourceCard({
   health,
   checking,
   onCheck,
+  onApprove,
+  onReject,
+  approving,
+  rejecting,
 }: {
   source: SourceEntry;
   health: HealthResult | null;
   checking: boolean;
   onCheck: () => void;
+  onApprove?: () => void;
+  onReject?: () => void;
+  approving?: boolean;
+  rejecting?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -264,7 +299,7 @@ function SourceCard({
       className={`transition-colors ${
         source.approved
           ? "border-border"
-          : "border-dashed border-muted-foreground/30 opacity-70"
+          : "border-dashed border-yellow-400/50 bg-yellow-500/5"
       }`}
     >
       <CardHeader className="pb-2 pt-4">
@@ -361,6 +396,36 @@ function SourceCard({
         {source.approvedAt && (
           <div className="mt-2 text-xs text-muted-foreground">
             Approved: {new Date(source.approvedAt).toLocaleDateString()}
+          </div>
+        )}
+
+        {/* Approve / Reject actions for pending sources */}
+        {!source.approved && onApprove && onReject && (
+          <div className="mt-4 flex items-center gap-3 border-t border-dashed border-yellow-400/30 pt-4">
+            <p className="flex-1 text-xs text-muted-foreground">
+              {health?.healthy
+                ? "Source is healthy — ready to approve."
+                : "Run a health check before approving."}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-red-400/50 text-xs text-red-500 hover:bg-red-500/10"
+              onClick={onReject}
+              disabled={rejecting || approving}
+            >
+              {rejecting ? <Spinner className="h-3 w-3" /> : <ThumbsDown className="h-3 w-3" />}
+              Reject
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={onApprove}
+              disabled={approving || rejecting}
+            >
+              {approving ? <Spinner className="h-3 w-3" /> : <ThumbsUp className="h-3 w-3" />}
+              Approve
+            </Button>
           </div>
         )}
       </CardContent>

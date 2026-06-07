@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, BarChart3, FileText, TrendingUp } from "lucide-react";
+import { ArrowLeft, BarChart3, FileText, TrendingUp, TrendingDown, Minus, Activity } from "lucide-react";
 
 const CATEGORY_LABELS: Record<string, string> = {
   domain_expertise: "Domain Expertise",
@@ -36,17 +36,93 @@ const VERDICT_COLORS: Record<string, string> = {
   "Needs Expert Review": "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
 };
 
+// ─── Health Score Sparkline ───────────────────────────────────────────────────
+function HealthSparkline({ data }: { data: { healthScore: number; createdAt: Date | string }[] }) {
+  if (!data.length) {
+    return <p className="text-xs text-muted-foreground text-center py-6">No meta-agent checks recorded yet.</p>;
+  }
+  const scores = data.map((d) => d.healthScore);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const range = max - min || 1;
+  const W = 480;
+  const H = 80;
+  const pts = scores
+    .map((s, i) => {
+      const x = (i / Math.max(scores.length - 1, 1)) * W;
+      const y = H - ((s - min) / range) * (H - 8) - 4;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const last = scores[scores.length - 1];
+  const first = scores[0];
+  const delta = last - first;
+  const color = delta >= 0 ? "#22c55e" : "#ef4444";
+  const lastX = ((scores.length - 1) / Math.max(scores.length - 1, 1)) * W;
+  const lastY = H - ((last - min) / range) * (H - 8) - 4;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{data.length} checks</span>
+        <div className="flex items-center gap-1">
+          {delta > 0 ? (
+            <TrendingUp className="h-3.5 w-3.5 text-green-400" />
+          ) : delta < 0 ? (
+            <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+          ) : (
+            <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+          <span className={`text-xs font-mono font-semibold ${delta >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {delta >= 0 ? "+" : ""}{delta.toFixed(0)} pts
+          </span>
+          <span className="text-xs text-muted-foreground ml-2">
+            Current: <strong>{last}</strong>
+          </span>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20 overflow-visible">
+        <defs>
+          <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={`0,${H} ${pts} ${W},${H}`} fill="url(#sparkGrad)" />
+        <polyline
+          points={pts}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <circle cx={lastX} cy={lastY} r="3" fill={color} />
+      </svg>
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span>{new Date(data[0].createdAt).toLocaleDateString()}</span>
+        <span>{new Date(data[data.length - 1].createdAt).toLocaleDateString()}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function OverridesDashboard() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [trendDays, setTrendDays] = useState<number>(30);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 50;
 
   const { data: summary, isLoading: summaryLoading } = trpc.overrides.summary.useQuery();
   const { data: flipData, isLoading: flipLoading } = trpc.overrides.flipAnalysis.useQuery();
+  const { data: trendData, isLoading: trendLoading } = trpc.overrides.healthTrend.useQuery({ days: trendDays });
   const { data: listData, isLoading: listLoading } = trpc.overrides.list.useQuery({
-    category: categoryFilter !== "all" ? categoryFilter as "domain_expertise" | "new_evidence" | "context_clarification" | "scope_adjustment" | "error_correction" : undefined,
+    category:
+      categoryFilter !== "all"
+        ? (categoryFilter as "domain_expertise" | "new_evidence" | "context_clarification" | "scope_adjustment" | "error_correction")
+        : undefined,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
@@ -98,7 +174,7 @@ export default function OverridesDashboard() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-3xl font-bold">
+            <div className="text-3xl font-bold truncate text-base leading-tight pt-1">
               {summary && summary.length > 0
                 ? CATEGORY_LABELS[summary[0].overrideCategory] ?? summary[0].overrideCategory
                 : "—"}
@@ -107,6 +183,37 @@ export default function OverridesDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Health Score Trend */}
+      <Card className="mb-8">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Activity className="h-4 w-4 text-violet-400" />
+              System Health Score Trend
+            </CardTitle>
+            <Select value={String(trendDays)} onValueChange={(v) => setTrendDays(Number(v))}>
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="14">Last 14 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="60">Last 60 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {trendLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : (
+            <HealthSparkline data={trendData ?? []} />
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Category breakdown */}

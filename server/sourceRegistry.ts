@@ -199,6 +199,29 @@ export function getSourceById(id: string): SourceDefinition | undefined {
   return SOURCE_WHITELIST.find((s) => s.id === id);
 }
 
+/**
+ * Approve a pending source for production use.
+ * Mutates the in-memory whitelist. Changes persist for the lifetime of the process.
+ */
+export function approveSource(sourceId: string): boolean {
+  const source = SOURCE_WHITELIST.find((s) => s.id === sourceId);
+  if (!source) return false;
+  source.approved = true;
+  source.approvedAt = new Date().toISOString();
+  return true;
+}
+
+/**
+ * Reject (un-approve) a source, removing it from production use.
+ */
+export function rejectSource(sourceId: string): boolean {
+  const source = SOURCE_WHITELIST.find((s) => s.id === sourceId);
+  if (!source) return false;
+  source.approved = false;
+  source.approvedAt = null;
+  return true;
+}
+
 export async function runHealthCheck(sourceId: string): Promise<SourceHealthResult | null> {
   const source = getSourceById(sourceId);
   if (!source) return null;

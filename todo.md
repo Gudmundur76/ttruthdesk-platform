@@ -833,3 +833,17 @@
 - [x] Add sources.list, sources.healthCheck, sources.healthCheckAll tRPC procedures
 - [x] Create client/src/pages/SourceWhitelist.tsx admin page
 - [x] Wire /admin/sources route and Admin landing page card
+
+## Polish & Finish Sprint (Sprints 1-4)
+- [x] Sprint 1: Add Dream State, Source Whitelist, Overrides, Frontier, Loop to DashboardLayout sidebar nav
+- [x] Sprint 1: Create CheckoutSuccess.tsx page with PayPal order capture on return
+- [x] Sprint 1: Wire /checkout/success route in App.tsx
+- [x] Sprint 2: Add ProvenanceSummaryPanel to AuditReport (live determinismMetrics call)
+- [x] Sprint 2: Add completeness-gate warning banner to AuditReport
+- [x] Sprint 2: Add source coverage column to claim cards in AuditReport
+- [x] Sprint 3: Add Last Dream widget to AutonomousLoopDashboard
+- [x] Sprint 3: Add health score trend sparkline to OverridesDashboard (healthTrend procedure)
+- [x] Sprint 3: Add Approve/Reject buttons to pending sources in SourceWhitelist
+- [x] Sprint 3: Add approveSource/rejectSource to sourceRegistry.ts and sources router
+- [x] Sprint 4: Add verticalDomain selector to Submit page (structural_biology, uniprot, clinical_trials, nutrition, chemistry)
+- [x] Sprint 4: Wire verticalDomain into submitText and submitFile tRPC procedures

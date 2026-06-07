@@ -73,6 +73,8 @@ export const appRouter = router({
           text: z.string().min(10),
           /** Optional: FrictionEngine pre-submission scan result to persist alongside the document */
           preflightResult: z.unknown().optional(),
+          /** Verification domain — determines which adapter is used for claim verdicts */
+          verticalDomain: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -92,6 +94,7 @@ export const appRouter = router({
           title: input.title,
           sourceType: "paste",
           rawText: input.text,
+          verticalDomain: input.verticalDomain ?? "structural_biology",
           preflightResult: input.preflightResult ?? null,
         });
         // Increment audit count for email users
@@ -118,6 +121,8 @@ export const appRouter = router({
           rawText: z.string(),
           /** Optional: FrictionEngine pre-submission scan result to persist alongside the document */
           preflightResult: z.unknown().optional(),
+          /** Verification domain — determines which adapter is used for claim verdicts */
+          verticalDomain: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -140,6 +145,7 @@ export const appRouter = router({
           storageKey: input.storageKey,
           storageUrl: input.storageUrl,
           rawText: input.rawText,
+          verticalDomain: input.verticalDomain ?? "structural_biology",
           preflightResult: input.preflightResult ?? null,
         });
         // Increment audit count for email users
@@ -2799,6 +2805,47 @@ Respond in this exact structure:
         .orderBy(sqlFn`COUNT(*) DESC`)
         .limit(30);
       }),
+    /** Health score trend — last N meta-agent checks with health score */
+    healthTrend: protectedProcedure
+      .input(z.object({ days: z.number().min(1).max(90).default(30) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { metaAgentChecks } = await import("../drizzle/schema");
+        const { gte, desc, sql: sqlFn } = await import("drizzle-orm");
+        const cutoff = new Date(Date.now() - input.days * 86400000);
+        const rows = await db
+          .select({
+            id: metaAgentChecks.id,
+            checkType: metaAgentChecks.checkType,
+            severity: metaAgentChecks.severity,
+            actionTaken: metaAgentChecks.actionTaken,
+            createdAt: metaAgentChecks.createdAt,
+            finding: metaAgentChecks.finding,
+          })
+          .from(metaAgentChecks)
+          .where(gte(metaAgentChecks.createdAt, cutoff))
+          .orderBy(desc(metaAgentChecks.createdAt))
+          .limit(200);
+        // Derive a health score per check: critical=-10, warning=-3, info=0; start at 100
+        let score = 100;
+        const trend = rows.reverse().map((r) => {
+          if (r.severity === "critical") score = Math.max(0, score - 10);
+          else if (r.severity === "warning") score = Math.max(0, score - 3);
+          else score = Math.min(100, score + 1);
+          return {
+            id: r.id,
+            checkType: r.checkType,
+            severity: r.severity,
+            actionTaken: r.actionTaken,
+            createdAt: r.createdAt,
+            healthScore: score,
+          };
+        });
+        return trend;
+      }),
   }),
 
   inversePrompt: router({
@@ -3083,6 +3130,30 @@ Respond in this exact structure:
       const { runAllHealthChecks } = await import("./sourceRegistry");
       return runAllHealthChecks();
     }),
+    /**
+     * Approve a pending source for production use.
+     */
+    approve: protectedProcedure
+      .input(z.object({ sourceId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { approveSource } = await import("./sourceRegistry");
+        const ok = approveSource(input.sourceId);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: `Source "${input.sourceId}" not found` });
+        return { success: true, sourceId: input.sourceId };
+      }),
+    /**
+     * Reject (un-approve) a source, removing it from production use.
+     */
+    reject: protectedProcedure
+      .input(z.object({ sourceId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { rejectSource } = await import("./sourceRegistry");
+        const ok = rejectSource(input.sourceId);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: `Source "${input.sourceId}" not found` });
+        return { success: true, sourceId: input.sourceId };
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;
