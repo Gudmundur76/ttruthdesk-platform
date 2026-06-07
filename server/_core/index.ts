@@ -68,6 +68,17 @@ async function startServer() {
   // ── Compression (gzip/brotli) — improves speed score ──────────────────────
   app.use(compression());
 
+
+  // ── Security headers ────────────────────────────────────────────────────────
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    res.setHeader("X-XSS-Protection", "0");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+    next();
+  });
   // ── Global agent-discovery headers ────────────────────────────────────────
   app.use((_req, res, next) => {
     res.setHeader("Link", [
@@ -826,8 +837,8 @@ async function startServer() {
   });
 
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ limit: "10mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerMagicLinkRoutes(app);
@@ -1125,5 +1136,18 @@ async function startServer() {
     console.error("[TelegramBot] Startup error:", err)
   );
 }
+
+// ── Global process-level error handlers ─────────────────────────────────────
+// Prevent unhandled promise rejections from silently crashing the reactive drain
+// or background jobs without any log output.
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[process] Unhandled rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[process] Uncaught exception:", err);
+  // Do NOT exit — Cloud Run will restart the container on health-check failure;
+  // exiting here would cause unnecessary cold starts for transient errors.
+});
 
 startServer().catch(console.error);

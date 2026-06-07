@@ -179,10 +179,17 @@ async function extractAndUpsertEntities(
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function agentIngestionHandler(req: Request, res: Response): Promise<void> {
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Auth (timing-safe comparison to prevent timing-oracle attacks) ─────────
   const coordApiKey = ENV.coordApiKey;
   const providedKey = req.headers["x-coord-key"] as string | undefined;
-  if (!coordApiKey || providedKey !== coordApiKey) {
+  if (!coordApiKey || !providedKey) {
+    res.status(401).json({ ok: false, error: "Unauthorized" });
+    return;
+  }
+  const { createHash, timingSafeEqual } = await import("crypto");
+  const expected = Buffer.from(createHash("sha256").update(coordApiKey).digest());
+  const provided = Buffer.from(createHash("sha256").update(providedKey).digest());
+  if (!timingSafeEqual(expected, provided)) {
     res.status(401).json({ ok: false, error: "Unauthorized" });
     return;
   }

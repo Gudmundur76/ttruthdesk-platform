@@ -70,11 +70,11 @@ export const appRouter = router({
       .input(
         z.object({
           title: z.string().min(1).max(512),
-          text: z.string().min(10),
+          text: z.string().min(10).max(500_000), // ~125k tokens max — DoS guard
           /** Optional: FrictionEngine pre-submission scan result to persist alongside the document */
           preflightResult: z.unknown().optional(),
           /** Verification domain — determines which adapter is used for claim verdicts */
-          verticalDomain: z.string().optional(),
+          verticalDomain: z.string().max(64).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -118,11 +118,11 @@ export const appRouter = router({
           fileName: z.string(),
           storageKey: z.string(),
           storageUrl: z.string(),
-          rawText: z.string(),
+          rawText: z.string().max(500_000), // ~125k tokens max — DoS guard
           /** Optional: FrictionEngine pre-submission scan result to persist alongside the document */
           preflightResult: z.unknown().optional(),
           /** Verification domain — determines which adapter is used for claim verdicts */
-          verticalDomain: z.string().optional(),
+          verticalDomain: z.string().max(64).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -487,11 +487,11 @@ export const appRouter = router({
       .input(
         z.object({
           tier: z.enum(["starter", "diligence", "platform_pilot"]),
-          contactName: z.string().min(1),
-          contactEmail: z.string().email(),
-          organization: z.string().optional(),
-          documentDescription: z.string().min(10),
-          additionalNotes: z.string().optional(),
+          contactName: z.string().min(1).max(256),
+          contactEmail: z.string().email().max(256),
+          organization: z.string().max(256).optional(),
+          documentDescription: z.string().min(10).max(5000),
+          additionalNotes: z.string().max(2000).optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -533,23 +533,30 @@ export const appRouter = router({
   }),
 
   // ─── Monitoring ingest (called by scheduled job) ──────────────────────────
-  ingestMonitoring: publicProcedure
+  // Protected: only the document owner or an admin may ingest monitoring items.
+  ingestMonitoring: protectedProcedure
     .input(
       z.object({
-        documentId: z.number(),
+        documentId: z.number().int().positive(),
         items: z.array(
           z.object({
             source: z.enum(["pubmed", "biorxiv", "patent"]),
-            title: z.string(),
-            summary: z.string().optional(),
-            url: z.string().optional(),
-            relevanceScore: z.number().optional(),
-            publishedAt: z.string().optional(),
+            title: z.string().max(512),
+            summary: z.string().max(2000).optional(),
+            url: z.string().url().max(2048).optional(),
+            relevanceScore: z.number().min(0).max(1).optional(),
+            publishedAt: z.string().max(64).optional(),
           })
-        ),
+        ).max(100), // cap batch size
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // Ownership check: only the document owner or admin may ingest
+      const doc = await getDocumentById(input.documentId);
+      if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
+      if (doc.userId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
       await insertMonitoringItems(
         input.items.map((item) => ({
           documentId: input.documentId,
@@ -569,9 +576,10 @@ export const appRouter = router({
     uploadDocument: protectedProcedure
       .input(
         z.object({
-          fileName: z.string(),
-          contentType: z.string(),
-          base64Content: z.string(),
+          fileName: z.string().max(255),
+          // Validate MIME type format to prevent content-type injection
+          contentType: z.string().max(128).regex(/^[\w.+-]+\/[\w.+\-*]+$/),
+          base64Content: z.string().max(70_000_000), // ~50 MB base64 ceiling
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -678,7 +686,8 @@ export const appRouter = router({
         return { ok: true, resolution: input.resolution, resolvedAt: new Date().toISOString() };
       }),
 
-    query: publicProcedure
+    // LLM-backed graph query: requires auth to prevent unauthenticated LLM abuse
+    query: protectedProcedure
       .input(z.object({ question: z.string().min(3).max(500) }))
       .mutation(async ({ input }) => {
         // Step 1: Fetch graph context

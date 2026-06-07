@@ -899,3 +899,21 @@
 - [x] publishEvent() now calls scheduleDrain() after every insert — loop reacts within milliseconds
 - [x] autonomous-loop-tick cron converted to safety-net fallback (publishes scheduled_tick + calls scheduleDrain, no manual drain loop)
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint F: Hardening — Security, Reliability, Production Readiness
+- [x] [AUDIT] Complete security and reliability audit across all server files
+- [x] [SEC-1] Add max length caps to all unbounded z.string() inputs (rawText: 500k chars, base64Content: 5MB, question: 2k, query: 500)
+- [x] [SEC-2] Add MIME type allowlist validation to document upload procedure
+- [x] [SEC-3] Protect graph.query with protectedProcedure (was publicProcedure — open to prompt injection)
+- [x] [SEC-4] Add timing-safe comparison to agentIngestionEndpoint.ts COORD_API_KEY check
+- [x] [SEC-5] Add auth guard to batchAuditRouter GET /status/:documentId (was unauthenticated)
+- [x] [SEC-6] Add security headers middleware: X-Content-Type-Options, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy
+- [x] [SEC-7] Reduce body parser limit from 50mb to 10mb
+- [x] [REL-1] Add global unhandledRejection and uncaughtException handlers to server process
+- [x] [REL-2] Verified: reactive drain worker has full try/catch with per-event error isolation
+- [x] [FE-1] Verified: all routes in App.tsx have corresponding page files (no broken routes)
+- [x] [FE-2] Verified: all DashboardLayout nav links point to registered routes (no dead links)
+- [x] [FE-3] Verified: no img tags missing alt attributes
+- [x] [FE-4] Verified: no hardcoded localhost URLs in client-side code
+- [x] [FE-5] Verified: no sensitive data leaking through public tRPC procedures
+- [x] TypeScript clean, 780 tests passing, checkpoint saved

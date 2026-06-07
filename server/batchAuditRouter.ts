@@ -91,7 +91,7 @@ const BATCH_USER_ID = 1; // Owner / system user
 export const batchAuditRouter = Router();
 
 batchAuditRouter.post("/", async (req: Request, res: Response) => {
-  // ── Auth: accept COORD_API_KEY bearer or session cookie ──────────────────
+  // ── Auth: accept COORD_API_KEY bearer (timing-safe) or session cookie ────────
   const authHeader = req.headers.authorization ?? "";
   const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const { ENV } = await import("./_core/env");
@@ -99,9 +99,16 @@ batchAuditRouter.post("/", async (req: Request, res: Response) => {
 
   // Check if user is authenticated via session cookie
   const sessionUser = (req as unknown as { user?: { id: number } }).user;
-  const isAuthenticated =
-    (bearerToken && coordKey && bearerToken === coordKey) ||
-    sessionUser != null;
+
+  let bearerValid = false;
+  if (bearerToken && coordKey) {
+    const { createHash, timingSafeEqual } = await import("crypto");
+    const expected = Buffer.from(createHash("sha256").update(coordKey).digest());
+    const provided = Buffer.from(createHash("sha256").update(bearerToken).digest());
+    bearerValid = timingSafeEqual(expected, provided);
+  }
+
+  const isAuthenticated = bearerValid || sessionUser != null;
 
   if (!isAuthenticated) {
     res.status(401).json({ error: "Unauthorized. Provide a valid Bearer token or session cookie." });
@@ -249,7 +256,26 @@ batchAuditRouter.post("/", async (req: Request, res: Response) => {
 
 // ─── GET /api/v2/batch-audit/status/:documentId ───────────────────────────────
 // Lightweight endpoint to poll the status of a previously submitted document.
+// Requires either a valid COORD_API_KEY bearer token or an active session cookie.
 batchAuditRouter.get("/status/:documentId", async (req: Request, res: Response) => {
+  // ── Auth guard ──────────────────────────────────────────────────────────────────
+  const { ENV } = await import("./_core/env");
+  const authHeader = req.headers.authorization ?? "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const coordKey = ENV.coordApiKey as string | undefined;
+  const sessionUser = (req as unknown as { user?: { id: number } }).user;
+  let bearerValid = false;
+  if (bearerToken && coordKey) {
+    const { createHash, timingSafeEqual } = await import("crypto");
+    const expected = Buffer.from(createHash("sha256").update(coordKey).digest());
+    const provided = Buffer.from(createHash("sha256").update(bearerToken).digest());
+    bearerValid = timingSafeEqual(expected, provided);
+  }
+  if (!bearerValid && sessionUser == null) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const id = parseInt(req.params.documentId, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid document ID" });
