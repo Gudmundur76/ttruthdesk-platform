@@ -1,5 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { CopilotSidebar } from "@copilotkit/react-ui";
+import CopilotRenderers from "@/components/CopilotRenderers";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -278,6 +280,19 @@ function DashboardLayoutContent({
         )}
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
+
+      {/* CopilotKit: generative UI renderers (no DOM output) */}
+      <CopilotRenderers />
+
+      {/* CopilotKit: AI assistant sidebar */}
+      <CopilotSidebar
+        instructions="You are the Protein Truth Desk AI assistant. You help users verify scientific claims about proteins and biotech research against authoritative databases (PDB, PubMed, UniProt, PMC). You can verify claims, search for protein data, compare claims, and provide platform statistics. Always cite your sources."
+        defaultOpen={false}
+        labels={{
+          title: "Truth Desk AI",
+          initial: "Hi! I can help you verify protein claims, search UniProt, compare audit results, and explore the knowledge graph. What would you like to investigate?",
+        }}
+      />
     </>
   );
 }

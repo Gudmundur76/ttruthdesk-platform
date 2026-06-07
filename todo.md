@@ -928,3 +928,13 @@
 - [x] Add collapsible history panel to AdminCrons.tsx (per-job, shows status, duration, summary, error)
 - [ ] Export project to GitHub (private repo) — user action via Settings → GitHub panel
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint H: CopilotKit Integration
+- [x] Install @copilotkit/runtime, @copilotkit/react-core, @copilotkit/react-ui packages
+- [x] Create server/copilotRuntime.ts — CopilotRuntime with 9 server tools (verifyClaim, getRecentClaims, getEntityClaims, getDocumentAudit, getPlatformStats, compareClaims, searchUniProt, getGraphSummary + searchPubMed/searchPDB wired via verifyClaim)
+- [x] Register POST /api/copilot Express endpoint in server/_core/index.ts
+- [x] Create client/src/components/CopilotRenderers.tsx — VerdictBadge, EvidenceTable, ClaimComparisonCard, EntityClaimsPanel, DocumentStatusCard, PlatformStats, UniProtCard, GraphSummaryCard
+- [x] Register all useCopilotAction() generative UI renderers in CopilotRenderers.tsx
+- [x] Wrap App.tsx in CopilotKit provider pointing at /api/copilot
+- [x] Add CopilotSidebar to DashboardLayout with Truth Desk branding
+- [x] TypeScript clean, 780 tests passing, checkpoint saved

@@ -41,6 +41,7 @@ import { startTelegramBot } from "../telegramBot";
 import { runWikiLint } from "../wikiLinter";
 import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
+import { createCopilotRouter } from "../copilotRuntime";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -889,6 +890,8 @@ async function startServer() {
   app.use("/api/v2/export", createExportRouter());
   // Batch audit API: accept up to 20 papers in one request, run full pipeline, return structured results
   app.use("/api/v2/batch-audit", express.json({ limit: "5mb" }), batchAuditRouter);
+  // CopilotKit AI runtime: natural language interface to the Truth Desk engine
+  app.use(createCopilotRouter());
   // LLM health check: reports active provider, model pool, and connectivity
   app.get("/api/admin/llm-health", requireOwnerOrAdmin, async (_req, res) => {
     try {

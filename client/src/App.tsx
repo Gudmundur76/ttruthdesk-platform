@@ -47,6 +47,7 @@ import SourceWhitelist from "@/pages/SourceWhitelist";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import AdminCrons from "@/pages/AdminCrons";
 import AdminVerticals from "@/pages/AdminVerticals";
+import { CopilotKit } from "@copilotkit/react-core";
 
 // Lazy-load the heavy graph page (react-force-graph-2d is ~300kb)
 const Graph = lazy(() => import("@/pages/Graph"));
@@ -111,12 +112,14 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
+      <CopilotKit runtimeUrl="/api/copilot" credentials="include">
+        <ThemeProvider defaultTheme="light">
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ThemeProvider>
+      </CopilotKit>
     </ErrorBoundary>
   );
 }
