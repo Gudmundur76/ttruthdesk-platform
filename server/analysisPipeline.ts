@@ -30,6 +30,7 @@ import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
 import { dispatchHighRiskAlert } from "./alertDispatcher";
 import { notifyIndexNow, notifyIndexNowBatch, claimUrl, reportUrl } from "./seo/indexNow";
 import { recordModelUsage } from "./llmProviderQuality";
+import { runSelfPromptCycle } from "./selfPrompt/engine";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -239,6 +240,23 @@ export async function runAnalysisPipeline(
         console.error("[Pipeline] Wiki engine ingest error:", err)
       );
     }
+    // ── Self-Prompting Engine: Post-Pipeline Cycle ──────────────────────────
+    // After the full pipeline completes, fire a self-prompt cycle so the system
+    // can reason about what to do next (notify subscribers, update wiki, close
+    // gaps, reindex, etc.) based on the actual verdict distribution.
+    const contradictedCount2 = (summary as Record<string, number>)["Contradicted"] ?? 0;
+    const insufficientCount = (summary as Record<string, number>)["Insufficient Evidence"] ?? 0;
+    const eventType = contradictedCount2 > 0
+      ? "contradiction_found" as const
+      : insufficientCount > 0
+      ? "verdict_assigned" as const
+      : "verdict_assigned" as const;
+    runSelfPromptCycle({
+      type: eventType,
+      description: `Pipeline complete for document ${documentId}: ${finalClaims.length} claims, ${contradictedCount2} contradicted, ${insufficientCount} insufficient evidence`,
+      documentId,
+      verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
+    }).catch((e) => console.warn("[SelfPromptEngine] Post-pipeline cycle error (non-fatal):", e));
     // Compute claim trajectory predictions (non-fatal, fire-and-forget)
     (async () => {
       try {

@@ -176,6 +176,13 @@
       "when": 1780790227641,
       "tag": "0024_legal_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1780791048796,
+      "tag": "0025_parallel_miracleman",
+      "breakpoints": true
     }
   ]
 }

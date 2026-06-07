@@ -1104,3 +1104,52 @@ export const frontierLog = mysqlTable("frontier_log", {
 }));
 export type FrontierLogEntry = typeof frontierLog.$inferSelect;
 export type InsertFrontierLogEntry = typeof frontierLog.$inferInsert;
+
+// ─── Self-Prompting Engine Log ────────────────────────────────────────────────
+/**
+ * self_prompt_log — Audit trail of every Self-Prompting Engine decision cycle.
+ *
+ * Each row represents one State → Prompt → Action cycle:
+ *   - The triggering event (what just happened)
+ *   - The system state snapshot at the time of the decision
+ *   - The LLM's reasoning
+ *   - The prioritized action list it generated
+ *   - Whether the system converged (stopped) or continued
+ *   - Execution results for each action
+ */
+export const selfPromptLog = mysqlTable("self_prompt_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The event type that triggered this self-prompt cycle */
+  eventType: varchar("eventType", { length: 64 }).notNull(),
+  /** JSON: the full SystemState snapshot used for reasoning */
+  stateSnapshot: json("stateSnapshot").$type<Record<string, unknown>>().notNull(),
+  /** The LLM's reasoning string */
+  reasoning: text("reasoning").notNull(),
+  /** JSON: the prioritized action list the LLM generated */
+  actions: json("actions").$type<Array<Record<string, unknown>>>().notNull(),
+  /** Whether the convergence gate fired (system decided to stop) */
+  converged: boolean("converged").notNull().default(false),
+  /** Total actions generated */
+  actionCount: int("actionCount").notNull().default(0),
+  /** Actions actually executed (not skipped by convergence gate) */
+  executedCount: int("executedCount").notNull().default(0),
+  /** JSON: execution results per action */
+  executionResults: json("executionResults").$type<Array<Record<string, unknown>>>(),
+  /** Duration of the full cycle in milliseconds */
+  durationMs: int("durationMs"),
+  /** Optional: claim ID that triggered this cycle */
+  claimId: int("claimId"),
+  /** Optional: document ID that triggered this cycle */
+  documentId: int("documentId"),
+  /** Optional: gap ID that triggered this cycle */
+  gapId: int("gapId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  eventTypeIdx: index("spl_event_type_idx").on(t.eventType),
+  convergedIdx: index("spl_converged_idx").on(t.converged),
+  claimIdIdx: index("spl_claim_id_idx").on(t.claimId),
+  documentIdIdx: index("spl_document_id_idx").on(t.documentId),
+  createdAtIdx: index("spl_created_at_idx").on(t.createdAt),
+}));
+export type SelfPromptLogEntry = typeof selfPromptLog.$inferSelect;
+export type InsertSelfPromptLogEntry = typeof selfPromptLog.$inferInsert;

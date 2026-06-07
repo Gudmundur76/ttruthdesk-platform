@@ -751,3 +751,9 @@
 - [x] FE3-9: tRPC frontier router — run, metrics, listGaps, gapTimeline, topGaps, recentLog
 - [x] FE3-10: /admin/frontier dashboard page — metrics, gaps table, activity log, manual run trigger
 - [x] FE3-11: Admin page link card to Frontier Engine dashboard
+
+## Self-Prompting Engine (Binding Agent)
+- [x] SPE-1: Build server/selfPrompt/ module — stateCollector, promptEngine, actionExecutor, convergence gate, engine orchestrator
+- [x] SPE-2: Wire Self-Prompting Engine into analysisPipeline — fire post-pipeline cycle after every verdict assignment
+- [x] SPE-3: Add selfPrompt tRPC router (listCycles, getMetrics, triggerCycle) + /admin/self-prompt dashboard page
+- [x] SPE-4: Add self_prompt_log DB table + migration

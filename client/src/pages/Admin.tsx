@@ -688,6 +688,22 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Self-Prompting Engine */}
+      <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">Self-Prompting Engine</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          The binding agent between FrictionEngine and the Frontier Engine. After every pipeline run,
+          it collects system state, reasons about what to do next, and autonomously executes
+          prioritized actions — notify subscribers, update wiki, reindex, or converge.
+        </p>
+        <a
+          href="/admin/self-prompt"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Self-Prompt Dashboard
+        </a>
+      </div>
+
       {/* JWKS Key Rotation */}
       <KeyRotationCard />
 

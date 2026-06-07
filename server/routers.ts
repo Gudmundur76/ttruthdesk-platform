@@ -2521,6 +2521,71 @@ Respond in this exact structure:
   }),
 
   // ─── Frontier Engine ───────────────────────────────────────────────────────────────────────────────────────
+  selfPrompt: router({
+    /** List recent self-prompt cycles */
+    listCycles: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(100).default(50) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { selfPromptLog } = await import("../drizzle/schema");
+        const { getDb } = await import("./db");
+        const { sql: sqlFn } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return [];
+        return db
+          .select()
+          .from(selfPromptLog)
+          .orderBy(sqlFn`${selfPromptLog.createdAt} DESC`)
+          .limit(input.limit);
+      }),
+
+    /** Get metrics: convergence rate, avg actions per cycle, event type breakdown */
+    getMetrics: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { selfPromptLog } = await import("../drizzle/schema");
+      const { getDb } = await import("./db");
+      const { sql: sqlFn } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return { totalCycles: 0, convergenceRate: 0, avgActionsGenerated: 0, avgDurationMs: 0, eventBreakdown: {} };
+      const all = await db.select().from(selfPromptLog).orderBy(sqlFn`${selfPromptLog.createdAt} DESC`).limit(500);
+      if (all.length === 0) return { totalCycles: 0, convergenceRate: 0, avgActionsGenerated: 0, avgDurationMs: 0, eventBreakdown: {} };
+      const convergedCount = all.filter((r: { converged: boolean | null }) => r.converged).length;
+      const avgActionsGenerated = all.reduce((s: number, r: { actionCount: number | null }) => s + (r.actionCount ?? 0), 0) / all.length;
+      const avgDurationMs = all.reduce((s: number, r: { durationMs: number | null }) => s + (r.durationMs ?? 0), 0) / all.length;
+      const eventBreakdown: Record<string, number> = {};
+      for (const r of all) {
+        eventBreakdown[r.eventType] = (eventBreakdown[r.eventType] ?? 0) + 1;
+      }
+      return {
+        totalCycles: all.length,
+        convergenceRate: convergedCount / all.length,
+        avgActionsGenerated: Math.round(avgActionsGenerated * 10) / 10,
+        avgDurationMs: Math.round(avgDurationMs),
+        eventBreakdown,
+      };
+    }),
+
+    /** Manually trigger a self-prompt cycle for testing */
+    triggerCycle: protectedProcedure
+      .input(z.object({
+        eventType: z.enum(["verdict_assigned", "contradiction_found", "gap_closed", "source_down", "meta_alert", "user_submitted", "scheduled_tick"]),
+        description: z.string().min(1).max(500),
+        claimId: z.number().optional(),
+        documentId: z.number().optional(),
+        gapId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { runSelfPromptCycle } = await import("./selfPrompt/engine");
+        return runSelfPromptCycle({
+          type: input.eventType,
+          description: input.description,
+          claimId: input.claimId,
+          documentId: input.documentId,
+          gapId: input.gapId,
+        });
+      }),
+  }),
+
   frontier: router({
     /** Run the full Frontier Engine pipeline (admin only) */
     run: protectedProcedure.mutation(async ({ ctx }) => {
