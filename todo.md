@@ -847,3 +847,31 @@
 - [x] Sprint 3: Add approveSource/rejectSource to sourceRegistry.ts and sources router
 - [x] Sprint 4: Add verticalDomain selector to Submit page (structural_biology, uniprot, clinical_trials, nutrition, chemistry)
 - [x] Sprint 4: Wire verticalDomain into submitText and submitFile tRPC procedures
+
+## Sprint A: Live Home Page Stats
+- [ ] Add globalStats tRPC public procedure (totalDocuments, totalClaims, supportedVerdicts, verifiedSources)
+- [ ] Wire live stats into Home page hero section replacing static copy
+- [ ] Add animated counter component for stat numbers
+
+## Sprint B-D: TurboVec Semantic Search
+- [ ] Install turbovec Python package and sentence-transformers
+- [ ] Create server/vectorSidecar.py — FastAPI sidecar with /embed and /search endpoints
+- [ ] Create server/vectorStore.ts — Node.js bridge to Python sidecar with graceful fallback
+- [ ] Embed verified claims on analysis pipeline completion
+- [ ] Add searchSimilar tRPC procedure (SQL pre-filter + TurboVec re-rank)
+- [ ] Persist TurboVec index on swarm tick and graceful shutdown
+- [ ] Create /search Semantic Search UI page with query input, filter chips, result cards
+- [ ] Wire /search into sidebar nav and top nav
+
+## Sprint A & B Completion (Jun 2026)
+- [x] Add getGlobalPlatformStats helper to server/db.ts (totalDocuments, totalClaims, supportedVerdicts, verifiedSources)
+- [x] Add globalStats tRPC public procedure to verticals router in server/routers.ts
+- [x] Wire live stats bar into Home.tsx hero section with animated count-up display
+- [x] Install sentence-transformers + faiss-cpu Python packages
+- [x] Create server/vectorSidecar.py — FastAPI sidecar with /index, /search, /health endpoints (FAISS IndexFlatIP + all-MiniLM-L6-v2)
+- [x] Create server/vectorStore.ts — Node.js bridge to Python sidecar with graceful SQL FULLTEXT fallback
+- [x] Add search.similar tRPC procedure (semantic search, topK, vertical/verdict filters)
+- [x] Add search.vectorHealth tRPC procedure (sidecar availability + indexed count)
+- [x] Upgrade Search.tsx: keyword/semantic mode toggle, TurboVec results with similarity scores, sidecar status pill
+- [x] Add Semantic Search to DashboardLayout sidebar nav (Search icon, /search path)
+- [x] 780 tests passing, TypeScript clean

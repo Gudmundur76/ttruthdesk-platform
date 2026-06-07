@@ -17,6 +17,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { TopNav } from "@/components/TopNav";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { motion } from "framer-motion";
+import { trpc } from "@/lib/trpc";
 
 // ─── Feature cards ────────────────────────────────────────────────────────────
 
@@ -127,6 +128,12 @@ function easeInOut(t: number): number {
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
+
+  // Live platform stats — public endpoint, no auth required
+  const { data: platformStats } = trpc.verticals.globalStats.useQuery(undefined, {
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
 
   // Pipeline refs
   const pipelineRef = useRef<HTMLDivElement>(null);
@@ -443,6 +450,30 @@ export default function Home() {
             <span>USDA FoodData</span>
           </div>
         </div>
+      </div>
+
+      {/* ── PLATFORM STATS BAR ─────────────────────────────────────────── */}
+      <div className="td-stats-bar" role="region" aria-label="Platform statistics">
+        {[
+          { value: platformStats?.totalDocuments ?? 0, label: "Documents Audited" },
+          { value: platformStats?.totalClaims ?? 0, label: "Claims Verified" },
+          { value: platformStats?.supportedVerdicts ?? 0, label: "Supported Verdicts" },
+          { value: platformStats?.verifiedSources ?? 4, label: "Verified Sources" },
+        ].map((stat, i) => (
+          <motion.div
+            key={i}
+            className="td-stat-item"
+            initial={{ opacity: 0, y: 8 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: i * 0.07, duration: 0.4 }}
+          >
+            <span className="td-stat-value">
+              {stat.value.toLocaleString()}
+            </span>
+            <span className="td-stat-label">{stat.label}</span>
+          </motion.div>
+        ))}
       </div>
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}

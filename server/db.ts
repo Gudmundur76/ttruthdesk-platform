@@ -1176,3 +1176,34 @@ export async function updateWebhookAlertLastFired(id: number) {
     .set({ lastFiredAt: new Date() })
     .where(eq(webhookAlerts.id, id));
 }
+
+/**
+ * Platform-wide aggregate stats for the public home page hero section.
+ * Returns total documents audited, total claims extracted, supported verdicts,
+ * and the number of approved authoritative sources.
+ */
+export async function getGlobalPlatformStats() {
+  const db = await getDb();
+  if (!db) {
+    return { totalDocuments: 0, totalClaims: 0, supportedVerdicts: 0, verifiedSources: 4 };
+  }
+  const [docRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(documents)
+    .where(sql`${documents.status} = 'complete'`);
+  const [claimRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(claims);
+  const [supportedRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(claims)
+    .where(
+      sql`${claims.verdict} IN ('Supported', 'Partially Supported')`
+    );
+  return {
+    totalDocuments: Number(docRow?.count ?? 0),
+    totalClaims: Number(claimRow?.count ?? 0),
+    supportedVerdicts: Number(supportedRow?.count ?? 0),
+    verifiedSources: 4, // RCSB PDB, PubMed, UniProt, ClinicalTrials.gov
+  };
+}

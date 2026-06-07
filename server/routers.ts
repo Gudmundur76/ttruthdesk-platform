@@ -914,6 +914,15 @@ Respond in this exact structure:
     }),
 
     /**
+     * Global platform-wide aggregate stats for the public home page hero.
+     * Returns totalDocuments, totalClaims, supportedVerdicts, verifiedSources.
+     */
+    globalStats: publicProcedure.query(async () => {
+      const { getGlobalPlatformStats } = await import("./db");
+      return getGlobalPlatformStats();
+    }),
+
+    /**
      * List all registered research verticals with their metadata.
      * Public — used by the vertical index page.
      */
@@ -1792,6 +1801,50 @@ Respond in this exact structure:
           verdict: input.verdict,
         });
       }),
+
+    /**
+     * TurboVec semantic similarity search.
+     * Uses FAISS + sentence-transformers when the Python sidecar is running;
+     * gracefully falls back to MySQL FULLTEXT search otherwise.
+     */
+    similar: publicProcedure
+      .input(
+        z.object({
+          query: z.string().min(1).max(512),
+          topK: z.number().int().min(1).max(50).optional().default(10),
+          vertical: z.string().optional(),
+          verdict: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const { searchClaims } = await import("./vectorStore");
+        const hits = await searchClaims({
+          query: input.query,
+          topK: input.topK,
+          vertical: input.vertical,
+          verdict: input.verdict,
+        });
+        return { hits, query: input.query };
+      }),
+
+    /**
+     * TurboVec sidecar health — tells the frontend whether vector search is
+     * active or falling back to SQL full-text.
+     */
+    vectorHealth: publicProcedure.query(async () => {
+      try {
+        const res = await fetch("http://127.0.0.1:5001/health", {
+          signal: AbortSignal.timeout(2_000),
+        });
+        if (res.ok) {
+          const data = await res.json() as { indexed: number; dim: number };
+          return { available: true, indexed: data.indexed, dim: data.dim };
+        }
+      } catch {
+        // sidecar not running
+      }
+      return { available: false, indexed: 0, dim: 0 };
+    }),
   }),
 
   // ─── Vertical Alert Subscriptions ──────────────────────────────────────────
@@ -3155,5 +3208,6 @@ Respond in this exact structure:
         return { success: true, sourceId: input.sourceId };
       }),
   }),
+
 });
 export type AppRouter = typeof appRouter;

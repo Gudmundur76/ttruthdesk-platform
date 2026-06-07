@@ -557,6 +557,61 @@
 
 .td-brand-item:hover { color: rgba(255, 255, 255, 0.6); }
 
+/* ── Platform stats bar ────────────────────────────────────────────────────── */
+.td-stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  padding: 0 24px 48px;
+  width: 100%;
+  max-width: 1600px;
+}
+
+.td-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 40px;
+  position: relative;
+  flex: 1;
+  max-width: 220px;
+}
+
+.td-stat-item + .td-stat-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.td-stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #fff;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-stat-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .td-stats-bar { gap: 0; padding: 0 12px 36px; flex-wrap: wrap; }
+  .td-stat-item { padding: 14px 20px; max-width: 50%; min-width: 50%; }
+  .td-stat-item:nth-child(2n+1)::before { display: none; }
+}
+
 /* ── Sections below hero ────────────────────────────────────────────────────── */
 .td-section {
   padding: 80px 0;
