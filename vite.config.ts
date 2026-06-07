@@ -168,6 +168,34 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // Increase chunk size warning threshold — we split manually below
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // lucide-react has 3472 individual icon files (33 MB) — split into its
+          // own lazy chunk so Vite doesn't try to inline them all in one pass.
+          if (id.includes("lucide-react")) return "icons";
+          // CopilotKit UI in its own chunk
+          if (id.includes("@copilotkit")) return "copilotkit";
+          // React + ReactDOM together
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/")
+          ) return "react";
+          // Charting libs together
+          if (
+            id.includes("recharts") ||
+            id.includes("chart.js") ||
+            id.includes("/d3-")
+          ) return "charts";
+          // date-fns in its own chunk (33 MB)
+          if (id.includes("date-fns")) return "date-fns";
+          // framer-motion in its own chunk
+          if (id.includes("framer-motion")) return "motion";
+        },
+      },
+    },
   },
   server: {
     host: true,
