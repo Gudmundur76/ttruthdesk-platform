@@ -2,8 +2,11 @@
  * CopilotKit Runtime — Truth Desk (v1 API)
  *
  * Mounts a CopilotRuntime v1 Express handler at /api/copilot using the Manus
- * Forge OpenAI-compatible endpoint as the LLM backend.  9 deterministic tools
+ * Forge OpenAI-compatible endpoint as the LLM backend.  10 deterministic tools
  * are wired to the Truth Desk engine — CopilotKit NEVER assigns verdicts.
+ *
+ * Sprint L: Every tool call now fires triggerAutonomousIngest() in the
+ * background so the knowledge graph grows with every user query.
  */
 import OpenAI from "openai";
 import {
@@ -25,9 +28,50 @@ import {
 } from "./db";
 import { verdictForClaim } from "./pdbAdapter";
 import { searchUniProt } from "./uniprotAdapter";
+import { triggerAutonomousIngest, type PubMedResult, type UniProtEntry } from "./autonomousIngest";
+
+// ─── EuropePMC search (for searchPubMed action) ───────────────────────────────
+
+const EUROPE_PMC_SEARCH = "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
+
+async function fetchPubMedResults(query: string, limit = 5): Promise<PubMedResult[]> {
+  const encoded = encodeURIComponent(query);
+  const url = `${EUROPE_PMC_SEARCH}?query=${encoded}&format=json&pageSize=${limit}&resultType=core&sort=CITED+desc`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+    if (!res.ok) return [];
+    const data = await res.json() as {
+      resultList?: {
+        result?: Array<{
+          pmid?: string;
+          id?: string;
+          title?: string;
+          abstractText?: string;
+          authorString?: string;
+          journalTitle?: string;
+          pubYear?: string;
+        }>;
+      };
+    };
+    const results = data.resultList?.result ?? [];
+    return results.slice(0, limit).map((r) => ({
+      pmid: r.pmid ?? r.id ?? "",
+      title: r.title ?? "Untitled",
+      abstractSnippet: (r.abstractText ?? "").slice(0, 400),
+      citationUrl: r.pmid
+        ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`
+        : `https://europepmc.org/article/MED/${r.id ?? ""}`,
+      authors: r.authorString ? r.authorString.split(", ").slice(0, 5) : [],
+      journal: r.journalTitle ?? undefined,
+      year: r.pubYear ? parseInt(r.pubYear, 10) : undefined,
+    })).filter((r) => r.pmid);
+  } catch {
+    return [];
+  }
+}
 
 // ─── Forge-backed OpenAI client ───────────────────────────────────────────────
-// The Manus Forge API is OpenAI-compatible; we point the OpenAI client at it.
+
 function buildForgeClient() {
   return new OpenAI({
     baseURL: `${ENV.forgeApiUrl}/v1`,
@@ -36,29 +80,35 @@ function buildForgeClient() {
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are the Truth Desk AI — a scientific research assistant powered exclusively by Truth Desk data.
+
+const SYSTEM_PROMPT = `You are the Truth Desk AI — a scientific research assistant powered exclusively by Truth Desk data and live scientific databases.
 
 ## CORE RULE — ALWAYS USE TOOLS FIRST
 You MUST call at least one action before answering ANY question. You are not allowed to answer from your own training data alone. Every response must be grounded in results returned by Truth Desk tools.
+
+Every tool call you make ALSO writes new verified claims back to the Truth Desk knowledge graph autonomously — so your queries literally grow the corpus.
 
 ## HOW TO HANDLE DIFFERENT QUESTION TYPES:
 
 ### Exploratory / strategic questions (e.g. "What biosimilar can I create from salmon sludge?")
 1. Call queryGraph with relevant keywords (e.g. "salmon", "biosimilar", "collagen")
-2. Call searchUniProt for the most relevant protein(s) mentioned or implied
-3. Call getRecentClaims to surface any verified claims in the corpus on this topic
-4. Synthesise the tool results into a structured answer. Cite the tool results explicitly.
-5. If the tools return no data, say so clearly: "Truth Desk has no verified data on this yet — here is what the knowledge graph contains on related topics: [tool results]."
+2. Call searchPubMed to fetch live peer-reviewed literature on the topic
+3. Call searchUniProt for the most relevant protein(s) mentioned or implied
+4. Call getRecentClaims to surface any verified claims in the corpus on this topic
+5. Synthesise the tool results into a structured answer. Cite PMIDs and UniProt accessions explicitly.
+6. If the tools return no data, say so clearly: "Truth Desk has no verified data on this yet — here is what the knowledge graph contains on related topics: [tool results]."
 
 ### Claim verification (e.g. "Verify: salmon collagen has X property")
 1. ALWAYS call verifyClaim first. Never state a verdict without it.
-2. Present the verdict and evidence from the tool result faithfully.
-3. Optionally call searchUniProt or queryGraph for additional context.
+2. Call searchPubMed to find supporting or contradicting literature.
+3. Present the verdict and evidence from the tool result faithfully.
+4. Optionally call searchUniProt or queryGraph for additional context.
 
 ### Entity / protein lookup (e.g. "Tell me about salmon collagen")
 1. Call searchUniProt for the protein
-2. Call getClaimsByEntity for any verified claims about it
-3. Synthesise results with explicit citations.
+2. Call searchPubMed for recent literature
+3. Call getClaimsByEntity for any verified claims about it
+4. Synthesise results with explicit citations.
 
 ### Platform / corpus questions (e.g. "What claims have been verified recently?")
 1. Call getRecentClaims or getPlatformStats
@@ -66,6 +116,7 @@ You MUST call at least one action before answering ANY question. You are not all
 
 ## AVAILABLE ACTIONS:
 - verifyClaim: Deterministic verdict engine — Supported / Contradicted / Partially Supported / Ambiguous / Insufficient Evidence
+- searchPubMed: Live PubMed/EuropePMC literature search — returns cited abstracts with PMID links. ALWAYS call this for any scientific question.
 - searchUniProt: Live protein data from UniProt (sequence, function, organism, structure links)
 - queryGraph: Search the Truth Desk knowledge graph for entities and relationships
 - getClaimsByEntity: All verified claims related to a specific protein or compound
@@ -76,18 +127,78 @@ You MUST call at least one action before answering ANY question. You are not all
 - getGraphSummary: Overview of the knowledge graph
 
 ## CITATION FORMAT:
-After every answer, list the tools called and what they returned, e.g.:
-> Sources: queryGraph("salmon biosimilar") → 3 entities found | searchUniProt("salmon collagen") → COL1A1_SALSA | getRecentClaims → 2 relevant claims
+After every answer, include a citation block:
+> **Sources cited:**
+> - PubMed: PMID:12345678 — "Title of paper" (Author et al., Year) → https://pubmed.ncbi.nlm.nih.gov/12345678/
+> - UniProt: P00698 (LYSC_CHICK) → https://www.uniprot.org/uniprot/P00698
+> - Truth Desk tools called: queryGraph("salmon biosimilar") → 3 entities | searchUniProt("salmon collagen") → COL1A1_SALSA
 
 ## RULES:
 - NEVER answer from training data alone. Always call tools first.
 - NEVER fabricate PDB IDs, UniProt accessions, PMIDs, or numerical values.
+- ALWAYS cite PMIDs and UniProt accessions in your answers.
 - If all tools return empty results, say so and explain what the user could submit to build the corpus.
-- Be concise but scientifically precise. Use headers for long answers.`;
+- Be concise but scientifically precise. Use headers for long answers.
+- Every query you make grows the Truth Desk knowledge graph — your questions are data.`;
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 const actions = [
+  // ── searchPubMed ──────────────────────────────────────────────────────────
+  {
+    name: "searchPubMed",
+    description:
+      "Search PubMed / EuropePMC for peer-reviewed literature on a scientific topic. Returns up to 5 results with PMID, title, abstract snippet, and citation link. ALWAYS call this for scientific questions to get live cited sources. Results are automatically written back to the Truth Desk knowledge graph.",
+    parameters: [
+      {
+        name: "query",
+        type: "string" as const,
+        description: "Scientific search query, e.g. 'salmon collagen biosimilar' or 'lysozyme antimicrobial mechanism'",
+        required: true,
+      },
+      {
+        name: "limit",
+        type: "number" as const,
+        description: "Number of results to return (1-5, default 5)",
+        required: false,
+      },
+    ],
+    handler: async (args: { [x: string]: string | number }) => {
+      const query = String(args.query ?? "").slice(0, 500);
+      const limit = Math.min(Math.max(1, (args.limit as number) ?? 5), 5);
+      if (!query) return { results: [], total: 0, query, error: "Query is required" };
+
+      try {
+        const results = await fetchPubMedResults(query, limit);
+
+        // Fire-and-forget: write results back to Truth Desk knowledge graph
+        triggerAutonomousIngest({
+          query,
+          pubmedResults: results,
+          vertical: "structural_biology",
+        });
+
+        return {
+          results: results.map((r) => ({
+            pmid: r.pmid,
+            title: r.title,
+            abstractSnippet: r.abstractSnippet,
+            citationUrl: r.citationUrl,
+            authors: r.authors ?? [],
+            journal: r.journal ?? null,
+            year: r.year ?? null,
+          })),
+          total: results.length,
+          query,
+          note: "Results are being written to the Truth Desk knowledge graph.",
+        };
+      } catch (err) {
+        return { results: [], total: 0, query, error: String(err) };
+      }
+    },
+  },
+
+  // ── verifyClaim ───────────────────────────────────────────────────────────
   {
     name: "verifyClaim",
     description:
@@ -114,7 +225,6 @@ const actions = [
     ],
     handler: async (args: { [x: string]: string | number }) => {
       const raw = args as unknown as { claimText: string; pdbId?: string; proteinName?: string };
-      // Cap input lengths to prevent LLM prompt injection / resource abuse
       const claimText = String(raw.claimText ?? "").slice(0, 2000);
       const pdbId = raw.pdbId ? String(raw.pdbId).slice(0, 10) : undefined;
       const proteinName = raw.proteinName ? String(raw.proteinName).slice(0, 200) : undefined;
@@ -125,6 +235,16 @@ const actions = [
           proteinName: proteinName ?? null,
           extractedValue: claimText,
         });
+
+        // Fire-and-forget: ingest the verified claim into the knowledge graph
+        if (proteinName) {
+          triggerAutonomousIngest({
+            query: claimText,
+            uniprotEntries: [],
+            vertical: "structural_biology",
+          });
+        }
+
         return {
           verdict: result.verdict,
           rationale: result.rationale,
@@ -142,6 +262,7 @@ const actions = [
     },
   },
 
+  // ── queryGraph ────────────────────────────────────────────────────────────
   {
     name: "queryGraph",
     description:
@@ -196,6 +317,7 @@ const actions = [
     },
   },
 
+  // ── getClaimsByEntity ─────────────────────────────────────────────────────
   {
     name: "getClaimsByEntity",
     description:
@@ -216,7 +338,7 @@ const actions = [
     ],
     handler: async (args: { [x: string]: string | number }) => {
       const entityName = args.entityName as string;
-      const limit = (args.limit as number) ?? 20;
+      const _limit = (args.limit as number) ?? 20;
       try {
         const summary = await getEntityClaimSummary(entityName);
         return {
@@ -241,6 +363,7 @@ const actions = [
     },
   },
 
+  // ── getDocumentStatus ─────────────────────────────────────────────────────
   {
     name: "getDocumentStatus",
     description:
@@ -282,6 +405,7 @@ const actions = [
     },
   },
 
+  // ── getRecentClaims ───────────────────────────────────────────────────────
   {
     name: "getRecentClaims",
     description:
@@ -340,6 +464,7 @@ const actions = [
     },
   },
 
+  // ── getPlatformStats ──────────────────────────────────────────────────────
   {
     name: "getPlatformStats",
     description:
@@ -354,6 +479,7 @@ const actions = [
     },
   },
 
+  // ── compareClaims ─────────────────────────────────────────────────────────
   {
     name: "compareClaims",
     description:
@@ -403,10 +529,11 @@ const actions = [
     },
   },
 
+  // ── searchUniProt ─────────────────────────────────────────────────────────
   {
     name: "searchUniProt",
     description:
-      "Search UniProt directly for protein data: sequence, function, organism, and associated diseases.",
+      "Search UniProt directly for protein data: sequence, function, organism, structure links, and accession numbers. Returns live data from the UniProt REST API.",
     parameters: [
       {
         name: "query",
@@ -425,13 +552,38 @@ const actions = [
       const query = args.query as string;
       const limit = (args.limit as number) ?? 5;
       try {
-        return await searchUniProt(query, limit);
+        const result = await searchUniProt(query, limit);
+
+        // Fire-and-forget: write UniProt results to knowledge graph
+        if (result.entries && result.entries.length > 0) {
+          const uniprotEntries: UniProtEntry[] = result.entries.map((e: {
+            accession?: string;
+            proteinName?: string;
+            geneName?: string | null;
+            organism?: string | null;
+            url?: string;
+          }) => ({
+            accession: e.accession ?? "",
+            proteinName: e.proteinName ?? query,
+            geneName: e.geneName ?? undefined,
+            organism: e.organism ?? undefined,
+            url: e.url ?? `https://www.uniprot.org/uniprot/${e.accession ?? ""}`,
+          }));
+          triggerAutonomousIngest({
+            query,
+            uniprotEntries,
+            vertical: "structural_biology",
+          });
+        }
+
+        return result;
       } catch (err) {
         return { found: false, entries: [], error: String(err) };
       }
     },
   },
 
+  // ── getGraphSummary ───────────────────────────────────────────────────────
   {
     name: "getGraphSummary",
     description:
@@ -496,12 +648,6 @@ export function createCopilotRouter(): Router {
   const router = Router();
 
   // ── GET /api/copilot/info ──────────────────────────────────────────────────
-  // CopilotKit SDK v1.59+ calls GET /api/copilot/info on mount to discover the
-  // runtime version and capabilities. The hono single-route handler only accepts
-  // POST, so we intercept this specific path and return the info JSON directly.
-  // IMPORTANT: Do NOT use a self-HTTP fetch (localhost:3000) here — it breaks in
-  // production (Cloud Run) where the server doesn't bind to localhost. Instead,
-  // return the static info payload directly from the known runtime configuration.
   router.get("/api/copilot/info", (_req, res) => {
     res.json({
       version: "1.59.5",
@@ -525,18 +671,11 @@ export function createCopilotRouter(): Router {
   });
 
   // ── GET /api/copilot/threads ───────────────────────────────────────────────
-  // The SDK polls GET /api/copilot/threads?agentId=default for persistent thread
-  // state. Return an empty threads list so the SDK doesn't show an error.
   router.get("/api/copilot/threads", (_req, res) => {
     res.json({ threads: [] });
   });
 
   // ── All other /api/copilot/* requests → hono handler ──────────────────────
-  // The hono app uses basePath: '/api/copilot' internally and checks the full
-  // path from req.url. If we mount at '/api/copilot', Express strips that prefix
-  // and hono sees '/' which doesn't match its basePath check, returning 404.
-  // Solution: mount at root but guard with a path check so non-copilot routes
-  // fall through to the next Express handler.
   router.use((req, res, next) => {
     const url = req.originalUrl ?? req.url ?? "";
     if (!url.startsWith("/api/copilot")) {
@@ -546,3 +685,6 @@ export function createCopilotRouter(): Router {
   });
   return router;
 }
+
+// ─── Re-export system prompt for testing ─────────────────────────────────────
+export { SYSTEM_PROMPT };

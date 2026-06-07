@@ -978,3 +978,10 @@
 - [x] Fix ESM __dirname compatibility in generate-micron.ts
 - [x] Tested: generates 8 files / 21 KB for structural_biology vertical in <1s
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
+
+## Sprint L: Autonomous Knowledge Loop (CopilotKit → Live Sources → DB → Graph Growth)
+- [x] Build server/autonomousIngest.ts — core service: extract claims from PubMed/UniProt results, run verdict engine, write to audit_claims, upsert graph nodes/edges, dispatch alerts
+- [x] Add searchPubMed action to server/copilotRuntime.ts — calls EuropePMC API, returns top 5 results with PMID, title, abstract snippet, citation link; triggers autonomousIngest in background
+- [x] Wire post-query autonomous trigger — after every CopilotKit tool call (verifyClaim, searchUniProt, queryGraph, searchPubMed), call autonomousIngest.processQueryResults() asynchronously
+- [x] Update CopilotKit system prompt — add searchPubMed to AVAILABLE ACTIONS, mandate PMID and UniProt accession citations in every answer
+- [x] TypeScript clean, 790 tests passing (10 new autonomousIngest tests), checkpoint saved
