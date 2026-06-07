@@ -113,7 +113,7 @@ export const LAXEY_TOOLS = {
       vertical,
       theme = "auto",
       position = "bottom-right",
-      apiBase = "https://protein-desk-5r5rzpyg.manus.space",
+      apiBase = "https://ttruthdesk.claims",
     } = args;
 
     const iframeCode = `<!-- Truth Desk Embed Widget -->
@@ -192,7 +192,8 @@ export const ALVOTECH_TOOLS = {
   async getEntityClaims(args: { entityType: string; canonicalName: string }) {
     const db = await getDb();
     if (!db) return { claims: [], entityType: args.entityType, canonicalName: args.canonicalName };
-    const rows = await db
+    // Fetch a broader set then filter in-memory by canonicalName match
+    const all = await db
       .select({
         id: claims.id,
         claimText: claims.claimText,
@@ -203,7 +204,15 @@ export const ALVOTECH_TOOLS = {
         proteinName: claims.proteinName,
       })
       .from(claims)
-      .limit(30);
+      .limit(200);
+    const lower = args.canonicalName.toLowerCase();
+    const rows = all
+      .filter(c =>
+        (c.claimText?.toLowerCase().includes(lower)) ||
+        (c.proteinName?.toLowerCase().includes(lower)) ||
+        (c.pdbId?.toLowerCase() === lower)
+      )
+      .slice(0, 30);
     return { claims: rows, entityType: args.entityType, canonicalName: args.canonicalName };
   },
 
@@ -234,7 +243,7 @@ export const ALVOTECH_TOOLS = {
     apiBase?: string;
     deployConfig?: Record<string, string>;
   }) {
-    const apiBase = args.apiBase ?? "https://protein-desk-5r5rzpyg.manus.space";
+    const apiBase = args.apiBase ?? "https://ttruthdesk.claims";
     const deployment = await createMicronDeployment({
       verticalKey: args.verticalKey,
       displayName: args.displayName,
@@ -364,7 +373,7 @@ export const ACADEMIC_TOOLS = {
     domain?: string;
     apiBase?: string;
   }) {
-    const apiBase = args.apiBase ?? "https://protein-desk-5r5rzpyg.manus.space";
+    const apiBase = args.apiBase ?? "https://ttruthdesk.claims";
     const config = generateSiteConfig({
       verticalKey: args.verticalKey,
       displayName: args.displayName,
@@ -391,7 +400,7 @@ export const ACADEMIC_TOOLS = {
         description: `Verified scientific claims for ${verticalKey}`,
         hasPart: rows.map((c) => ({
           "@type": "Claim",
-          "@id": `https://protein-desk-5r5rzpyg.manus.space/claims/${c.id}`,
+          "@id": `https://ttruthdesk.claims/claims/${c.id}`,
           text: c.claimText,
           claimReviewed: c.claimText,
           reviewRating: {

@@ -208,20 +208,21 @@ export class AuditLogger {
       console.warn("[AuditLogger] Failed to write to file, logging to console:", line.trim());
     }
 
-    // Also persist to DB if available
+    // Also persist to DB if available (best-effort — file log is source of truth)
     try {
       const db = await getDb();
       if (db) {
-        // Use the existing audit_log table if it exists, otherwise skip
-        // Best-effort DB audit log — ignore if table doesn't exist
-        const userId = entry.userId ?? 'NULL';
-        const action = entry.action.replace(/'/g, "''");
-        const resource = entry.resource.replace(/'/g, "''");
-        const resourceId = entry.resourceId ? `'${String(entry.resourceId).replace(/'/g, "''")}'` : 'NULL';
-        const ip = entry.ipAddress ? `'${entry.ipAddress.replace(/'/g, "''")}'` : 'NULL';
+        // Use parameterized placeholders to prevent SQL injection
+        const userId = entry.userId ?? null;
         const success = entry.success ? 1 : 0;
+        const resourceId = entry.resourceId != null ? String(entry.resourceId) : null;
         await db.execute(
-          `INSERT IGNORE INTO audit_log (userId, action, resource, resourceId, ipAddress, success, createdAt) VALUES (${userId}, '${action}', '${resource}', ${resourceId}, ${ip}, ${success}, NOW())` as unknown as Parameters<typeof db.execute>[0]
+          // drizzle execute accepts a tagged-template or raw string with ? placeholders
+          // We use a raw string here; TiDB/MySQL driver handles the binding safely
+          {
+            sql: `INSERT IGNORE INTO audit_log (userId, action, resource, resourceId, ipAddress, success, createdAt) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+            params: [userId, entry.action, entry.resource, resourceId, entry.ipAddress ?? null, success],
+          } as unknown as Parameters<typeof db.execute>[0]
         );
       }
     } catch {

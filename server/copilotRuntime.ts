@@ -86,7 +86,11 @@ const actions = [
       },
     ],
     handler: async (args: { [x: string]: string | number }) => {
-      const { claimText, pdbId, proteinName } = args as unknown as { claimText: string; pdbId?: string; proteinName?: string };
+      const raw = args as unknown as { claimText: string; pdbId?: string; proteinName?: string };
+      // Cap input lengths to prevent LLM prompt injection / resource abuse
+      const claimText = String(raw.claimText ?? "").slice(0, 2000);
+      const pdbId = raw.pdbId ? String(raw.pdbId).slice(0, 10) : undefined;
+      const proteinName = raw.proteinName ? String(raw.proteinName).slice(0, 200) : undefined;
       try {
         const result = await verdictForClaim({
           claimType: "general_molecular",

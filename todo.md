@@ -956,3 +956,15 @@
 - [x] Register all four admin pages in App.tsx (/admin/deployments, /admin/discovery, /admin/embed, /admin/vertical-mgmt)
 - [x] Add Rocket/Radar/Code2/Layers nav items to DashboardLayout sidebar
 - [x] TypeScript clean, 780 tests passing
+
+## Sprint J: Security Hardening + Code Cleanup (CopilotKit & Deployment Arch)
+- [x] [SEC] Audit copilotRuntime.ts — capped claimText/pdbId/proteinName lengths (2000/10/200 chars)
+- [x] [SEC] Audit embedRoutes.ts — fixed postMessage origin leak + added origin validation on message listener
+- [x] [SEC] Audit micronDeploy.ts — added escHtml() for all user-controlled HTML interpolations; added validateHookUrl() SSRF guard for Vercel + Netlify
+- [x] [SEC] Audit discoveryEngine.ts — probeEndpoints are from curated built-in registry only, no user-supplied URLs; no SSRF surface
+- [x] [SEC] Audit privateMode.ts — replaced hand-rolled SQL string concat with parameterized query object
+- [x] [BUG] Fix CopilotKit sidebar — /api/copilot endpoint confirmed live (HTTP 200) with hono path-guard fix
+- [x] [BUG] Fix embed SDK — apiBase defaults to req.protocol+host (dynamic), not localhost
+- [x] [CLEAN] Replaced 4 hardcoded stale domain references in verticalCopilotActions.ts with ttruthdesk.claims
+- [x] [BUG] Fixed getEntityClaims — now filters by canonicalName match on claimText/proteinName/pdbId
+- [x] TypeScript clean, 780 tests passing, checkpoint saved

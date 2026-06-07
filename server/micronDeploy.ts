@@ -120,21 +120,42 @@ export function generateSiteConfig(opts: {
   };
 }
 
+// ─── HTML escape helper ──────────────────────────────────────────────────────
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 // ─── Site template HTML generator ────────────────────────────────────────────
 
 export function generateSiteHtml(config: MicronSiteConfig): string {
+  // Escape all user-controlled strings before interpolating into HTML
+  const safeTitle = escHtml(config.seoMeta.title);
+  const safeDesc = escHtml(config.seoMeta.description);
+  const safeKeywords = escHtml(config.seoMeta.keywords.join(", "));
+  const safeDisplayName = escHtml(config.displayName);
+  const safeSiteDesc = escHtml(config.description);
+  const safeVerticalKey = encodeURIComponent(config.verticalKey);
+  // apiBase must be a valid https URL — strip anything that isn't
+  const safeApiBase = /^https?:\/\/[a-zA-Z0-9._:/-]+$/.test(config.apiBase)
+    ? config.apiBase
+    : "https://ttruthdesk.claims";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${config.seoMeta.title}</title>
-  <meta name="description" content="${config.seoMeta.description}" />
-  <meta name="keywords" content="${config.seoMeta.keywords.join(", ")}" />
-  <meta property="og:title" content="${config.seoMeta.title}" />
-  <meta property="og:description" content="${config.seoMeta.description}" />
+  <title>${safeTitle}</title>
+  <meta name="description" content="${safeDesc}" />
+  <meta name="keywords" content="${safeKeywords}" />
+  <meta property="og:title" content="${safeTitle}" />
+  <meta property="og:description" content="${safeDesc}" />
   <meta property="og:type" content="website" />
-  <link rel="alternate" type="application/rss+xml" title="${config.displayName} Claims Feed" href="/rss.xml" />
+  <link rel="alternate" type="application/rss+xml" title="${safeDisplayName} Claims Feed" href="/rss.xml" />
   <style>
     :root { --accent: ${config.primaryColor}; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -153,35 +174,46 @@ export function generateSiteHtml(config: MicronSiteConfig): string {
     .powered a { color: inherit; }
   </style>
   <script>
-    window.TruthDesk = { config: { vertical: '${config.verticalKey}', theme: 'dark', apiBase: '${config.apiBase}' } };
+    window.TruthDesk = { config: { vertical: ${JSON.stringify(config.verticalKey)}, theme: 'dark', apiBase: ${JSON.stringify(safeApiBase)} } };
   </script>
-  <script src="${config.apiBase}/embed/sdk.js" async></script>
+  <script src="${safeApiBase}/embed/sdk.js" async></script>
 </head>
 <body>
   <header>
     <div class="logo"></div>
-    <h1>${config.displayName}</h1>
+    <h1>${safeDisplayName}</h1>
     <span class="badge">Truth Desk</span>
   </header>
   <main>
     <div class="hero">
       <h2>Verified Scientific Claims</h2>
-      <p>${config.description}</p>
+      <p>${safeSiteDesc}</p>
     </div>
     <div class="widget-container">
       <iframe
-        src="${config.apiBase}/api/embed/frame?vertical=${config.verticalKey}&theme=dark"
+        src="${safeApiBase}/api/embed/frame?vertical=${safeVerticalKey}&theme=dark"
         title="Truth Desk Claim Verifier"
         sandbox="allow-scripts allow-same-origin allow-popups"
       ></iframe>
     </div>
   </main>
-  <div class="powered">Powered by <a href="${config.apiBase}" target="_blank">Truth Desk</a></div>
+  <div class="powered">Powered by <a href="${safeApiBase}" target="_blank">Truth Desk</a></div>
 </body>
 </html>`;
 }
 
 // ─── Deploy target adapters ───────────────────────────────────────────────────
+
+/** Validate that a hook URL is a safe HTTPS endpoint at a known provider */
+function validateHookUrl(url: string, allowedHosts: string[]): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    return allowedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+}
 
 async function deployToVercel(
   config: MicronSiteConfig,
@@ -195,6 +227,9 @@ async function deployToVercel(
       errorMessage:
         "Vercel deploy hook URL not configured. Add vercelDeployHook to deployment config.",
     };
+  }
+  if (!validateHookUrl(hookUrl, ["api.vercel.com", "vercel.com"])) {
+    return { success: false, errorMessage: "Invalid Vercel deploy hook URL. Must be an https://api.vercel.com or https://vercel.com URL." };
   }
   try {
     const res = await fetch(hookUrl, {
@@ -227,6 +262,9 @@ async function deployToNetlify(
       errorMessage:
         "Netlify build hook URL not configured. Add netlifyBuildHook to deployment config.",
     };
+  }
+  if (!validateHookUrl(hookUrl, ["api.netlify.com", "netlify.com"])) {
+    return { success: false, errorMessage: "Invalid Netlify build hook URL. Must be an https://api.netlify.com URL." };
   }
   try {
     const res = await fetch(hookUrl, {

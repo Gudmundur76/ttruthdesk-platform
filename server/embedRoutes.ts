@@ -155,11 +155,14 @@ function buildWidgetHtml(opts: {
             <div class="rationale">\${data.rationale || ''}</div>
             \${data.evidenceUrl ? '<div class="evidence-link"><a href="' + data.evidenceUrl + '" target="_blank">View Evidence →</a></div>' : ''}
           </div>\`;
-        // Broadcast to parent
+        // Broadcast to parent — restrict to same origin or configured parent origin
+        const targetOrigin = window.location.ancestorOrigins?.[0] || document.referrer
+          ? (new URL(document.referrer || window.location.href)).origin
+          : '*';
         window.parent.postMessage({
           type: 'truthdesk:claimVerified',
           payload: { claim, verdict: data.verdict, confidence: data.confidence, vertical: VERTICAL }
-        }, '*');
+        }, targetOrigin);
       } catch (e) {
         result.innerHTML = '<div class="error">⚠ ' + e.message + '</div>';
       } finally {
@@ -168,10 +171,16 @@ function buildWidgetHtml(opts: {
       }
     }
 
-    // Listen for messages from parent (e.g. pre-fill claim)
+    // Listen for messages from parent (e.g. pre-fill claim) — validate origin
+    const ALLOWED_ORIGINS = [API_BASE, window.location.origin].filter(Boolean);
     window.addEventListener('message', (e) => {
-      if (e.data?.type === 'truthdesk:setClaim') {
-        document.getElementById('claim').value = e.data.claim || '';
+      if (!e.data || typeof e.data !== 'object') return;
+      // Only accept messages from the configured API base or same origin
+      const originOk = ALLOWED_ORIGINS.some(o => e.origin === o) || e.origin === window.location.origin;
+      if (!originOk) return;
+      if (e.data.type === 'truthdesk:setClaim') {
+        const raw = String(e.data.claim || '').slice(0, 2000); // cap length
+        document.getElementById('claim').value = raw;
       }
     });
   </script>
