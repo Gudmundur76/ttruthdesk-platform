@@ -12,6 +12,7 @@ vi.mock("./db", () => ({
   getPaginatedPublicClaims: vi.fn(),
   getVerifiedClaimsForPublicApi: vi.fn(),
   getClaimWithDocument: vi.fn(),
+  getAllClaimIndexRows: vi.fn(),
 }));
 
 // Mock claimPageRoute so we don't need a real DB for JSON-LD generation
@@ -429,5 +430,112 @@ describe("GET /api/public/claims/:id", () => {
     expect(res.body.page_url).toContain("/claim/1001");
     expect(res.body.audit_url).toContain("/audit/42");
     expect(res.body.audit_url).toContain("#claim-1001");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lightweight claim index endpoint tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+const mockIndexRows = [
+  {
+    id: 1001,
+    verdict: "Supported",
+    updatedAt: new Date("2024-01-20T12:00:00Z"),
+    documentId: 42,
+    verticalDomain: "structural_biology",
+  },
+  {
+    id: 1002,
+    verdict: "Contradicted",
+    updatedAt: new Date("2024-01-21T09:00:00Z"),
+    documentId: 43,
+    verticalDomain: "salmon_biotech",
+  },
+];
+
+describe("GET /api/public/claims/index.json", () => {
+  let app: ReturnType<typeof makeApp>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    app = makeApp();
+  });
+
+  it("returns 200 with correct JSON shape", async () => {
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+
+    const res = await request(app)
+      .get("/api/public/claims/index.json")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(2);
+    expect(Array.isArray(res.body.claims)).toBe(true);
+    expect(res.body.claims).toHaveLength(2);
+    expect(res.body.generated_at).toBeTruthy();
+    expect(res.body.description).toBeTruthy();
+  });
+
+  it("each index entry has id, verdict, vertical, url, and api_url", async () => {
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+
+    const res = await request(app)
+      .get("/api/public/claims/index.json")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+
+    const first = res.body.claims[0];
+    expect(first.id).toBe(1001);
+    expect(first.verdict).toBe("Supported");
+    expect(first.vertical).toBe("structural_biology");
+    expect(first.document_id).toBe(42);
+    expect(first.url).toContain("/claim/1001");
+    expect(first.api_url).toContain("/api/public/claims/1001");
+  });
+
+  it("returns CORS headers", async () => {
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+
+    const res = await request(app)
+      .get("/api/public/claims/index.json")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+  });
+
+  it("returns X-Total-Count header", async () => {
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+
+    const res = await request(app)
+      .get("/api/public/claims/index.json")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+
+    expect(res.headers["x-total-count"]).toBe("2");
+  });
+
+  it("OPTIONS /api/public/claims/index.json returns 204", async () => {
+    const res = await request(app)
+      .options("/api/public/claims/index.json")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+
+    expect(res.status).toBe(204);
+  });
+
+  it("includes collection and describedby Link headers", async () => {
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+
+    const res = await request(app)
+      .get("/api/public/claims/index.json")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+
+    const link = res.headers["link"] ?? "";
+    expect(link).toContain('rel="collection"');
+    expect(link).toContain('rel="describedby"');
   });
 });

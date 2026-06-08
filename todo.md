@@ -1061,7 +1061,7 @@
 
 - [x] Add GET /api/public/claims?page=N&limit=50&vertical=X&verdict=Y paginated endpoint
 - [x] Add GET /api/public/claims/:id single-claim endpoint with full JSON-LD ClaimReview schema
-- [ ] Add GET /api/public/claims.json index file (all claim IDs + slugs + verdicts for crawlers)
+- [x] Add GET /api/public/claims/index.json index file (all claim IDs + slugs + verdicts for crawlers)
 - [x] Expand sitemap.xml to include all /claim/:id URLs dynamically from DB (all 3,919 verdicts)
 - [x] Add per-claim JSON-LD (schema.org ClaimReview) to /claim/:id page server-side (client-side injection via ClaimPage.tsx)
 - [x] Update llms.txt to advertise the paginated public claims API

@@ -23,6 +23,7 @@ import {
   getRecentVerifiedClaims,
   getPaginatedPublicClaims,
   getClaimWithDocument,
+  getAllClaimIndexRows,
 } from "./db";
 import { buildClaimReviewJsonLd } from "./claimPageRoute";
 import {
@@ -202,6 +203,46 @@ export function registerClaimsRoutes(app: Express): void {
           updated_since: updatedSinceStr ?? null,
         },
         claims: claimItems,
+      });
+  });
+
+  // ── Lightweight claim index: GET /api/public/claims/index.json ─────────────
+  // MUST be registered BEFORE /api/public/claims/:id to prevent Express from
+  // treating "index.json" as a :id parameter.
+  // Returns all claim IDs + verdicts + vertical slugs in a compact format.
+  // Designed for crawler discovery — no full text, no rationale, minimal payload.
+  app.options("/api/public/claims/index.json", (_req, res) => {
+    res.set(CORS_HEADERS).status(204).end();
+  });
+  app.get("/api/public/claims/index.json", async (req: Request, res: Response) => {
+    const rows = await getAllClaimIndexRows(10000);
+    const base = originBase(req);
+    const index = rows.map((r) => ({
+      id: r.id,
+      verdict: r.verdict,
+      vertical: r.verticalDomain ?? null,
+      document_id: r.documentId,
+      updated_at: r.updatedAt?.toISOString() ?? null,
+      url: `${base}/claim/${r.id}`,
+      api_url: `${base}/api/public/claims/${r.id}`,
+    }));
+    return res
+      .set({
+        ...CORS_HEADERS,
+        "Cache-Control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
+        "X-Total-Count": String(index.length),
+        Link: [
+          `<${base}/api/public/claims>; rel="collection"`,
+          `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
+        ].join(", "),
+      })
+      .status(200)
+      .json({
+        $schema: `${base}/api/public/schemas/claims.schema.json`,
+        generated_at: new Date().toISOString(),
+        count: index.length,
+        description: "Lightweight index of all verified claims. Use api_url to fetch full claim details.",
+        claims: index,
       });
   });
 

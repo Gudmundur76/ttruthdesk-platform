@@ -1361,3 +1361,28 @@ export async function getPaginatedPublicClaims(opts: {
 
   return { rows: rows as PublicClaimRow[], total, totalPages };
 }
+
+/**
+ * Returns a lightweight index of all verified claims for crawler discovery.
+ * Fetches only the fields needed to build /api/public/claims/index.json:
+ * id, verdict, verticalDomain, updatedAt, and documentId.
+ * Capped at 10,000 rows to avoid memory pressure.
+ */
+export async function getAllClaimIndexRows(limit = 10000) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      id: claims.id,
+      verdict: claims.verdict,
+      updatedAt: claims.updatedAt,
+      documentId: documents.id,
+      verticalDomain: documents.verticalDomain,
+    })
+    .from(claims)
+    .innerJoin(documents, eq(claims.documentId, documents.id))
+    .where(and(isNotNull(claims.verdict), eq(documents.status, "complete")))
+    .orderBy(desc(claims.updatedAt), desc(claims.id))
+    .limit(limit);
+  return rows;
+}
