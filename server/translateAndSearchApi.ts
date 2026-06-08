@@ -168,7 +168,7 @@ export function registerTranslateAndSearchApi(app: Router) {
     }
 
     // ── Input validation ──────────────────────────────────────────────────────
-    const { question } = req.body ?? {};
+    const { question, vertical } = req.body ?? {};
     if (!question || typeof question !== "string" || question.trim().length < 3) {
       return res.status(400).json({
         error: "Missing or invalid 'question' field. Provide a non-empty string.",
@@ -177,6 +177,9 @@ export function registerTranslateAndSearchApi(app: Router) {
     if (question.length > 2000) {
       return res.status(400).json({ error: "Question too long (max 2000 chars)." });
     }
+    const verticalDomain: string = (typeof vertical === "string" && vertical.trim().length > 0)
+      ? vertical.trim()
+      : "structural_biology";
 
     // ── Translate question into claims ────────────────────────────────────────
     let claims: Awaited<ReturnType<typeof translateQueryToClaims>>;
@@ -237,6 +240,7 @@ export function registerTranslateAndSearchApi(app: Router) {
     setImmediate(() => {
       processQueryResults({
         query: question.trim(),
+        vertical: verticalDomain,
         pubmedResults: claimResults.flatMap((c) =>
           c.pubmedEvidence.map((p) => ({
             pmid: p.pmid,
