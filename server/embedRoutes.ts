@@ -370,11 +370,11 @@ export function registerEmbedRoutes(app: Express): void {
     const html = buildWidgetHtml({ vertical, theme, apiBase });
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    // Allow embedding from any origin but restrict capabilities
-    res.setHeader("X-Frame-Options", "ALLOWALL");
+    // Allow embedding from any origin but restrict capabilities.
+    // X-Frame-Options ALLOWALL is non-standard; use CSP frame-ancestors instead.
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src *; frame-ancestors *"
+      "default-src 'self' 'unsafe-inline'; connect-src *; frame-ancestors *"
     );
     res.send(html);
   });

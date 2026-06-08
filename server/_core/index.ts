@@ -151,9 +151,10 @@ async function startServer() {
   });
 
   // ── Protocol discovery: MCP card ──────────────────────────────────────────
-  const SITE_ORIGIN = process.env.NODE_ENV === "production"
-    ? "https://protein-desk-5r5rzpyg.manus.space"
-    : "http://localhost:3000";
+  const SITE_ORIGIN = ENV.appUrl ||
+    (process.env.NODE_ENV === "production"
+      ? "https://ttruthdesk.claims"
+      : "http://localhost:3000");
 
   const MCP_TOOLS = [
     {
@@ -1119,7 +1120,14 @@ async function startServer() {
   registerLlmsRoute(app);
   registerSitemapRoute(app);
 
-  // tRPC API
+  // tRPC API — CORS headers so external frontends (Lovable, partner sites) can call public procedures
+  app.use("/api/trpc", (req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, trpc-accept, x-trpc-source");
+    if (req.method === "OPTIONS") { res.sendStatus(204); return; }
+    next();
+  });
   app.use(
     "/api/trpc",
     createExpressMiddleware({

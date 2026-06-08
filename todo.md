@@ -1042,3 +1042,14 @@
 - [x] Out of Scope NEVER returned — every query now gets cited evidence or an honest Insufficient Evidence with PubMed queries tried
 - [x] Response now includes pubmedResults[] and translatedClaims[] fields; apiVersion bumped to 1.1
 - [x] TypeScript clean, 790 tests passing, checkpoint saved
+
+## Security & Code Quality Audit (Jun 2026)
+
+- [x] Fix invalid verdictMethod "copilot_autonomous_ingest" -> "llm_ingest" in autonomousIngest.ts
+- [x] Fix hardcoded protein-desk-5r5rzpyg.manus.space domain in index.ts (SITE_ORIGIN now uses ENV.appUrl)
+- [x] Fix hardcoded protein-desk-5r5rzpyg.manus.space domain in vite.ts JSON-LD (7 occurrences -> ttruthdesk.claims)
+- [x] Fix embed frame CSP: remove unsafe-eval, replace deprecated X-Frame-Options ALLOWALL with frame-ancestors *
+- [x] Add CORS headers to /api/trpc endpoint for cross-origin Lovable/partner frontends
+- [x] Add CORS preflight + headers to /api/translate-and-search endpoint
+- [x] Add escapeLike() helper and apply to all LIKE queries in routers.ts to prevent wildcard injection
+- [x] Write Lovable.dev prompt with correct API contracts, copy fixes, and functional corrections

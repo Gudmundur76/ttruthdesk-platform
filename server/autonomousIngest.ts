@@ -364,7 +364,7 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
             verdict,
             verdictRationale: rationale,
             pdbEvidenceUrl: evidenceUrl ?? undefined,
-            verdictMethod: "copilot_autonomous_ingest",
+            verdictMethod: "llm_ingest",
           });
 
           if (verdict === "Contradicted") {

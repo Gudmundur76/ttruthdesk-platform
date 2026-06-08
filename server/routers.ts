@@ -1,4 +1,7 @@
 import { z } from "zod";
+
+/** Escape LIKE wildcard characters to prevent wildcard injection. */
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, (c) => `\\${c}`);
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -2075,7 +2078,7 @@ Respond in this exact structure:
           .innerJoin(documents, eq(claims.documentId, documents.id))
           .leftJoin(autoIngestedPapers, eq(autoIngestedPapers.documentId, documents.id))
           .where(
-            sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${input.claimText.slice(0, 80)}%`})`
+            sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${escapeLike(input.claimText.slice(0, 80))}%`})`
           )
           .orderBy(
             sql`COALESCE(${autoIngestedPapers.pubYear}, YEAR(${documents.createdAt})) ASC`,
@@ -2182,7 +2185,7 @@ Respond in this exact structure:
           .from(claims)
           .innerJoin(documents, eq(claims.documentId, documents.id))
           .leftJoin(autoIngestedPapers, eq(autoIngestedPapers.documentId, documents.id))
-          .where(sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${entity.canonicalName.slice(0, 80)}%`})`)
+          .where(sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${escapeLike(entity.canonicalName.slice(0, 80))}%`})`)
           .orderBy(
             sql`COALESCE(${autoIngestedPapers.pubYear}, YEAR(${documents.createdAt})) ASC`,
             asc(documents.createdAt)

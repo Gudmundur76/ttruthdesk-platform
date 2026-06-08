@@ -119,7 +119,15 @@ async function lookupApiKey(
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export function registerTranslateAndSearchApi(app: Router) {
+  // CORS preflight — allow external frontends (Lovable, partner sites) to call this endpoint
+  app.options("/api/translate-and-search", (_req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key");
+    res.sendStatus(204);
+  });
   app.post("/api/translate-and-search", async (req: Request, res: Response) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
     const start = Date.now();
 
     // ── Auth ──────────────────────────────────────────────────────────────────
