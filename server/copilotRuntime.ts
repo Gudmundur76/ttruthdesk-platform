@@ -25,6 +25,7 @@ import {
   getGlobalPlatformStats,
   getGraphData,
   getRecentVerifiedClaims,
+  getPaginatedPublicClaims,
 } from "./db";
 import { verdictForClaim } from "./pdbAdapter";
 import { searchUniProt } from "./uniprotAdapter";
@@ -428,27 +429,45 @@ const actions = [
       const entityType = args.entityType as string | undefined;
       const limit = (args.limit as number) ?? 10;
       try {
+        // 1. Entity name-match from knowledge graph
         const entities = await getAllGraphEntities(500);
         const q = query.toLowerCase();
-        const filtered = entities
+        const matchedEntities = entities
           .filter(e => {
             const typeMatch = !entityType || entityType === "any" || e.entityType === entityType;
             const nameMatch = e.canonicalName.toLowerCase().includes(q);
             return typeMatch && nameMatch;
           })
           .slice(0, Math.min(limit, 20));
+
+        // 2. Full-text claim search from the verified corpus
+        const { rows: claimRows } = await getPaginatedPublicClaims({
+          page: 1,
+          pageSize: Math.min(limit, 20),
+          q: query,
+        });
+
         return {
-          results: filtered.map(e => ({
+          results: matchedEntities.map(e => ({
             id: e.id,
             name: e.canonicalName,
             type: e.entityType,
             wikiPagePath: e.wikiPagePath ?? null,
           })),
-          total: filtered.length,
+          entityTotal: matchedEntities.length,
+          claims: claimRows.map(c => ({
+            claimId: c.id,
+            claimText: c.claimText,
+            verdict: c.verdict,
+            confidenceScore: c.confidenceScore,
+            verticalDomain: c.verticalDomain,
+            pdbId: c.pdbId ?? null,
+          })),
+          claimTotal: claimRows.length,
           query,
         };
       } catch (err) {
-        return { results: [], total: 0, query, error: String(err) };
+        return { results: [], entityTotal: 0, claims: [], claimTotal: 0, query, error: String(err) };
       }
     },
   },

@@ -6,10 +6,9 @@
  * Rate limit: 10 req/IP/hour. Claim text: 20–2000 chars.
  */
 import type { Express, Request, Response } from "express";
-import { createDocument, getUserByOpenId } from "./db";
+import { createDocument, getUserByOpenId, getDb } from "./db";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { ENV } from "./_core/env";
-import { getDb } from "./db";
 import { publicSubmissions } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 

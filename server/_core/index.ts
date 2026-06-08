@@ -1090,6 +1090,43 @@ async function startServer() {
       res.status(500).json({ ok: false, error: (err as Error).message });
     }
   });
+  // Inverse Prompt Engine — generates verifiable questions from the knowledge graph (daily at 03:00 UTC)
+  app.post("/api/scheduled/inverse-prompt", requireCronOrAdmin, async (_req, res) => {
+    try {
+      const { runInversePromptEngine } = await import("../inversePrompt/inversePromptEngine");
+      const result = await runInversePromptEngine();
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      console.error("[InversePrompt] Scheduled run failed:", err);
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
+  // Meta-Agent / Code Guardian — pipeline invariant checks, stub ledger, drift detection (daily at 04:00 UTC)
+  app.post("/api/scheduled/meta-agent", requireCronOrAdmin, async (_req, res) => {
+    try {
+      const { runCodeGuardian } = await import("../metaAgent/codeGuardian");
+      const report = await runCodeGuardian();
+      res.json({ ok: true, healthScore: report.healthScore, healthGrade: report.healthGrade, criticalCount: report.criticalCount, warningCount: report.warningCount, findingsCount: report.allFindings.length });
+    } catch (err) {
+      console.error("[MetaAgent] Scheduled run failed:", err);
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
+  // Self-Prompt Engine — publishes self_prompt_tick event to trigger pending self-prompt cycles (every 2 hours)
+  app.post("/api/scheduled/self-prompt", requireCronOrAdmin, async (_req, res) => {
+    try {
+      const { publishEvent, scheduleDrain } = await import("../autonomousLoop/eventBus");
+      await publishEvent("scheduled_tick", { source: "self_prompt_cron", mode: "scheduled" });
+      scheduleDrain();
+      res.json({ ok: true, tickPublished: true, drainScheduled: true });
+    } catch (err) {
+      console.error("[SelfPrompt] Scheduled run failed:", err);
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
   // ─── Autonomous Loop tick (safety-net fallback) ─────────────────────────────
   //
   // Since eventBus v2, publishEvent() schedules a reactive drain via setImmediate()

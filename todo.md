@@ -1094,3 +1094,14 @@
 - [x] Add POST /api/public/submit-claim — unauthenticated, rate-limited (10 req/IP/hour), queues claim for autonomous verification, returns polling URL
 - [x] Add 6 Vitest tests for POST /api/public/submit-claim and GET /api/public/submit-claim/status/:id (906 total passing)
 - [x] Verify heartbeat registration is non-fatal — schedules are platform-level, survive sandbox hibernation
+
+## Phase 86: Infrastructure Harness Completion
+
+- [x] Add POST /api/scheduled/inverse-prompt endpoint (requireCronOrAdmin, calls runInversePromptEngine)
+- [x] Add POST /api/scheduled/meta-agent endpoint (requireCronOrAdmin, calls runCodeGuardian, returns health report)
+- [x] Add POST /api/scheduled/self-prompt endpoint (requireCronOrAdmin, publishes scheduled_tick to trigger self-prompt cycles)
+- [x] Register heartbeat job: inverse-prompt-daily (daily at 03:00 UTC, task_uid: RkF3Ex99AMUcCUVmvqeKpv)
+- [x] Register heartbeat job: meta-agent-daily (daily at 04:00 UTC, task_uid: MkKQZQvgpdELaz2o65LPDS)
+- [x] Register heartbeat job: self-prompt-2h (every 2 hours, task_uid: 5uoJthFKBz6NkY2JsN7XzT)
+- [x] Wire real graph query into CopilotKit queryGraph tool (getPaginatedPublicClaims + getAllGraphEntities, returns entityTotal + claimTotal)
+- [x] Add Vitest tests for the three new scheduled endpoints (9 tests in scheduledEngines.test.ts, 915 total passing)
