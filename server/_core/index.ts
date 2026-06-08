@@ -24,6 +24,7 @@ import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
+import { registerSubmitClaimRoute } from "../submitClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
 import { registerWikiPageRoute } from "../wikiPageRoute";
 import { registerBadgeRoute } from "../badgeRoute";
@@ -1192,6 +1193,8 @@ async function startServer() {
 
   // Agent-callable single-claim verification endpoint
   registerVerifyClaimRoute(app);
+  // Public claim submission endpoint (Lovable site, MCP tools, external agents)
+  registerSubmitClaimRoute(app);
   registerClaimPageRoute(app);
   registerWikiPageRoute(app);
   // IndexNow key verification file (Bing ownership proof — served at /<key>.txt)

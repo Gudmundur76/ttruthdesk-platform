@@ -239,6 +239,13 @@
       "when": 1780863756407,
       "tag": "0033_aromatic_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1780951918227,
+      "tag": "0034_ambitious_sentry",
+      "breakpoints": true
     }
   ]
 }

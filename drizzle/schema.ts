@@ -1563,3 +1563,24 @@ export const savedResearch = mysqlTable("saved_research", {
 }));
 export type SavedResearch = typeof savedResearch.$inferSelect;
 export type InsertSavedResearch = typeof savedResearch.$inferInsert;
+
+// ─── Public Submissions ───────────────────────────────────────────────────────
+// Tracks claims submitted via POST /api/public/submit-claim
+// (from Lovable site, external agents, MCP tools). Not tied to a user account.
+export const publicSubmissions = mysqlTable("public_submissions", {
+  id: int("id").autoincrement().primaryKey(),
+  claimText: text("claimText").notNull(),
+  verticalDomain: varchar("verticalDomain", { length: 64 }).default("structural_biology").notNull(),
+  source: varchar("source", { length: 64 }).default("api").notNull(),
+  documentId: int("documentId"),
+  status: mysqlEnum("status", ["queued", "processing", "done", "failed"]).default("queued").notNull(),
+  submitterIp: varchar("submitterIp", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
+}, (t) => ({
+  statusIdx: index("ps_status_idx").on(t.status),
+  createdAtIdx: index("ps_created_at_idx").on(t.createdAt),
+  documentIdIdx: index("ps_document_id_idx").on(t.documentId),
+}));
+export type PublicSubmission = typeof publicSubmissions.$inferSelect;
+export type InsertPublicSubmission = typeof publicSubmissions.$inferInsert;

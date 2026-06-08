@@ -1086,3 +1086,11 @@
 - [x] Remove PRICING constant from Home.tsx
 - [x] Remove paypalCheckout imports and checkout router from routers.ts
 - [x] Rename ttruthdesk.claims → truthdesk.claims in all 15 files (92 occurrences total)
+
+## Phase 85: Meta-Agent Completion — Close the Three Gaps
+
+- [x] Register all 8 heartbeat schedules on server startup — confirmed all 8 active on Manus platform (non-fatal, no code change needed)
+- [x] Fix MANUS_API_KEY — real key set via secrets manager, HTTP 200 verified from Manus API
+- [x] Add POST /api/public/submit-claim — unauthenticated, rate-limited (10 req/IP/hour), queues claim for autonomous verification, returns polling URL
+- [x] Add 6 Vitest tests for POST /api/public/submit-claim and GET /api/public/submit-claim/status/:id (906 total passing)
+- [x] Verify heartbeat registration is non-fatal — schedules are platform-level, survive sandbox hibernation
