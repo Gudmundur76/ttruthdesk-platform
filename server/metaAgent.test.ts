@@ -433,11 +433,25 @@ describe("pipelineGuardian", () => {
     vi.clearAllMocks();
   });
 
+  // Helper: build a DB mock that handles both execute-based and Drizzle-builder-based invariants
+  function buildPipelineMock(countValue = 0) {
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      then: undefined as unknown,
+    };
+    selectChain.then = (resolve: (v: Array<{ cnt: number }>) => void) =>
+      Promise.resolve([{ cnt: countValue }]).then(resolve);
+    return {
+      execute: vi.fn().mockResolvedValue([[{ count: countValue }]]),
+      select: vi.fn().mockReturnValue(selectChain),
+    };
+  }
+
   it("returns a PipelineGuardianReport with correct shape", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildPipelineMock() as never);
     const { runPipelineGuardian } = await import("./metaAgent/pipelineGuardian");
     const report = await runPipelineGuardian();
     expect(report).toHaveProperty("invariants");
@@ -449,9 +463,7 @@ describe("pipelineGuardian", () => {
 
   it("returns pass status when all invariants pass", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildPipelineMock() as never);
     const { runPipelineGuardian } = await import("./metaAgent/pipelineGuardian");
     const report = await runPipelineGuardian();
     expect(["pass", "warn", "fail"]).toContain(report.overallStatus);
@@ -461,9 +473,7 @@ describe("pipelineGuardian", () => {
 
   it("detects stuck documents invariant", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 15 }]]), // 15 stuck docs
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildPipelineMock(15) as never);
     const { runPipelineGuardian } = await import("./metaAgent/pipelineGuardian");
     const report = await runPipelineGuardian();
     const stuckInv = report.invariants.find((i) => i.name.toLowerCase().includes("stuck"));
@@ -484,9 +494,7 @@ describe("pipelineGuardian", () => {
 
   it("invariant results have required fields", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildPipelineMock() as never);
     const { runPipelineGuardian } = await import("./metaAgent/pipelineGuardian");
     const report = await runPipelineGuardian();
     for (const inv of report.invariants) {
@@ -650,14 +658,29 @@ describe("codeGuardian", () => {
     mockExec.execSync.mockReturnValue("{}");
   });
 
-  it("returns a CodeGuardianReport with all required fields", async () => {
-    const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
+  // Helper to build a full DB mock that satisfies both execute-based and Drizzle-builder-based invariants
+  function buildDbMock(countValue = 0) {
+    const selectChain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      then: undefined as unknown,
+    };
+    // Make the chain thenable so await works on it
+    selectChain.then = (resolve: (v: Array<{ cnt: number }>) => void) =>
+      Promise.resolve([{ cnt: countValue }]).then(resolve);
+    return {
+      execute: vi.fn().mockResolvedValue([[{ count: countValue }]]),
       insert: vi.fn().mockReturnValue({
         values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
       }),
-    } as never);
+      select: vi.fn().mockReturnValue(selectChain),
+    };
+  }
+
+  it("returns a CodeGuardianReport with all required fields", async () => {
+    const { getDb } = await import("./db");
+    vi.mocked(getDb).mockResolvedValue(buildDbMock() as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     expect(report).toHaveProperty("healthScore");
@@ -676,12 +699,7 @@ describe("codeGuardian", () => {
 
   it("health score is between 0 and 100", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
-      }),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildDbMock() as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     expect(report.healthScore).toBeGreaterThanOrEqual(0);
@@ -690,12 +708,7 @@ describe("codeGuardian", () => {
 
   it("health grade is one of A/B/C/D/F", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
-      }),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildDbMock() as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     expect(["A", "B", "C", "D", "F"]).toContain(report.healthGrade);
@@ -703,12 +716,7 @@ describe("codeGuardian", () => {
 
   it("durationMs is a positive number", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
-      }),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildDbMock() as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
@@ -716,12 +724,7 @@ describe("codeGuardian", () => {
 
   it("criticalCount and warningCount are non-negative integers", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
-      }),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildDbMock() as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     expect(report.criticalCount).toBeGreaterThanOrEqual(0);
@@ -732,12 +735,7 @@ describe("codeGuardian", () => {
 
   it("allFindings is an array", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
-      }),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildDbMock() as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     expect(Array.isArray(report.allFindings)).toBe(true);
@@ -745,12 +743,7 @@ describe("codeGuardian", () => {
 
   it("overdueEscalations is an array", async () => {
     const { getDb } = await import("./db");
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 0 }]]),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
-      }),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildDbMock() as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     expect(Array.isArray(report.overdueEscalations)).toBe(true);
@@ -759,12 +752,7 @@ describe("codeGuardian", () => {
   it("lower health score when critical findings present", async () => {
     const { getDb } = await import("./db");
     // Simulate many stuck documents to trigger critical pipeline invariant
-    vi.mocked(getDb).mockResolvedValue({
-      execute: vi.fn().mockResolvedValue([[{ count: 100 }]]),
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
-      }),
-    } as never);
+    vi.mocked(getDb).mockResolvedValue(buildDbMock(100) as never);
     const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
     const report = await runCodeGuardian();
     // With 100 stuck docs, score should be lower than 100

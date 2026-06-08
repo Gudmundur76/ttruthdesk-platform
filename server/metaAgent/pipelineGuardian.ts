@@ -19,7 +19,7 @@ import {
   predictionModels,
   wikiPages,
 } from "../../drizzle/schema";
-import { lt, eq, sql, and, isNull, ne } from "drizzle-orm";
+import { lt, lte, eq, sql, and, isNull, ne, count, isNotNull } from "drizzle-orm";
 
 export type InvariantStatus = "pass" | "warn" | "fail";
 
@@ -47,6 +47,9 @@ const STUCK_THRESHOLD_MINUTES = 30;
 const WIKI_STALE_DAYS = 90;
 const MODEL_VALIDATION_WINDOW_DAYS = 30;
 const MODEL_VALIDATION_RATE_THRESHOLD = 0.6;
+const PDB_STALE_DAYS = 180;          // Claims with PDB evidence older than this are stale
+const LOW_CONFIDENCE_THRESHOLD = 0.4; // Claims below this score need recalibration
+const LOW_CONFIDENCE_MAX_RATIO = 0.2; // Warn if >20% of scored claims are low-confidence
 
 // ─── Invariant 1: Stuck Documents ────────────────────────────────────────────
 
@@ -239,6 +242,76 @@ async function checkWikiStaleness(
 
 // ─── Aggregate ───────────────────────────────────────────────────────────────
 
+// ─── Invariant 6: Stale PDB Evidence ────────────────────────────────────────
+
+async function checkStalePdbEvidence(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>
+): Promise<InvariantResult> {
+  const cutoff = new Date(Date.now() - PDB_STALE_DAYS * 24 * 60 * 60 * 1000);
+
+  const [staleResult, totalResult] = await Promise.all([
+    db.select({ cnt: count() }).from(claims).where(
+      and(
+        isNotNull(claims.pdbEvidenceCheckedAt),
+        lt(claims.pdbEvidenceCheckedAt, cutoff)
+      )
+    ),
+    db.select({ cnt: count() }).from(claims).where(isNotNull(claims.pdbEvidenceCheckedAt)),
+  ]);
+
+  const staleCount = Number(staleResult[0]?.cnt ?? 0);
+  const totalChecked = Number(totalResult[0]?.cnt ?? 0);
+  const staleRatio = totalChecked > 0 ? staleCount / totalChecked : 0;
+
+  const status: InvariantStatus =
+    staleCount > 50 ? "fail" :
+    staleCount > 10 ? "warn" : "pass";
+
+  return {
+    name: "stalePdbEvidence",
+    status,
+    threshold: `<= 10 claims with PDB evidence older than ${PDB_STALE_DAYS} days`,
+    actual: `${staleCount} stale claims (${(staleRatio * 100).toFixed(1)}% of ${totalChecked} checked)`,
+    details: { staleCount, totalChecked, staleRatio, cutoffDate: cutoff.toISOString() },
+    severity: status === "fail" ? "critical" : status === "warn" ? "warning" : "info",
+  };
+}
+
+// ─── Invariant 7: Low-Confidence Claims ──────────────────────────────────────
+
+async function checkLowConfidenceClaims(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>
+): Promise<InvariantResult> {
+  const [lowResult, totalResult] = await Promise.all([
+    db.select({ cnt: count() }).from(claims).where(
+      and(
+        isNotNull(claims.confidenceScore),
+        lte(claims.confidenceScore, LOW_CONFIDENCE_THRESHOLD)
+      )
+    ),
+    db.select({ cnt: count() }).from(claims).where(isNotNull(claims.confidenceScore)),
+  ]);
+
+  const lowCount = Number(lowResult[0]?.cnt ?? 0);
+  const totalScored = Number(totalResult[0]?.cnt ?? 0);
+  const lowRatio = totalScored > 0 ? lowCount / totalScored : 0;
+
+  const status: InvariantStatus =
+    lowRatio > LOW_CONFIDENCE_MAX_RATIO ? "warn" :
+    lowCount > 100 ? "warn" : "pass";
+
+  return {
+    name: "lowConfidenceClaims",
+    status,
+    threshold: `<= ${(LOW_CONFIDENCE_MAX_RATIO * 100).toFixed(0)}% of scored claims below ${LOW_CONFIDENCE_THRESHOLD} confidence`,
+    actual: `${lowCount} low-confidence claims (${(lowRatio * 100).toFixed(1)}% of ${totalScored} scored)`,
+    details: { lowCount, totalScored, lowRatio, threshold: LOW_CONFIDENCE_THRESHOLD },
+    severity: status === "warn" ? "warning" : "info",
+  };
+}
+
+// ─── Main Guardian ────────────────────────────────────────────────────────────
+
 export async function runPipelineGuardian(): Promise<PipelineGuardianReport> {
   const db = await getDb();
   if (!db) {
@@ -259,15 +332,17 @@ export async function runPipelineGuardian(): Promise<PipelineGuardianReport> {
     };
   }
 
-  const [stuck, orphans, zeroClaim, modelRate, wikiStale] = await Promise.all([
+  const [stuck, orphans, zeroClaim, modelRate, wikiStale, stalePdb, lowConfidence] = await Promise.all([
     checkStuckDocuments(db),
     checkClaimOrphans(db),
     checkZeroClaimCompletions(db),
     checkModelValidationRate(db),
     checkWikiStaleness(db),
+    checkStalePdbEvidence(db),
+    checkLowConfidenceClaims(db),
   ]);
 
-  const invariants = [stuck, orphans, zeroClaim, modelRate, wikiStale];
+  const invariants = [stuck, orphans, zeroClaim, modelRate, wikiStale, stalePdb, lowConfidence];
   const failCount = invariants.filter((i) => i.status === "fail").length;
   const warnCount = invariants.filter((i) => i.status === "warn").length;
   const overallStatus: InvariantStatus =

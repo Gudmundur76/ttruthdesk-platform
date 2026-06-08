@@ -22,7 +22,10 @@ export type SelfPromptAction =
   | "alert"
   | "gap_map"
   | "converge"
-  | "meta_check";
+  | "meta_check"
+  | "drain_queue"        // Drain pending coord_queue items through the analysis pipeline
+  | "reverify_stale"     // Re-verify claims whose PDB evidence is >180 days old
+  | "recalibrate_confidence"; // Run confidence recalibration on low-confidence claims (<0.4)
 
 export interface PrioritizedAction {
   priority: number;          // 1–100
@@ -82,6 +85,9 @@ AVAILABLE ACTIONS:
 - alert: Send meta-agent alert for a system health issue
 - gap_map: Trigger Frontier gap mapping scan
 - meta_check: Trigger a meta-agent health check
+- drain_queue: Drain pending coord_queue items through the analysis pipeline (use when pendingItems > 0)
+- reverify_stale: Re-verify claims whose PDB evidence is >180 days old (use when staleEvidenceCount > 0)
+- recalibrate_confidence: Run confidence recalibration on low-confidence claims (use when lowConfidenceCount > 0)
 - converge: Stop — no high-value action remaining
 
 OUTPUT FORMAT (strict JSON, no markdown):
@@ -90,7 +96,7 @@ OUTPUT FORMAT (strict JSON, no markdown):
   "actions": [
     {
       "priority": 1-100,
-      "action": "notify|wiki_update|frontier|reindex|alert|gap_map|meta_check|converge",
+      "action": "notify|wiki_update|frontier|reindex|alert|gap_map|meta_check|drain_queue|reverify_stale|recalibrate_confidence|converge",
       "targetId": number,
       "reasoning": "why this specific action matters now",
       "expectedValue": 0-100
@@ -124,6 +130,10 @@ META-AGENT HEALTH:
 
 SUBSCRIPTIONS:
 - Active webhook subscribers: ${subscriptionSnapshot.activeWebhookCount}
+
+MAINTENANCE SIGNALS:
+- Stale PDB evidence claims (>180 days): ${state.staleEvidenceCount}
+- Low-confidence claims (<0.4): ${state.lowConfidenceCount}
 
 DECISION PROTOCOL:
 1. What just happened? (Interpret the event)

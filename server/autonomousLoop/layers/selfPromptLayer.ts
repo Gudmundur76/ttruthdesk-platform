@@ -398,8 +398,8 @@ export async function runSelfPromptLayer(event: LoopEvent): Promise<SelfPromptLa
             ? "gap_closed"
             : event.eventType === "document_submitted"
               ? "user_submitted"
-              : event.eventType === "scheduled_tick"
-                ? "scheduled_tick"
+              : event.eventType === "scheduled_tick" || event.eventType === "confidence_review_needed"
+                ? "scheduled_tick"  // confidence review uses scheduled_tick semantics
                 : "verdict_assigned";
 
       const selfPromptEvent: SelfPromptEvent = {

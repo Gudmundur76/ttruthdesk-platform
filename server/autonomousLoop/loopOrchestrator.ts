@@ -135,7 +135,9 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
       event.eventType === "contradiction_found" ||
       event.eventType === "gap_closed" ||
       event.eventType === "hypothesis_resolved" ||
-      event.eventType === "loop_action_complete"
+      event.eventType === "loop_action_complete" ||
+      event.eventType === "scheduled_tick" ||
+      event.eventType === "confidence_review_needed"
     )) {
       const selfPromptResult = await runSelfPromptLayer(event);
       layersExecuted.push(2);
@@ -159,6 +161,28 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
 
     if (metaResult.safeModeTriggered) {
       safeModeTriggered = true;
+    }
+
+    // ── L5: Dream Layer ──────────────────────────────────────────────────────
+    // dream_pattern_detected → route to meta-agent for health check (already L4)
+    // dream_session_complete → publish paper_discovered for each new hypothesis
+    if (event.eventType === "dream_session_complete") {
+      const hypotheses = (event.payload.hypotheses as Array<{ entityId?: number; gapId?: number }>) ?? [];
+      for (const h of hypotheses.slice(0, 5)) {
+        if (h.gapId) {
+          await publishEvent("gap_closed", {
+            gapId: h.gapId,
+            triggeredBy: event.id,
+            source: "dream_session",
+          });
+        }
+      }
+      actionsExecuted.push({
+        type: "dream_wake",
+        description: `Dream session complete: ${hypotheses.length} hypotheses published back to loop`,
+        priority: 60,
+        result: "success",
+      });
     }
 
     // ── Convergence Gate ─────────────────────────────────────────────────────

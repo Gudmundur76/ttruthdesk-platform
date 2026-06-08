@@ -1105,3 +1105,15 @@
 - [x] Register heartbeat job: self-prompt-2h (every 2 hours, task_uid: 5uoJthFKBz6NkY2JsN7XzT)
 - [x] Wire real graph query into CopilotKit queryGraph tool (getPaginatedPublicClaims + getAllGraphEntities, returns entityTotal + claimTotal)
 - [x] Add Vitest tests for the three new scheduled endpoints (9 tests in scheduledEngines.test.ts, 915 total passing)
+
+## Phase 87: Agent Architecture Improvements
+
+- [x] Expand self-prompt action vocabulary: add drain_queue, reverify_stale, recalibrate_confidence action types to SelfPromptAction + actionExecutor
+- [x] Add staleEvidenceCount + lowConfidenceCount to SystemState (stateCollector) so LLM sees full system health
+- [x] Build coordQueueDrainer engine: processes pending coord_queue items through analysis pipeline (fetchAbstract + runAnalysisPipeline, concurrency 3, dedup by pmid/pmcid)
+- [x] Wire dream events into loop orchestrator: dream_pattern_detected → L2 (self-prompt), dream_session_complete → L2 (self-prompt), confidence_review_needed → L2 (self-prompt)
+- [x] Add confidence_review_needed to selfPromptLayer triggerType mapping (uses scheduled_tick semantics)
+- [x] Strengthen truthLayer: source_data_changed now resets pdbEvidenceCheckedAt on affected claims + marks documents needsReview=true; paper_discovered fires runAnalysisPipeline fire-and-forget
+- [x] Add 2 new pipeline guardian invariants: stalePdbEvidence (claims with PDB evidence >180 days old) + lowConfidenceClaims (>20% of scored claims below 0.4 confidence) — guardian now runs 7 invariants
+- [x] Update metaAgent.test.ts + pipelineGuardian.test.ts mocks to include Drizzle select chain (buildDbMock / buildPipelineMock helpers)
+- [x] 915 tests passing, TypeScript: 0 errors

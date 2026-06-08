@@ -18,7 +18,7 @@ import {
   claims,
   webhookAlerts,
 } from "../../drizzle/schema";
-import { eq, count, and, gte, sql } from "drizzle-orm";
+import { eq, count, and, gte, lte, lt, sql, isNotNull } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +70,8 @@ export interface SystemState {
   queueSnapshot: QueueSnapshot;
   metaHealth: MetaHealthSnapshot;
   subscriptionSnapshot: SubscriptionSnapshot;
+  staleEvidenceCount: number;   // Claims with pdbEvidenceCheckedAt > 180 days ago
+  lowConfidenceCount: number;   // Claims with confidenceScore < 0.4
 }
 
 // ─── State Collector ──────────────────────────────────────────────────────────
@@ -85,6 +87,8 @@ export async function collectSystemState(event: SelfPromptEvent): Promise<System
       queueSnapshot: { pendingItems: 0, failedItems: 0 },
       metaHealth: { score: 100, grade: "A", criticalCount: 0, warningCount: 0 },
       subscriptionSnapshot: { activeWebhookCount: 0 },
+      staleEvidenceCount: 0,
+      lowConfidenceCount: 0,
     };
   }
 
@@ -98,6 +102,8 @@ export async function collectSystemState(event: SelfPromptEvent): Promise<System
     recentCriticalResult,
     recentWarningResult,
     activeWebhookResult,
+    staleEvidenceResult,
+    lowConfidenceResult,
   ] = await Promise.all([
     // Graph entity count
     db.select({ cnt: count() }).from(graphEntities),
@@ -129,6 +135,20 @@ export async function collectSystemState(event: SelfPromptEvent): Promise<System
     ),
     // Active webhook subscriptions
     db.select({ cnt: count() }).from(webhookAlerts).where(eq(webhookAlerts.active, true)),
+    // Stale PDB evidence: claims where pdbEvidenceCheckedAt is older than 180 days
+    db.select({ cnt: count() }).from(claims).where(
+      and(
+        isNotNull(claims.pdbEvidenceCheckedAt),
+        lt(claims.pdbEvidenceCheckedAt, new Date(Date.now() - 180 * 24 * 60 * 60 * 1000))
+      )
+    ),
+    // Low confidence claims: confidenceScore < 0.4 and not null
+    db.select({ cnt: count() }).from(claims).where(
+      and(
+        isNotNull(claims.confidenceScore),
+        lte(claims.confidenceScore, 0.4)
+      )
+    ),
   ]);
 
   const entityCount = entityCountResult[0]?.cnt ?? 0;
@@ -140,6 +160,8 @@ export async function collectSystemState(event: SelfPromptEvent): Promise<System
   const criticalCount = recentCriticalResult[0]?.cnt ?? 0;
   const warningCount = recentWarningResult[0]?.cnt ?? 0;
   const activeWebhookCount = activeWebhookResult[0]?.cnt ?? 0;
+  const staleEvidenceCount = Number(staleEvidenceResult[0]?.cnt ?? 0);
+  const lowConfidenceCount = Number(lowConfidenceResult[0]?.cnt ?? 0);
 
   // Compute a simple health score: start at 100, deduct for issues
   let score = 100;
@@ -175,5 +197,7 @@ export async function collectSystemState(event: SelfPromptEvent): Promise<System
     subscriptionSnapshot: {
       activeWebhookCount,
     },
+    staleEvidenceCount,
+    lowConfidenceCount,
   };
 }

@@ -16,13 +16,15 @@
 
 import type { PrioritizedAction } from "./promptEngine";
 import { getDb } from "../db";
-import { graphEntities, knowledgeGaps } from "../../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { graphEntities, knowledgeGaps, claims } from "../../drizzle/schema";
+import { eq, lt, lte, and, isNotNull } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { notifyIndexNow, claimUrl, wikiUrl } from "../seo/indexNow";
 import { runFrontierEngine } from "../frontier/frontierEngine";
 import { updateEntityPage } from "../wikiEngine";
 import { dispatchHighRiskAlert } from "../alertDispatcher";
+import { drainCoordQueue } from "../coordQueueDrainer";
+import { runConfidenceRecalibration } from "../dream/confidenceRecalibrator";
 
 export interface ActionResult {
   action: string;
@@ -101,6 +103,65 @@ export async function executeAction(action: PrioritizedAction): Promise<ActionRe
       case "meta_check": {
         // Meta-check is logged only — codeGuardian runs on its own schedule
         return { action: actionType, targetId, status: "ok", detail: "Meta-check noted; codeGuardian will run on next scheduled tick" };
+      }
+
+      case "drain_queue": {
+        // Drain pending coord_queue items through the analysis pipeline
+        const drainResult = await drainCoordQueue();
+        return {
+          action: actionType,
+          targetId,
+          status: "ok",
+          detail: `Coord queue drained: ${drainResult.itemsSucceeded} succeeded, ${drainResult.itemsFailed} failed, ${drainResult.itemsSkipped} skipped`,
+        };
+      }
+
+      case "reverify_stale": {
+        // Find claims with stale PDB evidence (>180 days) and re-queue them
+        const db = await getDb();
+        if (!db) return { action: actionType, targetId, status: "skipped", detail: "DB unavailable" };
+        const staleThreshold = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+        const staleClaims = await db
+          .select({ id: claims.id })
+          .from(claims)
+          .where(and(
+            isNotNull(claims.pdbEvidenceCheckedAt),
+            lt(claims.pdbEvidenceCheckedAt, staleThreshold)
+          ))
+          .limit(20);
+        if (staleClaims.length === 0) {
+          return { action: actionType, targetId, status: "skipped", detail: "No stale claims found" };
+        }
+        // Reset pdbEvidenceCheckedAt to null so the pipeline re-checks them
+        for (const c of staleClaims) {
+          await db.update(claims).set({ pdbEvidenceCheckedAt: null }).where(eq(claims.id, c.id));
+        }
+        return {
+          action: actionType,
+          targetId,
+          status: "ok",
+          detail: `${staleClaims.length} stale claims reset for PDB re-verification`,
+        };
+      }
+
+      case "recalibrate_confidence": {
+        // Run confidence recalibration on low-confidence claims
+        try {
+          const recalResult = await runConfidenceRecalibration(true);
+          return {
+            action: actionType,
+            targetId,
+            status: "ok",
+            detail: `Confidence recalibration complete: ${recalResult.totalRecalibrated} recalibrated, ${recalResult.autoApplied} auto-applied`,
+          };
+        } catch (err) {
+          return {
+            action: actionType,
+            targetId,
+            status: "error",
+            detail: `Recalibration failed: ${String(err)}`,
+          };
+        }
       }
 
       case "converge": {
