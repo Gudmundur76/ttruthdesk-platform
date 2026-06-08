@@ -85,36 +85,6 @@ const FEATURES = [
   },
 ];
 
-const PRICING = [
-  {
-    name: "Starter",
-    price: "$1,500",
-    desc: "Single-document audit for early-stage diligence across any domain.",
-    features: ["Up to 50 verifiable claims", "Multi-database evidence routing", "HTML + PDF audit report", "48-hour turnaround"],
-    cta: "Request Starter Audit",
-    tier: "starter" as const,
-    highlight: false,
-  },
-  {
-    name: "Diligence",
-    price: "$5,000",
-    desc: "Investment-grade audit across multiple documents and domains.",
-    features: ["Up to 200 verifiable claims", "Multi-document, multi-domain analysis", "Human expert review layer", "30-day evidence monitoring", "24-hour turnaround"],
-    cta: "Request Diligence Audit",
-    tier: "diligence" as const,
-    highlight: true,
-  },
-  {
-    name: "Platform Pilot",
-    price: "Custom",
-    desc: "API access and custom adapter development for your domain.",
-    features: ["Unlimited documents", "REST + tRPC API access", "Custom domain adapters", "Dedicated support", "SLA guarantee"],
-    cta: "Contact Us",
-    tier: "platform_pilot" as const,
-    highlight: false,
-  },
-];
-
 // ─── Beam animation state machine ────────────────────────────────────────────
 
 type BeamState = "p1" | "splash" | "p2" | "idle";
@@ -361,7 +331,7 @@ export default function Home() {
               ) : (
                 <a href={getLoginUrl()} className="td-btn-cta">Start Free Audit →</a>
               )}
-              <Link href="/pricing" className="td-btn-outline">Request Diligence Audit</Link>
+              <Link href="/submit" className="td-btn-outline">Submit a Document</Link>
             </div>
           </div>
 
@@ -514,36 +484,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── PRICING ───────────────────────────────────────────────────────── */}
-      <section className="td-section" id="pricing" aria-labelledby="pricing-heading">
+      {/* ── FREE PLATFORM CTA ─────────────────────────────────────────── */}
+      <section className="td-section" id="free-platform" aria-labelledby="free-heading">
         <div className="td-container">
           <div className="td-section-header">
-            <h2 className="td-section-title" id="pricing-heading">Transparent pricing</h2>
-            <p className="td-section-sub">Concierge audit reports for investors, pharma BD teams, publishers, and any organisation that needs traceable, database-backed claim verification.</p>
+            <h2 className="td-section-title" id="free-heading">Free to use. Open by design.</h2>
+            <p className="td-section-sub">Truth Desk is free during its public beta. Submit documents, explore the registry, query the API, and use the MCP tools — no account required for public endpoints.</p>
           </div>
-          <div className="td-pricing-grid">
-            {PRICING.map((plan) => (
-              <div key={plan.name} className={`td-pricing-card${plan.highlight ? " td-pricing-highlight" : ""}`}>
-                <div>
-                  <p className="td-pricing-tier">{plan.name}</p>
-                  <p className="td-pricing-price">{plan.price}</p>
-                  <p className="td-pricing-desc">{plan.desc}</p>
-                </div>
-                <ul className="td-pricing-features">
-                  {plan.features.map((feat) => (
-                    <li key={feat} className="td-pricing-feature">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={plan.highlight ? "#86efac" : "#16a34a"} strokeWidth="2.5">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link href={`/pricing?tier=${plan.tier}`} className={`td-pricing-btn${plan.highlight ? " td-pricing-btn-highlight" : ""}`}>
-                  {plan.cta}
-                </Link>
-              </div>
-            ))}
+          <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
+            <Link href="/submit" className="td-pricing-btn td-pricing-btn-highlight">Submit a document →</Link>
+            <Link href="/registry" className="td-pricing-btn">Browse the registry →</Link>
+            <Link href="/docs/api" className="td-pricing-btn">View API docs →</Link>
           </div>
         </div>
       </section>

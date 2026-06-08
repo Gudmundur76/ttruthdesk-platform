@@ -18,7 +18,7 @@ import { slugify } from "./wikiCompiler";
 /** Resolve the canonical domain from the incoming request (supports custom domains). */
 function getDomain(req: Request): string {
   const proto = (req.headers["x-forwarded-proto"] ?? req.protocol ?? "https") as string;
-  const host = (req.headers["x-forwarded-host"] ?? req.headers.host ?? "ttruthdesk.claims") as string;
+  const host = (req.headers["x-forwarded-host"] ?? req.headers.host ?? "truthdesk.claims") as string;
   return `${proto}://${host}`;
 }
 

@@ -44,7 +44,7 @@ describe("jwtSigner", () => {
     const token = await signJwt({ sub: "u1" }, { expiresIn: "1h" });
     const payload = await verifyJwt(token);
     const after = Math.floor(Date.now() / 1000);
-    expect(payload.iss).toBe("ttruthdesk.claims");
+    expect(payload.iss).toBe("truthdesk.claims");
     expect(typeof payload.exp).toBe("number");
     expect(payload.exp as number).toBeGreaterThan(before + 3590);
     expect(payload.iat as number).toBeGreaterThanOrEqual(before);
@@ -91,7 +91,7 @@ describe("jwtSigner", () => {
       expect(payload.label).toBe("my-key");
     });
 
-    it("uses ttruthdesk.claims/api as audience", async () => {
+    it("uses truthdesk.claims/api as audience", async () => {
       const token = await issueApiToken({ sub: "1", scope: "read" });
       // Verify with correct audience — should not throw
       const payload = await verifyApiToken(token);

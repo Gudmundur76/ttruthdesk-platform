@@ -965,7 +965,7 @@
 - [x] [SEC] Audit privateMode.ts — replaced hand-rolled SQL string concat with parameterized query object
 - [x] [BUG] Fix CopilotKit sidebar — /api/copilot endpoint confirmed live (HTTP 200) with hono path-guard fix
 - [x] [BUG] Fix embed SDK — apiBase defaults to req.protocol+host (dynamic), not localhost
-- [x] [CLEAN] Replaced 4 hardcoded stale domain references in verticalCopilotActions.ts with ttruthdesk.claims
+- [x] [CLEAN] Replaced 4 hardcoded stale domain references in verticalCopilotActions.ts with truthdesk.claims
 - [x] [BUG] Fixed getEntityClaims — now filters by canonicalName match on claimText/proteinName/pdbId
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
 
@@ -974,7 +974,7 @@
 - [x] Build scripts/generate-micron.ts — static site generator producing 8 files per vertical (21 KB total)
 - [x] Build scripts/deploy-to-hostinger.sh — one-command SFTP deploy via lftp with dry-run support
 - [x] Write docs/micron-architecture.md — full architecture diagram, cost model, API reference
-- [x] Wire GET /embed/micron-client.js endpoint on ttruthdesk.claims (24h cache, CORS *)
+- [x] Wire GET /embed/micron-client.js endpoint on truthdesk.claims (24h cache, CORS *)
 - [x] Fix ESM __dirname compatibility in generate-micron.ts
 - [x] Tested: generates 8 files / 21 KB for structural_biology vertical in <1s
 - [x] TypeScript clean, 780 tests passing, checkpoint saved
@@ -1047,7 +1047,7 @@
 
 - [x] Fix invalid verdictMethod "copilot_autonomous_ingest" -> "llm_ingest" in autonomousIngest.ts
 - [x] Fix hardcoded protein-desk-5r5rzpyg.manus.space domain in index.ts (SITE_ORIGIN now uses ENV.appUrl)
-- [x] Fix hardcoded protein-desk-5r5rzpyg.manus.space domain in vite.ts JSON-LD (7 occurrences -> ttruthdesk.claims)
+- [x] Fix hardcoded protein-desk-5r5rzpyg.manus.space domain in vite.ts JSON-LD (7 occurrences -> truthdesk.claims)
 - [x] Fix embed frame CSP: remove unsafe-eval, replace deprecated X-Frame-Options ALLOWALL with frame-ancestors *
 - [x] Add CORS headers to /api/trpc endpoint for cross-origin Lovable/partner frontends
 - [x] Add CORS preflight + headers to /api/translate-and-search endpoint
@@ -1075,3 +1075,14 @@
 - [x] Update Registry page to use server-side search when ?q= is present (fetch all matches, not just first 200)
 - [x] Add "View timeline" deep-link button to Registry page search results (links to /timeline?q=...)
 - [x] Update llms.txt and /.well-known/mcp.json to advertise the new /api/public/claims/search endpoint
+
+## Phase 84: Remove Payment UI + Domain Rename
+
+- [x] Delete Pricing.tsx and CheckoutSuccess.tsx pages
+- [x] Remove /pricing and /checkout/success routes from App.tsx
+- [x] Remove "Request Audit" nav link from TopNav.tsx
+- [x] Replace /pricing CTA in Verticals.tsx with /submit
+- [x] Replace pricing section in Home.tsx with "Free to use. Open by design." CTA
+- [x] Remove PRICING constant from Home.tsx
+- [x] Remove paypalCheckout imports and checkout router from routers.ts
+- [x] Rename ttruthdesk.claims → truthdesk.claims in all 15 files (92 occurrences total)

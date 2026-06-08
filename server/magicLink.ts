@@ -42,7 +42,7 @@ async function generateToken(email: string): Promise<{ raw: string; hash: string
   const jti = crypto.randomBytes(16).toString("base64url");
   const raw = await signJwt(
     { sub: email, purpose: "magic-link", jti },
-    { expiresIn: "15m", audience: "ttruthdesk.claims/magic-link" }
+    { expiresIn: "15m", audience: "truthdesk.claims/magic-link" }
   );
   const hash = crypto.createHash("sha256").update(raw).digest("hex");
   return { raw, hash };
@@ -54,7 +54,7 @@ async function generateToken(email: string): Promise<{ raw: string; hash: string
  * Returns the email (sub) on success, throws on failure.
  */
 export async function verifyMagicLinkToken(raw: string): Promise<{ email: string; jti: string }> {
-  const payload = await verifyJwt(raw, { audience: "ttruthdesk.claims/magic-link" });
+  const payload = await verifyJwt(raw, { audience: "truthdesk.claims/magic-link" });
   if (payload.purpose !== "magic-link") {
     throw new Error("Invalid token purpose");
   }

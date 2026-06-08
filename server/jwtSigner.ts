@@ -55,20 +55,20 @@ async function getPublicKey() {
 export interface SignOptions {
   /** Expiry as a jose duration string, e.g. "1h", "7d", "30d". Default: "1h". */
   expiresIn?: string;
-  /** Issuer claim. Default: "ttruthdesk.claims". */
+  /** Issuer claim. Default: "truthdesk.claims". */
   issuer?: string;
   /** Audience claim. */
   audience?: string | string[];
 }
 
 export interface VerifyOptions {
-  /** Expected issuer. Default: "ttruthdesk.claims". */
+  /** Expected issuer. Default: "truthdesk.claims". */
   issuer?: string;
   /** Expected audience. */
   audience?: string | string[];
 }
 
-const DEFAULT_ISSUER = "ttruthdesk.claims";
+const DEFAULT_ISSUER = "truthdesk.claims";
 
 // ─── sign ─────────────────────────────────────────────────────────────────────
 
@@ -138,7 +138,7 @@ export async function issueApiToken(
     },
     {
       expiresIn: options.expiresIn ?? "365d",
-      audience: options.audience ?? "ttruthdesk.claims/api",
+      audience: options.audience ?? "truthdesk.claims/api",
     }
   );
 }
@@ -148,7 +148,7 @@ export async function issueApiToken(
  * Throws if the token is invalid, expired, or has the wrong audience.
  */
 export async function verifyApiToken(token: string): Promise<ApiTokenPayload> {
-  const payload = await verifyJwt(token, { audience: "ttruthdesk.claims/api" });
+  const payload = await verifyJwt(token, { audience: "truthdesk.claims/api" });
   return {
     sub: (payload.sub as string) ?? "",
     scope: (payload.scope as string) ?? "",

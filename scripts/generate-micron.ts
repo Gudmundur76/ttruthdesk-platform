@@ -46,7 +46,7 @@ const VERTICALS: Record<string, VerticalConfig> = {
     textColor: "#e5e7eb",
     exampleClaim: "The crystal structure of lysozyme was solved at 1.8 Å resolution (PDB: 1LYZ).",
     keywords: ["protein structure", "PDB", "UniProt", "crystallography", "structural biology", "claim verification"],
-    ogImage: "https://ttruthdesk.claims/og/structural_biology.png",
+    ogImage: "https://truthdesk.claims/og/structural_biology.png",
   },
   salmon_biotech: {
     id: "salmon_biotech",
@@ -59,7 +59,7 @@ const VERTICALS: Record<string, VerticalConfig> = {
     textColor: "#e5e7eb",
     exampleClaim: "Atlantic salmon (Salmo salar) has a genome size of approximately 2.97 Gb.",
     keywords: ["salmon", "aquaculture", "marine biology", "genetics", "biotechnology", "claim verification"],
-    ogImage: "https://ttruthdesk.claims/og/salmon_biotech.png",
+    ogImage: "https://truthdesk.claims/og/salmon_biotech.png",
   },
   biosimilar: {
     id: "biosimilar",
@@ -72,7 +72,7 @@ const VERTICALS: Record<string, VerticalConfig> = {
     textColor: "#e5e7eb",
     exampleClaim: "Adalimumab biosimilars have demonstrated analytical similarity to the reference product Humira.",
     keywords: ["biosimilar", "biologic", "FDA", "EMA", "drug approval", "claim verification"],
-    ogImage: "https://ttruthdesk.claims/og/biosimilar.png",
+    ogImage: "https://truthdesk.claims/og/biosimilar.png",
   },
   genomics: {
     id: "genomics",
@@ -85,7 +85,7 @@ const VERTICALS: Record<string, VerticalConfig> = {
     textColor: "#e5e7eb",
     exampleClaim: "The human genome contains approximately 20,000-25,000 protein-coding genes.",
     keywords: ["genomics", "genetics", "CRISPR", "genome", "gene expression", "claim verification"],
-    ogImage: "https://ttruthdesk.claims/og/genomics.png",
+    ogImage: "https://truthdesk.claims/og/genomics.png",
   },
 };
 
@@ -145,7 +145,7 @@ function generateIndexHtml(v: VerticalConfig, domain: string): string {
     <div class="container">
       <a href="/" class="logo">⬡ ${esc(v.label)}</a>
       <nav>
-        <a href="https://ttruthdesk.claims" target="_blank" rel="noopener">Truth Desk Core</a>
+        <a href="https://truthdesk.claims" target="_blank" rel="noopener">Truth Desk Core</a>
         <a href="/feed.xml">RSS</a>
       </nav>
     </div>
@@ -204,7 +204,7 @@ function generateIndexHtml(v: VerticalConfig, domain: string): string {
 
   <footer class="site-footer">
     <div class="container">
-      <p>© ${year} ${esc(domain)} · Powered by <a href="https://ttruthdesk.claims" target="_blank" rel="noopener">Truth Desk</a></p>
+      <p>© ${year} ${esc(domain)} · Powered by <a href="https://truthdesk.claims" target="_blank" rel="noopener">Truth Desk</a></p>
       <p class="fine-print">This site is a micron node of the Truth Desk verification network. Claims are validated against authoritative scientific databases. Not a substitute for expert review.</p>
     </div>
   </footer>
@@ -341,7 +341,7 @@ This site is a micron node of the Truth Desk scientific claim verification netwo
 It provides real-time validation of ${v.label.toLowerCase()} claims against authoritative databases.
 
 ## API
-Base URL: https://ttruthdesk.claims/api/public/
+Base URL: https://truthdesk.claims/api/public/
 - POST /verify-claim — verify a single claim (body: { "claim": "..." })
 - GET  /claims.json  — browse recent verified claims
 
@@ -362,7 +362,7 @@ ${v.exampleClaim}
 - Out of Scope: claim type not verifiable by current databases
 
 ## Contact
-Core platform: https://ttruthdesk.claims
+Core platform: https://truthdesk.claims
 `;
 }
 
@@ -393,10 +393,10 @@ function generateFeedXml(v: VerticalConfig, domain: string): string {
     <atom:link href="https://${esc(domain)}/feed.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Live verdicts available via API</title>
-      <link>https://ttruthdesk.claims/api/public/claims.json?vertical=${esc(v.id)}</link>
+      <link>https://truthdesk.claims/api/public/claims.json?vertical=${esc(v.id)}</link>
       <description>Real-time claim verdicts for ${esc(v.label)} are available via the Truth Desk public API.</description>
       <pubDate>${now}</pubDate>
-      <guid>https://ttruthdesk.claims/api/public/claims.json?vertical=${esc(v.id)}</guid>
+      <guid>https://truthdesk.claims/api/public/claims.json?vertical=${esc(v.id)}</guid>
     </item>
   </channel>
 </rss>
@@ -410,7 +410,7 @@ Allow: /
 Sitemap: https://${domain}/sitemap.xml
 
 # Truth Desk Micron Node
-# Core API: https://ttruthdesk.claims
+# Core API: https://truthdesk.claims
 `;
 }
 

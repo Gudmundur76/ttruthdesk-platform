@@ -113,11 +113,11 @@ ${JSON.stringify({
     {
       "@type": "WebSite",
       "name": "Truth Desk",
-      "url": "https://ttruthdesk.claims",
+      "url": "https://truthdesk.claims",
       "description": "Autonomous multi-vertical scientific claims verification platform. Verifies claims against PDB, PubChem, and PMC Open Access.",
       "potentialAction": {
         "@type": "SearchAction",
-        "target": "https://ttruthdesk.claims/registry?q={search_term_string}",
+        "target": "https://truthdesk.claims/registry?q={search_term_string}",
         "query-input": "required name=search_term_string"
       }
     },
@@ -247,15 +247,15 @@ function buildSemanticInjection(): { headMeta: string; noscriptBlock: string } {
     "@graph": [
       {
         "@type": "WebSite",
-        "@id": "https://ttruthdesk.claims/#website",
-        "url": "https://ttruthdesk.claims/",
+        "@id": "https://truthdesk.claims/#website",
+        "url": "https://truthdesk.claims/",
         "name": "Truth Desk",
         "description": "Autonomous multi-vertical scientific claims verification platform. Verifies molecular, structural, and biological claims against authoritative databases including PDB, PubChem, PubMed, UniProt, and PMC Open Access.",
-        "publisher": { "@type": "Organization", "name": "Arctic Media LLC", "url": "https://ttruthdesk.claims/" }
+        "publisher": { "@type": "Organization", "name": "Arctic Media LLC", "url": "https://truthdesk.claims/" }
       },
       {
         "@type": "SoftwareApplication",
-        "@id": "https://ttruthdesk.claims/#app",
+        "@id": "https://truthdesk.claims/#app",
         "name": "Truth Desk",
         "applicationCategory": "ScientificApplication",
         "operatingSystem": "Web",
@@ -276,7 +276,7 @@ function buildSemanticInjection(): { headMeta: string; noscriptBlock: string } {
       },
       {
         "@type": "FAQPage",
-        "@id": "https://ttruthdesk.claims/#faq",
+        "@id": "https://truthdesk.claims/#faq",
         "mainEntity": [
           { "@type": "Question", "name": "What is Truth Desk?", "acceptedAnswer": { "@type": "Answer", "text": "Truth Desk is an autonomous scientific claims verification platform. It ingests peer-reviewed literature from PMC Open Access, extracts molecular and biological claims, and verifies each claim against authoritative databases including the Protein Data Bank (PDB), PubChem, PubMed, and UniProt." } },
           { "@type": "Question", "name": "Which research verticals does Truth Desk cover?", "acceptedAnswer": { "@type": "Answer", "text": "Truth Desk currently covers structural biology and salmon biotech, with drug discovery, clinical genomics, cancer biology, neuroscience, and agri-biotech planned." } },

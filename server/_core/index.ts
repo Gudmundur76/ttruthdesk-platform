@@ -164,7 +164,7 @@ async function startServer() {
   // ── Protocol discovery: MCP card ──────────────────────────────────────────
   const SITE_ORIGIN = ENV.appUrl ||
     (process.env.NODE_ENV === "production"
-      ? "https://ttruthdesk.claims"
+      ? "https://truthdesk.claims"
       : "http://localhost:3000");
 
   const MCP_TOOLS = [

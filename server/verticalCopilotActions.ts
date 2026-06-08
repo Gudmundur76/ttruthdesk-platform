@@ -113,7 +113,7 @@ export const LAXEY_TOOLS = {
       vertical,
       theme = "auto",
       position = "bottom-right",
-      apiBase = "https://ttruthdesk.claims",
+      apiBase = "https://truthdesk.claims",
     } = args;
 
     const iframeCode = `<!-- Truth Desk Embed Widget -->
@@ -243,7 +243,7 @@ export const ALVOTECH_TOOLS = {
     apiBase?: string;
     deployConfig?: Record<string, string>;
   }) {
-    const apiBase = args.apiBase ?? "https://ttruthdesk.claims";
+    const apiBase = args.apiBase ?? "https://truthdesk.claims";
     const deployment = await createMicronDeployment({
       verticalKey: args.verticalKey,
       displayName: args.displayName,
@@ -373,7 +373,7 @@ export const ACADEMIC_TOOLS = {
     domain?: string;
     apiBase?: string;
   }) {
-    const apiBase = args.apiBase ?? "https://ttruthdesk.claims";
+    const apiBase = args.apiBase ?? "https://truthdesk.claims";
     const config = generateSiteConfig({
       verticalKey: args.verticalKey,
       displayName: args.displayName,
@@ -400,7 +400,7 @@ export const ACADEMIC_TOOLS = {
         description: `Verified scientific claims for ${verticalKey}`,
         hasPart: rows.map((c) => ({
           "@type": "Claim",
-          "@id": `https://ttruthdesk.claims/claims/${c.id}`,
+          "@id": `https://truthdesk.claims/claims/${c.id}`,
           text: c.claimText,
           claimReviewed: c.claimText,
           reviewRating: {

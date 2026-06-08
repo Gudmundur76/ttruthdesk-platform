@@ -16,7 +16,7 @@ import * as db from "./db";
 
 import { runAnalysisPipeline } from "./analysisPipeline";
 
-const APP_URL = () => ENV.appUrl || "https://ttruthdesk.claims";
+const APP_URL = () => ENV.appUrl || "https://truthdesk.claims";
 
 // ─── Singleton bot instance ───────────────────────────────────────────────────
 let botInstance: Bot | null = null;

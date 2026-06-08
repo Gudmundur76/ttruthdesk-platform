@@ -51,8 +51,8 @@ function getAllowedOrigins(): Set<string> {
     "www.laxey.is",
     "countrydesk.io",
     "www.countrydesk.io",
-    "ttruthdesk.claims",
-    "www.ttruthdesk.claims",
+    "truthdesk.claims",
+    "www.truthdesk.claims",
     "protein-desk-5r5rzpyg.manus.space",
   ];
   const fromEnv = envVal ? envVal.split(",").map((s) => s.trim()).filter(Boolean) : [];

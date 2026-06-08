@@ -394,10 +394,10 @@ export default function Verticals() {
             </div>
             <div className="flex-shrink-0">
               <Link
-                href="/pricing"
+                href="/submit"
                 className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-700 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors"
               >
-                Request a vertical →
+                Submit a document →
               </Link>
             </div>
           </div>

@@ -26,7 +26,6 @@ const NAV_LINKS = [
   { href: "/docs/api", label: "API", public: true },
   { href: "/dashboard", label: "Dashboard", public: false },
   { href: "/monitoring", label: "Monitoring", public: false },
-  { href: "/pricing", label: "Request Audit", public: true },
 ];
 
 export function TopNav() {
@@ -90,7 +89,7 @@ export function TopNav() {
           {NAV_LINKS.filter((l) => l.public || isAuthenticated).map((link) => {
             const isActive =
               location === link.href || location.startsWith(link.href + "/");
-            const isAccent = link.href === "/pricing";
+            const isAccent = false;
             return (
               <Link
                 key={link.href}

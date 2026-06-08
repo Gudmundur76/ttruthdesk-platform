@@ -71,7 +71,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .get("/api/public/claims")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(200);
     expect(res.body.page).toBe(1);
@@ -95,7 +95,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .get("/api/public/claims?page=2&page_size=100")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(200);
     const link = res.headers["link"] as string;
@@ -116,7 +116,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .get("/api/public/claims?page=2&page_size=100")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.headers["x-total-count"]).toBe("3919");
     expect(res.headers["x-total-pages"]).toBe("40");
@@ -134,7 +134,7 @@ describe("GET /api/public/claims", () => {
     await request(app)
       .get("/api/public/claims?verdict=Supported")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ verdict: "Supported" })
@@ -151,7 +151,7 @@ describe("GET /api/public/claims", () => {
     await request(app)
       .get("/api/public/claims?vertical=salmon_biotech")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ vertical: "salmon_biotech" })
@@ -168,7 +168,7 @@ describe("GET /api/public/claims", () => {
     await request(app)
       .get("/api/public/claims?claim_type=pdb_id")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ claimType: "pdb_id" })
@@ -179,7 +179,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .get("/api/public/claims?updated_since=not-a-date")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("Invalid updated_since");
@@ -195,7 +195,7 @@ describe("GET /api/public/claims", () => {
     await request(app)
       .get("/api/public/claims?page_size=9999")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ pageSize: 500 })
@@ -212,7 +212,7 @@ describe("GET /api/public/claims", () => {
     await request(app)
       .get("/api/public/claims?page=abc")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1 })
@@ -229,7 +229,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .get("/api/public/claims")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.headers["access-control-allow-origin"]).toBe("*");
   });
@@ -238,7 +238,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .options("/api/public/claims")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(204);
   });
@@ -253,7 +253,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .get("/api/public/claims")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.body.$schema).toContain("claims.schema.json");
     expect(res.body.generated_at).toBeTruthy();
@@ -270,7 +270,7 @@ describe("GET /api/public/claims", () => {
     const res = await request(app)
       .get("/api/public/claims?verdict=Supported&vertical=structural_biology")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.body.filters.verdict).toBe("Supported");
     expect(res.body.filters.vertical).toBe("structural_biology");
@@ -321,7 +321,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .get("/api/public/claims/1001")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(200);
     expect(res.body.claim_id).toBe(1001);
@@ -341,7 +341,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .get("/api/public/claims/99999")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBeTruthy();
@@ -351,7 +351,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .get("/api/public/claims/not-a-number")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("Invalid claim ID");
@@ -363,7 +363,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .get("/api/public/claims/1001")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.headers["access-control-allow-origin"]).toBe("*");
   });
@@ -372,7 +372,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .options("/api/public/claims/1001")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(204);
   });
@@ -383,7 +383,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .get("/api/public/claims/1001")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.headers["last-modified"]).toBeTruthy();
     // Should reflect the updatedAt date (2024-01-20)
@@ -396,7 +396,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .get("/api/public/claims/1001")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     const link = res.headers["link"] ?? "";
     expect(link).toContain('rel="collection"');
@@ -410,12 +410,12 @@ describe("GET /api/public/claims/:id", () => {
     await request(app)
       .get("/api/public/claims/1001")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(claimPageRoute.buildClaimReviewJsonLd).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1001 }),
       expect.objectContaining({ id: 42 }),
-      expect.stringContaining("ttruthdesk.claims")
+      expect.stringContaining("truthdesk.claims")
     );
   });
 
@@ -425,7 +425,7 @@ describe("GET /api/public/claims/:id", () => {
     const res = await request(app)
       .get("/api/public/claims/1001")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.body.page_url).toContain("/claim/1001");
     expect(res.body.audit_url).toContain("/audit/42");
@@ -468,7 +468,7 @@ describe("GET /api/public/claims/index.json", () => {
     const res = await request(app)
       .get("/api/public/claims/index.json")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(200);
     expect(res.body.count).toBe(2);
@@ -484,7 +484,7 @@ describe("GET /api/public/claims/index.json", () => {
     const res = await request(app)
       .get("/api/public/claims/index.json")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     const first = res.body.claims[0];
     expect(first.id).toBe(1001);
@@ -501,7 +501,7 @@ describe("GET /api/public/claims/index.json", () => {
     const res = await request(app)
       .get("/api/public/claims/index.json")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.headers["access-control-allow-origin"]).toBe("*");
   });
@@ -512,7 +512,7 @@ describe("GET /api/public/claims/index.json", () => {
     const res = await request(app)
       .get("/api/public/claims/index.json")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.headers["x-total-count"]).toBe("2");
   });
@@ -521,7 +521,7 @@ describe("GET /api/public/claims/index.json", () => {
     const res = await request(app)
       .options("/api/public/claims/index.json")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     expect(res.status).toBe(204);
   });
@@ -532,7 +532,7 @@ describe("GET /api/public/claims/index.json", () => {
     const res = await request(app)
       .get("/api/public/claims/index.json")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
 
     const link = res.headers["link"] ?? "";
     expect(link).toContain('rel="collection"');
@@ -553,7 +553,7 @@ describe("GET /api/public/claims/search", () => {
     const res = await request(app)
       .get("/api/public/claims/search")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Missing required parameter/);
     expect(res.body.example).toBeDefined();
@@ -563,7 +563,7 @@ describe("GET /api/public/claims/search", () => {
     const res = await request(app)
       .get("/api/public/claims/search?q=   ")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(res.status).toBe(400);
   });
 
@@ -576,7 +576,7 @@ describe("GET /api/public/claims/search", () => {
     const res = await request(app)
       .get("/api/public/claims/search?q=Piscirickettsia")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(res.status).toBe(200);
     expect(res.body.query).toBe("Piscirickettsia");
     expect(res.body.total_matches).toBe(1);
@@ -593,7 +593,7 @@ describe("GET /api/public/claims/search", () => {
     await request(app)
       .get("/api/public/claims/search?q=intracellular+bacterium")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ q: "intracellular bacterium" })
     );
@@ -608,7 +608,7 @@ describe("GET /api/public/claims/search", () => {
     const res = await request(app)
       .get("/api/public/claims/search?q=resolution")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(res.status).toBe(200);
     const claim = res.body.claims[0];
     expect(claim.timeline_url).toContain("/timeline?q=");
@@ -623,7 +623,7 @@ describe("GET /api/public/claims/search", () => {
     await request(app)
       .get("/api/public/claims/search?q=test&limit=500")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ pageSize: 200 })
     );
@@ -638,7 +638,7 @@ describe("GET /api/public/claims/search", () => {
     const res = await request(app)
       .get("/api/public/claims/search?q=test")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(res.headers["access-control-allow-origin"]).toBe("*");
   });
 
@@ -646,7 +646,7 @@ describe("GET /api/public/claims/search", () => {
     const res = await request(app)
       .options("/api/public/claims/search")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(res.status).toBe(204);
   });
 });
@@ -669,7 +669,7 @@ describe("GET /api/public/claims with ?q= filter", () => {
     await request(app)
       .get("/api/public/claims?q=salmonis")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ q: "salmonis" })
     );
@@ -684,7 +684,7 @@ describe("GET /api/public/claims with ?q= filter", () => {
     const res = await request(app)
       .get("/api/public/claims?q=bacterium")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(res.status).toBe(200);
     expect(res.body.filters.q).toBe("bacterium");
   });
@@ -698,7 +698,7 @@ describe("GET /api/public/claims with ?q= filter", () => {
     const res = await request(app)
       .get("/api/public/claims?q=salmon&page=1")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     const link = res.headers["link"] ?? "";
     expect(link).toContain("q=salmon");
   });
@@ -712,7 +712,7 @@ describe("GET /api/public/claims with ?q= filter", () => {
     await request(app)
       .get("/api/public/claims?q=")
       .set("X-Forwarded-Proto", "https")
-      .set("X-Forwarded-Host", "ttruthdesk.claims");
+      .set("X-Forwarded-Host", "truthdesk.claims");
     expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
       expect.objectContaining({ q: undefined })
     );

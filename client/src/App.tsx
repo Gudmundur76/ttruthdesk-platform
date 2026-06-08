@@ -26,7 +26,6 @@ const Submit               = lazy(() => import("@/pages/Submit"));
 const Dashboard            = lazy(() => import("@/pages/Dashboard"));
 const AuditReport          = lazy(() => import("@/pages/AuditReport"));
 const MonitoringFeed       = lazy(() => import("@/pages/MonitoringFeed"));
-const Pricing              = lazy(() => import("@/pages/Pricing"));
 const Registry             = lazy(() => import("@/pages/Registry"));
 const PublicReport         = lazy(() => import("@/pages/PublicReport"));
 const Graph                = lazy(() => import("@/pages/Graph"));
@@ -58,7 +57,6 @@ const AutonomousLoopDashboard = lazy(() => import("@/pages/AutonomousLoopDashboa
 const OverridesDashboard   = lazy(() => import("@/pages/OverridesDashboard"));
 const DreamDashboard       = lazy(() => import("@/pages/DreamDashboard"));
 const SourceWhitelist      = lazy(() => import("@/pages/SourceWhitelist"));
-const CheckoutSuccess      = lazy(() => import("@/pages/CheckoutSuccess"));
 const AdminCrons           = lazy(() => import("@/pages/AdminCrons"));
 const AdminVerticals       = lazy(() => import("@/pages/AdminVerticals"));
 const DeploymentDashboard  = lazy(() => import("@/pages/admin/DeploymentDashboard"));
@@ -84,7 +82,6 @@ function Router() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/audit/:id" component={AuditReport} />
         <Route path="/monitoring" component={MonitoringFeed} />
-        <Route path="/pricing" component={Pricing} />
         <Route path="/registry" component={Registry} />
         <Route path="/reports/:id" component={PublicReport} />
         <Route path="/graph" component={Graph} />
@@ -122,7 +119,6 @@ function Router() {
         <Route path="/admin/discovery" component={DiscoveryPanel} />
         <Route path="/admin/embed" component={EmbedGenerator} />
         <Route path="/admin/vertical-mgmt" component={VerticalManagement} />
-        <Route path="/checkout/success" component={CheckoutSuccess} />
         <Route path="/compare" component={AuditComparison} />
         <Route path="/trust" component={Trust} />
         <Route path="/docs/api" component={ApiDocs} />

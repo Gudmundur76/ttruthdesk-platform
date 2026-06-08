@@ -143,7 +143,7 @@ export function generateSiteHtml(config: MicronSiteConfig): string {
   // apiBase must be a valid https URL — strip anything that isn't
   const safeApiBase = /^https?:\/\/[a-zA-Z0-9._:/-]+$/.test(config.apiBase)
     ? config.apiBase
-    : "https://ttruthdesk.claims";
+    : "https://truthdesk.claims";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

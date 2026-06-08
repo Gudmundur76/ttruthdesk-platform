@@ -5,7 +5,7 @@
 A **micron** is a lightweight static site (8 files, ~40 KB total) that acts as a domain-specific node of the Truth Desk verification network. Each micron:
 
 - Serves a single scientific vertical (structural biology, salmon biotech, biosimilar, genomics)
-- Calls the `ttruthdesk.claims` public API for all verification logic
+- Calls the `truthdesk.claims` public API for all verification logic
 - Requires zero server infrastructure on the host — deploys to any static host (Hostinger Pro, GitHub Pages, Cloudflare Pages, IPFS)
 - Generates SEO-optimised HTML, RSS feed, sitemap, and `llms.txt` for AI discovery
 
@@ -16,7 +16,7 @@ A **micron** is a lightweight static site (8 files, ~40 KB total) that acts as a
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Truth Desk Core                          │
-│                  ttruthdesk.claims                          │
+│                  truthdesk.claims                          │
 │                                                             │
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │
 │  │ tRPC API    │  │ CopilotKit   │  │ Public REST API   │  │
@@ -55,7 +55,7 @@ A **micron** is a lightweight static site (8 files, ~40 KB total) that acts as a
 | `index.html` | Main page with widget, hero, about section | ~6 KB |
 | `css/micron.css` | Vertical-themed styles | ~3 KB |
 | `js/micron.js` | Site-level enhancements (example hint click) | ~0.5 KB |
-| `js/micron-client.js` | Truth Desk SDK — calls ttruthdesk.claims API | ~7 KB |
+| `js/micron-client.js` | Truth Desk SDK — calls truthdesk.claims API | ~7 KB |
 | `llms.txt` | AI discovery file (ChatGPT, Perplexity, Claude) | ~0.5 KB |
 | `sitemap.xml` | SEO sitemap | ~0.3 KB |
 | `feed.xml` | RSS feed linking to live API | ~0.5 KB |
@@ -143,7 +143,7 @@ The script will:
 
 ```html
 <iframe
-  src="https://ttruthdesk.claims/api/embed/frame?vertical=structural_biology&theme=dark"
+  src="https://truthdesk.claims/api/embed/frame?vertical=structural_biology&theme=dark"
   width="100%"
   height="480"
   style="border:none; border-radius:12px;"
@@ -160,32 +160,32 @@ The script will:
       vertical: "structural_biology",
       theme: "dark",
       position: "bottom-right",
-      apiBase: "https://ttruthdesk.claims"
+      apiBase: "https://truthdesk.claims"
     }
   };
 </script>
-<script src="https://ttruthdesk.claims/embed/sdk.js" async></script>
+<script src="https://truthdesk.claims/embed/sdk.js" async></script>
 ```
 
 ### Option C — Inline widget (micron-client.js)
 
 ```html
 <div data-truth-desk data-vertical="structural_biology" data-theme="dark"></div>
-<script src="https://ttruthdesk.claims/embed/micron-client.js"></script>
+<script src="https://truthdesk.claims/embed/micron-client.js"></script>
 ```
 
 ---
 
 ## Public API Reference
 
-Base URL: `https://ttruthdesk.claims/api/public/`
+Base URL: `https://truthdesk.claims/api/public/`
 
 ### POST /verify-claim
 
 Verify a single scientific claim.
 
 ```bash
-curl -X POST https://ttruthdesk.claims/api/public/verify-claim \
+curl -X POST https://truthdesk.claims/api/public/verify-claim \
   -H "Content-Type: application/json" \
   -d '{"claim": "Lysozyme was first crystallised in 1965 at 2.0 Å resolution."}'
 ```
@@ -207,7 +207,7 @@ Response:
 Browse recent verified claims.
 
 ```bash
-curl "https://ttruthdesk.claims/api/public/claims.json?limit=10&vertical=structural_biology"
+curl "https://truthdesk.claims/api/public/claims.json?limit=10&vertical=structural_biology"
 ```
 
 ---
@@ -226,7 +226,7 @@ curl "https://ttruthdesk.claims/api/public/claims.json?limit=10&vertical=structu
 | Component | Cost |
 |-----------|------|
 | Hostinger Pro Agency | $29/mo (100 sites) |
-| ttruthdesk.claims hosting | Included in Manus plan |
+| truthdesk.claims hosting | Included in Manus plan |
 | Per micron domain (.wiki, .claims) | ~$5–15/yr |
 | Per micron deployment | ~2 minutes |
 | API calls (verify-claim) | Included in Manus plan |
