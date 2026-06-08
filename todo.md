@@ -1053,3 +1053,6 @@
 - [x] Add CORS preflight + headers to /api/translate-and-search endpoint
 - [x] Add escapeLike() helper and apply to all LIKE queries in routers.ts to prevent wildcard injection
 - [x] Write Lovable.dev prompt with correct API contracts, copy fixes, and functional corrections
+- [x] Fix blank page on published site: CORS OPTIONS middleware was returning 204 for all /api/trpc requests (not just preflight), breaking React data load
+- [x] Fix translateAndSearchApi to accept and forward vertical parameter (was silently defaulting to structural_biology)
+- [x] Seed salmon_biotech vertical: 9 questions across 3 batches (pathogens, nutrition/bioactives, genetics) → +52 claims, +70 graph nodes, +27 graph edges
