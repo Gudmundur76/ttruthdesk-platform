@@ -1,8 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CopilotSidebar } from "@copilotkit/react-ui";
-import CopilotRenderers from "@/components/CopilotRenderers";
-import { ExampleQueryCarousel } from "@/components/ExampleQueryCarousel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,10 +22,19 @@ import {
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, LogOut, PanelLeft, FileText, Upload, Activity, TrendingUp, Bell, Zap, BarChart3, ArrowLeftRight, Webhook, GitBranch, Download, Network, Key, Moon, Database, ShieldCheck, Telescope, RefreshCw, Search, Rocket, Radar, Code2, Layers, BookMarked } from "lucide-react";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, Suspense, useEffect, useRef, useState, lazy } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+
+// CopilotKit: lazy-loaded to prevent 3.5MB chunk from blocking first paint
+const CopilotSidebar = lazy(() =>
+  import("@copilotkit/react-ui").then((m) => ({ default: m.CopilotSidebar }))
+);
+const CopilotRenderers = lazy(() => import("@/components/CopilotRenderers"));
+const ExampleQueryCarousel = lazy(() =>
+  import("@/components/ExampleQueryCarousel").then((m) => ({ default: m.ExampleQueryCarousel }))
+);
 
 const menuItems = [
   { icon: LayoutDashboard, label: "My Audits", path: "/dashboard" },
@@ -287,19 +293,20 @@ function DashboardLayoutContent({
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
 
-      {/* CopilotKit: generative UI renderers (no DOM output) */}
-      <CopilotRenderers />
-      <ExampleQueryCarousel />
-
-      {/* CopilotKit: AI assistant sidebar */}
-      <CopilotSidebar
+      {/* CopilotKit: lazy-loaded — no Suspense fallback needed (these are invisible/overlay components) */}
+      <Suspense fallback={null}>
+        <CopilotRenderers />
+        <ExampleQueryCarousel />
+        {/* CopilotKit: AI assistant sidebar */}
+        <CopilotSidebar
         instructions="You are the Truth Desk AI — a scientific evidence engine. For ANY question, call translateAndSearch first to decompose it into verifiable claims and search PubMed. Never say 'out of scope' or 'no molecular claims found'. Always return cited evidence with PMIDs. Everyday questions like 'can I make biotech products from salmon sludge?' are valid — translate them into claims and search the evidence."
         defaultOpen={false}
         labels={{
           title: "Truth Desk AI",
-          initial: "Ask me anything about biotech, proteins, or scientific claims — in plain language. I’ll search peer-reviewed literature and return cited evidence. Try: \"can I create biotech products from salmon sludge?\" or \"does astaxanthin reduce inflammation?\"",
+          initial: "Ask me anything about biotech, proteins, or scientific claims — in plain language. I'll search peer-reviewed literature and return cited evidence. Try: \"can I create biotech products from salmon sludge?\" or \"does astaxanthin reduce inflammation?\"",
         }}
-      />
+        />
+      </Suspense>
     </>
   );
 }
