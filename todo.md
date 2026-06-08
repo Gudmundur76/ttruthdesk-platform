@@ -1067,3 +1067,11 @@
 - [x] Update llms.txt to advertise the paginated public claims API
 - [x] Update /.well-known/mcp.json to add list_claims tool
 - [x] Write Vitest tests for the new public claims endpoints
+
+## Phase 83: Registry Search & Deep-Links
+
+- [x] Add server-side ?q= text search to GET /api/public/claims paginated endpoint (full-corpus search)
+- [x] Add GET /api/public/claims/search?q=... dedicated endpoint for external integrations (MCP/AI agents)
+- [x] Update Registry page to use server-side search when ?q= is present (fetch all matches, not just first 200)
+- [x] Add "View timeline" deep-link button to Registry page search results (links to /timeline?q=...)
+- [x] Update llms.txt and /.well-known/mcp.json to advertise the new /api/public/claims/search endpoint

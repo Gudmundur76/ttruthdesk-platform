@@ -1304,6 +1304,7 @@ export async function getPaginatedPublicClaims(opts: {
   vertical?: string;     // filter by verticalDomain
   claimType?: string;    // filter by claimType
   updatedSince?: Date;   // cursor for incremental crawls
+  q?: string;            // full-text search across claim_text and verdict_rationale
 }): Promise<{ rows: PublicClaimRow[]; total: number; totalPages: number }> {
   const db = await getDb();
   if (!db) return { rows: [], total: 0, totalPages: 0 };
@@ -1320,6 +1321,17 @@ export async function getPaginatedPublicClaims(opts: {
   if (opts.claimType) conditions.push(sql`${claims.claimType} = ${opts.claimType}`);
   if (opts.updatedSince) conditions.push(gte(claims.updatedAt, opts.updatedSince));
   if (opts.vertical) conditions.push(sql`${documents.verticalDomain} = ${opts.vertical}`);
+  if (opts.q) {
+    const pattern = `%${opts.q}%`;
+    conditions.push(
+      or(
+        like(claims.claimText, pattern),
+        like(claims.verdictRationale, pattern),
+        like(claims.pdbId, pattern),
+        like(claims.claimType, pattern),
+      )!
+    );
+  }
 
   const whereClause = conditions.length === 1
     ? conditions[0]

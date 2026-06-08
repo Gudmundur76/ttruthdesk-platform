@@ -539,3 +539,182 @@ describe("GET /api/public/claims/index.json", () => {
     expect(link).toContain('rel="describedby"');
   });
 });
+
+// ── Tests for GET /api/public/claims/search ──────────────────────────────────
+describe("GET /api/public/claims/search", () => {
+  let app: ReturnType<typeof makeApp>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    app = makeApp();
+  });
+
+  it("returns 400 when q param is missing", async () => {
+    const res = await request(app)
+      .get("/api/public/claims/search")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Missing required parameter/);
+    expect(res.body.example).toBeDefined();
+  });
+
+  it("returns 400 when q param is whitespace-only", async () => {
+    const res = await request(app)
+      .get("/api/public/claims/search?q=   ")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 200 with correct shape when q is provided", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [mockRow],
+      total: 1,
+      totalPages: 1,
+    });
+    const res = await request(app)
+      .get("/api/public/claims/search?q=Piscirickettsia")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(res.status).toBe(200);
+    expect(res.body.query).toBe("Piscirickettsia");
+    expect(res.body.total_matches).toBe(1);
+    expect(res.body.returned).toBe(1);
+    expect(Array.isArray(res.body.claims)).toBe(true);
+  });
+
+  it("passes q to getPaginatedPublicClaims", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [],
+      total: 0,
+      totalPages: 0,
+    });
+    await request(app)
+      .get("/api/public/claims/search?q=intracellular+bacterium")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "intracellular bacterium" })
+    );
+  });
+
+  it("includes timeline_url in each claim item", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [mockRow],
+      total: 1,
+      totalPages: 1,
+    });
+    const res = await request(app)
+      .get("/api/public/claims/search?q=resolution")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(res.status).toBe(200);
+    const claim = res.body.claims[0];
+    expect(claim.timeline_url).toContain("/timeline?q=");
+  });
+
+  it("respects limit param (capped at 200)", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [],
+      total: 0,
+      totalPages: 0,
+    });
+    await request(app)
+      .get("/api/public/claims/search?q=test&limit=500")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 200 })
+    );
+  });
+
+  it("returns CORS headers", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [],
+      total: 0,
+      totalPages: 0,
+    });
+    const res = await request(app)
+      .get("/api/public/claims/search?q=test")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+  });
+
+  it("OPTIONS /api/public/claims/search returns 204", async () => {
+    const res = await request(app)
+      .options("/api/public/claims/search")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(res.status).toBe(204);
+  });
+});
+
+// ── Tests for ?q= filter on GET /api/public/claims ───────────────────────────
+describe("GET /api/public/claims with ?q= filter", () => {
+  let app: ReturnType<typeof makeApp>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    app = makeApp();
+  });
+
+  it("passes q to getPaginatedPublicClaims when provided", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [mockRow],
+      total: 1,
+      totalPages: 1,
+    });
+    await request(app)
+      .get("/api/public/claims?q=salmonis")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "salmonis" })
+    );
+  });
+
+  it("includes q in filters object in response body", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [],
+      total: 0,
+      totalPages: 0,
+    });
+    const res = await request(app)
+      .get("/api/public/claims?q=bacterium")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(res.status).toBe(200);
+    expect(res.body.filters.q).toBe("bacterium");
+  });
+
+  it("includes q in Link header pagination URLs", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [mockRow],
+      total: 200,
+      totalPages: 2,
+    });
+    const res = await request(app)
+      .get("/api/public/claims?q=salmon&page=1")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    const link = res.headers["link"] ?? "";
+    expect(link).toContain("q=salmon");
+  });
+
+  it("does not pass q when param is empty string", async () => {
+    vi.mocked(db.getPaginatedPublicClaims).mockResolvedValueOnce({
+      rows: [],
+      total: 0,
+      totalPages: 0,
+    });
+    await request(app)
+      .get("/api/public/claims?q=")
+      .set("X-Forwarded-Proto", "https")
+      .set("X-Forwarded-Host", "ttruthdesk.claims");
+    expect(db.getPaginatedPublicClaims).toHaveBeenCalledWith(
+      expect.objectContaining({ q: undefined })
+    );
+  });
+});

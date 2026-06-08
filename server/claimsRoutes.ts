@@ -137,8 +137,9 @@ export function registerClaimsRoutes(app: Express): void {
     if (updatedSince && isNaN(updatedSince.getTime())) {
       return res.set(CORS_HEADERS).status(400).json({ error: "Invalid updated_since date" });
     }
+    const q = typeof req.query.q === "string" && req.query.q.trim() ? req.query.q.trim() : undefined;
     const { rows, total, totalPages } = await getPaginatedPublicClaims({
-      page, pageSize, verdict, vertical, claimType, updatedSince,
+      page, pageSize, verdict, vertical, claimType, updatedSince, q,
     });
     const base = originBase(req);
     // RFC 5988 Link headers for pagination
@@ -150,6 +151,7 @@ export function registerClaimsRoutes(app: Express): void {
       if (vertical) u.searchParams.set("vertical", vertical);
       if (claimType) u.searchParams.set("claim_type", claimType);
       if (updatedSinceStr) u.searchParams.set("updated_since", updatedSinceStr);
+      if (q) u.searchParams.set("q", q);
       return u.toString();
     };
     const linkParts = [
@@ -201,6 +203,7 @@ export function registerClaimsRoutes(app: Express): void {
           vertical: vertical ?? null,
           claim_type: claimType ?? null,
           updated_since: updatedSinceStr ?? null,
+          q: q ?? null,
         },
         claims: claimItems,
       });
@@ -243,6 +246,72 @@ export function registerClaimsRoutes(app: Express): void {
         count: index.length,
         description: "Lightweight index of all verified claims. Use api_url to fetch full claim details.",
         claims: index,
+      });
+  });
+
+  // ── Text search endpoint: GET /api/public/claims/search?q=... ─────────────
+  // Dedicated search endpoint for external integrations (MCP tools, AI agents).
+  // Returns up to 100 matching claims across the full corpus without pagination.
+  // MUST be registered BEFORE /api/public/claims/:id.
+  app.options("/api/public/claims/search", (_req, res) => {
+    res.set(CORS_HEADERS).status(204).end();
+  });
+  app.get("/api/public/claims/search", async (req: Request, res: Response) => {
+    const q = typeof req.query.q === "string" && req.query.q.trim() ? req.query.q.trim() : undefined;
+    if (!q) {
+      return res.set(CORS_HEADERS).status(400).json({
+        error: "Missing required parameter: q",
+        example: "/api/public/claims/search?q=Piscirickettsia+salmonis",
+      });
+    }
+    const limitParam = parseInt((req.query.limit as string) ?? "50", 10);
+    const limit = isNaN(limitParam) ? 50 : Math.min(Math.max(1, limitParam), 200);
+    const verdict = typeof req.query.verdict === "string" ? req.query.verdict : undefined;
+    const vertical = typeof req.query.vertical === "string" ? req.query.vertical : undefined;
+    const { rows, total } = await getPaginatedPublicClaims({
+      page: 1, pageSize: limit, q, verdict, vertical,
+    });
+    const base = originBase(req);
+    const claimItems = rows.map((r) => ({
+      id: `ptd-${r.documentId}-${r.id}`,
+      claim_id: r.id,
+      document_id: r.documentId,
+      document_title: r.documentTitle,
+      vertical_domain: r.verticalDomain,
+      claim_text: r.claimText,
+      claim_type: r.claimType,
+      extracted_value: r.extractedValue ?? null,
+      pdb_id: r.pdbId ?? null,
+      verdict: r.verdict,
+      verdict_rationale: r.verdictRationale ?? null,
+      confidence_score: r.confidenceScore ?? null,
+      evidence_url: r.pdbEvidenceUrl ?? null,
+      page_url: `${base}/claim/${r.id}`,
+      audit_url: `${base}/audit/${r.documentId}#claim-${r.id}`,
+      timeline_url: `${base}/timeline?q=${encodeURIComponent(r.claimText)}`,
+      created_at: r.createdAt.toISOString(),
+      updated_at: r.updatedAt.toISOString(),
+    }));
+    return res
+      .set({
+        ...CORS_HEADERS,
+        "X-Total-Count": String(total),
+        "X-Returned-Count": String(claimItems.length),
+        Link: [
+          `<${base}/api/public/claims>; rel="collection"`,
+          `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
+        ].join(", "),
+      })
+      .status(200)
+      .json({
+        $schema: `${base}/api/public/schemas/claims.schema.json`,
+        generated_at: new Date().toISOString(),
+        query: q,
+        total_matches: total,
+        returned: claimItems.length,
+        limit,
+        filters: { verdict: verdict ?? null, vertical: vertical ?? null },
+        claims: claimItems,
       });
   });
 

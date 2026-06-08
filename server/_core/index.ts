@@ -227,7 +227,8 @@ async function startServer() {
           verdict: { type: "string", enum: ["Supported", "Contradicted", "Partially Supported", "Ambiguous", "Insufficient Evidence", "Out of Scope", "Needs Expert Review"], description: "Filter by verdict" },
           vertical: { type: "string", enum: ["structural_biology", "salmon_biotech", "protein_supplement", "creatine_ergogenics", "gut_microbiome", "collagen_peptides", "plant_based_protein", "sports_nutrition_rct", "uniprot", "clinical_trials"], description: "Filter by research vertical" },
           claim_type: { type: "string", description: "Filter by claim type (e.g. resolution, pdb_id, method)" },
-          updated_since: { type: "string", format: "date-time", description: "ISO 8601 cursor for incremental crawls — returns only claims updated after this timestamp" }
+          updated_since: { type: "string", format: "date-time", description: "ISO 8601 cursor for incremental crawls — returns only claims updated after this timestamp" },
+          q: { type: "string", description: "Full-text search query — filters claims by claim text, rationale, PDB ID, or claim type" }
         }
       },
       output_schema: {
@@ -250,6 +251,49 @@ async function startServer() {
                 document_title: { type: "string" },
                 page_url: { type: "string", description: "Canonical URL for this claim" },
                 audit_url: { type: "string", description: "Deep link into the audit report" },
+                updated_at: { type: "string", format: "date-time" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      name: "search_claims",
+      description: "Search the full Truth Desk corpus (3,900+ verified claims) by keyword. Returns up to 200 matching claims with verdicts, rationale, evidence URLs, and direct timeline deep-links. Ideal for AI agents and MCP integrations that need to find claims about a specific topic, organism, protein, or method without paginating through the full corpus.",
+      endpoint: `${SITE_ORIGIN}/api/public/claims/search`,
+      method: "GET",
+      input_schema: {
+        type: "object",
+        properties: {
+          q: { type: "string", description: "Search query — matched against claim text, verdict rationale, PDB ID, and claim type. Example: 'Piscirickettsia salmonis intracellular'" },
+          limit: { type: "integer", minimum: 1, maximum: 200, description: "Max results to return (default 50, max 200)" },
+          verdict: { type: "string", enum: ["Supported", "Contradicted", "Partially Supported", "Ambiguous", "Insufficient Evidence", "Out of Scope", "Needs Expert Review"], description: "Optional: filter results by verdict" },
+          vertical: { type: "string", enum: ["structural_biology", "salmon_biotech", "protein_supplement", "creatine_ergogenics", "gut_microbiome", "collagen_peptides", "plant_based_protein", "sports_nutrition_rct", "uniprot", "clinical_trials"], description: "Optional: restrict to a research vertical" }
+        },
+        required: ["q"]
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          total_matches: { type: "integer", description: "Total claims matching the query in the full corpus" },
+          returned: { type: "integer", description: "Number of claims returned in this response" },
+          claims: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                claim_id: { type: "integer" },
+                claim_text: { type: "string" },
+                verdict: { type: "string" },
+                verdict_rationale: { type: "string" },
+                confidence_score: { type: "number" },
+                vertical_domain: { type: "string" },
+                pdb_id: { type: "string" },
+                evidence_url: { type: "string" },
+                page_url: { type: "string", description: "Canonical claim page URL" },
+                timeline_url: { type: "string", description: "Evidence timeline deep-link for this claim" },
                 updated_at: { type: "string", format: "date-time" }
               }
             }
@@ -500,7 +544,10 @@ async function startServer() {
       "",
       "## Public Endpoints (no auth required)",
       "",
-      "- `GET /api/public/claims?page=N&page_size=100` — paginated claims corpus (3,900+ verdicts, RFC 5988 Link headers)",
+      "- `GET /api/public/claims?page=N&page_size=100` — paginated claims corpus (3,900+ verdicts, RFC 5988 Link headers, supports ?q= text search)",
+      "- `GET /api/public/claims/search?q=...` — **recommended for agents**: full-corpus keyword search, returns up to 200 matching claims with timeline deep-links (no pagination needed)",
+      "- `GET /api/public/claims/index.json` — compact index of all claim IDs, verdicts, and vertical slugs (up to 10,000 rows)",
+      "- `GET /api/public/claims/:id` — single claim with full ClaimReview JSON-LD schema",
       "- `GET /api/public/claims.json` — most recent 200 verified claims (legacy)",
       "- `POST /api/public/verify-claim` — verify a single scientific claim (rate-limited: 30 req/min)",
       "- `GET /api/md` — markdown summary of the platform",

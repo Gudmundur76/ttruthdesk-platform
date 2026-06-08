@@ -71,12 +71,59 @@ export default function Registry() {
     return new URLSearchParams(window.location.search).get("q") ?? "";
   });
 
+  // Server-side search state (used when ?q= is present)
+  const [serverResults, setServerResults] = useState<ClaimRecord[] | null>(null);
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
+  const [serverSearching, setServerSearching] = useState(false);
+
   useEffect(() => {
     fetch("/api/public/claims.json")
       .then((r) => r.json())
       .then((d: Registry) => { setRegistry(d); setLoading(false); })
       .catch(() => { setError("Failed to load registry"); setLoading(false); });
   }, []);
+
+  // When searchText changes, debounce a server-side search for full-corpus results
+  useEffect(() => {
+    const q = searchText.trim();
+    if (!q) {
+      setServerResults(null);
+      setServerTotal(null);
+      return;
+    }
+    setServerSearching(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/public/claims/search?q=${encodeURIComponent(q)}&limit=200`, { signal: controller.signal })
+        .then((r) => r.json())
+        .then((d: { claims: Array<{ claim_id: number; claim_text: string; claim_type: string; verdict: string | null; verdict_rationale: string | null; pdb_id: string | null; evidence_url: string | null; page_url: string; updated_at: string; total_matches: number }> ; total_matches: number }) => {
+          const mapped: ClaimRecord[] = d.claims.map((c) => ({
+            id: String(c.claim_id),
+            value: c.claim_text,
+            label: c.claim_text.slice(0, 80),
+            claim_type: c.claim_type,
+            extracted_value: null,
+            verdict: c.verdict,
+            verdict_rationale: c.verdict_rationale,
+            manually_reviewed: false,
+            evidence_checked_at: c.updated_at,
+            source_refs: c.pdb_id ? [{ database: "Protein Data Bank", entry_id: c.pdb_id, url: c.evidence_url ?? `https://www.rcsb.org/structure/${c.pdb_id}` }] : [],
+            page_anchors: [c.page_url],
+            date_observed: c.updated_at,
+          }));
+          setServerResults(mapped);
+          setServerTotal(d.total_matches);
+          setServerSearching(false);
+        })
+        .catch((err) => {
+          if (err.name !== "AbortError") setServerSearching(false);
+        });
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchText]);
 
   // Keep URL in sync with search text
   useEffect(() => {
@@ -101,8 +148,12 @@ export default function Registry() {
     "Out of Scope",
   ];
 
-  // Client-side text search: filter by claim value, rationale, or claim type
+  // Use server results when a search query is active, otherwise fall back to local registry
   const filtered = useMemo(() => {
+    if (searchText.trim() && serverResults !== null) {
+      // Server results already match the query; apply only the verdict filter client-side
+      return serverResults.filter((c) => filter === "all" || c.verdict === filter);
+    }
     if (!registry) return [];
     const q = searchText.trim().toLowerCase();
     return registry.claims.filter((c) => {
@@ -116,7 +167,7 @@ export default function Registry() {
         c.source_refs.some((r) => r.entry_id.toLowerCase().includes(q))
       );
     });
-  }, [registry, filter, searchText]);
+  }, [registry, filter, searchText, serverResults]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -277,18 +328,36 @@ export default function Registry() {
             </div>
             {/* Search result count */}
             {searchText.trim() && (
-              <p className="text-xs text-slate-500 mb-4">
-                {filtered.length === 0
-                  ? `No claims match "${searchText.trim()}"`
-                  : `${filtered.length} claim${filtered.length === 1 ? "" : "s"} match "${searchText.trim()}"`
-                }
-                {filtered.length === 0 && (
-                  <button
-                    onClick={() => navigate(`/search?q=${encodeURIComponent(searchText.trim())}`)}
-                    className="ml-2 text-blue-600 hover:underline"
-                  >
-                    Try full semantic search →
-                  </button>
+              <p className="text-xs text-slate-500 mb-4 flex items-center gap-2">
+                {serverSearching ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" />
+                    Searching full corpus…
+                  </>
+                ) : filtered.length === 0 ? (
+                  <>
+                    No claims match &ldquo;{searchText.trim()}&rdquo;
+                    <button
+                      onClick={() => navigate(`/search?q=${encodeURIComponent(searchText.trim())}`)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Try full semantic search →
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium text-slate-700">{filtered.length}</span>
+                    {serverTotal !== null && serverTotal > filtered.length && (
+                      <span className="text-slate-400">(of {serverTotal} total matches)</span>
+                    )}
+                    claim{filtered.length === 1 ? "" : "s"} match &ldquo;{searchText.trim()}&rdquo;
+                    <button
+                      onClick={() => navigate(`/timeline?q=${encodeURIComponent(searchText.trim())}`)}
+                      className="text-violet-600 hover:underline"
+                    >
+                      View timeline ↗
+                    </button>
+                  </>
                 )}
               </p>
             )}
@@ -359,6 +428,13 @@ export default function Registry() {
                         View in report ↗
                       </a>
                     )}
+                    <button
+                      onClick={() => navigate(`/timeline?q=${encodeURIComponent(claim.value)}`)}
+                      className="text-xs text-violet-600 hover:text-violet-800 hover:underline"
+                      title="View evidence timeline for this claim"
+                    >
+                      Timeline ↗
+                    </button>
                     {claim.evidence_checked_at && (
                       <span className="text-xs text-slate-300 ml-auto">
                         Checked {new Date(claim.evidence_checked_at).toLocaleDateString()}
