@@ -132,8 +132,15 @@ function SimilarityBadge({ score, source }: { score: number; source: "vector" | 
 
 export default function Search() {
   const [, navigate] = useLocation();
-  const [inputValue, setInputValue] = useState("");
-  const [query, setQuery] = useState("");
+  // Pre-populate from ?q= URL param on mount
+  const [inputValue, setInputValue] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q") ?? "";
+  });
+  const [query, setQuery] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q") ?? "";
+  });
   const [verticalDomain, setVerticalDomain] = useState<string>("all");
   const [verdict, setVerdict] = useState<string>("all");
   const [mode, setMode] = useState<"keyword" | "semantic">("keyword");

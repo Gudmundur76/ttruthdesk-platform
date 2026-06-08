@@ -5,7 +5,8 @@
  * molecular claims across all audited documents.  No login required.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useLocation } from "wouter";
 import { TopNav } from "@/components/TopNav";
 import { getLoginUrl } from "@/const";
 
@@ -58,10 +59,17 @@ function VerdictPill({ verdict }: { verdict: string | null }) {
 }
 
 export default function Registry() {
+  const [, navigate] = useLocation();
   const [registry, setRegistry] = useState<Registry | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
+
+  // Read ?q= from URL on mount and populate the search input
+  const [searchText, setSearchText] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q") ?? "";
+  });
 
   useEffect(() => {
     fetch("/api/public/claims.json")
@@ -69,6 +77,18 @@ export default function Registry() {
       .then((d: Registry) => { setRegistry(d); setLoading(false); })
       .catch(() => { setError("Failed to load registry"); setLoading(false); });
   }, []);
+
+  // Keep URL in sync with search text
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (searchText.trim()) {
+      url.searchParams.set("q", searchText.trim());
+    } else {
+      url.searchParams.delete("q");
+    }
+    window.history.replaceState(null, "", url.toString());
+  }, [searchText]);
 
   const verdictOptions = [
     "all",
@@ -81,9 +101,22 @@ export default function Registry() {
     "Out of Scope",
   ];
 
-  const filtered = registry?.claims.filter(
-    (c) => filter === "all" || c.verdict === filter
-  ) ?? [];
+  // Client-side text search: filter by claim value, rationale, or claim type
+  const filtered = useMemo(() => {
+    if (!registry) return [];
+    const q = searchText.trim().toLowerCase();
+    return registry.claims.filter((c) => {
+      const matchesVerdict = filter === "all" || c.verdict === filter;
+      if (!matchesVerdict) return false;
+      if (!q) return true;
+      return (
+        c.value.toLowerCase().includes(q) ||
+        (c.verdict_rationale ?? "").toLowerCase().includes(q) ||
+        c.claim_type.toLowerCase().includes(q) ||
+        c.source_refs.some((r) => r.entry_id.toLowerCase().includes(q))
+      );
+    });
+  }, [registry, filter, searchText]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -201,6 +234,64 @@ export default function Registry() {
 
         {registry && registry.count > 0 && (
           <>
+            {/* Search bar */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="relative flex-1">
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="Filter claims by text, PDB ID, or claim type…"
+                  className="w-full bg-white border border-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 transition-all"
+                />
+                {searchText && (
+                  <button
+                    onClick={() => setSearchText("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    aria-label="Clear search"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => navigate(`/search?q=${encodeURIComponent(searchText || "")}`)}
+                className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 hover:bg-blue-100 transition-colors whitespace-nowrap"
+                title="Full semantic + keyword search"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                Full search ↗
+              </button>
+            </div>
+            {/* Search result count */}
+            {searchText.trim() && (
+              <p className="text-xs text-slate-500 mb-4">
+                {filtered.length === 0
+                  ? `No claims match "${searchText.trim()}"`
+                  : `${filtered.length} claim${filtered.length === 1 ? "" : "s"} match "${searchText.trim()}"`
+                }
+                {filtered.length === 0 && (
+                  <button
+                    onClick={() => navigate(`/search?q=${encodeURIComponent(searchText.trim())}`)}
+                    className="ml-2 text-blue-600 hover:underline"
+                  >
+                    Try full semantic search →
+                  </button>
+                )}
+              </p>
+            )}
             {/* Filter bar */}
             <div className="flex flex-wrap gap-2 mb-6">
               {verdictOptions.map((v) => (
