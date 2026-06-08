@@ -17,7 +17,7 @@ const VERTICAL_META: Record<
     accentBg: string;
     accentText: string;
     icon: React.ReactNode;
-    status: "live" | "beta" | "coming_soon";
+    status: "live" | "beta";
   }
 > = {
   structural_biology: {
@@ -57,39 +57,154 @@ const VERTICAL_META: Record<
         <circle cx="9" cy="12" r="1.5" fill="currentColor" />
       </svg>
     ),
-    status: "beta",
+    status: "live",
   },
-};
-
-// ─── Upcoming verticals ───────────────────────────────────────────────────────
-
-const UPCOMING = [
-  {
-    label: "Clinical Genomics",
-    tagline: "GWAS · ClinVar · gnomAD · Variant interpretation",
-    color: "#8b5cf6",
-    accentBg: "bg-violet-50",
-    accentText: "text-violet-700",
-  },
-  {
-    label: "Drug Discovery",
-    tagline: "ChEMBL · DrugBank · Clinical trials · IC50 claims",
+  protein_supplement: {
+    label: "Protein Supplements",
+    tagline: "Whey · Casein · Pea · Soy · PubChem · PubMed",
+    description:
+      "Verifies claims about protein supplements (whey, casein, soy, pea, collagen, etc.) against PubChem compound data and peer-reviewed sports nutrition literature. Covers amino acid profiles, bioavailability, leucine content, and efficacy claims.",
+    evidenceSources: ["PubChem", "PubMed Sports Nutrition", "USDA FoodData Central", "Examine.com Research"],
     color: "#f59e0b",
     accentBg: "bg-amber-50",
     accentText: "text-amber-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+        <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+        <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+        <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+        <circle cx="12" cy="12" r="4" />
+      </svg>
+    ),
+    status: "live",
   },
-  {
-    label: "Agri-Biotech",
-    tagline: "USDA · Crop genomics · Trait claims · Yield data",
+  creatine_ergogenics: {
+    label: "Creatine & Ergogenics",
+    tagline: "Creatine · Beta-Alanine · HMB · Caffeine · RCT Evidence",
+    description:
+      "Verifies performance and safety claims about creatine monohydrate, beta-alanine, HMB, caffeine, citrulline, and other ergogenic aids against PubChem compound data and systematic reviews of RCT evidence.",
+    evidenceSources: ["PubChem", "PubMed RCTs", "Cochrane Reviews", "ISSN Position Stands"],
+    color: "#ef4444",
+    accentBg: "bg-red-50",
+    accentText: "text-red-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+      </svg>
+    ),
+    status: "live",
+  },
+  gut_microbiome: {
+    label: "Gut Microbiome & Protein",
+    tagline: "Microbiome · Prebiotics · Probiotics · Fermentation",
+    description:
+      "Verifies claims about the interaction between dietary protein and the gut microbiome, including probiotic and prebiotic effects, fermentation markers, and microbial diversity outcomes against peer-reviewed microbiome research.",
+    evidenceSources: ["PubMed Microbiome", "Human Microbiome Project", "NCBI Taxonomy", "Gut Microbiota for Health"],
+    color: "#8b5cf6",
+    accentBg: "bg-violet-50",
+    accentText: "text-violet-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+        <path d="M7 10c1.5-1 3.5-1 5 0s3.5 1 5 0" />
+        <path d="M7 14c1.5 1 3.5 1 5 0s3.5-1 5 0" />
+      </svg>
+    ),
+    status: "live",
+  },
+  collagen_peptides: {
+    label: "Collagen & Peptides",
+    tagline: "Hydrolysed Collagen · Skin Elasticity · Joint Health",
+    description:
+      "Verifies claims about hydrolysed collagen, collagen peptides, and gelatin supplements and their effects on skin elasticity, joint health, and bone density against PubChem compound data and clinical trial evidence.",
+    evidenceSources: ["PubChem", "PubMed Dermatology", "ClinicalTrials.gov", "EFSA Scientific Opinions"],
+    color: "#ec4899",
+    accentBg: "bg-pink-50",
+    accentText: "text-pink-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+        <path d="M8 12h8" />
+        <path d="M12 8v8" />
+      </svg>
+    ),
+    status: "live",
+  },
+  plant_based_protein: {
+    label: "Plant-Based Protein",
+    tagline: "Soy · Pea · Rice · Hemp · Mycoprotein · DIAAS Scores",
+    description:
+      "Verifies claims about plant protein sources (soy, pea, rice, hemp, lentil, quinoa, mycoprotein) including nutritional completeness, amino acid profiles, digestibility (DIAAS scores), and environmental impact claims.",
+    evidenceSources: ["PubChem", "USDA FoodData Central", "FAO/WHO DIAAS Reports", "PubMed Nutrition"],
     color: "#84cc16",
     accentBg: "bg-lime-50",
     accentText: "text-lime-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M12 22V12" />
+        <path d="M12 12C12 7 8 3 3 3c0 5 4 9 9 9" />
+        <path d="M12 12c0-5 4-9 9-9-1 5-5 9-9 9" />
+      </svg>
+    ),
+    status: "live",
   },
-];
+  sports_nutrition_rct: {
+    label: "Sports Nutrition RCTs",
+    tagline: "RCTs · Systematic Reviews · Meta-analyses · GRADE",
+    description:
+      "Meta-vertical that verifies sports nutrition claims specifically against high-quality RCT and systematic review evidence. Applies strict evidence grading (GRADE methodology) to distinguish well-supported claims from those lacking robust trial data.",
+    evidenceSources: ["PubMed RCTs", "Cochrane Library", "ISSN Position Stands", "EFSA NDA Panel"],
+    color: "#0ea5e9",
+    accentBg: "bg-sky-50",
+    accentText: "text-sky-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
+    status: "live",
+  },
+  uniprot: {
+    label: "UniProt (Protein Identity)",
+    tagline: "UniProt · SwissProt · Gene Names · Functional Annotations",
+    description:
+      "Verifies protein identity claims (protein names, gene names, organism associations, functional annotations) against the UniProt/Swiss-Prot knowledgebase — the world's most comprehensive manually annotated protein database.",
+    evidenceSources: ["UniProt/Swiss-Prot", "UniProt/TrEMBL", "Ensembl", "NCBI Gene"],
+    color: "#6366f1",
+    accentBg: "bg-indigo-50",
+    accentText: "text-indigo-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      </svg>
+    ),
+    status: "live",
+  },
+  clinical_trials: {
+    label: "ClinicalTrials.gov",
+    tagline: "Trial Registry · Phases · Status · Interventions",
+    description:
+      "Verifies clinical trial claims (trial registration, status, interventions, phases, enrollment) against the ClinicalTrials.gov registry — the world's largest database of publicly and privately supported clinical studies.",
+    evidenceSources: ["ClinicalTrials.gov", "EU Clinical Trials Register", "WHO ICTRP", "PubMed Clinical"],
+    color: "#14b8a6",
+    accentBg: "bg-teal-50",
+    accentText: "text-teal-700",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18" />
+      </svg>
+    ),
+    status: "live",
+  },
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: "live" | "beta" | "coming_soon" }) {
+function StatusBadge({ status }: { status: "live" | "beta" }) {
   if (status === "live") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-2.5 py-0.5 text-xs font-semibold">
@@ -98,17 +213,10 @@ function StatusBadge({ status }: { status: "live" | "beta" | "coming_soon" }) {
       </span>
     );
   }
-  if (status === "beta") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 text-blue-700 px-2.5 py-0.5 text-xs font-semibold">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-        Beta
-      </span>
-    );
-  }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-500 px-2.5 py-0.5 text-xs font-semibold">
-      Coming soon
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 text-blue-700 px-2.5 py-0.5 text-xs font-semibold">
+      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+      Beta
     </span>
   );
 }
@@ -272,49 +380,16 @@ export default function Verticals() {
         </div>
       </section>
 
-      {/* Upcoming verticals */}
+      {/* Custom vertical CTA */}
       <section className="border-t border-border bg-slate-50">
         <div className="container py-16">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-            On the roadmap
-          </h2>
-          <p className="text-slate-500 text-sm mb-8">Verticals in research or early development. Interested in one? Request it below.</p>
-
-          <div className="grid sm:grid-cols-3 gap-4 mb-12">
-            {UPCOMING.map((v, i) => (
-              <motion.div
-                key={v.label}
-                custom={i}
-                initial="hidden"
-                animate="visible"
-                variants={fadeUp}
-                className="rounded-xl border border-border bg-white p-5 flex flex-col gap-3"
-              >
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: v.color + "18" }}
-                >
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: v.color }} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 text-sm">{v.label}</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">{v.tagline}</p>
-                </div>
-                <span className={cn("self-start rounded-full px-2.5 py-0.5 text-xs font-medium", v.accentBg, v.accentText)}>
-                  Planned
-                </span>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Request a new vertical CTA */}
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-8 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
               <h3 className="text-xl font-bold text-slate-900 mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                Need a vertical that isn't listed?
+                Need a domain that isn’t listed?
               </h3>
               <p className="text-slate-600 text-sm leading-relaxed max-w-xl">
-                The Truth Desk engine can be adapted to any scientific domain with authoritative databases. If you work in a field where verifiable claims matter — materials science, environmental monitoring, food safety, or anything else — reach out and we'll scope a vertical together.
+                The Truth Desk engine can be adapted to any scientific domain with authoritative databases. If you work in a field where verifiable claims matter — materials science, environmental monitoring, food safety, or clinical genomics — reach out and we’ll scope a vertical together.
               </p>
             </div>
             <div className="flex-shrink-0">

@@ -72,10 +72,16 @@ export async function setupVite(app: Express, server: Server) {
     <section aria-labelledby="verticals-heading">
       <h2 id="verticals-heading">Research Verticals</h2>
       <ul>
-        <li>Structural Biology (live) — verified against RCSB PDB</li>
-        <li>Salmon Biotech (beta) — verified against PubChem and PMC OA</li>
-        <li>Drug Discovery (coming soon)</li>
-        <li>Clinical Genomics (coming soon)</li>
+        <li>Structural Biology (live) — verified against RCSB PDB, PDB Europe, UniProt</li>
+        <li>Salmon Biotech (live) — verified against PubChem, PubMed Aquaculture, FAO Fisheries</li>
+        <li>Protein Supplements (live) — verified against PubChem, PubMed Sports Nutrition, USDA FoodData Central</li>
+        <li>Creatine &amp; Ergogenics (live) — verified against PubChem, PubMed RCTs, Cochrane Reviews</li>
+        <li>Gut Microbiome &amp; Protein (live) — verified against PubMed Microbiome, Human Microbiome Project</li>
+        <li>Collagen &amp; Peptides (live) — verified against PubChem, PubMed Dermatology, ClinicalTrials.gov</li>
+        <li>Plant-Based Protein (live) — verified against PubChem, USDA FoodData Central, FAO/WHO DIAAS Reports</li>
+        <li>Sports Nutrition RCTs (live) — verified against PubMed RCTs, Cochrane Library, ISSN Position Stands</li>
+        <li>UniProt Protein Identity (live) — verified against UniProt/Swiss-Prot, UniProt/TrEMBL, NCBI Gene</li>
+        <li>ClinicalTrials.gov (live) — verified against ClinicalTrials.gov, EU Clinical Trials Register, WHO ICTRP</li>
       </ul>
     </section>
     <section aria-labelledby="api-heading">
@@ -151,7 +157,7 @@ ${JSON.stringify({
         {
           "@type": "Question",
           "name": "What research verticals does Truth Desk cover?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Truth Desk currently covers Structural Biology (verified against RCSB PDB) and Salmon Biotech (verified against PubChem and PMC Open Access), with Drug Discovery and Clinical Genomics coming soon." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Truth Desk currently covers 10 live research verticals: Structural Biology (RCSB PDB), Salmon Biotech (PubChem, FAO Fisheries), Protein Supplements (USDA FoodData Central), Creatine & Ergogenics (Cochrane Reviews), Gut Microbiome & Protein (Human Microbiome Project), Collagen & Peptides (ClinicalTrials.gov), Plant-Based Protein (FAO/WHO DIAAS), Sports Nutrition RCTs (ISSN Position Stands), UniProt Protein Identity (UniProt/Swiss-Prot), and ClinicalTrials.gov (WHO ICTRP)." }
         }
       ]
     }
@@ -202,9 +208,14 @@ function buildSemanticInjection(): { headMeta: string; noscriptBlock: string } {
       <ul>
         <li><strong>Structural Biology</strong> — Verifies protein structure claims against PDB deposited crystal structures. Covers fold topology, binding site geometry, resolution thresholds, and crystallographic evidence.</li>
         <li><strong>Salmon Biotech</strong> — Verifies aquaculture and marine biotech claims against PubChem compound data and PubMed literature. Covers feed additives, growth factors, and disease resistance compounds.</li>
-        <li><strong>Drug Discovery</strong> — Coming soon. Will cover small molecule candidates, target binding affinity, and ADMET property claims.</li>
-        <li><strong>Clinical Genomics</strong> — Coming soon. Will cover variant pathogenicity, gene expression, and clinical association claims.</li>
-        <li><strong>Cancer Biology</strong> — Coming soon. Will cover oncogene activity, tumour suppressor function, and therapeutic target claims.</li>
+        <li><strong>Protein Supplements</strong> — Verifies supplement efficacy and safety claims against PubChem compound data, PubMed Sports Nutrition literature, and USDA FoodData Central.</li>
+        <li><strong>Creatine &amp; Ergogenics</strong> — Verifies ergogenic aid claims against PubMed RCTs, Cochrane systematic reviews, and ISSN position statements.</li>
+        <li><strong>Gut Microbiome &amp; Protein</strong> — Verifies microbiome-protein interaction claims against PubMed Microbiome literature and the Human Microbiome Project database.</li>
+        <li><strong>Collagen &amp; Peptides</strong> — Verifies collagen supplement claims against PubChem, PubMed Dermatology literature, and ClinicalTrials.gov registered studies.</li>
+        <li><strong>Plant-Based Protein</strong> — Verifies plant protein bioavailability and DIAAS claims against USDA FoodData Central and FAO/WHO DIAAS Reports.</li>
+        <li><strong>Sports Nutrition RCTs</strong> — Verifies sports nutrition claims against PubMed RCTs, Cochrane Library meta-analyses, and ISSN Position Stands.</li>
+        <li><strong>UniProt Protein Identity</strong> — Verifies protein identity, function, and sequence claims against UniProt/Swiss-Prot, UniProt/TrEMBL, and NCBI Gene.</li>
+        <li><strong>ClinicalTrials.gov</strong> — Verifies clinical trial status and outcome claims against ClinicalTrials.gov, EU Clinical Trials Register, and WHO ICTRP.</li>
       </ul>
       <p><a href="/verticals">View all verticals and live statistics</a></p>
     </section>

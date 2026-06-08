@@ -133,10 +133,16 @@ async function startServer() {
         "",
         "## Verticals",
         "",
-        "- Structural Biology (live)",
-        "- Salmon Biotech (beta)",
-        "- Drug Discovery (coming soon)",
-        "- Clinical Genomics (coming soon)",
+        "- Structural Biology (live) — RCSB PDB, PDB Europe, UniProt",
+        "- Salmon Biotech (live) — PubChem, PubMed Aquaculture, FAO Fisheries",
+        "- Protein Supplements (live) — PubChem, PubMed Sports Nutrition, USDA FoodData Central",
+        "- Creatine & Ergogenics (live) — PubChem, PubMed RCTs, Cochrane Reviews",
+        "- Gut Microbiome & Protein (live) — PubMed Microbiome, Human Microbiome Project",
+        "- Collagen & Peptides (live) — PubChem, PubMed Dermatology, ClinicalTrials.gov",
+        "- Plant-Based Protein (live) — PubChem, USDA FoodData Central, FAO/WHO DIAAS Reports",
+        "- Sports Nutrition RCTs (live) — PubMed RCTs, Cochrane Library, ISSN Position Stands",
+        "- UniProt Protein Identity (live) — UniProt/Swiss-Prot, UniProt/TrEMBL, NCBI Gene",
+        "- ClinicalTrials.gov (live) — ClinicalTrials.gov, EU Clinical Trials Register, WHO ICTRP",
       ].join("\n");
       const tokens = Math.ceil(md.length / 4);
       return res
@@ -166,7 +172,7 @@ async function startServer() {
         type: "object",
         properties: {
           claim: { type: "string", description: "The scientific claim text to verify, e.g. 'BRCA1 forms a heterodimer with BARD1 stabilised by a RING domain interface'" },
-          vertical: { type: "string", enum: ["structural_biology", "salmon_biotech"], description: "Optional: restrict verification to a specific research domain" }
+          vertical: { type: "string", enum: ["structural_biology", "salmon_biotech", "protein_supplement", "creatine_ergogenics", "gut_microbiome", "collagen_peptides", "plant_based_protein", "sports_nutrition_rct", "uniprot", "clinical_trials"], description: "Optional: restrict verification to a specific research domain" }
         },
         required: ["claim"]
       },
@@ -277,7 +283,7 @@ async function startServer() {
           title: { type: "string", description: "Document title" },
           rawText: { type: "string", description: "Full text of the document to audit" },
           sourceType: { type: "string", enum: ["manual", "pmid", "doi", "url"], description: "How the document was sourced" },
-          verticalDomain: { type: "string", enum: ["structural_biology", "salmon_biotech", "general"], description: "Research domain for targeted verification" }
+          verticalDomain: { type: "string", enum: ["structural_biology", "salmon_biotech", "protein_supplement", "creatine_ergogenics", "gut_microbiome", "collagen_peptides", "plant_based_protein", "sports_nutrition_rct", "uniprot", "clinical_trials", "general"], description: "Research domain for targeted verification" }
         },
         required: ["rawText"]
       },
@@ -415,10 +421,16 @@ async function startServer() {
       "",
       "## Verticals",
       "",
-      "- Structural Biology (live)",
-      "- Salmon Biotech (beta)",
-      "- Drug Discovery (coming soon)",
-      "- Clinical Genomics (coming soon)",
+      "- Structural Biology (live) — RCSB PDB, PDB Europe, UniProt",
+      "- Salmon Biotech (live) — PubChem, PubMed Aquaculture, FAO Fisheries",
+      "- Protein Supplements (live) — PubChem, PubMed Sports Nutrition, USDA FoodData Central",
+      "- Creatine & Ergogenics (live) — PubChem, PubMed RCTs, Cochrane Reviews",
+      "- Gut Microbiome & Protein (live) — PubMed Microbiome, Human Microbiome Project",
+      "- Collagen & Peptides (live) — PubChem, PubMed Dermatology, ClinicalTrials.gov",
+      "- Plant-Based Protein (live) — PubChem, USDA FoodData Central, FAO/WHO DIAAS Reports",
+      "- Sports Nutrition RCTs (live) — PubMed RCTs, Cochrane Library, ISSN Position Stands",
+      "- UniProt Protein Identity (live) — UniProt/Swiss-Prot, UniProt/TrEMBL, NCBI Gene",
+      "- ClinicalTrials.gov (live) — ClinicalTrials.gov, EU Clinical Trials Register, WHO ICTRP",
     ].join("\n");
     res.set({ "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=3600" }).send(md);
   });
@@ -819,7 +831,7 @@ async function startServer() {
           required: ["claim"],
           properties: {
             claim: { type: "string", description: "The scientific claim text to verify" },
-            vertical: { type: "string", enum: ["structural_biology", "salmon_biotech"], description: "Optional: restrict to a specific domain" }
+            vertical: { type: "string", enum: ["structural_biology", "salmon_biotech", "protein_supplement", "creatine_ergogenics", "gut_microbiome", "collagen_peptides", "plant_based_protein", "sports_nutrition_rct", "uniprot", "clinical_trials"], description: "Optional: restrict to a specific domain" }
           }
         },
         VerifyClaimResponse: {
