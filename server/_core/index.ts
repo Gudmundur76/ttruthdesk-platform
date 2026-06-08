@@ -122,11 +122,16 @@ async function startServer() {
         "",
         "## Machine-readable endpoints",
         "",
-        "- GET /api/public/claims.json — full claims registry",
+        "- GET /api/public/claims?page=N&page_size=100 — paginated claims corpus (all 3,900+ verdicts)",
+        "  - Filters: ?verdict=Supported|Contradicted|Ambiguous|... &vertical=structural_biology|... &claim_type=pdb_id|...",
+        "  - Cursor: ?updated_since=2024-01-01T00:00:00Z for incremental crawls",
+        "  - RFC 5988 Link headers: first/prev/next/last for pagination",
+        "  - Headers: X-Total-Count, X-Total-Pages, X-Page, X-Page-Size",
+        "- GET /api/public/claims.json — most recent 200 verified claims (legacy)",
         "- POST /api/public/verify-claim — verify a single claim",
         "- GET /.well-known/mcp.json — MCP tool card",
         "- GET /llms.txt — AI instructions",
-        "- GET /sitemap.xml — all public report URLs",
+        "- GET /sitemap.xml — all public report URLs (4,000+ claim URLs)",
         "- GET /.well-known/agent-skills/index.json — agent skills discovery",
         "- GET /.well-known/api-catalog — API catalog (RFC 9727)",
         "- GET /.well-known/oauth-protected-resource — OAuth resource metadata (RFC 9728)",
@@ -205,6 +210,49 @@ async function startServer() {
             verticalDomain: { type: "string" },
             evidenceSource: { type: "string" },
             reportUrl: { type: "string" }
+          }
+        }
+      }
+    },
+    {
+      name: "list_claims",
+      description: "Paginated access to all 3,900+ verified claims in the Truth Desk corpus. Supports filtering by verdict, vertical domain, claim type, and updated_since cursor for incremental crawls. Returns RFC 5988 Link headers (first/prev/next/last) and X-Total-Count for full corpus traversal.",
+      endpoint: `${SITE_ORIGIN}/api/public/claims`,
+      method: "GET",
+      input_schema: {
+        type: "object",
+        properties: {
+          page: { type: "integer", minimum: 1, description: "Page number (1-based, default 1)" },
+          page_size: { type: "integer", minimum: 1, maximum: 500, description: "Claims per page (default 100, max 500)" },
+          verdict: { type: "string", enum: ["Supported", "Contradicted", "Partially Supported", "Ambiguous", "Insufficient Evidence", "Out of Scope", "Needs Expert Review"], description: "Filter by verdict" },
+          vertical: { type: "string", enum: ["structural_biology", "salmon_biotech", "protein_supplement", "creatine_ergogenics", "gut_microbiome", "collagen_peptides", "plant_based_protein", "sports_nutrition_rct", "uniprot", "clinical_trials"], description: "Filter by research vertical" },
+          claim_type: { type: "string", description: "Filter by claim type (e.g. resolution, pdb_id, method)" },
+          updated_since: { type: "string", format: "date-time", description: "ISO 8601 cursor for incremental crawls — returns only claims updated after this timestamp" }
+        }
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          page: { type: "integer" },
+          page_size: { type: "integer" },
+          total: { type: "integer", description: "Total matching claims" },
+          total_pages: { type: "integer" },
+          claims: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                claim_id: { type: "integer" },
+                claim_text: { type: "string" },
+                verdict: { type: "string" },
+                confidence_score: { type: "number" },
+                vertical_domain: { type: "string" },
+                document_title: { type: "string" },
+                page_url: { type: "string", description: "Canonical URL for this claim" },
+                audit_url: { type: "string", description: "Deep link into the audit report" },
+                updated_at: { type: "string", format: "date-time" }
+              }
+            }
           }
         }
       }
@@ -413,11 +461,18 @@ async function startServer() {
       "",
       "## Machine-readable endpoints",
       "",
-      "- GET /api/public/claims.json — full claims registry",
+      "- GET /api/public/claims?page=N&page_size=100 — paginated claims corpus (3,900+ verdicts)",
+      "  Filters: ?verdict=Supported|Contradicted|Ambiguous|Partially+Supported|Insufficient+Evidence",
+      "          &vertical=structural_biology|salmon_biotech|protein_supplement|creatine_ergogenics|...",
+      "          &claim_type=pdb_id|protein_name|resolution|experimental_method|organism|ligand|general_molecular",
+      "          &updated_since=ISO8601 for incremental crawls",
+      "  Response headers: X-Total-Count, X-Total-Pages, X-Page, X-Page-Size",
+      "  Link headers: RFC 5988 first/prev/next/last for pagination",
+      "- GET /api/public/claims.json — most recent 200 verified claims (legacy)",
       "- POST /api/public/verify-claim — verify a single claim",
       "- GET /.well-known/mcp.json — MCP tool card",
       "- GET /llms.txt — AI instructions",
-      "- GET /sitemap.xml — all public report URLs",
+      "- GET /sitemap.xml — all public report URLs (4,000+ claim URLs)",
       "",
       "## Verticals",
       "",
@@ -445,7 +500,8 @@ async function startServer() {
       "",
       "## Public Endpoints (no auth required)",
       "",
-      "- `GET /api/public/claims.json` — full verified claims registry",
+      "- `GET /api/public/claims?page=N&page_size=100` — paginated claims corpus (3,900+ verdicts, RFC 5988 Link headers)",
+      "- `GET /api/public/claims.json` — most recent 200 verified claims (legacy)",
       "- `POST /api/public/verify-claim` — verify a single scientific claim (rate-limited: 30 req/min)",
       "- `GET /api/md` — markdown summary of the platform",
       "- `GET /.well-known/mcp.json` — MCP tool card (Scout-compatible, includes policy_conformance)",
@@ -506,6 +562,8 @@ async function startServer() {
       "Allow: /claim/",
       "Allow: /registry",
       "Allow: /reports/",
+      "Allow: /api/public/claims",
+      "Allow: /api/public/claims.json",
       "Allow: /llms.txt",
       "Allow: /.well-known/",
       "Disallow: /api/trpc/",
@@ -518,6 +576,8 @@ async function startServer() {
       "Allow: /claim/",
       "Allow: /registry",
       "Allow: /reports/",
+      "Allow: /api/public/claims",
+      "Allow: /api/public/claims.json",
       "Allow: /llms.txt",
       "Allow: /.well-known/",
       "Disallow: /api/trpc/",
@@ -530,6 +590,8 @@ async function startServer() {
       "Allow: /claim/",
       "Allow: /registry",
       "Allow: /reports/",
+      "Allow: /api/public/claims",
+      "Allow: /api/public/claims.json",
       "Allow: /llms.txt",
       "Allow: /.well-known/",
       "Disallow: /api/trpc/",
@@ -540,6 +602,8 @@ async function startServer() {
       "Allow: /claim/",
       "Allow: /registry",
       "Allow: /reports/",
+      "Allow: /api/public/claims",
+      "Allow: /api/public/claims.json",
       "Allow: /llms.txt",
       "Allow: /.well-known/",
       "Disallow: /api/trpc/",
@@ -566,6 +630,8 @@ async function startServer() {
       "Allow: /claim/",
       "Allow: /registry",
       "Allow: /reports/",
+      "Allow: /api/public/claims",
+      "Allow: /api/public/claims.json",
       "Allow: /llms.txt",
       "Allow: /.well-known/",
       "Disallow: /api/trpc/",

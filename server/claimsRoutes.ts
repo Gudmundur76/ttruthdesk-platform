@@ -21,7 +21,10 @@ import {
   getClaimsByDocument,
   getAuditReportByDocument,
   getRecentVerifiedClaims,
+  getPaginatedPublicClaims,
+  getClaimWithDocument,
 } from "./db";
+import { buildClaimReviewJsonLd } from "./claimPageRoute";
 import {
   buildDocumentRegistry,
   buildGlobalRegistry,
@@ -111,6 +114,143 @@ export function registerClaimsRoutes(app: Express): void {
       })
       .status(200)
       .json(registry);
+  });
+
+  // ── Paginated public claims: GET /api/public/claims?page=N ─────────────────
+  // Turns all 3,919+ verdicts into indexable URLs for AI crawlers.
+  // Each page returns up to 100 claims with full metadata and RFC 5988 Link
+  // headers so crawlers can walk the entire corpus page-by-page.
+  app.options("/api/public/claims", (_req, res) => {
+    res.set(CORS_HEADERS).status(204).end();
+  });
+  app.get("/api/public/claims", async (req: Request, res: Response) => {
+    const pageParam = parseInt((req.query.page as string) ?? "1", 10);
+    const pageSizeParam = parseInt((req.query.page_size as string) ?? "100", 10);
+    const page = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
+    const pageSize = isNaN(pageSizeParam) ? 100 : Math.min(Math.max(1, pageSizeParam), 500);
+    const verdict = typeof req.query.verdict === "string" ? req.query.verdict : undefined;
+    const vertical = typeof req.query.vertical === "string" ? req.query.vertical : undefined;
+    const claimType = typeof req.query.claim_type === "string" ? req.query.claim_type : undefined;
+    const updatedSinceStr = typeof req.query.updated_since === "string" ? req.query.updated_since : undefined;
+    const updatedSince = updatedSinceStr ? new Date(updatedSinceStr) : undefined;
+    if (updatedSince && isNaN(updatedSince.getTime())) {
+      return res.set(CORS_HEADERS).status(400).json({ error: "Invalid updated_since date" });
+    }
+    const { rows, total, totalPages } = await getPaginatedPublicClaims({
+      page, pageSize, verdict, vertical, claimType, updatedSince,
+    });
+    const base = originBase(req);
+    // RFC 5988 Link headers for pagination
+    const buildUrl = (p: number) => {
+      const u = new URL(`${base}/api/public/claims`);
+      u.searchParams.set("page", String(p));
+      u.searchParams.set("page_size", String(pageSize));
+      if (verdict) u.searchParams.set("verdict", verdict);
+      if (vertical) u.searchParams.set("vertical", vertical);
+      if (claimType) u.searchParams.set("claim_type", claimType);
+      if (updatedSinceStr) u.searchParams.set("updated_since", updatedSinceStr);
+      return u.toString();
+    };
+    const linkParts = [
+      `<${buildUrl(1)}>; rel="first"`,
+      ...(page > 1 ? [`<${buildUrl(page - 1)}>; rel="prev"`] : []),
+      ...(page < totalPages ? [`<${buildUrl(page + 1)}>; rel="next"`] : []),
+      `<${buildUrl(totalPages || 1)}>; rel="last"`,
+      `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
+    ];
+    const claimItems = rows.map((r) => ({
+      id: `ptd-${r.documentId}-${r.id}`,
+      claim_id: r.id,
+      document_id: r.documentId,
+      document_title: r.documentTitle,
+      vertical_domain: r.verticalDomain,
+      claim_text: r.claimText,
+      claim_type: r.claimType,
+      extracted_value: r.extractedValue ?? null,
+      pdb_id: r.pdbId ?? null,
+      verdict: r.verdict,
+      verdict_rationale: r.verdictRationale ?? null,
+      confidence_score: r.confidenceScore ?? null,
+      verdict_method: r.verdictMethod ?? null,
+      evidence_url: r.pdbEvidenceUrl ?? null,
+      page_url: `${base}/claim/${r.id}`,
+      audit_url: `${base}/audit/${r.documentId}#claim-${r.id}`,
+      created_at: r.createdAt.toISOString(),
+      updated_at: r.updatedAt.toISOString(),
+    }));
+    res
+      .set({
+        ...CORS_HEADERS,
+        Link: linkParts.join(", "),
+        "X-Total-Count": String(total),
+        "X-Total-Pages": String(totalPages),
+        "X-Page": String(page),
+        "X-Page-Size": String(pageSize),
+      })
+      .status(200)
+      .json({
+        $schema: `${base}/api/public/schemas/claims.schema.json`,
+        generated_at: new Date().toISOString(),
+        page,
+        page_size: pageSize,
+        total,
+        total_pages: totalPages,
+        filters: {
+          verdict: verdict ?? null,
+          vertical: vertical ?? null,
+          claim_type: claimType ?? null,
+          updated_since: updatedSinceStr ?? null,
+        },
+        claims: claimItems,
+      });
+  });
+
+  // ── Single-claim endpoint: GET /api/public/claims/:id ────────────────────
+  // Returns full claim data with ClaimReview JSON-LD for AI crawlers and agents.
+  app.options("/api/public/claims/:id", (_req, res) => {
+    res.set(CORS_HEADERS).status(204).end();
+  });
+  app.get("/api/public/claims/:id", async (req: Request, res: Response) => {
+    const claimId = parseInt(req.params.id ?? "", 10);
+    if (isNaN(claimId)) {
+      return res.set(CORS_HEADERS).status(400).json({ error: "Invalid claim ID" });
+    }
+    const row = await getClaimWithDocument(claimId);
+    if (!row) {
+      return res.set(CORS_HEADERS).status(404).json({ error: "Claim not found" });
+    }
+    const base = originBase(req);
+    const { claimReview, faqPage } = buildClaimReviewJsonLd(row.claim, row.document, base);
+    const lastModified = (row.claim.updatedAt ?? row.claim.createdAt ?? new Date()).toUTCString();
+    return res
+      .set({
+        ...CORS_HEADERS,
+        "Last-Modified": lastModified,
+        Link: [
+          `<${base}/api/public/claims>; rel="collection"`,
+          `<${base}/audit/${row.document.id}#claim-${row.claim.id}>; rel="canonical"`,
+          `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
+        ].join(", "),
+      })
+      .status(200)
+      .json({
+        claim_id: row.claim.id,
+        document_id: row.document.id,
+        document_title: row.document.title,
+        claim_text: row.claim.claimText,
+        claim_type: row.claim.claimType,
+        extracted_value: row.claim.extractedValue ?? null,
+        pdb_id: row.claim.pdbId ?? null,
+        verdict: row.claim.verdict,
+        verdict_rationale: row.claim.verdictRationale ?? null,
+        confidence_score: row.claim.confidenceScore ?? null,
+        evidence_url: row.claim.pdbEvidenceUrl ?? null,
+        page_url: `${base}/claim/${row.claim.id}`,
+        audit_url: `${base}/audit/${row.document.id}#claim-${row.claim.id}`,
+        created_at: row.claim.createdAt?.toISOString() ?? null,
+        updated_at: (row.claim.updatedAt ?? row.claim.createdAt)?.toISOString() ?? null,
+        jsonld: [claimReview, faqPage],
+      });
   });
 
   // ── JSON Schema (self-describing) ───────────────────────────────────────────

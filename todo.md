@@ -1056,3 +1056,14 @@
 - [x] Fix blank page on published site: CORS OPTIONS middleware was returning 204 for all /api/trpc requests (not just preflight), breaking React data load
 - [x] Fix translateAndSearchApi to accept and forward vertical parameter (was silently defaulting to structural_biology)
 - [x] Seed salmon_biotech vertical: 9 questions across 3 batches (pathogens, nutrition/bioactives, genetics) → +52 claims, +70 graph nodes, +27 graph edges
+
+## Phase 82: Public Claims API & 4,000-Page Indexable Corpus
+
+- [x] Add GET /api/public/claims?page=N&limit=50&vertical=X&verdict=Y paginated endpoint
+- [x] Add GET /api/public/claims/:id single-claim endpoint with full JSON-LD ClaimReview schema
+- [ ] Add GET /api/public/claims.json index file (all claim IDs + slugs + verdicts for crawlers)
+- [x] Expand sitemap.xml to include all /claim/:id URLs dynamically from DB (all 3,919 verdicts)
+- [x] Add per-claim JSON-LD (schema.org ClaimReview) to /claim/:id page server-side (client-side injection via ClaimPage.tsx)
+- [x] Update llms.txt to advertise the paginated public claims API
+- [x] Update /.well-known/mcp.json to add list_claims tool
+- [x] Write Vitest tests for the new public claims endpoints

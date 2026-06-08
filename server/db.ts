@@ -1,4 +1,4 @@
-import { eq, desc, asc, isNull, isNotNull, and, or, gt, like, sql } from "drizzle-orm";
+import { eq, desc, asc, isNull, isNotNull, and, or, gt, gte, like, sql, count } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
@@ -1275,4 +1275,89 @@ export async function getCorpusGrowthStats(): Promise<{
     totalGraphNodes: Number(totalGraphNodes?.count ?? 0),
     totalGraphEdges: Number(totalGraphEdges?.count ?? 0),
   };
+}
+
+// ─── Paginated Public Claims API ─────────────────────────────────────────────
+
+export type PublicClaimRow = {
+  id: number;
+  claimText: string;
+  claimType: string;
+  extractedValue: string | null;
+  pdbId: string | null;
+  verdict: string | null;
+  verdictRationale: string | null;
+  confidenceScore: number | null;
+  verdictMethod: string | null;
+  pdbEvidenceUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  documentId: number;
+  documentTitle: string;
+  verticalDomain: string;
+};
+
+export async function getPaginatedPublicClaims(opts: {
+  page: number;          // 1-based
+  pageSize?: number;     // default 100, max 500
+  verdict?: string;      // filter by verdict
+  vertical?: string;     // filter by verticalDomain
+  claimType?: string;    // filter by claimType
+  updatedSince?: Date;   // cursor for incremental crawls
+}): Promise<{ rows: PublicClaimRow[]; total: number; totalPages: number }> {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0, totalPages: 0 };
+
+  const pageSize = Math.min(opts.pageSize ?? 100, 500);
+  const page = Math.max(1, opts.page);
+  const offset = (page - 1) * pageSize;
+
+  // Build WHERE conditions
+  const conditions = [
+    sql`${claims.verdict} IS NOT NULL AND ${claims.verdict} != ''`,
+  ];
+  if (opts.verdict) conditions.push(sql`${claims.verdict} = ${opts.verdict}`);
+  if (opts.claimType) conditions.push(sql`${claims.claimType} = ${opts.claimType}`);
+  if (opts.updatedSince) conditions.push(gte(claims.updatedAt, opts.updatedSince));
+  if (opts.vertical) conditions.push(sql`${documents.verticalDomain} = ${opts.vertical}`);
+
+  const whereClause = conditions.length === 1
+    ? conditions[0]
+    : and(...conditions as [ReturnType<typeof sql>, ...ReturnType<typeof sql>[]]);
+
+  const [countRow] = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(claims)
+    .innerJoin(documents, eq(claims.documentId, documents.id))
+    .where(whereClause);
+
+  const total = Number(countRow?.total ?? 0);
+  const totalPages = Math.ceil(total / pageSize);
+
+  const rows = await db
+    .select({
+      id: claims.id,
+      claimText: claims.claimText,
+      claimType: claims.claimType,
+      extractedValue: claims.extractedValue,
+      pdbId: claims.pdbId,
+      verdict: claims.verdict,
+      verdictRationale: claims.verdictRationale,
+      confidenceScore: claims.confidenceScore,
+      verdictMethod: claims.verdictMethod,
+      pdbEvidenceUrl: claims.pdbEvidenceUrl,
+      createdAt: claims.createdAt,
+      updatedAt: claims.updatedAt,
+      documentId: documents.id,
+      documentTitle: documents.title,
+      verticalDomain: documents.verticalDomain,
+    })
+    .from(claims)
+    .innerJoin(documents, eq(claims.documentId, documents.id))
+    .where(whereClause)
+    .orderBy(desc(claims.updatedAt), desc(claims.id))
+    .limit(pageSize)
+    .offset(offset);
+
+  return { rows: rows as PublicClaimRow[], total, totalPages };
 }

@@ -15,7 +15,12 @@ import type { Express, Request, Response } from "express";
 import { getCompletedPublicPapers, getAllGraphEntities, getVerifiedClaimsForSitemap } from "./db";
 import { slugify } from "./wikiCompiler";
 
-const DOMAIN = "https://protein-desk-5r5rzpyg.manus.space";
+/** Resolve the canonical domain from the incoming request (supports custom domains). */
+function getDomain(req: Request): string {
+  const proto = (req.headers["x-forwarded-proto"] ?? req.protocol ?? "https") as string;
+  const host = (req.headers["x-forwarded-host"] ?? req.headers.host ?? "ttruthdesk.claims") as string;
+  return `${proto}://${host}`;
+}
 
 const STATIC_PAGES = [
   { url: "/", priority: "1.0", changefreq: "weekly" },
@@ -40,7 +45,8 @@ function toLastmod(date: Date | null | undefined): string {
 }
 
 export function registerSitemapRoute(app: Express): void {
-  app.get("/sitemap.xml", async (_req: Request, res: Response) => {
+  app.get("/sitemap.xml", async (req: Request, res: Response) => {
+    const DOMAIN = getDomain(req);
     try {
       const [papers, entities, claimRows] = await Promise.all([
         getCompletedPublicPapers(),
@@ -114,7 +120,6 @@ ${wikiEntries}
         .set({
           "Content-Type": "application/xml; charset=utf-8",
           "Cache-Control": "public, max-age=3600, s-maxage=86400",
-          "X-Robots-Tag": "noindex",
         })
         .status(200)
         .send(xml);
