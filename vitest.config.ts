@@ -34,17 +34,15 @@ export default defineConfig({
       reporter: ["text", "json", "html", "json-summary"],
       reportsDirectory: "./coverage",
       // Quality floor — CI fails if coverage drops below these thresholds.
-      // Current baseline (Jun 2026): lines 26.95%, branches 65%+, functions 36.64%, statements 26.95%.
-      // The low percentages reflect the many vertical adapter stubs and autonomous agent engines
-      // that are exercised at runtime but not yet unit-tested.
-      // Raise these thresholds incrementally as test coverage grows:
-      //   Next target: lines 40%, functions 50% (add adapter + agent unit tests)
-      //   Final target: lines 70%, functions 70% (full coverage)
+      // Baseline (Jun 2026): lines 26.95%, branches 65%+, functions 36.64%, statements 26.95%.
+      // Raised +5% per phase. Current floor: Phase 89.
+      // Next target: lines 40%, functions 50% (add adapter + agent unit tests)
+      // Final target: lines 70%, functions 70% (full coverage)
       thresholds: {
-        lines: 25,
-        branches: 45,
-        functions: 35,
-        statements: 25,
+        lines: 26, // actual: 26.51% — raise to 35% next phase
+        branches: 48, // actual: 65%+ (branches well covered)
+        functions: 36, // actual: 36.64% — raise to 45% next phase
+        statements: 26, // actual: 26.51% — raise to 35% next phase
       },
     },
   },

@@ -38,6 +38,7 @@ node scripts/manus-session.mjs start
 ```
 
 This will print:
+
 - Current TODO progress (done/pending counts)
 - Number of stub files remaining
 - Last 5 sessions and what they accomplished
@@ -79,6 +80,7 @@ Do not add new features on top of broken tests.
 Follow the plan in `todo.md`. Each phase is a section in todo.md. Work top-to-bottom.
 
 **Non-negotiable rules:**
+
 1. Every new function must have a Vitest test
 2. No `as any` in non-test, non-stub files — use proper types
 3. Functions must stay under 80 lines
@@ -87,14 +89,39 @@ Follow the plan in `todo.md`. Each phase is a section in todo.md. Work top-to-bo
 
 ---
 
-## Step 5: End the Session
+## Step 5: Verify Task Completion (MANDATORY — run before ending session)
+
+```bash
+# ALL 8 criteria must pass before ending the session.
+# If this exits 1, fix the failures listed — do NOT end the session with failures.
+pnpm task:done
+```
+
+The 8 criteria checked:
+
+1. TypeScript: 0 errors
+2. ESLint: 0 errors
+3. All tests pass
+4. No new stubs introduced
+5. All todo.md items for this task are checked off
+6. No orphaned TODO/FIXME comments added
+7. Coverage thresholds met
+8. New exported functions have tests
+
+**If `pnpm task:done` fails:** fix the failures, do not skip. If a failure cannot be fixed this session, add it to todo.md as `[ ]` with the error message, then end the session. The next session starts by fixing that item.
+
+See `TASK_COMPLETION_PROTOCOL.md` for the full definition of done.
+
+---
+
+## Step 6: End the Session
 
 ```bash
 # Log the phase you completed
-node scripts/manus-session.mjs log-phase 67 "Add structured logging" done
+node scripts/manus-session.mjs log-phase 89 "Add task completion protocol" done
 
 # Sync state to both repos and end session
-node scripts/manus-session.mjs end "feat(quality): add structured logging with pino"
+node scripts/manus-session.mjs end "feat(quality): add task completion checker and protocol"
 ```
 
 ---
@@ -107,6 +134,7 @@ Ingests PubMed papers, extracts claims, scores them for quality, and provides a 
 **Tech stack:** React 19 + Tailwind 4 + Express 4 + tRPC 11 + Drizzle ORM + MySQL/TiDB
 
 **Key files:**
+
 - `drizzle/schema.ts` — 26 tables (claims, documents, entities, KG, provenance, API keys, etc.)
 - `server/routers.ts` — all tRPC procedures (~2000 lines, split into feature sections)
 - `server/db.ts` — Drizzle DB helpers
@@ -121,21 +149,21 @@ Ingests PubMed papers, extracts claims, scores them for quality, and provides a 
 
 ## Quality Thresholds (enforced)
 
-| Metric | Current | Target (Phase 70) |
-|---|---|---|
-| Test pass rate | 411/411 (100%) | 100% always |
-| Coverage (lines) | ~65% | 80% |
-| Stub files | 15 | 0 |
-| `as any` in prod code | 29 | 0 |
-| Functions > 80 lines | 32 | < 10 |
+| Metric                | Current        | Target (Phase 70) |
+| --------------------- | -------------- | ----------------- |
+| Test pass rate        | 411/411 (100%) | 100% always       |
+| Coverage (lines)      | ~65%           | 80%               |
+| Stub files            | 15             | 0                 |
+| `as any` in prod code | 29             | 0                 |
+| Functions > 80 lines  | 32             | < 10              |
 
 ---
 
 ## Persistent Memory Repos
 
-| Repo | Purpose |
-|---|---|
-| `Gudmundur76/protein-truth-desk` | Full project codebase |
+| Repo                                 | Purpose                                         |
+| ------------------------------------ | ----------------------------------------------- |
+| `Gudmundur76/protein-truth-desk`     | Full project codebase                           |
 | `Gudmundur76/manus-persistent-drive` | Session state, phase log, KG snapshots, context |
 
 Both must be pushed at the end of every session.

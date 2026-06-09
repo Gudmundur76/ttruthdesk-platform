@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # ─── Pre-commit quality gate ─────────────────────────────────────────────────
 # Runs on every commit. Fast path: lint-staged only lints changed files.
-# Full gate: TypeScript check + full test suite.
-# To bypass in an emergency: git commit --no-verify
+# Full gate: TypeScript check + full test suite + Definition of Done.
+# To bypass in an emergency: git commit --no-verify (use sparingly)
 
 echo "🔍 Running lint-staged on changed files..."
 npx lint-staged
@@ -12,3 +12,6 @@ pnpm check
 
 echo "🧪 Running test suite..."
 pnpm test
+
+echo "✅ Definition of Done check..."
+node scripts/task-completion-checker.mjs --ci
