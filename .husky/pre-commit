@@ -22,3 +22,6 @@ BUILT_IN_FORGE_API_URL="" node scripts/session-audit.mjs
 
 echo "📸 Updating context snapshot..."
 node scripts/context-snapshot.mjs
+
+echo "📋 Syncing feature_list.json from todo.md..."
+pnpm feature:sync
