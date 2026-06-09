@@ -27,6 +27,12 @@
     "task:done": "node scripts/task-completion-checker.mjs",
     "task:done:strict": "node scripts/task-completion-checker.mjs --strict",
     "task:done:ci": "node scripts/task-completion-checker.mjs --ci",
+    "session:audit": "node scripts/session-audit.mjs",
+    "session:audit:strict": "node scripts/session-audit.mjs --strict",
+    "session:audit:json": "node scripts/session-audit.mjs --json",
+    "handoff": "node scripts/generate-handoff.mjs",
+    "handoff:clear": "node scripts/generate-handoff.mjs --clear",
+    "context:snapshot": "node scripts/context-snapshot.mjs",
     "prepare": "husky"
   },
   "dependencies": {

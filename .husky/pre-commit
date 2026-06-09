@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # ─── Pre-commit quality gate ─────────────────────────────────────────────────
 # Runs on every commit. Fast path: lint-staged only lints changed files.
-# Full gate: TypeScript check + full test suite + Definition of Done.
-# To bypass in an emergency: git commit --no-verify (use sparingly)
+# Full gate: TypeScript check + full test suite + Definition of Done + Session Audit.
+# To bypass in an emergency: git commit --no-verify (use sparingly, document why)
 
 echo "🔍 Running lint-staged on changed files..."
 npx lint-staged
@@ -13,5 +13,12 @@ pnpm check
 echo "🧪 Running test suite..."
 pnpm test
 
-echo "✅ Definition of Done check..."
+echo "✅ Definition of Done check (mechanical)..."
 node scripts/task-completion-checker.mjs --ci
+
+echo "🤖 Session audit (semantic completeness)..."
+# Run in offline mode during commit (no LLM call) — full LLM audit via pnpm session:audit
+BUILT_IN_FORGE_API_URL="" node scripts/session-audit.mjs
+
+echo "📸 Updating context snapshot..."
+node scripts/context-snapshot.mjs

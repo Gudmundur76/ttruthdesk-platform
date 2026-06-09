@@ -1192,3 +1192,13 @@
 - [x] Tighten ESLint: 0 errors (43 warnings), no-explicit-any error in prod, no-unused-vars error, no-console error in prod
 - [x] Add GitHub Actions CI workflow: .github/workflows/ci.yml (quality + drift jobs, runs on push/PR to main/develop)
 - [x] Verify all hooks, coverage, and CI pass end-to-end (TypeScript: 0 errors, lint: 0 errors, 915 tests passing)
+
+## Phase 90: Session Completion Guarantee + Context Window Management
+
+- [x] Build scripts/session-audit.mjs — LLM evaluator that reads todo.md + git diff and checks semantic completeness
+- [x] Build scripts/generate-handoff.mjs — auto-generates HANDOFF.md with incomplete state snapshot and resume instructions
+- [x] Build scripts/context-snapshot.mjs — writes CONTEXT_SNAPSHOT.md with full project state for cross-session continuity (386 lines, 48 tables, 159 procedures)
+- [x] Add pnpm session:audit, pnpm handoff, pnpm context:snapshot scripts to package.json (6 new scripts)
+- [x] Update CLAUDE.md with mandatory completion protocol, HANDOFF.md rules, and context window management instructions
+- [x] Wire session:audit into pre-commit hook (offline mode during commit, full LLM mode via pnpm session:audit)
+- [x] TypeScript check + tests pass + checkpoint (TypeScript: 0 errors, 915 tests passing)
