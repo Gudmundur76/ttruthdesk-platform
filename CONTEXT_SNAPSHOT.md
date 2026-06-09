@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-09T09:44:38.293Z
+> **Generated:** 2026-06-09T10:21:35.456Z
 > **Branch:** main
-> **Last commit:** c902d84 feat(quality): add session completion guarantee system and context window management
+> **Last commit:** 51cc47a feat(admin): Phase 91 — /admin/harness dashboard + harnessStatus/refreshSnapshot tRPC procedures
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -295,8 +295,8 @@ clean
 
 **Tests:**
 ```
-Start at  09:44:39
-   Duration  7.54s (transform 2.20s, setup 0ms, collect 7.88s, tests 15.15s, environment 11ms, prepare 3.99s)
+Start at  10:21:36
+   Duration  8.47s (transform 2.41s, setup 0ms, collect 8.79s, tests 16.89s, environment 19ms, prepare 4.32s)
 ```
 
 **Lint:**
@@ -323,6 +323,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+51cc47a feat(admin): Phase 91 — /admin/harness dashboard + harnessStatus/refreshSnapshot tRPC procedures
 c902d84 feat(quality): add session completion guarantee system and context window management
 42b9ed2 feat(quality): Phase 89 task completion guarantee system
 45353a4 feat: Phase 88 — code quality enforcement layer
@@ -332,18 +333,11 @@ facbc74 Checkpoint: Phase 85: Meta-Agent Completion. MANUS_API_KEY set to real k
 8f8412e Checkpoint: Removed Pricing.tsx, CheckoutSuccess.tsx, /pricing and /checkout/success routes, PayPal checkout router and imports from routers.ts, and the "Request Audit" nav link. Replaced all pricing CTAs with /submit links. Replaced the pricing section on Home.tsx with a "Free to use. Open by design." section. Renamed ttruthdesk.claims → truthdesk.claims across all 15 files (92 occurrences). 900 tests passing, TypeScript clean.
 7d76255 Checkpoint: Phase 83: Three improvements shipped together. (1) Server-side ?q= text search added to GET /api/public/claims — the paginated endpoint now accepts a q= param that filters across claim text, verdict rationale, PDB ID, and claim type via SQL LIKE, and the q value is included in pagination Link headers and the filters object. (2) New GET /api/public/claims/search?q=... dedicated endpoint for external integrations — returns up to 200 matching claims from the full corpus in a single response with no pagination needed; each claim includes a timeline_url deep-link; registered before /api/public/claims/:id to avoid Express routing conflicts. (3) Registry page upgraded to use server-side search — when ?q= is active it debounces a fetch to /api/public/claims/search (400ms), shows a spinner while searching, displays total_matches count, and renders a "View timeline ↗" button in the result count bar and on each claim card. MCP_TOOLS array updated with search_claims tool; llms.txt updated to recommend the new endpoint to agents. 12 new Vitest tests added; all 900 tests pass, TypeScript clean.
 d8393df Checkpoint: Fix: /registry?q=... and /search?q=... now correctly pre-populate their search inputs from the URL on mount. Root cause: both pages initialised their search state to empty string, silently ignoring the ?q= URL param. Fix: (1) Registry.tsx now reads ?q= on mount via useState lazy initialiser, adds a live text search input with client-side filtering (by claim value, rationale, claim type, PDB ID), keeps URL in sync via replaceState, shows match count, and offers a "Full search ↗" button to /search?q=... for semantic search. (2) Search.tsx now reads ?q= on mount so navigating to /search?q=Piscirickettsia+salmonis... immediately fires the keyword search. All 888 tests pass, TypeScript clean.
-c7a3cfd Checkpoint: Checkpoint saved: Phase 82 fully complete — all 8 items done. Added GET /api/public/claims/index.json lightweight crawler index (all claim IDs + verdicts + vertical slugs + api_urls, up to 10,000 rows, X-Total-Count header, RFC 5988 Link headers). Route registered before /api/public/claims/:id to prevent Express param collision. Added 6 Vitest tests for the index endpoint. All 888 tests passing (53 files), TypeScript clean. Phase 82 todo.md: 8/8 items complete.
 ```
 
 **Uncommitted changes:**
 ```
-M  CLAUDE.md
 M  CONTEXT_SNAPSHOT.md
-M  client/src/App.tsx
-M  client/src/components/DashboardLayout.tsx
-A  client/src/pages/AdminHarness.tsx
-M  server/routers.ts
-M  todo.md
 ```
 
 ---
