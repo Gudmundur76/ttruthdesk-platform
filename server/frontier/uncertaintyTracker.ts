@@ -16,7 +16,7 @@
 
 import { getDb } from "../db";
 import { knowledgeGaps, frontierLog } from "../../drizzle/schema";
-import { eq, sql, and, inArray, lt } from "drizzle-orm";
+import { eq, sql, and, lt } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 async function getDbOrThrow() {
@@ -90,12 +90,17 @@ async function computeProjectedClosure(gapId: number): Promise<Date | null> {
       WHERE status = 'completed'
         AND completedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     `);
-    const throughputRows = throughputResult[0] as unknown as Array<{ dailyThroughput: number }>;
+    const throughputRows = throughputResult[0] as unknown as Array<{
+      dailyThroughput: number;
+    }>;
     const dailyThroughput = throughputRows[0]?.dailyThroughput ?? 1;
 
     // Estimate days to closure: assume 5-20 papers needed per gap
     const gap = await db
-      .select({ priorityScore: knowledgeGaps.priorityScore, evidenceAttempts: knowledgeGaps.evidenceAttempts })
+      .select({
+        priorityScore: knowledgeGaps.priorityScore,
+        evidenceAttempts: knowledgeGaps.evidenceAttempts,
+      })
       .from(knowledgeGaps)
       .where(eq(knowledgeGaps.id, gapId))
       .limit(1);
@@ -103,7 +108,9 @@ async function computeProjectedClosure(gapId: number): Promise<Date | null> {
     if (gap.length === 0) return null;
 
     const papersNeeded = Math.max(5 - gap[0].evidenceAttempts, 1);
-    const daysToClose = Math.ceil(papersNeeded / Math.max(dailyThroughput, 0.1));
+    const daysToClose = Math.ceil(
+      papersNeeded / Math.max(dailyThroughput, 0.1)
+    );
 
     return new Date(Date.now() + daysToClose * 24 * 60 * 60 * 1000);
   } catch {
@@ -155,8 +162,11 @@ export async function getFrontierMetrics(): Promise<FrontierMetrics> {
       FROM knowledge_gaps
       GROUP BY status
     `);
-    const gapRows = gapCounts[0] as unknown as Array<{ status: string; cnt: number }>;
-    const statusMap = Object.fromEntries(gapRows.map((r) => [r.status, r.cnt]));
+    const gapRows = gapCounts[0] as unknown as Array<{
+      status: string;
+      cnt: number;
+    }>;
+    const statusMap = Object.fromEntries(gapRows.map(r => [r.status, r.cnt]));
 
     // Total gaps
     const totalGapsDetected = gapRows.reduce((sum, r) => sum + r.cnt, 0);
@@ -168,8 +178,11 @@ export async function getFrontierMetrics(): Promise<FrontierMetrics> {
       WHERE actionType IN ('hypothesis_queued', 'hypothesis_verified', 'hypothesis_refuted')
       GROUP BY actionType
     `);
-    const hypRows = hypothesisMetrics[0] as unknown as Array<{ actionType: string; cnt: number }>;
-    const hypMap = Object.fromEntries(hypRows.map((r) => [r.actionType, r.cnt]));
+    const hypRows = hypothesisMetrics[0] as unknown as Array<{
+      actionType: string;
+      cnt: number;
+    }>;
+    const hypMap = Object.fromEntries(hypRows.map(r => [r.actionType, r.cnt]));
 
     const hypothesesQueued = hypMap["hypothesis_queued"] ?? 0;
     const hypothesesVerified = hypMap["hypothesis_verified"] ?? 0;
@@ -182,7 +195,9 @@ export async function getFrontierMetrics(): Promise<FrontierMetrics> {
       WHERE status IN ('closed_verified', 'closed_resolved')
         AND priorityScore >= 50
     `);
-    const closureRows = closureTimeResult[0] as unknown as Array<{ avgDays: number | null }>;
+    const closureRows = closureTimeResult[0] as unknown as Array<{
+      avgDays: number | null;
+    }>;
     const avgDaysToClosureHigh = closureRows[0]?.avgDays ?? null;
 
     // Closure rate within 30 days
@@ -193,7 +208,10 @@ export async function getFrontierMetrics(): Promise<FrontierMetrics> {
       FROM knowledge_gaps
       WHERE status IN ('closed_verified', 'closed_resolved')
     `);
-    const crRows = closureRateResult[0] as unknown as Array<{ total: number; closedIn30: number }>;
+    const crRows = closureRateResult[0] as unknown as Array<{
+      total: number;
+      closedIn30: number;
+    }>;
     const total = crRows[0]?.total ?? 0;
     const closedIn30 = crRows[0]?.closedIn30 ?? 0;
     const closureRate30Days = total > 0 ? closedIn30 / total : null;
@@ -239,7 +257,9 @@ export async function getFrontierMetrics(): Promise<FrontierMetrics> {
 /**
  * Returns the full lifecycle timeline for a single gap.
  */
-export async function getGapTimeline(gapId: number): Promise<GapTimeline | null> {
+export async function getGapTimeline(
+  gapId: number
+): Promise<GapTimeline | null> {
   const db = await getDbOrThrow();
 
   try {
@@ -277,7 +297,8 @@ export async function getGapTimeline(gapId: number): Promise<GapTimeline | null>
       gapType: gap.gapType,
       status: gap.status,
       priorityScore: gap.priorityScore,
-      openedAt: gap.openedAt instanceof Date ? gap.openedAt : new Date(gap.openedAt),
+      openedAt:
+        gap.openedAt instanceof Date ? gap.openedAt : new Date(gap.openedAt),
       lastPursuedAt: gap.lastPursuedAt
         ? gap.lastPursuedAt instanceof Date
           ? gap.lastPursuedAt
@@ -285,10 +306,11 @@ export async function getGapTimeline(gapId: number): Promise<GapTimeline | null>
         : null,
       evidenceAttempts: gap.evidenceAttempts,
       projectedClosureAt: projectedClosureAt,
-      logEntries: logEntries.map((e) => ({
+      logEntries: logEntries.map(e => ({
         actionType: e.actionType,
         outcome: e.outcome,
-        createdAt: e.createdAt instanceof Date ? e.createdAt : new Date(e.createdAt),
+        createdAt:
+          e.createdAt instanceof Date ? e.createdAt : new Date(e.createdAt),
       })),
     };
   } catch {

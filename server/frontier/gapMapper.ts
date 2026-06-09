@@ -16,7 +16,7 @@
 
 import { getDb } from "../db";
 import { knowledgeGaps, frontierLog } from "../../drizzle/schema";
-import { eq, and, lt, sql, inArray } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // ─── DB helper ───────────────────────────────────────────────────────────────
 async function getDbOrThrow() {
@@ -28,7 +28,12 @@ async function getDbOrThrow() {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface DetectedGap {
-  gapType: "structural" | "evidence" | "contradiction" | "temporal" | "hypothesis";
+  gapType:
+    | "structural"
+    | "evidence"
+    | "contradiction"
+    | "temporal"
+    | "hypothesis";
   description: string;
   entityAId?: number;
   entityBId?: number;
@@ -54,7 +59,9 @@ export interface GapMapResult {
 async function detectStructuralGaps(): Promise<DetectedGap[]> {
   try {
     // Find entities that have no relations (neither as source nor target)
-    const isolated = await (await getDbOrThrow()).execute(sql`
+    const isolated = await (
+      await getDbOrThrow()
+    ).execute(sql`
       SELECT ge.id, ge.name, ge.entityType
       FROM graph_entities ge
       WHERE ge.id NOT IN (
@@ -65,8 +72,12 @@ async function detectStructuralGaps(): Promise<DetectedGap[]> {
       LIMIT 50
     `);
 
-    const rows = isolated[0] as unknown as Array<{ id: number; name: string; entityType: string }>;
-    return rows.map((row) => ({
+    const rows = isolated[0] as unknown as Array<{
+      id: number;
+      name: string;
+      entityType: string;
+    }>;
+    return rows.map(row => ({
       gapType: "structural" as const,
       description: `Entity "${row.name}" (${row.entityType}, id=${row.id}) has no graph relations — isolated node with no verified connections.`,
       entityAId: row.id,
@@ -87,7 +98,9 @@ async function detectStructuralGaps(): Promise<DetectedGap[]> {
  */
 async function detectEvidenceGaps(): Promise<DetectedGap[]> {
   try {
-    const result = await (await getDbOrThrow()).execute(sql`
+    const result = await (
+      await getDbOrThrow()
+    ).execute(sql`
       SELECT 
         c.documentId,
         COUNT(*) as insufficientCount,
@@ -107,7 +120,7 @@ async function detectEvidenceGaps(): Promise<DetectedGap[]> {
       claimIds: string;
     }>;
 
-    return rows.map((row) => ({
+    return rows.map(row => ({
       gapType: "evidence" as const,
       description: `Document #${row.documentId} has ${row.insufficientCount} claims with "Insufficient Evidence" verdict — no authoritative source could verify these claims. Evidence pursuit recommended.`,
       contributingClaimCount: row.insufficientCount,
@@ -126,7 +139,9 @@ async function detectEvidenceGaps(): Promise<DetectedGap[]> {
  */
 async function detectContradictionGaps(): Promise<DetectedGap[]> {
   try {
-    const result = await (await getDbOrThrow()).execute(sql`
+    const result = await (
+      await getDbOrThrow()
+    ).execute(sql`
       SELECT 
         gr.sourceEntityId,
         gr.targetEntityId,
@@ -151,7 +166,7 @@ async function detectContradictionGaps(): Promise<DetectedGap[]> {
       targetEntityName: string;
     }>;
 
-    return rows.map((row) => ({
+    return rows.map(row => ({
       gapType: "contradiction" as const,
       description: `${row.contradictionCount} contradicting claims between "${row.sourceEntityName}" and "${row.targetEntityName}" — foundational disagreement in the literature. Contradiction resolution required.`,
       entityAId: row.sourceEntityId,
@@ -173,7 +188,9 @@ async function detectContradictionGaps(): Promise<DetectedGap[]> {
 async function detectTemporalGaps(): Promise<DetectedGap[]> {
   try {
     const cutoff = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-    const result = await (await getDbOrThrow()).execute(sql`
+    const result = await (
+      await getDbOrThrow()
+    ).execute(sql`
       SELECT 
         c.documentId,
         COUNT(*) as staleCount
@@ -188,9 +205,12 @@ async function detectTemporalGaps(): Promise<DetectedGap[]> {
       LIMIT 20
     `);
 
-    const rows = result[0] as unknown as Array<{ documentId: number; staleCount: number }>;
+    const rows = result[0] as unknown as Array<{
+      documentId: number;
+      staleCount: number;
+    }>;
 
-    return rows.map((row) => ({
+    return rows.map(row => ({
       gapType: "temporal" as const,
       description: `Document #${row.documentId} has ${row.staleCount} claims verified more than 180 days ago — newer evidence may have superseded these verdicts. Re-verification recommended.`,
       contributingClaimCount: row.staleCount,
@@ -216,7 +236,9 @@ async function persistGaps(gaps: DetectedGap[]): Promise<number> {
     try {
       // Check for existing open gap with same description prefix (first 120 chars)
       const descPrefix = gap.description.slice(0, 120);
-      const existing = await (await getDbOrThrow()).execute(sql`
+      const existing = await (
+        await getDbOrThrow()
+      ).execute(sql`
         SELECT id FROM knowledge_gaps
         WHERE gapType = ${gap.gapType}
           AND description LIKE ${descPrefix + "%"}
@@ -298,7 +320,9 @@ export async function detectEvidenceGapForDocument(
 
   try {
     // Check for existing open gap for this document
-    const existing = await (await getDbOrThrow()).execute(sql`
+    const existing = await (
+      await getDbOrThrow()
+    ).execute(sql`
       SELECT id FROM knowledge_gaps
       WHERE description LIKE ${"Document #" + documentId + "%"}
         AND gapType = 'evidence'
@@ -308,7 +332,9 @@ export async function detectEvidenceGapForDocument(
     const rows = existing[0] as unknown as Array<{ id: number }>;
     if (rows.length > 0) {
       // Update the contributing claim count
-      await (await getDbOrThrow())
+      await (
+        await getDbOrThrow()
+      )
         .update(knowledgeGaps)
         .set({
           contributingClaimCount: sql`contributingClaimCount + ${insufficientClaimCount}`,
@@ -318,14 +344,16 @@ export async function detectEvidenceGapForDocument(
       return rows[0].id;
     }
 
-    const [inserted] = await (await getDbOrThrow()).insert(knowledgeGaps).values({
-      gapType: "evidence",
-      description,
-      contributingClaimCount: insufficientClaimCount,
-      detectionSource: "pipeline_trigger",
-      status: "open",
-      priorityScore: 0,
-    });
+    const [inserted] = await (await getDbOrThrow())
+      .insert(knowledgeGaps)
+      .values({
+        gapType: "evidence",
+        description,
+        contributingClaimCount: insufficientClaimCount,
+        detectionSource: "pipeline_trigger",
+        status: "open",
+        priorityScore: 0,
+      });
 
     const gapId = (inserted as unknown as { insertId: number }).insertId;
 

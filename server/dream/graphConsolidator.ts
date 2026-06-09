@@ -16,8 +16,8 @@
  */
 
 import { getDb } from "../db";
-import { graphEntities, graphRelations, claims } from "../../drizzle/schema";
-import { sql, eq, and, isNull, count } from "drizzle-orm";
+
+import { sql } from "drizzle-orm";
 
 export interface ConsolidationResult {
   orphanedEntityCount: number;
@@ -53,7 +53,9 @@ export async function runGraphConsolidation(): Promise<ConsolidationResult> {
         WHERE gr.sourceEntityId = ge.id OR gr.targetEntityId = ge.id
       )
     `);
-    const orphanCount = Number(((orphanRows as unknown) as Array<{ cnt: number }>)[0]?.cnt ?? 0);
+    const orphanCount = Number(
+      (orphanRows as unknown as Array<{ cnt: number }>)[0]?.cnt ?? 0
+    );
     result.orphanedEntityCount = orphanCount;
     if (orphanCount > 0) {
       result.recommendations.push(
@@ -70,7 +72,9 @@ export async function runGraphConsolidation(): Promise<ConsolidationResult> {
         HAVING c > 1
       ) AS dups
     `);
-    const dupCount = Number(((dupRows as unknown) as Array<{ cnt: number }>)[0]?.cnt ?? 0);
+    const dupCount = Number(
+      (dupRows as unknown as Array<{ cnt: number }>)[0]?.cnt ?? 0
+    );
     result.duplicateEdgeCount = dupCount;
     if (dupCount > 0) {
       result.recommendations.push(
@@ -86,7 +90,9 @@ export async function runGraphConsolidation(): Promise<ConsolidationResult> {
         AND gr.confidenceScore < 0.3
         AND gr.evidenceDocumentId IS NOT NULL
     `);
-    const staleCount = Number(((staleRows as unknown) as Array<{ cnt: number }>)[0]?.cnt ?? 0);
+    const staleCount = Number(
+      (staleRows as unknown as Array<{ cnt: number }>)[0]?.cnt ?? 0
+    );
     result.staleConfidenceCount = staleCount;
     if (staleCount > 0) {
       result.recommendations.push(

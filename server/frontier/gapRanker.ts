@@ -13,8 +13,8 @@
  */
 
 import { getDb } from "../db";
-import { knowledgeGaps, frontierLog } from "../../drizzle/schema";
-import { eq, sql, and, inArray } from "drizzle-orm";
+import { knowledgeGaps } from "../../drizzle/schema";
+import { eq, sql, inArray } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 async function getDbOrThrow() {
@@ -67,12 +67,18 @@ function scoreCommunityDemand(contributingClaimCount: number): number {
  */
 function gapTypeMultiplier(gapType: string): number {
   switch (gapType) {
-    case "contradiction": return 1.0;  // Highest — active disagreement
-    case "evidence":      return 0.8;  // High — claims can't be verified
-    case "temporal":      return 0.6;  // Medium — may be stale
-    case "structural":    return 0.4;  // Lower — isolated but not wrong
-    case "hypothesis":    return 0.7;  // Medium-high — testable prediction
-    default:              return 0.5;
+    case "contradiction":
+      return 1.0; // Highest — active disagreement
+    case "evidence":
+      return 0.8; // High — claims can't be verified
+    case "temporal":
+      return 0.6; // Medium — may be stale
+    case "structural":
+      return 0.4; // Lower — isolated but not wrong
+    case "hypothesis":
+      return 0.7; // Medium-high — testable prediction
+    default:
+      return 0.5;
   }
 }
 
@@ -99,7 +105,9 @@ export interface GapScoringResult {
   };
 }
 
-export async function computePriorityScore(gap: GapScoringInput): Promise<GapScoringResult> {
+export async function computePriorityScore(
+  gap: GapScoringInput
+): Promise<GapScoringResult> {
   const db = await getDbOrThrow();
 
   // Get entity centrality (relation count for primary entity)
@@ -145,18 +153,19 @@ export async function computePriorityScore(gap: GapScoringInput): Promise<GapSco
   // Composite score: geometric mean of the four factors × type multiplier × 100
   const geometricMean = Math.pow(
     components.contradictionSeverity *
-    components.entityCentrality *
-    components.recencyOfConflict *
-    components.communityDemand,
+      components.entityCentrality *
+      components.recencyOfConflict *
+      components.communityDemand,
     0.25
   );
 
   // For gaps with no entity (evidence/temporal), use arithmetic components
   const baseScore = gap.entityAId
     ? geometricMean
-    : (components.recencyOfConflict * 0.4 + components.communityDemand * 0.6);
+    : components.recencyOfConflict * 0.4 + components.communityDemand * 0.6;
 
-  const priorityScore = Math.round(baseScore * components.gapTypeMultiplier * 100 * 100) / 100;
+  const priorityScore =
+    Math.round(baseScore * components.gapTypeMultiplier * 100 * 100) / 100;
 
   return { gapId: gap.id, priorityScore, components };
 }
@@ -187,7 +196,8 @@ export async function rankAllOpenGaps(): Promise<number> {
     try {
       const result = await computePriorityScore({
         ...gap,
-        openedAt: gap.openedAt instanceof Date ? gap.openedAt : new Date(gap.openedAt),
+        openedAt:
+          gap.openedAt instanceof Date ? gap.openedAt : new Date(gap.openedAt),
       });
 
       await db
@@ -207,7 +217,9 @@ export async function rankAllOpenGaps(): Promise<number> {
 /**
  * Returns the top N highest-priority open gaps.
  */
-export async function getTopGaps(limit = 10): Promise<typeof knowledgeGaps.$inferSelect[]> {
+export async function getTopGaps(
+  limit = 10
+): Promise<(typeof knowledgeGaps.$inferSelect)[]> {
   const db = await getDbOrThrow();
   return db
     .select()

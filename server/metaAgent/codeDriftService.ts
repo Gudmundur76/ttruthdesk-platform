@@ -48,26 +48,31 @@ function readFileSafe(path: string): string {
 export function detectSchemaDrift(): DriftFinding {
   const schemaContent = readFileSafe(join(DRIZZLE_DIR, "schema.ts"));
   // Extract mysqlTable("table_name", ...) declarations
-  const schemaTableMatches = Array.from(schemaContent.matchAll(/mysqlTable\("([^"]+)"/g));
-  const schemaTables = new Set(schemaTableMatches.map((m) => m[1]));
+  const schemaTableMatches = Array.from(
+    schemaContent.matchAll(/mysqlTable\("([^"]+)"/g)
+  );
+  const schemaTables = new Set(schemaTableMatches.map(m => m[1]));
 
   // Collect all CREATE TABLE statements from migration files
   const migrationTables = new Set<string>();
   try {
     const migrationFiles = readdirSync(DRIZZLE_DIR)
-      .filter((f) => f.endsWith(".sql"))
+      .filter(f => f.endsWith(".sql"))
       .sort();
     for (const file of migrationFiles) {
       const sql = readFileSafe(join(DRIZZLE_DIR, file));
       const matches = Array.from(sql.matchAll(/CREATE TABLE[^`]*`([^`]+)`/gi));
-      matches.forEach((m) => migrationTables.add(m[1]));
+      matches.forEach(m => migrationTables.add(m[1]));
     }
   } catch {
     // no migration files yet
   }
 
-  const unmigratedTables = Array.from(schemaTables).filter((t) => !migrationTables.has(t));
-  const severity: DriftFinding["severity"] = unmigratedTables.length > 0 ? "warning" : "info";
+  const unmigratedTables = Array.from(schemaTables).filter(
+    t => !migrationTables.has(t)
+  );
+  const severity: DriftFinding["severity"] =
+    unmigratedTables.length > 0 ? "warning" : "info";
 
   return {
     checkType: "schemaDrift",
@@ -94,25 +99,30 @@ export function detectSchemaDrift(): DriftFinding {
 export function detectApiDrift(): DriftFinding {
   const routersContent = readFileSafe(join(SERVER_DIR, "routers.ts"));
   // Match "  routerName: router({" at the top level
-  const routerMatches = Array.from(routersContent.matchAll(/^\s{2}([a-zA-Z_][a-zA-Z0-9_]*):\s*router\(\{/gm));
-  const serverRouters = routerMatches.map((m) => m[1]);
+  const routerMatches = Array.from(
+    routersContent.matchAll(/^\s{2}([a-zA-Z_][a-zA-Z0-9_]*):\s*router\(\{/gm)
+  );
+  const serverRouters = routerMatches.map(m => m[1]);
 
   // Scan client source for trpc.<name>. usage
   const clientFiles: string[] = [];
   function collectTsFiles(dir: string) {
     try {
-      readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
+      readdirSync(dir, { withFileTypes: true }).forEach(entry => {
         const full = join(dir, entry.name);
         if (entry.isDirectory()) collectTsFiles(full);
-        else if (entry.name.endsWith(".tsx") || entry.name.endsWith(".ts")) clientFiles.push(full);
+        else if (entry.name.endsWith(".tsx") || entry.name.endsWith(".ts"))
+          clientFiles.push(full);
       });
-    } catch { /* skip unreadable dirs */ }
+    } catch {
+      /* skip unreadable dirs */
+    }
   }
   collectTsFiles(CLIENT_SRC);
 
   const clientSource = clientFiles.map(readFileSafe).join("\n");
   const unusedRouters = serverRouters.filter(
-    (r) => !new RegExp(`trpc\\.${r}\\b`).test(clientSource)
+    r => !new RegExp(`trpc\\.${r}\\b`).test(clientSource)
   );
 
   const severity: DriftFinding["severity"] =
@@ -151,14 +161,16 @@ export function detectTestDrift(): DriftFinding {
   let sourceFiles: string[] = [];
   try {
     sourceFiles = readdirSync(SERVER_DIR)
-      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-      .map((f) => join(SERVER_DIR, f));
-  } catch { /* skip */ }
+      .filter(f => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .map(f => join(SERVER_DIR, f));
+  } catch {
+    /* skip */
+  }
 
   const untestedFiles: string[] = [];
   for (const file of sourceFiles) {
     const rel = file.replace(PROJECT_ROOT + "/", "");
-    if (SKIP_PATTERNS.some((p) => p.test(rel))) continue;
+    if (SKIP_PATTERNS.some(p => p.test(rel))) continue;
     const testFile = file.replace(/\.ts$/, ".test.ts");
     if (!existsSync(testFile)) {
       untestedFiles.push(rel);
@@ -167,7 +179,7 @@ export function detectTestDrift(): DriftFinding {
 
   const coverageRatio =
     sourceFiles.length > 0
-      ? ((sourceFiles.length - untestedFiles.length) / sourceFiles.length)
+      ? (sourceFiles.length - untestedFiles.length) / sourceFiles.length
       : 1;
 
   const severity: DriftFinding["severity"] =
@@ -205,29 +217,43 @@ export function detectDependencyDrift(): DriftFinding {
   let parseError: string | null = null;
 
   try {
-    const raw = execSync("pnpm outdated --format json --prod 2>/dev/null || echo '{}'", {
-      cwd: PROJECT_ROOT,
-      timeout: 30_000,
-      encoding: "utf-8",
-    });
+    const raw = execSync(
+      "pnpm outdated --format json --prod 2>/dev/null || echo '{}'",
+      {
+        cwd: PROJECT_ROOT,
+        timeout: 30_000,
+        encoding: "utf-8",
+      }
+    );
     const parsed = JSON.parse(raw.trim() || "{}") as Record<
       string,
       { current: string; latest: string }
     >;
 
     outdated = Object.entries(parsed).map(([name, info]) => {
-      const [curMajor, curMinor] = info.current.replace(/^[^0-9]*/, "").split(".").map(Number);
-      const [latMajor, latMinor] = info.latest.replace(/^[^0-9]*/, "").split(".").map(Number);
+      const [curMajor, curMinor] = info.current
+        .replace(/^[^0-9]*/, "")
+        .split(".")
+        .map(Number);
+      const [latMajor, latMinor] = info.latest
+        .replace(/^[^0-9]*/, "")
+        .split(".")
+        .map(Number);
       let sev: OutdatedPackage["severity"] = "patch";
       if (latMajor > curMajor) sev = "major";
       else if (latMinor > curMinor) sev = "minor";
-      return { name, current: info.current, latest: info.latest, severity: sev };
+      return {
+        name,
+        current: info.current,
+        latest: info.latest,
+        severity: sev,
+      };
     });
   } catch (err) {
     parseError = String(err);
   }
 
-  const majorCount = outdated.filter((p) => p.severity === "major").length;
+  const majorCount = outdated.filter(p => p.severity === "major").length;
   const severity: DriftFinding["severity"] =
     majorCount > 0 ? "warning" : outdated.length > 10 ? "info" : "info";
 
@@ -238,15 +264,15 @@ export function detectDependencyDrift(): DriftFinding {
     details: {
       outdatedCount: outdated.length,
       majorCount,
-      minorCount: outdated.filter((p) => p.severity === "minor").length,
-      patchCount: outdated.filter((p) => p.severity === "patch").length,
+      minorCount: outdated.filter(p => p.severity === "minor").length,
+      patchCount: outdated.filter(p => p.severity === "patch").length,
       outdated,
       parseError,
     },
     summary:
       outdated.length === 0
         ? "All production dependencies are up to date."
-        : `${outdated.length} outdated prod dep(s): ${majorCount} major, ${outdated.filter((p) => p.severity === "minor").length} minor.`,
+        : `${outdated.length} outdated prod dep(s): ${majorCount} major, ${outdated.filter(p => p.severity === "minor").length} minor.`,
   };
 }
 
@@ -258,12 +284,18 @@ export function detectDependencyDrift(): DriftFinding {
  * flagged as critical; others as info.
  */
 export function detectConfigDrift(): DriftFinding {
-  const CRITICAL_KEYS = ["JWT_SECRET", "DATABASE_URL", "BUILT_IN_FORGE_API_KEY"];
+  const CRITICAL_KEYS = [
+    "JWT_SECRET",
+    "DATABASE_URL",
+    "BUILT_IN_FORGE_API_KEY",
+  ];
 
   const envContent = readFileSafe(join(SERVER_DIR, "_core", "env.ts"));
   // Extract process.env.KEY references
-  const envKeyMatches = Array.from(envContent.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)/g));
-  const referencedKeys = Array.from(new Set(envKeyMatches.map((m) => m[1])));
+  const envKeyMatches = Array.from(
+    envContent.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)/g)
+  );
+  const referencedKeys = Array.from(new Set(envKeyMatches.map(m => m[1])));
 
   const missingKeys: string[] = [];
   const emptyKeys: string[] = [];
@@ -274,9 +306,13 @@ export function detectConfigDrift(): DriftFinding {
     else if (val.trim() === "") emptyKeys.push(key);
   }
 
-  const criticalMissing = missingKeys.filter((k) => CRITICAL_KEYS.includes(k));
+  const criticalMissing = missingKeys.filter(k => CRITICAL_KEYS.includes(k));
   const severity: DriftFinding["severity"] =
-    criticalMissing.length > 0 ? "critical" : missingKeys.length > 0 ? "warning" : "info";
+    criticalMissing.length > 0
+      ? "critical"
+      : missingKeys.length > 0
+        ? "warning"
+        : "info";
 
   return {
     checkType: "configDrift",
@@ -299,7 +335,7 @@ export function detectConfigDrift(): DriftFinding {
 
 import { getDb } from "../db";
 import { magicLinkTokens } from "../../drizzle/schema";
-import { lt, isNull } from "drizzle-orm";
+import { lt } from "drizzle-orm";
 
 /**
  * Checks session/token hygiene:
@@ -334,8 +370,11 @@ export async function detectDisciplineDrift(): Promise<DriftFinding> {
     dbError = String(err);
   }
 
-  const severity: DriftFinding["severity"] =
-    dbError ? "warning" : expiredUnusedCount > 100 ? "warning" : "info";
+  const severity: DriftFinding["severity"] = dbError
+    ? "warning"
+    : expiredUnusedCount > 100
+      ? "warning"
+      : "info";
 
   return {
     checkType: "disciplineDrift",
@@ -346,10 +385,9 @@ export async function detectDisciplineDrift(): Promise<DriftFinding> {
       staleTokensOlderThan24h: staleCount,
       dbError,
     },
-    summary:
-      dbError
-        ? `DB error during discipline check: ${dbError}`
-        : `${expiredUnusedCount} expired unused magic link tokens; ${staleCount} tokens older than 24h.`,
+    summary: dbError
+      ? `DB error during discipline check: ${dbError}`
+      : `${expiredUnusedCount} expired unused magic link tokens; ${staleCount} tokens older than 24h.`,
   };
 }
 
@@ -378,12 +416,12 @@ export async function detectCodeDrift(): Promise<CodeDriftReport> {
 
   const findings = [schema, api, test, dep, config, discipline];
   const overallSeverity: CodeDriftReport["overallSeverity"] = findings.some(
-    (f) => f.severity === "critical"
+    f => f.severity === "critical"
   )
     ? "critical"
-    : findings.some((f) => f.severity === "warning")
-    ? "warning"
-    : "info";
+    : findings.some(f => f.severity === "warning")
+      ? "warning"
+      : "info";
 
   return {
     schemaDrift: schema,

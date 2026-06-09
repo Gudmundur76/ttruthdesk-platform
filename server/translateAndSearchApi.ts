@@ -45,34 +45,46 @@ interface PubMedResult {
   year?: number;
 }
 
-const EUROPE_PMC_SEARCH = "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
+const EUROPE_PMC_SEARCH =
+  "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
 
-async function fetchPubMedResults(query: string, limit = 5): Promise<PubMedResult[]> {
+async function fetchPubMedResults(
+  query: string,
+  limit = 5
+): Promise<PubMedResult[]> {
   const encoded = encodeURIComponent(query);
   const url = `${EUROPE_PMC_SEARCH}?query=${encoded}&format=json&pageSize=${limit}&resultType=core&sort=CITED+desc`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
     if (!res.ok) return [];
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       resultList?: {
         result?: Array<{
-          pmid?: string; id?: string; title?: string; abstractText?: string;
-          authorString?: string; journalTitle?: string; pubYear?: string;
+          pmid?: string;
+          id?: string;
+          title?: string;
+          abstractText?: string;
+          authorString?: string;
+          journalTitle?: string;
+          pubYear?: string;
         }>;
       };
     };
     const results = data.resultList?.result ?? [];
-    return results.slice(0, limit).map((r) => ({
-      pmid: r.pmid ?? r.id ?? "",
-      title: r.title ?? "Untitled",
-      abstractSnippet: (r.abstractText ?? "").slice(0, 400),
-      citationUrl: r.pmid
-        ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`
-        : `https://europepmc.org/article/MED/${r.id ?? ""}`,
-      authors: r.authorString ? r.authorString.split(", ").slice(0, 5) : [],
-      journal: r.journalTitle ?? undefined,
-      year: r.pubYear ? parseInt(r.pubYear, 10) : undefined,
-    })).filter((r) => r.pmid);
+    return results
+      .slice(0, limit)
+      .map(r => ({
+        pmid: r.pmid ?? r.id ?? "",
+        title: r.title ?? "Untitled",
+        abstractSnippet: (r.abstractText ?? "").slice(0, 400),
+        citationUrl: r.pmid
+          ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`
+          : `https://europepmc.org/article/MED/${r.id ?? ""}`,
+        authors: r.authorString ? r.authorString.split(", ").slice(0, 5) : [],
+        journal: r.journalTitle ?? undefined,
+        year: r.pubYear ? parseInt(r.pubYear, 10) : undefined,
+      }))
+      .filter(r => r.pmid);
   } catch {
     return [];
   }
@@ -135,7 +147,7 @@ export function registerTranslateAndSearchApi(app: Router) {
       (req.headers["x-api-key"] as string | undefined) ||
       (req.query.apiKey as string | undefined);
 
-    let userId: number | null = null;
+    let _userId: number | null = null;
     let rateKey: string;
     let rateLimit: number;
 
@@ -144,14 +156,16 @@ export function registerTranslateAndSearchApi(app: Router) {
       if (!keyRecord) {
         return res.status(401).json({ error: "Invalid API key" });
       }
-      userId = keyRecord.userId;
+      _userId = keyRecord.userId;
       void keyRecord.label; // used for rate key
       rateKey = `apikey:${rawKey}`;
       rateLimit = 10;
     } else {
       // Anonymous — IP-based, lower limit
       const ip =
-        (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+        (req.headers["x-forwarded-for"] as string | undefined)
+          ?.split(",")[0]
+          ?.trim() ||
         req.socket.remoteAddress ||
         "unknown";
       rateKey = `anon:${ip}`;
@@ -169,25 +183,38 @@ export function registerTranslateAndSearchApi(app: Router) {
 
     // ── Input validation ──────────────────────────────────────────────────────
     const { question, vertical } = req.body ?? {};
-    if (!question || typeof question !== "string" || question.trim().length < 3) {
+    if (
+      !question ||
+      typeof question !== "string" ||
+      question.trim().length < 3
+    ) {
       return res.status(400).json({
-        error: "Missing or invalid 'question' field. Provide a non-empty string.",
+        error:
+          "Missing or invalid 'question' field. Provide a non-empty string.",
       });
     }
     if (question.length > 2000) {
-      return res.status(400).json({ error: "Question too long (max 2000 chars)." });
+      return res
+        .status(400)
+        .json({ error: "Question too long (max 2000 chars)." });
     }
-    const verticalDomain: string = (typeof vertical === "string" && vertical.trim().length > 0)
-      ? vertical.trim()
-      : "structural_biology";
+    const verticalDomain: string =
+      typeof vertical === "string" && vertical.trim().length > 0
+        ? vertical.trim()
+        : "structural_biology";
 
     // ── Translate question into claims ────────────────────────────────────────
     let claims: Awaited<ReturnType<typeof translateQueryToClaims>>;
     try {
       claims = await translateQueryToClaims(question.trim());
     } catch (err) {
-      console.error("[translate-and-search] translateQueryToClaims failed:", err);
-      return res.status(502).json({ error: "Failed to decompose question into claims." });
+      console.error(
+        "[translate-and-search] translateQueryToClaims failed:",
+        err
+      );
+      return res
+        .status(502)
+        .json({ error: "Failed to decompose question into claims." });
     }
 
     if (!claims || claims.length === 0) {
@@ -204,7 +231,7 @@ export function registerTranslateAndSearchApi(app: Router) {
 
     // ── Search PubMed for each claim in parallel ──────────────────────────────
     const claimResults = await Promise.all(
-      claims.map(async (claim) => {
+      claims.map(async claim => {
         let pubmedEvidence: PubMedResult[] = [];
         try {
           pubmedEvidence = await fetchPubMedResults(claim.searchQuery, 3);
@@ -241,8 +268,8 @@ export function registerTranslateAndSearchApi(app: Router) {
       processQueryResults({
         query: question.trim(),
         vertical: verticalDomain,
-        pubmedResults: claimResults.flatMap((c) =>
-          c.pubmedEvidence.map((p) => ({
+        pubmedResults: claimResults.flatMap(c =>
+          c.pubmedEvidence.map(p => ({
             pmid: p.pmid,
             title: p.title,
             abstractSnippet: p.abstractSnippet,
@@ -252,7 +279,7 @@ export function registerTranslateAndSearchApi(app: Router) {
             authors: p.authors,
           }))
         ),
-      }).catch((e) =>
+      }).catch(e =>
         console.error("[translate-and-search] autonomousIngest error:", e)
       );
     });
@@ -261,7 +288,9 @@ export function registerTranslateAndSearchApi(app: Router) {
       question: question.trim(),
       claimsAnalysed: claimResults.length,
       totalPapersFound,
-      supportedClaims: claimResults.filter((c) => c.verdict?.verdict?.toLowerCase().includes("support")).length,
+      supportedClaims: claimResults.filter(c =>
+        c.verdict?.verdict?.toLowerCase().includes("support")
+      ).length,
       claims: claimResults,
       meta: {
         processingMs: Date.now() - start,

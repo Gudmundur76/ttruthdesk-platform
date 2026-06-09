@@ -19,7 +19,7 @@
 
 import { getDb } from "../db";
 import { claims, confidenceHistory } from "../../drizzle/schema";
-import { sql, and, lt, gte, eq } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 
 export interface RecalibrationEntry {
   claimId: number;
@@ -59,7 +59,7 @@ export async function runConfidenceRecalibration(
         AND verdict IN ('Supported', 'Partially Supported')
       LIMIT 50
     `);
-    const staleClaims = (staleRows as unknown) as Array<{
+    const staleClaims = staleRows as unknown as Array<{
       id: number;
       confidenceScore: number;
     }>;
@@ -70,11 +70,14 @@ export async function runConfidenceRecalibration(
           claimId: row.id,
           currentConfidence: row.confidenceScore,
           suggestedConfidence: Math.round(suggested * 1000) / 1000,
-          reason: "R2: Temporal decay — verified > 365 days ago with no re-check",
+          reason:
+            "R2: Temporal decay — verified > 365 days ago with no re-check",
         });
       }
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   // ── R1: Contradiction pressure — ≥ 2 contradicting claims with higher confidence ──
   try {
@@ -89,14 +92,16 @@ export async function runConfidenceRecalibration(
       HAVING contra_count >= 2
       LIMIT 30
     `);
-    const contradicted = (contradictRows as unknown) as Array<{
+    const contradicted = contradictRows as unknown as Array<{
       id: number;
       confidenceScore: number;
       contra_count: number;
     }>;
     for (const row of contradicted) {
-      const existing = entries.find((e) => e.claimId === row.id);
-      const base = existing ? existing.suggestedConfidence : row.confidenceScore;
+      const existing = entries.find(e => e.claimId === row.id);
+      const base = existing
+        ? existing.suggestedConfidence
+        : row.confidenceScore;
       const suggested = Math.max(0.05, base - 0.15);
       if (suggested < base) {
         if (existing) {
@@ -112,7 +117,9 @@ export async function runConfidenceRecalibration(
         }
       }
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   // ── Auto-apply if requested ───────────────────────────────────────────────
   if (autoApply && entries.length > 0) {
@@ -129,11 +136,16 @@ export async function runConfidenceRecalibration(
           documentId: 0, // Dream recalibration — no specific document
           score: entry.suggestedConfidence,
           trigger: "dream_recalibration",
-          flags: { previousScore: entry.currentConfidence, reason: entry.reason },
+          flags: {
+            previousScore: entry.currentConfidence,
+            reason: entry.reason,
+          },
         });
 
         autoApplied++;
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
     }
   }
 

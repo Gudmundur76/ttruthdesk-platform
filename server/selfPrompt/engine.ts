@@ -19,7 +19,7 @@
  */
 
 import { collectSystemState, type SelfPromptEvent } from "./stateCollector";
-import { runSelfPrompt, shouldConverge } from "./promptEngine";
+import { runSelfPrompt } from "./promptEngine";
 import { executeActions } from "./actionExecutor";
 import { getDb } from "../db";
 import { selfPromptLog } from "../../drizzle/schema";
@@ -38,7 +38,9 @@ export interface SelfPromptCycleResult {
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
-export async function runSelfPromptCycle(event: SelfPromptEvent): Promise<SelfPromptCycleResult> {
+export async function runSelfPromptCycle(
+  event: SelfPromptEvent
+): Promise<SelfPromptCycleResult> {
   const startMs = Date.now();
 
   // 1. Collect system state
@@ -66,11 +68,15 @@ export async function runSelfPromptCycle(event: SelfPromptEvent): Promise<SelfPr
         eventType: event.type,
         stateSnapshot: state as unknown as Record<string, unknown>,
         reasoning: selfPrompt.reasoning,
-        actions: selfPrompt.actions as unknown as Array<Record<string, unknown>>,
+        actions: selfPrompt.actions as unknown as Array<
+          Record<string, unknown>
+        >,
         converged: selfPrompt.converge,
         actionCount: selfPrompt.actions.length,
         executedCount: actionsToExecute.length,
-        executionResults: executionResults as unknown as Array<Record<string, unknown>>,
+        executionResults: executionResults as unknown as Array<
+          Record<string, unknown>
+        >,
         durationMs,
         claimId: event.claimId ?? null,
         documentId: event.documentId ?? null,
@@ -84,8 +90,8 @@ export async function runSelfPromptCycle(event: SelfPromptEvent): Promise<SelfPr
 
   console.log(
     `[SelfPromptEngine] Cycle complete: event=${event.type}, ` +
-    `actions=${selfPrompt.actions.length}, executed=${actionsToExecute.length}, ` +
-    `converged=${selfPrompt.converge}, duration=${durationMs}ms`
+      `actions=${selfPrompt.actions.length}, executed=${actionsToExecute.length}, ` +
+      `converged=${selfPrompt.converge}, duration=${durationMs}ms`
   );
 
   return {

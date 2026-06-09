@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# ─── Commit message lint ──────────────────────────────────────────────────────
+# Enforces Conventional Commits format: type(scope): description
+# Valid types: feat, fix, docs, style, refactor, test, chore, perf, ci, build
+# Examples:
+#   feat(claims): add confidence score badge
+#   fix(pipeline): handle null pdbEvidenceCheckedAt
+#   chore(deps): upgrade vitest to 3.x
+
+npx --no -- commitlint --edit "$1"

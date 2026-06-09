@@ -19,9 +19,9 @@
  */
 
 import { getDb } from "../db";
-import { frontierLog, coordQueue, knowledgeGaps } from "../../drizzle/schema";
-import { sql, eq } from "drizzle-orm";
-import { invokeMultiLLM } from "../_core/multiLLM";
+import { frontierLog, coordQueue } from "../../drizzle/schema";
+import { sql } from "drizzle-orm";
+import {} from "../_core/multiLLM";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 async function getDbOrThrow() {
@@ -297,8 +297,8 @@ export async function recordHypothesisOutcome(
     verdict === "Supported"
       ? "hypothesis_verified"
       : verdict === "Contradicted"
-      ? "hypothesis_refuted"
-      : "gap_detected"; // Re-open gap if still insufficient
+        ? "hypothesis_refuted"
+        : "gap_detected"; // Re-open gap if still insufficient
 
   await db.insert(frontierLog).values({
     actionType,
@@ -310,8 +310,8 @@ export async function recordHypothesisOutcome(
         verdict === "Supported"
           ? "Frontier hypothesis confirmed by Truth Desk pipeline"
           : verdict === "Contradicted"
-          ? "Frontier hypothesis refuted — false path eliminated, model learns"
-          : "Hypothesis still unverifiable — gap remains open",
+            ? "Frontier hypothesis refuted — false path eliminated, model learns"
+            : "Hypothesis still unverifiable — gap remains open",
     },
     outcome: `Hypothesis outcome: ${verdict}`,
   });

@@ -19,7 +19,7 @@
 
 import { getDb } from "./db";
 import { verticalConfigs } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import {} from "drizzle-orm";
 import {
   VERTICAL_FEED_CONFIGS,
   type VerticalFeedConfig,
@@ -29,7 +29,9 @@ import {
  * Returns the merged list of VerticalFeedConfig objects to use for the current
  * PMC feed run. Fetches DB records on every call (cheap — small table).
  */
-export async function getActiveVerticalFeedConfigs(): Promise<VerticalFeedConfig[]> {
+export async function getActiveVerticalFeedConfigs(): Promise<
+  VerticalFeedConfig[]
+> {
   let dbConfigs: Array<{
     domainKey: string;
     displayName: string;
@@ -53,7 +55,10 @@ export async function getActiveVerticalFeedConfigs(): Promise<VerticalFeedConfig
   } catch (err) {
     // If the table doesn't exist yet (first deploy before migration), fall back
     // to static configs gracefully.
-    console.warn("[VerticalFeedMerger] Could not query vertical_configs table, using static configs:", err);
+    console.warn(
+      "[VerticalFeedMerger] Could not query vertical_configs table, using static configs:",
+      err
+    );
     return VERTICAL_FEED_CONFIGS;
   }
 
@@ -67,8 +72,10 @@ export async function getActiveVerticalFeedConfigs(): Promise<VerticalFeedConfig
       domainKey: row.domainKey,
       displayName: row.displayName,
       // DB stores raw MeSH terms; wrap each in the standard PMC OA filter
-      meshQueries: row.meshTerms.map((term) =>
-        term.includes("free full text[sb]") ? term : `${term} AND free full text[sb]`
+      meshQueries: row.meshTerms.map(term =>
+        term.includes("free full text[sb]")
+          ? term
+          : `${term} AND free full text[sb]`
       ),
       maxResultsPerQuery: 50,
     });
@@ -79,7 +86,10 @@ export async function getActiveVerticalFeedConfigs(): Promise<VerticalFeedConfig
 
   for (const staticCfg of VERTICAL_FEED_CONFIGS) {
     // If DB has an enabled override for this key, use it; otherwise use static
-    merged.set(staticCfg.domainKey, dbMap.get(staticCfg.domainKey) ?? staticCfg);
+    merged.set(
+      staticCfg.domainKey,
+      dbMap.get(staticCfg.domainKey) ?? staticCfg
+    );
   }
 
   // Add any DB-only verticals (new ones created via the Wizard)
@@ -90,14 +100,14 @@ export async function getActiveVerticalFeedConfigs(): Promise<VerticalFeedConfig
   }
 
   // Remove any domainKeys that are explicitly disabled in DB
-  const disabledKeys = dbConfigs.filter((r) => !r.enabled).map((r) => r.domainKey);
+  const disabledKeys = dbConfigs.filter(r => !r.enabled).map(r => r.domainKey);
   for (const key of disabledKeys) {
     merged.delete(key);
   }
 
   const result = Array.from(merged.values()) as VerticalFeedConfig[];
   console.log(
-    `[VerticalFeedMerger] Active verticals: ${result.map((c) => c.domainKey).join(", ")} (${result.length} total, ${dbMap.size} from DB)`
+    `[VerticalFeedMerger] Active verticals: ${result.map(c => c.domainKey).join(", ")} (${result.length} total, ${dbMap.size} from DB)`
   );
   return result;
 }

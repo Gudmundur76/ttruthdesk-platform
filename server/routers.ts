@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Escape LIKE wildcard characters to prevent wildcard injection. */
-const escapeLike = (s: string) => s.replace(/[%_\\]/g, (c) => `\\${c}`);
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, c => `\\${c}`);
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -36,12 +36,11 @@ import { notifyOwner } from "./_core/notification";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { storagePut } from "./storage";
 
-
 // ─── Router ────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -59,7 +58,8 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.id);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
         return doc;
       }),
 
@@ -77,7 +77,10 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         // Plan enforcement for email users
         if (ctx.user.openId?.startsWith("email_")) {
-          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          const emailUserId = parseInt(
+            ctx.user.openId.replace("email_", ""),
+            10
+          );
           const emailUser = await getEmailUserById(emailUserId);
           if (emailUser) {
             const limit = checkAuditLimit(emailUser);
@@ -96,15 +99,26 @@ export const appRouter = router({
         });
         // Increment audit count for email users
         if (ctx.user.openId?.startsWith("email_")) {
-          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          const emailUserId = parseInt(
+            ctx.user.openId.replace("email_", ""),
+            10
+          );
           await incrementEmailUserAuditCount(emailUserId).catch(() => {});
         }
         // Run pipeline async (fire and forget)
-        runAnalysisPipeline(docId, input.text, ctx.user.id).catch(console.error);
+        runAnalysisPipeline(docId, input.text, ctx.user.id).catch(
+          console.error
+        );
         // Publish to autonomous loop event bus (fire and forget)
-        import("./autonomousLoop/eventBus").then(({ publishEvent }) =>
-          publishEvent("document_submitted", { documentId: docId, userId: ctx.user.id, sourceType: "paste" }).catch(() => {})
-        ).catch(() => {});
+        import("./autonomousLoop/eventBus")
+          .then(({ publishEvent }) =>
+            publishEvent("document_submitted", {
+              documentId: docId,
+              userId: ctx.user.id,
+              sourceType: "paste",
+            }).catch(() => {})
+          )
+          .catch(() => {});
         return { documentId: docId };
       }),
 
@@ -125,7 +139,10 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         // Plan enforcement for email users
         if (ctx.user.openId?.startsWith("email_")) {
-          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          const emailUserId = parseInt(
+            ctx.user.openId.replace("email_", ""),
+            10
+          );
           const emailUser = await getEmailUserById(emailUserId);
           if (emailUser) {
             const limit = checkAuditLimit(emailUser);
@@ -147,14 +164,25 @@ export const appRouter = router({
         });
         // Increment audit count for email users
         if (ctx.user.openId?.startsWith("email_")) {
-          const emailUserId = parseInt(ctx.user.openId.replace("email_", ""), 10);
+          const emailUserId = parseInt(
+            ctx.user.openId.replace("email_", ""),
+            10
+          );
           await incrementEmailUserAuditCount(emailUserId).catch(() => {});
         }
-        runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(console.error);
+        runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(
+          console.error
+        );
         // Publish to autonomous loop event bus (fire and forget)
-        import("./autonomousLoop/eventBus").then(({ publishEvent }) =>
-          publishEvent("document_submitted", { documentId: docId, userId: ctx.user.id, sourceType: "upload" }).catch(() => {})
-        ).catch(() => {});
+        import("./autonomousLoop/eventBus")
+          .then(({ publishEvent }) =>
+            publishEvent("document_submitted", {
+              documentId: docId,
+              userId: ctx.user.id,
+              sourceType: "upload",
+            }).catch(() => {})
+          )
+          .catch(() => {});
         return { documentId: docId };
       }),
 
@@ -166,7 +194,11 @@ export const appRouter = router({
     fetchFromPubmed: protectedProcedure
       .input(
         z.object({
-          query: z.string().min(1).max(512).describe("PMID, DOI, or PubMed URL"),
+          query: z
+            .string()
+            .min(1)
+            .max(512)
+            .describe("PMID, DOI, or PubMed URL"),
         })
       )
       .mutation(async ({ input }) => {
@@ -190,7 +222,8 @@ export const appRouter = router({
         if (!pmid && !doi) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Please enter a valid PubMed ID (e.g. 37234567), DOI (e.g. 10.1038/s41586-023-06415-8), or PubMed URL.",
+            message:
+              "Please enter a valid PubMed ID (e.g. 37234567), DOI (e.g. 10.1038/s41586-023-06415-8), or PubMed URL.",
           });
         }
 
@@ -199,8 +232,12 @@ export const appRouter = router({
           // If we have a DOI, resolve to PMID first via E-search
           if (!pmid && doi) {
             const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(doi)}[doi]&retmode=json&retmax=1&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-            const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(10_000) });
-            const searchData = await searchRes.json() as { esearchresult?: { idlist?: string[] } };
+            const searchRes = await fetch(searchUrl, {
+              signal: AbortSignal.timeout(10_000),
+            });
+            const searchData = (await searchRes.json()) as {
+              esearchresult?: { idlist?: string[] };
+            };
             const ids = searchData?.esearchresult?.idlist ?? [];
             if (ids.length > 0) pmid = ids[0];
           }
@@ -208,16 +245,26 @@ export const appRouter = router({
           if (pmid) {
             // Fetch full abstract + metadata via efetch
             const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&rettype=abstract&retmode=xml&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-            const fetchRes = await fetch(fetchUrl, { signal: AbortSignal.timeout(10_000) });
+            const fetchRes = await fetch(fetchUrl, {
+              signal: AbortSignal.timeout(10_000),
+            });
             const xml = await fetchRes.text();
 
             // Extract title
-            const titleMatch = xml.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/);
-            const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : "Untitled Paper";
+            const titleMatch = xml.match(
+              /<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/
+            );
+            const title = titleMatch
+              ? titleMatch[1].replace(/<[^>]+>/g, "").trim()
+              : "Untitled Paper";
 
             // Extract abstract sections
             const abstractTexts: string[] = [];
-            const abstractMatches = Array.from(xml.matchAll(/<AbstractText(?:[^>]* Label="([^"]*)"|[^>]*)>([\s\S]*?)<\/AbstractText>/g));
+            const abstractMatches = Array.from(
+              xml.matchAll(
+                /<AbstractText(?:[^>]* Label="([^"]*)"|[^>]*)>([\s\S]*?)<\/AbstractText>/g
+              )
+            );
             for (const m of abstractMatches) {
               const label = m[1] ? `${m[1]}: ` : "";
               const text = m[2].replace(/<[^>]+>/g, "").trim();
@@ -225,37 +272,65 @@ export const appRouter = router({
             }
 
             // Extract author list
-            const authorMatches = Array.from(xml.matchAll(/<LastName>([^<]+)<\/LastName>/g));
-            const authors = authorMatches.slice(0, 6).map((m) => m[1]).join(", ");
+            const authorMatches = Array.from(
+              xml.matchAll(/<LastName>([^<]+)<\/LastName>/g)
+            );
+            const authors = authorMatches
+              .slice(0, 6)
+              .map(m => m[1])
+              .join(", ");
             const authorSuffix = authorMatches.length > 6 ? " et al." : "";
 
             // Extract journal + year
-            const journalMatch = xml.match(/<ISOAbbreviation>([^<]+)<\/ISOAbbreviation>/);
-            const yearMatch = xml.match(/<PubDate>[\s\S]*?<Year>([0-9]{4})<\/Year>/);
+            const journalMatch = xml.match(
+              /<ISOAbbreviation>([^<]+)<\/ISOAbbreviation>/
+            );
+            const yearMatch = xml.match(
+              /<PubDate>[\s\S]*?<Year>([0-9]{4})<\/Year>/
+            );
             const citation = [
               authors ? `${authors}${authorSuffix}` : "",
               journalMatch ? journalMatch[1] : "",
               yearMatch ? `(${yearMatch[1]})` : "",
               pmid ? `PMID: ${pmid}` : "",
-            ].filter(Boolean).join(" · ");
+            ]
+              .filter(Boolean)
+              .join(" · ");
 
-                        // ── PMC Open Access full-text fetch ──────────────────────────
+            // ── PMC Open Access full-text fetch ──────────────────────────
             let methodsText = "";
             try {
               // Check if this PMID has a PMC full-text record
               const pmcSearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&db=pmc&id=${pmid}&retmode=json&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-              const pmcLinkRes = await fetch(pmcSearchUrl, { signal: AbortSignal.timeout(10_000) });
-              const pmcLinkData = await pmcLinkRes.json() as { linksets?: Array<{ linksetdbs?: Array<{ dbto: string; links?: string[] }> }> };
-              const pmcLinks = pmcLinkData?.linksets?.[0]?.linksetdbs?.find((db) => db.dbto === "pmc")?.links ?? [];
+              const pmcLinkRes = await fetch(pmcSearchUrl, {
+                signal: AbortSignal.timeout(10_000),
+              });
+              const pmcLinkData = (await pmcLinkRes.json()) as {
+                linksets?: Array<{
+                  linksetdbs?: Array<{ dbto: string; links?: string[] }>;
+                }>;
+              };
+              const pmcLinks =
+                pmcLinkData?.linksets?.[0]?.linksetdbs?.find(
+                  db => db.dbto === "pmc"
+                )?.links ?? [];
               if (pmcLinks.length > 0) {
                 const pmcId = pmcLinks[0];
                 const ftUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${pmcId}&rettype=full&retmode=xml&tool=protein-truth-desk&email=info@protein-truth-desk.com`;
-                const ftRes = await fetch(ftUrl, { signal: AbortSignal.timeout(15_000) });
+                const ftRes = await fetch(ftUrl, {
+                  signal: AbortSignal.timeout(15_000),
+                });
                 const ftXml = await ftRes.text();
                 // Extract Methods section text
-                const methodsMatch = ftXml.match(/<sec[^>]*>\s*<title>[^<]*(?:method|material|experiment)[^<]*<\/title>([\s\S]*?)<\/sec>/i);
+                const methodsMatch = ftXml.match(
+                  /<sec[^>]*>\s*<title>[^<]*(?:method|material|experiment)[^<]*<\/title>([\s\S]*?)<\/sec>/i
+                );
                 if (methodsMatch) {
-                  methodsText = methodsMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
+                  methodsText = methodsMatch[1]
+                    .replace(/<[^>]+>/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 3000);
                 }
               }
             } catch {
@@ -269,7 +344,9 @@ export const appRouter = router({
                 ? abstractTexts.join("\n\n")
                 : "[Abstract not available — please paste the text manually]",
               methodsText ? `\nMethods (excerpt):\n${methodsText}` : "",
-            ].filter((l) => l !== undefined && l !== "").join("\n");
+            ]
+              .filter(l => l !== undefined && l !== "")
+              .join("\n");
             return { title, text: fullText, pmid, doi: doi ?? null, citation };
           }
         } catch (err) {
@@ -284,19 +361,41 @@ export const appRouter = router({
               `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(doi ? `DOI:${doi}` : `EXT_ID:${pmid}`)}&format=json&resultType=core&pageSize=1`,
               { signal: AbortSignal.timeout(10_000) }
             );
-            const epmcData = await epmc.json() as { resultList?: { result?: Array<{ title?: string; abstractText?: string; authorString?: string; journalAbbreviation?: string; pubYear?: string; doi?: string }> } };
+            const epmcData = (await epmc.json()) as {
+              resultList?: {
+                result?: Array<{
+                  title?: string;
+                  abstractText?: string;
+                  authorString?: string;
+                  journalAbbreviation?: string;
+                  pubYear?: string;
+                  doi?: string;
+                }>;
+              };
+            };
             const result = epmcData?.resultList?.result?.[0];
             if (result) {
               const title = result.title ?? "Untitled Paper";
               const text = [
                 `Title: ${title}`,
                 result.authorString ? `Authors: ${result.authorString}` : "",
-                result.journalAbbreviation ? `Journal: ${result.journalAbbreviation} (${result.pubYear ?? ""})` : "",
+                result.journalAbbreviation
+                  ? `Journal: ${result.journalAbbreviation} (${result.pubYear ?? ""})`
+                  : "",
                 result.doi ? `DOI: ${result.doi}` : "",
                 "",
-                result.abstractText ?? "[Abstract not available — please paste the text manually]",
-              ].filter(Boolean).join("\n");
-              return { title, text, pmid: pmid ?? null, doi: result.doi ?? doi ?? null, citation: `${result.authorString ?? ""} · ${result.journalAbbreviation ?? ""} (${result.pubYear ?? ""})` };
+                result.abstractText ??
+                  "[Abstract not available — please paste the text manually]",
+              ]
+                .filter(Boolean)
+                .join("\n");
+              return {
+                title,
+                text,
+                pmid: pmid ?? null,
+                doi: result.doi ?? doi ?? null,
+                citation: `${result.authorString ?? ""} · ${result.journalAbbreviation ?? ""} (${result.pubYear ?? ""})`,
+              };
             }
           }
         } catch (err) {
@@ -305,7 +404,8 @@ export const appRouter = router({
 
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Could not retrieve this paper. It may not be indexed in PubMed or Europe PMC. Please paste the text manually.",
+          message:
+            "Could not retrieve this paper. It may not be indexed in PubMed or Europe PMC. Please paste the text manually.",
         });
       }),
 
@@ -333,7 +433,8 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
         return getClaimsByDocument(input.documentId);
       }),
 
@@ -352,7 +453,9 @@ export const appRouter = router({
             "Needs Expert Review",
           ]),
           /** Minimum 20 characters — required to preserve epistemic chain integrity */
-          justification: z.string().min(20, "Justification must be at least 20 characters"),
+          justification: z
+            .string()
+            .min(20, "Justification must be at least 20 characters"),
           /** Epistemic category explains WHY the human override is valid */
           overrideCategory: z.enum([
             "domain_expertise",
@@ -367,7 +470,8 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "FORBIDDEN" });
         await overrideClaimVerdict(
           input.claimId,
           ctx.user.id,
@@ -380,34 +484,42 @@ export const appRouter = router({
           }
         );
         // Async: log override to wiki audit trail
-        import("./wikiEngine").then(({ appendLog }) =>
-          appendLog(
-            "update",
-            `Claim #${input.claimId} verdict overridden (${input.overrideCategory}): ${input.justification.slice(0, 100)}`,
-            1,
-            `claim-${input.claimId}`,
-            input.documentId
-          ).catch(console.error)
-        ).catch(console.error);
+        import("./wikiEngine")
+          .then(({ appendLog }) =>
+            appendLog(
+              "update",
+              `Claim #${input.claimId} verdict overridden (${input.overrideCategory}): ${input.justification.slice(0, 100)}`,
+              1,
+              `claim-${input.claimId}`,
+              input.documentId
+            ).catch(console.error)
+          )
+          .catch(console.error);
         // Calibration loop: record that the model which produced the original verdict was incorrect.
         // We look up the document's llmProvider to identify the responsible model.
         // This feeds the LLM quality scoring system and can trigger auto-bans on low-accuracy models.
-        getDocumentById(input.documentId).then((doc) => {
-          if (!doc?.llmProvider) return;
-          import("./llmProviderQuality").then(({ recordModelOutcome }) =>
-            recordModelOutcome(doc.llmProvider, false).catch(console.error)
-          ).catch(console.error);
-        }).catch(console.error);
+        getDocumentById(input.documentId)
+          .then(doc => {
+            if (!doc?.llmProvider) return;
+            import("./llmProviderQuality")
+              .then(({ recordModelOutcome }) =>
+                recordModelOutcome(doc.llmProvider, false).catch(console.error)
+              )
+              .catch(console.error);
+          })
+          .catch(console.error);
         // Publish manual_review_complete event into the Autonomous Loop
-        import("./autonomousLoop/eventBus").then(({ publishEvent }) =>
-          publishEvent("manual_review_complete", {
-            claimId: input.claimId,
-            documentId: input.documentId,
-            overriddenVerdict: input.overriddenVerdict,
-            overrideCategory: input.overrideCategory,
-            reviewerId: ctx.user.id,
-          }).catch(console.error)
-        ).catch(console.error);
+        import("./autonomousLoop/eventBus")
+          .then(({ publishEvent }) =>
+            publishEvent("manual_review_complete", {
+              claimId: input.claimId,
+              documentId: input.documentId,
+              overriddenVerdict: input.overriddenVerdict,
+              overrideCategory: input.overrideCategory,
+              reviewerId: ctx.user.id,
+            }).catch(console.error)
+          )
+          .catch(console.error);
         return { success: true };
       }),
 
@@ -415,7 +527,8 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
         const { getOverrideAuditLog } = await import("./db");
         return getOverrideAuditLog(input.documentId);
       }),
@@ -425,18 +538,24 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
         const allClaims = await getClaimsByDocument(input.documentId);
         const { computeDeterminismMetrics } = await import("./verdictEngine");
-        const methods = allClaims.map((c) => (c as Record<string, unknown>).verdictMethod) as Array<import("./verdictEngine").VerdictMethod | null | undefined>;
+        const methods = allClaims.map(
+          c => (c as Record<string, unknown>).verdictMethod
+        ) as Array<import("./verdictEngine").VerdictMethod | null | undefined>;
         const metrics = computeDeterminismMetrics(methods);
         // Per-claim breakdown
-        const breakdown = allClaims.map((c) => ({
+        const breakdown = allClaims.map(c => ({
           id: c.id,
           claimText: c.claimText.slice(0, 120),
           verdict: c.verdict,
-          verdictMethod: (c as Record<string, unknown>).verdictMethod as string | null,
-          sourceCompletenessScore: (c as Record<string, unknown>).sourceCompletenessScore as number | null,
+          verdictMethod: (c as Record<string, unknown>).verdictMethod as
+            | string
+            | null,
+          sourceCompletenessScore: (c as Record<string, unknown>)
+            .sourceCompletenessScore as number | null,
         }));
         return { metrics, breakdown };
       }),
@@ -448,7 +567,8 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
         return getAuditReportByDocument(input.documentId);
       }),
 
@@ -456,9 +576,16 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
-        if (!doc.rawText) throw new TRPCError({ code: "BAD_REQUEST", message: "No text available" });
-        runAnalysisPipeline(input.documentId, doc.rawText, ctx.user.id).catch(console.error);
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "FORBIDDEN" });
+        if (!doc.rawText)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No text available",
+          });
+        runAnalysisPipeline(input.documentId, doc.rawText, ctx.user.id).catch(
+          console.error
+        );
         return { success: true };
       }),
   }),
@@ -469,7 +596,8 @@ export const appRouter = router({
       .input(z.object({ documentId: z.number() }))
       .query(async ({ ctx, input }) => {
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
         return getMonitoringFeedByDocument(input.documentId);
       }),
 
@@ -493,11 +621,15 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         // Rate limit: max 3 audit requests per email per 24 hours
-        const recentRequests = await getRecentAuditRequestsByEmail(input.contactEmail, 24 * 60 * 60 * 1000);
+        const recentRequests = await getRecentAuditRequestsByEmail(
+          input.contactEmail,
+          24 * 60 * 60 * 1000
+        );
         if (recentRequests >= 3) {
           throw new TRPCError({
             code: "TOO_MANY_REQUESTS",
-            message: "Too many requests. Please wait 24 hours before submitting another audit request.",
+            message:
+              "Too many requests. Please wait 24 hours before submitting another audit request.",
           });
         }
         const id = await createAuditRequest({
@@ -513,8 +645,8 @@ export const appRouter = router({
           input.tier === "starter"
             ? "Starter ($1,500)"
             : input.tier === "diligence"
-            ? "Diligence ($5,000)"
-            : "Platform Pilot";
+              ? "Diligence ($5,000)"
+              : "Platform Pilot";
         await notifyOwner({
           title: `New Audit Request: ${tierLabel}`,
           content: `From: ${input.contactName} <${input.contactEmail}>\nOrg: ${input.organization ?? "—"}\nTier: ${tierLabel}\n\n${input.documentDescription}`,
@@ -535,16 +667,18 @@ export const appRouter = router({
     .input(
       z.object({
         documentId: z.number().int().positive(),
-        items: z.array(
-          z.object({
-            source: z.enum(["pubmed", "biorxiv", "patent"]),
-            title: z.string().max(512),
-            summary: z.string().max(2000).optional(),
-            url: z.string().url().max(2048).optional(),
-            relevanceScore: z.number().min(0).max(1).optional(),
-            publishedAt: z.string().max(64).optional(),
-          })
-        ).max(100), // cap batch size
+        items: z
+          .array(
+            z.object({
+              source: z.enum(["pubmed", "biorxiv", "patent"]),
+              title: z.string().max(512),
+              summary: z.string().max(2000).optional(),
+              url: z.string().url().max(2048).optional(),
+              relevanceScore: z.number().min(0).max(1).optional(),
+              publishedAt: z.string().max(64).optional(),
+            })
+          )
+          .max(100), // cap batch size
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -555,7 +689,7 @@ export const appRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
       await insertMonitoringItems(
-        input.items.map((item) => ({
+        input.items.map(item => ({
           documentId: input.documentId,
           source: item.source,
           title: item.title,
@@ -575,7 +709,10 @@ export const appRouter = router({
         z.object({
           fileName: z.string().max(255),
           // Validate MIME type format to prevent content-type injection
-          contentType: z.string().max(128).regex(/^[\w.+-]+\/[\w.+\-*]+$/),
+          contentType: z
+            .string()
+            .max(128)
+            .regex(/^[\w.+-]+\/[\w.+\-*]+$/),
           base64Content: z.string().max(70_000_000), // ~50 MB base64 ceiling
         })
       )
@@ -605,10 +742,19 @@ export const appRouter = router({
       // Attach relation counts to each entity
       const relCount = new Map<number, number>();
       for (const r of relations) {
-        relCount.set(r.sourceEntityId, (relCount.get(r.sourceEntityId) ?? 0) + 1);
-        relCount.set(r.targetEntityId, (relCount.get(r.targetEntityId) ?? 0) + 1);
+        relCount.set(
+          r.sourceEntityId,
+          (relCount.get(r.sourceEntityId) ?? 0) + 1
+        );
+        relCount.set(
+          r.targetEntityId,
+          (relCount.get(r.targetEntityId) ?? 0) + 1
+        );
       }
-      return entities.map((e) => ({ ...e, relationCount: relCount.get(e.id) ?? 0 }));
+      return entities.map(e => ({
+        ...e,
+        relationCount: relCount.get(e.id) ?? 0,
+      }));
     }),
 
     relations: publicProcedure.query(async () => {
@@ -623,50 +769,98 @@ export const appRouter = router({
       .input(z.object({ relationId: z.number().int().positive() }))
       .query(async ({ input }) => {
         const { getDb } = await import("./db");
-        const { graphRelations, graphEntities, claims, documents } = await import("../drizzle/schema");
+        const { graphRelations, graphEntities, claims, documents } =
+          await import("../drizzle/schema");
         const { eq, or } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        const relRows = await db.select().from(graphRelations).where(eq(graphRelations.id, input.relationId)).limit(1);
+        const relRows = await db
+          .select()
+          .from(graphRelations)
+          .where(eq(graphRelations.id, input.relationId))
+          .limit(1);
         if (relRows.length === 0) throw new TRPCError({ code: "NOT_FOUND" });
         const rel = relRows[0];
-        const entityRows = await db.select().from(graphEntities).where(
-          or(eq(graphEntities.id, rel.sourceEntityId), eq(graphEntities.id, rel.targetEntityId))
-        );
-        const sourceEntity = entityRows.find(e => e.id === rel.sourceEntityId) ?? null;
-        const targetEntity = entityRows.find(e => e.id === rel.targetEntityId) ?? null;
+        const entityRows = await db
+          .select()
+          .from(graphEntities)
+          .where(
+            or(
+              eq(graphEntities.id, rel.sourceEntityId),
+              eq(graphEntities.id, rel.targetEntityId)
+            )
+          );
+        const sourceEntity =
+          entityRows.find(e => e.id === rel.sourceEntityId) ?? null;
+        const targetEntity =
+          entityRows.find(e => e.id === rel.targetEntityId) ?? null;
         let evidenceDocument = null;
         if (rel.evidenceDocumentId) {
-          const docRows = await db.select({
-            id: documents.id, title: documents.title,
-            verticalDomain: documents.verticalDomain,
-            storageUrl: documents.storageUrl, status: documents.status,
-          }).from(documents).where(eq(documents.id, rel.evidenceDocumentId)).limit(1);
+          const docRows = await db
+            .select({
+              id: documents.id,
+              title: documents.title,
+              verticalDomain: documents.verticalDomain,
+              storageUrl: documents.storageUrl,
+              status: documents.status,
+            })
+            .from(documents)
+            .where(eq(documents.id, rel.evidenceDocumentId))
+            .limit(1);
           evidenceDocument = docRows[0] ?? null;
         }
         const sourceClaims = sourceEntity?.firstSeenDocumentId
-          ? await db.select({
-              id: claims.id, claimText: claims.claimText, verdict: claims.verdict,
-              confidenceScore: claims.confidenceScore, verdictRationale: claims.verdictRationale,
-              documentId: claims.documentId,
-            }).from(claims).where(eq(claims.documentId, sourceEntity.firstSeenDocumentId)).limit(10)
+          ? await db
+              .select({
+                id: claims.id,
+                claimText: claims.claimText,
+                verdict: claims.verdict,
+                confidenceScore: claims.confidenceScore,
+                verdictRationale: claims.verdictRationale,
+                documentId: claims.documentId,
+              })
+              .from(claims)
+              .where(eq(claims.documentId, sourceEntity.firstSeenDocumentId))
+              .limit(10)
           : [];
         const targetClaims = targetEntity?.firstSeenDocumentId
-          ? await db.select({
-              id: claims.id, claimText: claims.claimText, verdict: claims.verdict,
-              confidenceScore: claims.confidenceScore, verdictRationale: claims.verdictRationale,
-              documentId: claims.documentId,
-            }).from(claims).where(eq(claims.documentId, targetEntity.firstSeenDocumentId)).limit(10)
+          ? await db
+              .select({
+                id: claims.id,
+                claimText: claims.claimText,
+                verdict: claims.verdict,
+                confidenceScore: claims.confidenceScore,
+                verdictRationale: claims.verdictRationale,
+                documentId: claims.documentId,
+              })
+              .from(claims)
+              .where(eq(claims.documentId, targetEntity.firstSeenDocumentId))
+              .limit(10)
           : [];
-        return { relation: rel, sourceEntity, targetEntity, evidenceDocument, sourceClaims, targetClaims };
+        return {
+          relation: rel,
+          sourceEntity,
+          targetEntity,
+          evidenceDocument,
+          sourceClaims,
+          targetClaims,
+        };
       }),
 
     resolveContradiction: protectedProcedure
-      .input(z.object({
-        relationId: z.number().int().positive(),
-        resolution: z.enum(["source_correct", "target_correct", "both_partial", "needs_expert", "false_positive"]),
-        notes: z.string().max(2000).optional(),
-      }))
+      .input(
+        z.object({
+          relationId: z.number().int().positive(),
+          resolution: z.enum([
+            "source_correct",
+            "target_correct",
+            "both_partial",
+            "needs_expert",
+            "false_positive",
+          ]),
+          notes: z.string().max(2000).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         void ctx;
         const { getDb } = await import("./db");
@@ -681,10 +875,17 @@ export const appRouter = router({
           both_partial: 0.5,
           needs_expert: 0.1,
         };
-        await db.update(graphRelations).set({
-          confidenceScore: scoreMap[input.resolution] ?? 0.5,
-        }).where(eq(graphRelations.id, input.relationId));
-        return { ok: true, resolution: input.resolution, resolvedAt: new Date().toISOString() };
+        await db
+          .update(graphRelations)
+          .set({
+            confidenceScore: scoreMap[input.resolution] ?? 0.5,
+          })
+          .where(eq(graphRelations.id, input.relationId));
+        return {
+          ok: true,
+          resolution: input.resolution,
+          resolvedAt: new Date().toISOString(),
+        };
       }),
 
     // LLM-backed graph query: requires auth to prevent unauthenticated LLM abuse
@@ -699,23 +900,23 @@ export const appRouter = router({
         ]);
 
         const entityIndex = entities
-          .map((e) => `[${e.id}] ${e.entityType}: ${e.canonicalName}`)
+          .map(e => `[${e.id}] ${e.entityType}: ${e.canonicalName}`)
           .join("\n");
 
         const relationIndex = relations
           .slice(0, 200)
-          .map((r) => {
-            const src = entities.find((e) => e.id === r.sourceEntityId);
-            const tgt = entities.find((e) => e.id === r.targetEntityId);
+          .map(r => {
+            const src = entities.find(e => e.id === r.sourceEntityId);
+            const tgt = entities.find(e => e.id === r.targetEntityId);
             return `${src?.canonicalName ?? r.sourceEntityId} --[${r.relationType}]--> ${tgt?.canonicalName ?? r.targetEntityId}`;
           })
           .join("\n");
 
         const contradictionIndex = contradictions
           .slice(0, 20)
-          .map((r) => {
-            const src = entities.find((e) => e.id === r.sourceEntityId);
-            return `CONTRADICTION: ${src?.canonicalName ?? r.sourceEntityId} (confidence: ${r.confidenceScore ?? "?"})` ;
+          .map(r => {
+            const src = entities.find(e => e.id === r.sourceEntityId);
+            return `CONTRADICTION: ${src?.canonicalName ?? r.sourceEntityId} (confidence: ${r.confidenceScore ?? "?"})`;
           })
           .join("\n");
 
@@ -763,15 +964,21 @@ Respond in this exact structure:
           ],
         });
 
-        let rawAnswer = response?.choices?.[0]?.message?.content ?? "No answer available.";
-        let answerText = typeof rawAnswer === "string" ? rawAnswer : JSON.stringify(rawAnswer);
+        const rawAnswer =
+          response?.choices?.[0]?.message?.content ?? "No answer available.";
+        let answerText =
+          typeof rawAnswer === "string" ? rawAnswer : JSON.stringify(rawAnswer);
 
         // ── FrictionEngine Output Audit (Output Critic) ───────────────────────
         // Audit the answer against the optimized prompt. If it fails, retry once
         // with the suggested revision. This implements the paper's Answer Audit loop.
         try {
           const { runOutputAudit } = await import("./frictionEngine");
-          const audit = await runOutputAudit(optimizedPrompt, answerText, validationCriteria);
+          const audit = await runOutputAudit(
+            optimizedPrompt,
+            answerText,
+            validationCriteria
+          );
           if (audit.verdict === "revise" && audit.suggestedRevision) {
             // One retry with the suggested revision injected into the prompt
             const retryResponse = await invokeLLM({
@@ -792,13 +999,22 @@ Respond in this exact structure:
           }
         } catch (auditErr) {
           // Audit failure is non-fatal — proceed with original answer
-          console.warn("[FrictionEngine] Output audit error (non-fatal):", auditErr);
+          console.warn(
+            "[FrictionEngine] Output audit error (non-fatal):",
+            auditErr
+          );
         }
 
         // Parse the structured sections for the frontend to render distinctly
-        const assumptionMatch = answerText.match(/\*\*Assumption exposed:\*\*\s*([\s\S]*?)(?=\n\n\*\*|$)/);
-        const falsificationMatch = answerText.match(/\*\*Falsification test:\*\*\s*([\s\S]*?)(?=\n\n\*\*|$)/);
-        const evidenceMatch = answerText.match(/\*\*Evidence-based answer:\*\*\s*([\s\S]*)$/);
+        const assumptionMatch = answerText.match(
+          /\*\*Assumption exposed:\*\*\s*([\s\S]*?)(?=\n\n\*\*|$)/
+        );
+        const falsificationMatch = answerText.match(
+          /\*\*Falsification test:\*\*\s*([\s\S]*?)(?=\n\n\*\*|$)/
+        );
+        const evidenceMatch = answerText.match(
+          /\*\*Evidence-based answer:\*\*\s*([\s\S]*)$/
+        );
 
         return {
           answer: answerText,
@@ -832,14 +1048,20 @@ Respond in this exact structure:
         const { eq } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) return null;
-        const rows = await db.select().from(wikiPages).where(eq(wikiPages.slug, input.slug)).limit(1);
+        const rows = await db
+          .select()
+          .from(wikiPages)
+          .where(eq(wikiPages.slug, input.slug))
+          .limit(1);
         return rows[0] ?? null;
       }),
     /** List DB-backed wiki pages with optional category filter and pagination */
     listPages: publicProcedure
       .input(
         z.object({
-          category: z.enum(["entity", "concept", "synthesis", "source_summary"]).optional(),
+          category: z
+            .enum(["entity", "concept", "synthesis", "source_summary"])
+            .optional(),
           verticalDomain: z.string().optional(),
           limit: z.number().int().min(1).max(100).default(50),
           offset: z.number().int().min(0).default(0),
@@ -852,8 +1074,10 @@ Respond in this exact structure:
         const db = await getDb();
         if (!db) return { pages: [], total: 0 };
         const conditions = [];
-        if (input.category) conditions.push(eq(wikiPages.category, input.category));
-        if (input.verticalDomain) conditions.push(eq(wikiPages.verticalDomain, input.verticalDomain));
+        if (input.category)
+          conditions.push(eq(wikiPages.category, input.category));
+        if (input.verticalDomain)
+          conditions.push(eq(wikiPages.verticalDomain, input.verticalDomain));
         const where = conditions.length > 0 ? and(...conditions) : undefined;
         const rows = await db
           .select({
@@ -880,7 +1104,12 @@ Respond in this exact structure:
       }),
     /** Full-text search across DB wiki pages */
     search: publicProcedure
-      .input(z.object({ query: z.string().min(1).max(256), limit: z.number().int().min(1).max(50).default(10) }))
+      .input(
+        z.object({
+          query: z.string().min(1).max(256),
+          limit: z.number().int().min(1).max(50).default(10),
+        })
+      )
       .query(async ({ input }) => {
         const { searchWiki } = await import("./wikiEngine");
         return searchWiki(input.query, input.limit);
@@ -903,13 +1132,20 @@ Respond in this exact structure:
         const { desc } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) return [];
-        return db.select().from(wikiLog).orderBy(desc(wikiLog.recordedAt)).limit(input.limit);
+        return db
+          .select()
+          .from(wikiLog)
+          .orderBy(desc(wikiLog.recordedAt))
+          .limit(input.limit);
       }),
     /** Admin: trigger a wiki lint pass and rebuild the index */
     triggerLint: protectedProcedure.mutation(async ({ ctx }) => {
       const { ENV } = await import("./_core/env");
       if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Owner or admin access required",
+        });
       }
       const { lintWiki, buildIndex } = await import("./wikiEngine");
       const result = await lintWiki();
@@ -938,7 +1174,7 @@ Respond in this exact structure:
      */
     listAll: publicProcedure.query(async () => {
       const { listVerticals } = await import("./verticalAdapters");
-      return listVerticals().map((v) => ({
+      return listVerticals().map(v => ({
         domainKey: v.domainKey,
         displayName: v.displayName,
         description: v.description,
@@ -1032,7 +1268,9 @@ Respond in this exact structure:
               isNotNull(claims.confidenceScore)
             )
           );
-        const avgConfidence = avgScoreRow[0]?.avg ? Math.round(Number(avgScoreRow[0].avg) * 1000) / 1000 : null;
+        const avgConfidence = avgScoreRow[0]?.avg
+          ? Math.round(Number(avgScoreRow[0].avg) * 1000) / 1000
+          : null;
 
         return {
           domainKey: adapter.domainKey,
@@ -1060,22 +1298,28 @@ Respond in this exact structure:
       if (!db) return [];
       const { verticalConfigs } = await import("../drizzle/schema");
       const { desc } = await import("drizzle-orm");
-      return db.select().from(verticalConfigs).orderBy(desc(verticalConfigs.createdAt));
+      return db
+        .select()
+        .from(verticalConfigs)
+        .orderBy(desc(verticalConfigs.createdAt));
     }),
 
     /**
      * Admin: create a new vertical in DB.
      */
     create: protectedProcedure
-      .input(z.object({
-        domainKey: z.string().min(1).max(64),
-        displayName: z.string().min(1).max(128),
-        description: z.string().optional(),
-        qualityTier: z.enum(["draft", "verified"]).default("draft"),
-        enabled: z.boolean().default(true),
-      }))
+      .input(
+        z.object({
+          domainKey: z.string().min(1).max(64),
+          displayName: z.string().min(1).max(128),
+          description: z.string().optional(),
+          qualityTier: z.enum(["draft", "verified"]).default("draft"),
+          enabled: z.boolean().default(true),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1096,13 +1340,17 @@ Respond in this exact structure:
     toggle: protectedProcedure
       .input(z.object({ id: z.number(), enabled: z.boolean() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         const { verticalConfigs } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
-        await db.update(verticalConfigs).set({ enabled: input.enabled }).where(eq(verticalConfigs.id, input.id));
+        await db
+          .update(verticalConfigs)
+          .set({ enabled: input.enabled })
+          .where(eq(verticalConfigs.id, input.id));
         return { success: true };
       }),
   }),
@@ -1121,45 +1369,50 @@ Respond in this exact structure:
      * Returns { status: "started" } immediately and runs in the background.
      * Progress is logged to the server console and Telegram (if configured).
      */
-    backfillWiki: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
-        }
-        const origin = process.env.VITE_APP_URL ?? "https://protein-desk-5r5rzpyg.manus.space";
-        const { runBackfillWiki } = await import("./backfillWikiRoute");
-        // Fire-and-forget — return immediately so the HTTP connection doesn't time out
-        runBackfillWiki(origin, (msg) => {
-          console.log(`[BackfillWiki/tRPC] ${msg}`);
-        }).catch(console.error);
-        return {
-          status: "started" as const,
-          message: "Backfill running in background. Check server logs or Telegram for progress.",
-        };
-      }),
+    backfillWiki: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Owner or admin access required",
+        });
+      }
+      const origin =
+        process.env.VITE_APP_URL ?? "https://protein-desk-5r5rzpyg.manus.space";
+      const { runBackfillWiki } = await import("./backfillWikiRoute");
+      // Fire-and-forget — return immediately so the HTTP connection doesn't time out
+      runBackfillWiki(origin, msg => {
+        console.log(`[BackfillWiki/tRPC] ${msg}`);
+      }).catch(console.error);
+      return {
+        status: "started" as const,
+        message:
+          "Backfill running in background. Check server logs or Telegram for progress.",
+      };
+    }),
 
     /**
      * Returns how many completed documents have been wiki-compiled vs. pending.
      */
-    backfillStatus: protectedProcedure
-      .query(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        const { getAllCompletedDocuments } = await import("./db");
-        const allCompleted = await getAllCompletedDocuments(2000);
-        const compiled = allCompleted.filter((d) => !!d.wikiCompiledAt).length;
-        const pending = allCompleted.length - compiled;
-        return {
-          completedDocuments: allCompleted.length,
-          wikiCompiled: compiled,
-          wikiPending: pending,
-          percentComplete:
-            allCompleted.length > 0 ? Math.round((compiled / allCompleted.length) * 100) : 0,
-        };
-      }),
+    backfillStatus: protectedProcedure.query(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { getAllCompletedDocuments } = await import("./db");
+      const allCompleted = await getAllCompletedDocuments(2000);
+      const compiled = allCompleted.filter(d => !!d.wikiCompiledAt).length;
+      const pending = allCompleted.length - compiled;
+      return {
+        completedDocuments: allCompleted.length,
+        wikiCompiled: compiled,
+        wikiPending: pending,
+        percentComplete:
+          allCompleted.length > 0
+            ? Math.round((compiled / allCompleted.length) * 100)
+            : 0,
+      };
+    }),
 
     /**
      * Rotate the JWKS RSA key pair.
@@ -1167,180 +1420,223 @@ Respond in this exact structure:
      * secrets API (JWKS_PRIVATE_KEY), appends the old kid to the wiki audit log,
      * and returns the new public JWK. Re-deploy is required to activate the new key.
      */
-    rotateJwksKey: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
-        }
-
-        const crypto = await import("crypto");
-        const { ACTIVE_JWK_PUBLIC_KEY, derivePublicJwk } = await import("./jwksKeys");
-        const { appendLog } = await import("./wikiEngine");
-
-        // Capture the old kid before rotation for audit trail
-        const oldKid = ACTIVE_JWK_PUBLIC_KEY.kid as string;
-
-        // Generate a new RSA-2048 key pair
-        const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
-          modulusLength: 2048,
-          publicKeyEncoding: { type: "spki", format: "pem" },
-          privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    rotateJwksKey: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Owner or admin access required",
         });
+      }
 
-        // Derive the new public JWK to return to the caller
-        const newPublicJwk = derivePublicJwk(publicKey as string);
+      const crypto = await import("crypto");
+      const { ACTIVE_JWK_PUBLIC_KEY, derivePublicJwk } = await import(
+        "./jwksKeys"
+      );
+      const { appendLog } = await import("./wikiEngine");
 
-        // Persist the new private key via the Manus Forge secrets API
-        const forgeApiUrl = ENV.forgeApiUrl;
-        const forgeApiKey = ENV.forgeApiKey;
-        const appId = process.env.VITE_APP_ID ?? "";
-        let secretPersisted = false;
-        if (forgeApiUrl && forgeApiKey && appId) {
-          try {
-            const endpoint = `${forgeApiUrl.replace(/\/$/, "")}/webdevtoken.v1.WebDevService/SetSecret`;
-            const resp = await fetch(endpoint, {
-              method: "POST",
-              headers: {
-                accept: "application/json",
-                authorization: `Bearer ${forgeApiKey}`,
-                "content-type": "application/json",
-                "connect-protocol-version": "1",
-              },
-              body: JSON.stringify({
-                app_id: appId,
-                key: "JWKS_PRIVATE_KEY",
-                value: (privateKey as string).replace(/\n/g, "\\n"),
-              }),
-            });
-            secretPersisted = resp.ok;
-          } catch (err) {
-            console.warn("[RotateJwks] Could not persist new key via Forge API:", err);
-          }
-        }
+      // Capture the old kid before rotation for audit trail
+      const oldKid = ACTIVE_JWK_PUBLIC_KEY.kid as string;
 
-        // Append rotation event to the wiki audit log
-        await appendLog(
-          "update",
-          `RSA key rotated by admin ${ctx.user.name ?? ctx.user.openId}. Old kid: ${oldKid}. New kid: ${newPublicJwk.kid}. Re-deploy to activate. All bearer tokens issued with the old key remain valid until their exp claim.`,
-          0,
-          "jwks-key-rotation"
-        );
+      // Generate a new RSA-2048 key pair
+      const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: "spki", format: "pem" },
+        privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      });
 
-        console.log(`[RotateJwks] Key rotated by ${ctx.user.openId}. Old kid: ${oldKid} \u2192 New kid: ${newPublicJwk.kid}. Secret persisted: ${secretPersisted}`);
+      // Derive the new public JWK to return to the caller
+      const newPublicJwk = derivePublicJwk(publicKey as string);
 
-        return {
-          oldKid,
-          newKid: newPublicJwk.kid as string,
-          newPublicJwk,
-          secretPersisted,
-          message: secretPersisted
-            ? `Key rotated. Re-deploy to activate new kid ${newPublicJwk.kid}. Old tokens remain valid until expiry.`
-            : `Key generated but could not auto-persist. Copy the new kid (${newPublicJwk.kid}) and update JWKS_PRIVATE_KEY manually in Settings → Secrets.`,
-        };
+      // Persist the new private key via the Manus Forge secrets API
+      const forgeApiUrl = ENV.forgeApiUrl;
+      const forgeApiKey = ENV.forgeApiKey;
+      const appId = process.env.VITE_APP_ID ?? "";
+      let secretPersisted = false;
+      if (forgeApiUrl && forgeApiKey && appId) {
+        try {
+          const endpoint = `${forgeApiUrl.replace(/\/$/, "")}/webdevtoken.v1.WebDevService/SetSecret`;
+          const resp = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              accept: "application/json",
+              authorization: `Bearer ${forgeApiKey}`,
+              "content-type": "application/json",
+              "connect-protocol-version": "1",
+            },
+            body: JSON.stringify({
+              app_id: appId,
+              key: "JWKS_PRIVATE_KEY",
+              value: (privateKey as string).replace(/\n/g, "\\n"),
             }),
+          });
+          secretPersisted = resp.ok;
+        } catch (err) {
+          console.warn(
+            "[RotateJwks] Could not persist new key via Forge API:",
+            err
+          );
+        }
+      }
+
+      // Append rotation event to the wiki audit log
+      await appendLog(
+        "update",
+        `RSA key rotated by admin ${ctx.user.name ?? ctx.user.openId}. Old kid: ${oldKid}. New kid: ${newPublicJwk.kid}. Re-deploy to activate. All bearer tokens issued with the old key remain valid until their exp claim.`,
+        0,
+        "jwks-key-rotation"
+      );
+
+      console.log(
+        `[RotateJwks] Key rotated by ${ctx.user.openId}. Old kid: ${oldKid} \u2192 New kid: ${newPublicJwk.kid}. Secret persisted: ${secretPersisted}`
+      );
+
+      return {
+        oldKid,
+        newKid: newPublicJwk.kid as string,
+        newPublicJwk,
+        secretPersisted,
+        message: secretPersisted
+          ? `Key rotated. Re-deploy to activate new kid ${newPublicJwk.kid}. Old tokens remain valid until expiry.`
+          : `Key generated but could not auto-persist. Copy the new kid (${newPublicJwk.kid}) and update JWKS_PRIVATE_KEY manually in Settings → Secrets.`,
+      };
+    }),
 
     /**
      * Run the meta-agent (codeGuardianAgent) on demand and return the full report.
      * Includes code health score, drift findings, stub ledger, and pipeline invariants.
      */
-    metaAgentStatus: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Owner or admin access required" });
-        }
-        const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
-        const report = await runCodeGuardian();
-        return {
-          healthScore: report.healthScore,
-          healthGrade: report.healthGrade,
-          criticalCount: report.criticalCount,
-          warningCount: report.warningCount,
-          durationMs: report.durationMs,
-          startedAt: report.startedAt,
-          completedAt: report.completedAt,
-          drift: {
-            schema: { status: report.codeDrift.schemaDrift.severity, summary: report.codeDrift.schemaDrift.summary },
-            api: { status: report.codeDrift.apiDrift.severity, summary: report.codeDrift.apiDrift.summary },
-            test: { status: report.codeDrift.testDrift.severity, summary: report.codeDrift.testDrift.summary },
-            dependency: { status: report.codeDrift.dependencyDrift.severity, summary: report.codeDrift.dependencyDrift.summary },
-            config: { status: report.codeDrift.configDrift.severity, summary: report.codeDrift.configDrift.summary },
-            discipline: { status: report.codeDrift.disciplineDrift.severity, summary: report.codeDrift.disciplineDrift.summary },
+    metaAgentStatus: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Owner or admin access required",
+        });
+      }
+      const { runCodeGuardian } = await import("./metaAgent/codeGuardian");
+      const report = await runCodeGuardian();
+      return {
+        healthScore: report.healthScore,
+        healthGrade: report.healthGrade,
+        criticalCount: report.criticalCount,
+        warningCount: report.warningCount,
+        durationMs: report.durationMs,
+        startedAt: report.startedAt,
+        completedAt: report.completedAt,
+        drift: {
+          schema: {
+            status: report.codeDrift.schemaDrift.severity,
+            summary: report.codeDrift.schemaDrift.summary,
           },
-          stubs: {
-            total: report.stubLedger.total,
-            overdue: report.stubLedger.overdue,
-            byPriority: report.stubLedger.byPriority,
-            overdueEscalations: report.overdueEscalations.map((e) => ({
-              id: e.stub.id,
-              file: e.stub.file,
-              line: e.stub.line,
-              priority: e.stub.priority,
-              daysOverdue: e.stub.daysOverdue,
-              escalationReason: e.escalationReason,
-              suggestedAction: e.suggestedAction,
-            })),
+          api: {
+            status: report.codeDrift.apiDrift.severity,
+            summary: report.codeDrift.apiDrift.summary,
           },
-          pipeline: {
-            overallStatus: report.pipelineGuardian.overallStatus,
-            failCount: report.pipelineGuardian.failCount,
-            warnCount: report.pipelineGuardian.warnCount,
-            invariants: report.pipelineGuardian.invariants.map((inv) => ({
-              name: inv.name,
-              status: inv.status,
-              threshold: inv.threshold,
-              actual: inv.actual,
-              severity: inv.severity,
-            })),
+          test: {
+            status: report.codeDrift.testDrift.severity,
+            summary: report.codeDrift.testDrift.summary,
           },
-        };
-      }),
+          dependency: {
+            status: report.codeDrift.dependencyDrift.severity,
+            summary: report.codeDrift.dependencyDrift.summary,
+          },
+          config: {
+            status: report.codeDrift.configDrift.severity,
+            summary: report.codeDrift.configDrift.summary,
+          },
+          discipline: {
+            status: report.codeDrift.disciplineDrift.severity,
+            summary: report.codeDrift.disciplineDrift.summary,
+          },
+        },
+        stubs: {
+          total: report.stubLedger.total,
+          overdue: report.stubLedger.overdue,
+          byPriority: report.stubLedger.byPriority,
+          overdueEscalations: report.overdueEscalations.map(e => ({
+            id: e.stub.id,
+            file: e.stub.file,
+            line: e.stub.line,
+            priority: e.stub.priority,
+            daysOverdue: e.stub.daysOverdue,
+            escalationReason: e.escalationReason,
+            suggestedAction: e.suggestedAction,
+          })),
+        },
+        pipeline: {
+          overallStatus: report.pipelineGuardian.overallStatus,
+          failCount: report.pipelineGuardian.failCount,
+          warnCount: report.pipelineGuardian.warnCount,
+          invariants: report.pipelineGuardian.invariants.map(inv => ({
+            name: inv.name,
+            status: inv.status,
+            threshold: inv.threshold,
+            actual: inv.actual,
+            severity: inv.severity,
+          })),
+        },
+      };
+    }),
 
     /**
      * Full analytics dashboard data — overview, verdicts, verticals, trend, quality, top entities, activity.
      * All data fetched in parallel for fast response.
      */
-    analyticsOverview: protectedProcedure
-      .query(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        const {
-          getPlatformOverview,
-          getVerdictDistribution,
-          getVerticalHealth,
-          getProcessingTrend,
-          getQualityDistribution,
-          getTopEntities,
-          getRecentActivity,
-        } = await import("./adminAnalytics");
-        const [overview, verdicts, verticals, trend, quality, topEntities, activity] = await Promise.all([
-          getPlatformOverview(),
-          getVerdictDistribution(),
-          getVerticalHealth(),
-          getProcessingTrend(),
-          getQualityDistribution(),
-          getTopEntities(),
-          getRecentActivity(),
-        ]);
-        return { overview, verdicts, verticals, trend, quality, topEntities, activity };
-      }),
+    analyticsOverview: protectedProcedure.query(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const {
+        getPlatformOverview,
+        getVerdictDistribution,
+        getVerticalHealth,
+        getProcessingTrend,
+        getQualityDistribution,
+        getTopEntities,
+        getRecentActivity,
+      } = await import("./adminAnalytics");
+      const [
+        overview,
+        verdicts,
+        verticals,
+        trend,
+        quality,
+        topEntities,
+        activity,
+      ] = await Promise.all([
+        getPlatformOverview(),
+        getVerdictDistribution(),
+        getVerticalHealth(),
+        getProcessingTrend(),
+        getQualityDistribution(),
+        getTopEntities(),
+        getRecentActivity(),
+      ]);
+      return {
+        overview,
+        verdicts,
+        verticals,
+        trend,
+        quality,
+        topEntities,
+        activity,
+      };
+    }),
 
     /**
      * Fetch all LLM provider quality stats for the admin panel.
      * Returns per-model accuracy, ban status, and usage counts.
      */
-    llmProviderQuality: protectedProcedure
-      .query(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        const { getProviderQualityStats } = await import("./llmProviderQuality");
-        return getProviderQualityStats();
-      }),
+    llmProviderQuality: protectedProcedure.query(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { getProviderQualityStats } = await import("./llmProviderQuality");
+      return getProviderQualityStats();
+    }),
 
     /**
      * Ban a model from high-stakes verdicts.
@@ -1375,30 +1671,30 @@ Respond in this exact structure:
     /**
      * Recompute accuracy rates for all models and auto-enforce bans.
      */
-    recomputeLlmAccuracy: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        const { recomputeAllAccuracyRates } = await import("./llmProviderQuality");
-        await recomputeAllAccuracyRates();
-        return { success: true };
-      }),
+    recomputeLlmAccuracy: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { recomputeAllAccuracyRates } = await import(
+        "./llmProviderQuality"
+      );
+      await recomputeAllAccuracyRates();
+      return { success: true };
+    }),
 
     /**
      * Seed known models into the quality DB (idempotent).
      */
-    seedLlmModels: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        const { seedKnownModels } = await import("./llmProviderQuality");
-        await seedKnownModels();
-        return { success: true };
-      }),
+    seedLlmModels: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { seedKnownModels } = await import("./llmProviderQuality");
+      await seedKnownModels();
+      return { success: true };
+    }),
   }),
 
   // ─── Predictions (Ground Signal) ─────────────────────────────────────────────
@@ -1410,7 +1706,9 @@ Respond in this exact structure:
         const { computeClaimTrajectory } = await import("./predictionEngine");
         const stored = await getPredictionsByClaimId(input.claimId);
         if (stored.length > 0) {
-          return stored[0].prediction as Awaited<ReturnType<typeof computeClaimTrajectory>>;
+          return stored[0].prediction as Awaited<
+            ReturnType<typeof computeClaimTrajectory>
+          >;
         }
         return computeClaimTrajectory(input.claimId, ctx.user.id);
       }),
@@ -1444,10 +1742,12 @@ Respond in this exact structure:
       }),
 
     validatePrediction: protectedProcedure
-      .input(z.object({
-        predictionId: z.number(),
-        result: z.enum(["correct", "incorrect"]),
-      }))
+      .input(
+        z.object({
+          predictionId: z.number(),
+          result: z.enum(["correct", "incorrect"]),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { ENV } = await import("./_core/env");
         if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
@@ -1467,11 +1767,13 @@ Respond in this exact structure:
     }),
 
     create: protectedProcedure
-      .input(z.object({
-        url: z.string().url("Must be a valid URL"),
-        label: z.string().max(128).optional(),
-        eventTypes: z.array(z.string()).default(["high_risk_claim"]),
-      }))
+      .input(
+        z.object({
+          url: z.string().url("Must be a valid URL"),
+          label: z.string().max(128).optional(),
+          eventTypes: z.array(z.string()).default(["high_risk_claim"]),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const crypto = await import("crypto");
         const secret = crypto.randomBytes(32).toString("hex");
@@ -1498,13 +1800,17 @@ Respond in this exact structure:
   // ─── Webhook Delivery Log ──────────────────────────────────────────────────
   deliveryLog: router({
     list: protectedProcedure
-      .input(z.object({
-        webhookId: z.number().optional(),
-        status: z.enum(["success", "failed", "timeout", "retry_pending"]).optional(),
-        eventType: z.string().optional(),
-        limit: z.number().min(1).max(200).default(50),
-        offset: z.number().min(0).default(0),
-      }))
+      .input(
+        z.object({
+          webhookId: z.number().optional(),
+          status: z
+            .enum(["success", "failed", "timeout", "retry_pending"])
+            .optional(),
+          eventType: z.string().optional(),
+          limit: z.number().min(1).max(200).default(50),
+          offset: z.number().min(0).default(0),
+        })
+      )
       .query(async ({ input }) => {
         const { getDeliveryLog } = await import("./webhookDeliveryService");
         return getDeliveryLog(input);
@@ -1521,16 +1827,15 @@ Respond in this exact structure:
         const { manualRetry } = await import("./webhookDeliveryService");
         return manualRetry(input.deliveryLogId);
       }),
-    prune: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        const { ENV } = await import("./_core/env");
-        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        const { pruneDeliveryLog } = await import("./webhookDeliveryService");
-        const pruned = await pruneDeliveryLog();
-        return { pruned };
-      }),
+    prune: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { pruneDeliveryLog } = await import("./webhookDeliveryService");
+      const pruned = await pruneDeliveryLog();
+      return { pruned };
+    }),
   }),
 
   // ─── Coordinator (admin-only) ─────────────────────────────────────────────
@@ -1580,7 +1885,14 @@ Respond in this exact structure:
       const queueStats: Record<string, Record<string, number>> = {};
       for (const row of queueRows) {
         if (!queueStats[row.vertical]) {
-          queueStats[row.vertical] = { pending: 0, claimed: 0, completed: 0, failed: 0, skipped: 0, total: 0 };
+          queueStats[row.vertical] = {
+            pending: 0,
+            claimed: 0,
+            completed: 0,
+            failed: 0,
+            skipped: 0,
+            total: 0,
+          };
         }
         queueStats[row.vertical][row.status] = Number(row.count);
         queueStats[row.vertical].total += Number(row.count);
@@ -1622,7 +1934,10 @@ Respond in this exact structure:
           .where(
             and(
               eq(coordContext.namespace, input.namespace),
-              or(isNull(coordContext.expiresAt), gt(coordContext.expiresAt, new Date()))
+              or(
+                isNull(coordContext.expiresAt),
+                gt(coordContext.expiresAt, new Date())
+              )
             )
           )
           .orderBy(desc(coordContext.updatedAt))
@@ -1646,7 +1961,11 @@ Respond in this exact structure:
         const { eq } = await import("drizzle-orm");
         await db
           .update(coordTasks)
-          .set({ status: "failed", errorMsg: "Manually failed by admin", completedAt: new Date() })
+          .set({
+            status: "failed",
+            errorMsg: "Manually failed by admin",
+            completedAt: new Date(),
+          })
           .where(eq(coordTasks.taskId, input.taskId));
         return { ok: true };
       }),
@@ -1696,13 +2015,17 @@ Respond in this exact structure:
         }
         const { scoreBatch } = await import("./claimQualityScorer");
         const scores = await scoreBatch(input.documentId);
-        const avgScore = scores.length > 0
-          ? Math.round((scores.reduce((s, c) => s + c.compositeScore, 0) / scores.length) * 1000) / 1000
-          : 0;
+        const avgScore =
+          scores.length > 0
+            ? Math.round(
+                (scores.reduce((s, c) => s + c.compositeScore, 0) /
+                  scores.length) *
+                  1000
+              ) / 1000
+            : 0;
         return { ok: true, scored: scores.length, avgScore, scores };
       }),
   }),
-
 
   /**
    * Claim similarity engine — TF-IDF cosine similarity across the corpus.
@@ -1718,7 +2041,10 @@ Respond in this exact structure:
       )
       .query(async ({ input }) => {
         const { findSimilarClaims } = await import("./claimSimilarityEngine");
-        return findSimilarClaims(input.queryText, { threshold: input.threshold, topK: input.topK });
+        return findSimilarClaims(input.queryText, {
+          threshold: input.threshold,
+          topK: input.topK,
+        });
       }),
     findSimilarToId: publicProcedure
       .input(
@@ -1729,8 +2055,13 @@ Respond in this exact structure:
         })
       )
       .query(async ({ input }) => {
-        const { findSimilarToClaimId } = await import("./claimSimilarityEngine");
-        return findSimilarToClaimId(input.claimId, { threshold: input.threshold, topK: input.topK });
+        const { findSimilarToClaimId } = await import(
+          "./claimSimilarityEngine"
+        );
+        return findSimilarToClaimId(input.claimId, {
+          threshold: input.threshold,
+          topK: input.topK,
+        });
       }),
     detectDuplicates: protectedProcedure
       .input(
@@ -1742,8 +2073,11 @@ Respond in this exact structure:
       .query(async ({ ctx, input }) => {
         const { getDocumentById } = await import("./db");
         const doc = await getDocumentById(input.documentId);
-        if (!doc || doc.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
-        const { detectDuplicatesInDocument } = await import("./claimSimilarityEngine");
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
+        const { detectDuplicatesInDocument } = await import(
+          "./claimSimilarityEngine"
+        );
         return detectDuplicatesInDocument(input.documentId, input.threshold);
       }),
   }),
@@ -1785,7 +2119,9 @@ Respond in this exact structure:
       )
       .query(async ({ input }) => {
         const { searchEntities } = await import("./searchEngine");
-        const results = await searchEntities(input.query, { limit: input.limit });
+        const results = await searchEntities(input.query, {
+          limit: input.limit,
+        });
         return { results, count: results.length };
       }),
 
@@ -1847,7 +2183,7 @@ Respond in this exact structure:
           signal: AbortSignal.timeout(2_000),
         });
         if (res.ok) {
-          const data = await res.json() as { indexed: number; dim: number };
+          const data = (await res.json()) as { indexed: number; dim: number };
           return { available: true, indexed: data.indexed, dim: data.dim };
         }
       } catch {
@@ -1868,7 +2204,10 @@ Respond in this exact structure:
       if (!db) return [];
       const { verticalAlerts } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      return db.select().from(verticalAlerts).where(eq(verticalAlerts.userId, ctx.user.id));
+      return db
+        .select()
+        .from(verticalAlerts)
+        .where(eq(verticalAlerts.userId, ctx.user.id));
     }),
 
     /**
@@ -1894,7 +2233,12 @@ Respond in this exact structure:
         const existing = await db
           .select({ id: verticalAlerts.id })
           .from(verticalAlerts)
-          .where(and(eq(verticalAlerts.userId, ctx.user.id), eq(verticalAlerts.verticalDomain, input.verticalDomain)))
+          .where(
+            and(
+              eq(verticalAlerts.userId, ctx.user.id),
+              eq(verticalAlerts.verticalDomain, input.verticalDomain)
+            )
+          )
           .limit(1);
         if (existing.length > 0) {
           await db
@@ -1934,7 +2278,12 @@ Respond in this exact structure:
         const { eq, and } = await import("drizzle-orm");
         await db
           .delete(verticalAlerts)
-          .where(and(eq(verticalAlerts.id, input.id), eq(verticalAlerts.userId, ctx.user.id)));
+          .where(
+            and(
+              eq(verticalAlerts.id, input.id),
+              eq(verticalAlerts.userId, ctx.user.id)
+            )
+          );
         return { ok: true };
       }),
 
@@ -1942,13 +2291,19 @@ Respond in this exact structure:
      * Admin: trigger a digest sweep for a given frequency.
      */
     triggerDigest: protectedProcedure
-      .input(z.object({ frequency: z.enum(["instant", "daily", "weekly"]).default("daily") }))
+      .input(
+        z.object({
+          frequency: z.enum(["instant", "daily", "weekly"]).default("daily"),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { ENV } = await import("./_core/env");
         if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
-        const { runDigestSweep } = await import("./verticalNotificationService");
+        const { runDigestSweep } = await import(
+          "./verticalNotificationService"
+        );
         return runDigestSweep(input.frequency);
       }),
 
@@ -1990,7 +2345,9 @@ Respond in this exact structure:
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return { events: [], summary: null };
-        const { claims, documents, autoIngestedPapers } = await import("../drizzle/schema");
+        const { claims, documents, autoIngestedPapers } = await import(
+          "../drizzle/schema"
+        );
         const { eq, asc, sql } = await import("drizzle-orm");
 
         const matchingClaims = await db
@@ -2013,7 +2370,10 @@ Respond in this exact structure:
           })
           .from(claims)
           .innerJoin(documents, eq(claims.documentId, documents.id))
-          .leftJoin(autoIngestedPapers, eq(autoIngestedPapers.documentId, documents.id))
+          .leftJoin(
+            autoIngestedPapers,
+            eq(autoIngestedPapers.documentId, documents.id)
+          )
           .where(
             sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${escapeLike(input.claimText.slice(0, 80))}%`})`
           )
@@ -2025,7 +2385,7 @@ Respond in this exact structure:
 
         if (matchingClaims.length === 0) return { events: [], summary: null };
 
-        const events = matchingClaims.map((row) => ({
+        const events = matchingClaims.map(row => ({
           claimId: row.claimId,
           claimText: row.claimText,
           verdict: row.verdict,
@@ -2049,27 +2409,49 @@ Respond in this exact structure:
         let totalConfidence = 0;
         let scoredCount = 0;
         for (const ev of events) {
-          if (ev.verdict) verdictCounts[ev.verdict] = (verdictCounts[ev.verdict] ?? 0) + 1;
-          if (ev.confidenceScore != null) { totalConfidence += ev.confidenceScore; scoredCount++; }
+          if (ev.verdict)
+            verdictCounts[ev.verdict] = (verdictCounts[ev.verdict] ?? 0) + 1;
+          if (ev.confidenceScore != null) {
+            totalConfidence += ev.confidenceScore;
+            scoredCount++;
+          }
         }
 
         const midpoint = Math.floor(events.length / 2);
-        const firstHalf = events.slice(0, midpoint).filter(e => e.confidenceScore != null);
-        const secondHalf = events.slice(midpoint).filter(e => e.confidenceScore != null);
-        const firstAvg = firstHalf.length ? firstHalf.reduce((s, e) => s + (e.confidenceScore ?? 0), 0) / firstHalf.length : null;
-        const secondAvg = secondHalf.length ? secondHalf.reduce((s, e) => s + (e.confidenceScore ?? 0), 0) / secondHalf.length : null;
-        const trend: "improving" | "declining" | "stable" | "insufficient_data" =
-          firstAvg == null || secondAvg == null ? "insufficient_data"
-          : secondAvg - firstAvg > 0.05 ? "improving"
-          : firstAvg - secondAvg > 0.05 ? "declining"
-          : "stable";
+        const firstHalf = events
+          .slice(0, midpoint)
+          .filter(e => e.confidenceScore != null);
+        const secondHalf = events
+          .slice(midpoint)
+          .filter(e => e.confidenceScore != null);
+        const firstAvg = firstHalf.length
+          ? firstHalf.reduce((s, e) => s + (e.confidenceScore ?? 0), 0) /
+            firstHalf.length
+          : null;
+        const secondAvg = secondHalf.length
+          ? secondHalf.reduce((s, e) => s + (e.confidenceScore ?? 0), 0) /
+            secondHalf.length
+          : null;
+        const trend:
+          | "improving"
+          | "declining"
+          | "stable"
+          | "insufficient_data" =
+          firstAvg == null || secondAvg == null
+            ? "insufficient_data"
+            : secondAvg - firstAvg > 0.05
+              ? "improving"
+              : firstAvg - secondAvg > 0.05
+                ? "declining"
+                : "stable";
 
         return {
           events,
           summary: {
             totalEvents: events.length,
             verdictDistribution: verdictCounts,
-            averageConfidence: scoredCount > 0 ? totalConfidence / scoredCount : null,
+            averageConfidence:
+              scoredCount > 0 ? totalConfidence / scoredCount : null,
             confidenceTrend: trend,
             earliestYear: events[0]?.pubYear ?? null,
             latestYear: events[events.length - 1]?.pubYear ?? null,
@@ -2091,13 +2473,21 @@ Respond in this exact structure:
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return { events: [], entity: null, summary: null };
-        const { claims, documents, autoIngestedPapers, graphEntities } = await import("../drizzle/schema");
+        const { claims, documents, autoIngestedPapers, graphEntities } =
+          await import("../drizzle/schema");
         const { eq, asc, sql } = await import("drizzle-orm");
 
         // entitySlug is treated as canonicalName (URL-encoded form)
-        const entityName = decodeURIComponent(input.entitySlug).replace(/-/g, " ");
-        const entityRows = await db.select().from(graphEntities)
-          .where(sql`LOWER(${graphEntities.canonicalName}) = LOWER(${entityName})`)
+        const entityName = decodeURIComponent(input.entitySlug).replace(
+          /-/g,
+          " "
+        );
+        const entityRows = await db
+          .select()
+          .from(graphEntities)
+          .where(
+            sql`LOWER(${graphEntities.canonicalName}) = LOWER(${entityName})`
+          )
           .limit(1);
         const entity = entityRows[0] ?? null;
         if (!entity) return { events: [], entity: null, summary: null };
@@ -2121,15 +2511,20 @@ Respond in this exact structure:
           })
           .from(claims)
           .innerJoin(documents, eq(claims.documentId, documents.id))
-          .leftJoin(autoIngestedPapers, eq(autoIngestedPapers.documentId, documents.id))
-          .where(sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${escapeLike(entity.canonicalName.slice(0, 80))}%`})`)
+          .leftJoin(
+            autoIngestedPapers,
+            eq(autoIngestedPapers.documentId, documents.id)
+          )
+          .where(
+            sql`LOWER(${claims.claimText}) LIKE LOWER(${`%${escapeLike(entity.canonicalName.slice(0, 80))}%`})`
+          )
           .orderBy(
             sql`COALESCE(${autoIngestedPapers.pubYear}, YEAR(${documents.createdAt})) ASC`,
             asc(documents.createdAt)
           )
           .limit(input.limit);
 
-        const events = matchingClaims.map((row) => ({
+        const events = matchingClaims.map(row => ({
           claimId: row.claimId,
           claimText: row.claimText,
           verdict: row.verdict,
@@ -2143,18 +2538,28 @@ Respond in this exact structure:
           pubYear: row.pubYear,
           journal: row.journal,
           authors: row.authors,
-          date: row.pubYear ? `${row.pubYear}-01-01` : row.claimCreatedAt.toISOString().slice(0, 10),
+          date: row.pubYear
+            ? `${row.pubYear}-01-01`
+            : row.claimCreatedAt.toISOString().slice(0, 10),
         }));
 
         const verdictCounts: Record<string, number> = {};
         for (const ev of events) {
-          if (ev.verdict) verdictCounts[ev.verdict] = (verdictCounts[ev.verdict] ?? 0) + 1;
+          if (ev.verdict)
+            verdictCounts[ev.verdict] = (verdictCounts[ev.verdict] ?? 0) + 1;
         }
 
         return {
           events,
-          entity: { id: entity.id, canonicalName: entity.canonicalName, entityType: entity.entityType },
-          summary: { totalEvents: events.length, verdictDistribution: verdictCounts },
+          entity: {
+            id: entity.id,
+            canonicalName: entity.canonicalName,
+            entityType: entity.entityType,
+          },
+          summary: {
+            totalEvents: events.length,
+            verdictDistribution: verdictCounts,
+          },
         };
       }),
   }),
@@ -2177,8 +2582,16 @@ Respond in this exact structure:
           getDocumentById(input.documentIdA),
           getDocumentById(input.documentIdB),
         ]);
-        if (!docA || docA.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Document A not found" });
-        if (!docB || docB.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Document B not found" });
+        if (!docA || docA.userId !== ctx.user.id)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Document A not found",
+          });
+        if (!docB || docB.userId !== ctx.user.id)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Document B not found",
+          });
 
         const [claimsA, claimsB, reportA, reportB] = await Promise.all([
           getClaimsByDocument(input.documentIdA),
@@ -2188,7 +2601,12 @@ Respond in this exact structure:
         ]);
 
         type ClaimRow = Awaited<ReturnType<typeof getClaimsByDocument>>[number];
-        const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+        const normalise = (s: string) =>
+          s
+            .toLowerCase()
+            .replace(/[^a-z0-9 ]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
 
         const matchedPairs: Array<{
           claimA: ClaimRow | null;
@@ -2208,10 +2626,18 @@ Respond in this exact structure:
             const normB = normalise(cB.claimText);
             const wordsA = new Set(normA.split(" "));
             const wordsB = new Set(normB.split(" "));
-            const intersection = Array.from(wordsA).filter((w) => wordsB.has(w)).length;
-            const union = new Set([...Array.from(wordsA), ...Array.from(wordsB)]).size;
+            const intersection = Array.from(wordsA).filter(w =>
+              wordsB.has(w)
+            ).length;
+            const union = new Set([
+              ...Array.from(wordsA),
+              ...Array.from(wordsB),
+            ]).size;
             const score = union > 0 ? intersection / union : 0;
-            if (score > bestScore) { bestScore = score; bestMatch = cB; }
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = cB;
+            }
           }
           if (bestMatch && bestScore >= 0.5) {
             usedB.add(bestMatch.id);
@@ -2220,34 +2646,69 @@ Respond in this exact structure:
               claimB: bestMatch,
               similarity: bestScore >= 0.9 ? "exact" : "similar",
               verdictChanged: cA.verdict !== bestMatch.verdict,
-              confidenceChanged: Math.abs((cA.confidenceScore ?? 0) - (bestMatch.confidenceScore ?? 0)) > 0.05,
+              confidenceChanged:
+                Math.abs(
+                  (cA.confidenceScore ?? 0) - (bestMatch.confidenceScore ?? 0)
+                ) > 0.05,
             });
           } else {
-            matchedPairs.push({ claimA: cA, claimB: null, similarity: "unique", verdictChanged: false, confidenceChanged: false });
+            matchedPairs.push({
+              claimA: cA,
+              claimB: null,
+              similarity: "unique",
+              verdictChanged: false,
+              confidenceChanged: false,
+            });
           }
         }
         for (const cB of claimsB) {
           if (!usedB.has(cB.id)) {
-            matchedPairs.push({ claimA: null, claimB: cB, similarity: "unique", verdictChanged: false, confidenceChanged: false });
+            matchedPairs.push({
+              claimA: null,
+              claimB: cB,
+              similarity: "unique",
+              verdictChanged: false,
+              confidenceChanged: false,
+            });
           }
         }
 
-        const verdictChanges = matchedPairs.filter((p) => p.verdictChanged).length;
-        const onlyInA = matchedPairs.filter((p) => !p.claimB).length;
-        const onlyInB = matchedPairs.filter((p) => !p.claimA).length;
-        const avgConfA = claimsA.length > 0 ? claimsA.reduce((s, c) => s + (c.confidenceScore ?? 0), 0) / claimsA.length : 0;
-        const avgConfB = claimsB.length > 0 ? claimsB.reduce((s, c) => s + (c.confidenceScore ?? 0), 0) / claimsB.length : 0;
+        const verdictChanges = matchedPairs.filter(
+          p => p.verdictChanged
+        ).length;
+        const onlyInA = matchedPairs.filter(p => !p.claimB).length;
+        const onlyInB = matchedPairs.filter(p => !p.claimA).length;
+        const avgConfA =
+          claimsA.length > 0
+            ? claimsA.reduce((s, c) => s + (c.confidenceScore ?? 0), 0) /
+              claimsA.length
+            : 0;
+        const avgConfB =
+          claimsB.length > 0
+            ? claimsB.reduce((s, c) => s + (c.confidenceScore ?? 0), 0) /
+              claimsB.length
+            : 0;
 
         return {
-          documentA: { id: docA.id, title: docA.title, status: docA.status, createdAt: docA.createdAt },
-          documentB: { id: docB.id, title: docB.title, status: docB.status, createdAt: docB.createdAt },
+          documentA: {
+            id: docA.id,
+            title: docA.title,
+            status: docA.status,
+            createdAt: docA.createdAt,
+          },
+          documentB: {
+            id: docB.id,
+            title: docB.title,
+            status: docB.status,
+            createdAt: docB.createdAt,
+          },
           reportA: reportA ?? null,
           reportB: reportB ?? null,
           pairs: matchedPairs,
           summary: {
             claimsInA: claimsA.length,
             claimsInB: claimsB.length,
-            matchedPairs: matchedPairs.filter((p) => p.claimA && p.claimB).length,
+            matchedPairs: matchedPairs.filter(p => p.claimA && p.claimB).length,
             verdictChanges,
             onlyInA,
             onlyInB,
@@ -2260,7 +2721,12 @@ Respond in this exact structure:
 
     listForPicker: protectedProcedure.query(async ({ ctx }) => {
       const docs = await getDocumentsByUser(ctx.user.id);
-      return docs.map((d) => ({ id: d.id, title: d.title, status: d.status, createdAt: d.createdAt }));
+      return docs.map(d => ({
+        id: d.id,
+        title: d.title,
+        status: d.status,
+        createdAt: d.createdAt,
+      }));
     }),
   }),
 
@@ -2270,20 +2736,39 @@ Respond in this exact structure:
       .input(
         z.object({
           vertical: z.string().optional(),
-          entityType: z.enum(["protein", "pdb_id", "method", "organism", "ligand", "author", "concept", "document"]).optional(),
+          entityType: z
+            .enum([
+              "protein",
+              "pdb_id",
+              "method",
+              "organism",
+              "ligand",
+              "author",
+              "concept",
+              "document",
+            ])
+            .optional(),
           limit: z.number().min(1).max(50).default(20),
         })
       )
       .query(async ({ input }) => {
         const { getDb: getDb2 } = await import("./db");
         const db = await getDb2();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        if (!db)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "DB unavailable",
+          });
 
         const { sql, eq } = await import("drizzle-orm");
-        const { graphEntities, graphRelations, documents } = await import("../drizzle/schema");
+        const { graphEntities, graphRelations, documents } = await import(
+          "../drizzle/schema"
+        );
 
         const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgo = new Date(
+          now.getTime() - 30 * 24 * 60 * 60 * 1000
+        );
         const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
         const entityTypeFilter = input.entityType
@@ -2322,45 +2807,74 @@ Respond in this exact structure:
           const verticalEntityIds = await db
             .selectDistinct({ entityId: graphRelations.sourceEntityId })
             .from(graphRelations)
-            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .innerJoin(
+              documents,
+              eq(graphRelations.evidenceDocumentId, documents.id)
+            )
             .where(eq(documents.verticalDomain, input.vertical))
             .limit(5000);
-          const verticalEntityIdSet = new Set(verticalEntityIds.map((r: { entityId: number }) => r.entityId));
+          const verticalEntityIdSet = new Set(
+            verticalEntityIds.map((r: { entityId: number }) => r.entityId)
+          );
 
           const targetEntityIds = await db
             .selectDistinct({ entityId: graphRelations.targetEntityId })
             .from(graphRelations)
-            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .innerJoin(
+              documents,
+              eq(graphRelations.evidenceDocumentId, documents.id)
+            )
             .where(eq(documents.verticalDomain, input.vertical))
             .limit(5000);
-          targetEntityIds.forEach((r: { entityId: number }) => verticalEntityIdSet.add(r.entityId));
+          targetEntityIds.forEach((r: { entityId: number }) =>
+            verticalEntityIdSet.add(r.entityId)
+          );
 
-          filtered = entitiesWithCounts.filter((e: { id: number }) => verticalEntityIdSet.has(e.id));
+          filtered = entitiesWithCounts.filter((e: { id: number }) =>
+            verticalEntityIdSet.has(e.id)
+          );
         }
 
         const top = filtered.slice(0, input.limit);
 
-        return top.map((e: { id: number; canonicalName: string; entityType: string; totalCitations: number; recentCitations: number; prevCitations: number }, rank: number) => ({
-          rank: rank + 1,
-          id: e.id,
-          canonicalName: e.canonicalName,
-          entityType: e.entityType,
-          totalCitations: Number(e.totalCitations),
-          recentCitations: Number(e.recentCitations),
-          prevCitations: Number(e.prevCitations),
-          trend: Number(e.recentCitations) > Number(e.prevCitations)
-            ? "up" as const
-            : Number(e.recentCitations) < Number(e.prevCitations)
-            ? "down" as const
-            : "stable" as const,
-          trendDelta: Number(e.recentCitations) - Number(e.prevCitations),
-        }));
+        return top.map(
+          (
+            e: {
+              id: number;
+              canonicalName: string;
+              entityType: string;
+              totalCitations: number;
+              recentCitations: number;
+              prevCitations: number;
+            },
+            rank: number
+          ) => ({
+            rank: rank + 1,
+            id: e.id,
+            canonicalName: e.canonicalName,
+            entityType: e.entityType,
+            totalCitations: Number(e.totalCitations),
+            recentCitations: Number(e.recentCitations),
+            prevCitations: Number(e.prevCitations),
+            trend:
+              Number(e.recentCitations) > Number(e.prevCitations)
+                ? ("up" as const)
+                : Number(e.recentCitations) < Number(e.prevCitations)
+                  ? ("down" as const)
+                  : ("stable" as const),
+            trendDelta: Number(e.recentCitations) - Number(e.prevCitations),
+          })
+        );
       }),
 
     verticalSummary: publicProcedure.query(async () => {
       const { getDb: getDb3 } = await import("./db");
       const db = await getDb3();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "DB unavailable",
+        });
 
       const { sql, eq } = await import("drizzle-orm");
       const { graphRelations, documents } = await import("../drizzle/schema");
@@ -2375,23 +2889,35 @@ Respond in this exact structure:
           const entityIds = await db
             .selectDistinct({ entityId: graphRelations.sourceEntityId })
             .from(graphRelations)
-            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .innerJoin(
+              documents,
+              eq(graphRelations.evidenceDocumentId, documents.id)
+            )
             .where(eq(documents.verticalDomain, vertical))
             .limit(10000);
 
           const targetIds = await db
             .selectDistinct({ entityId: graphRelations.targetEntityId })
             .from(graphRelations)
-            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .innerJoin(
+              documents,
+              eq(graphRelations.evidenceDocumentId, documents.id)
+            )
             .where(eq(documents.verticalDomain, vertical))
             .limit(10000);
 
-          const allIds = new Set([...entityIds.map((r: { entityId: number }) => r.entityId), ...targetIds.map((r: { entityId: number }) => r.entityId)]);
+          const allIds = new Set([
+            ...entityIds.map((r: { entityId: number }) => r.entityId),
+            ...targetIds.map((r: { entityId: number }) => r.entityId),
+          ]);
 
           const citationCount = await db
             .select({ cnt: sql<number>`COUNT(*)` })
             .from(graphRelations)
-            .innerJoin(documents, eq(graphRelations.evidenceDocumentId, documents.id))
+            .innerJoin(
+              documents,
+              eq(graphRelations.evidenceDocumentId, documents.id)
+            )
             .where(eq(documents.verticalDomain, vertical));
 
           return {
@@ -2402,7 +2928,10 @@ Respond in this exact structure:
         })
       );
 
-      return summaries.sort((a: { citationCount: number }, b: { citationCount: number }) => b.citationCount - a.citationCount);
+      return summaries.sort(
+        (a: { citationCount: number }, b: { citationCount: number }) =>
+          b.citationCount - a.citationCount
+      );
     }),
   }),
 
@@ -2412,7 +2941,9 @@ Respond in this exact structure:
     getChain: publicProcedure
       .input(z.object({ claimId: z.number().int().positive() }))
       .query(async ({ input }) => {
-        const { getChain, summarize } = await import("./claimProvenanceService");
+        const { getChain, summarize } = await import(
+          "./claimProvenanceService"
+        );
         const chain = await getChain(input.claimId);
         const summary = summarize(chain);
         return { chain, summary };
@@ -2442,17 +2973,26 @@ Respond in this exact structure:
 
     /** Record a manual provenance event (admin only) */
     recordManualStep: protectedProcedure
-      .input(z.object({
-        claimId: z.number().int().positive(),
-        documentId: z.number().int().positive(),
-        step: z.enum(["extraction", "evidence_lookup", "quality_scoring", "verdict_override", "agent_ingestion", "similarity_check"]),
-        actor: z.string().min(1).max(128).optional(),
-        inputSnapshot: z.record(z.string(), z.unknown()).optional(),
-        outputSnapshot: z.record(z.string(), z.unknown()).optional(),
-        durationMs: z.number().int().nonnegative().optional(),
-        success: z.boolean().optional(),
-        errorMsg: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          claimId: z.number().int().positive(),
+          documentId: z.number().int().positive(),
+          step: z.enum([
+            "extraction",
+            "evidence_lookup",
+            "quality_scoring",
+            "verdict_override",
+            "agent_ingestion",
+            "similarity_check",
+          ]),
+          actor: z.string().min(1).max(128).optional(),
+          inputSnapshot: z.record(z.string(), z.unknown()).optional(),
+          outputSnapshot: z.record(z.string(), z.unknown()).optional(),
+          durationMs: z.number().int().nonnegative().optional(),
+          success: z.boolean().optional(),
+          errorMsg: z.string().optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         const { recordStep } = await import("./claimProvenanceService");
         const id = await recordStep({
@@ -2474,8 +3014,13 @@ Respond in this exact structure:
         })
       )
       .query(async ({ input }) => {
-        const { getTopCooccurrences, buildGraphData } = await import("./entityCooccurrenceService");
-        const rows = await getTopCooccurrences({ documentId: input.documentId, limit: input.limit });
+        const { getTopCooccurrences, buildGraphData } = await import(
+          "./entityCooccurrenceService"
+        );
+        const rows = await getTopCooccurrences({
+          documentId: input.documentId,
+          limit: input.limit,
+        });
         return buildGraphData(rows);
       }),
 
@@ -2488,8 +3033,13 @@ Respond in this exact structure:
         })
       )
       .query(async ({ input }) => {
-        const { getCooccurrencesForEntity, buildGraphData } = await import("./entityCooccurrenceService");
-        const rows = await getCooccurrencesForEntity(input.entityId, input.limit);
+        const { getCooccurrencesForEntity, buildGraphData } = await import(
+          "./entityCooccurrenceService"
+        );
+        const rows = await getCooccurrencesForEntity(
+          input.entityId,
+          input.limit
+        );
         return buildGraphData(rows);
       }),
 
@@ -2497,7 +3047,9 @@ Respond in this exact structure:
     compute: protectedProcedure
       .input(z.object({ documentId: z.number().int().positive() }))
       .mutation(async ({ input }) => {
-        const { computeCooccurrencesForDocument } = await import("./entityCooccurrenceService");
+        const { computeCooccurrencesForDocument } = await import(
+          "./entityCooccurrenceService"
+        );
         const count = await computeCooccurrencesForDocument(input.documentId);
         return { pairsUpserted: count };
       }),
@@ -2529,14 +3081,22 @@ Respond in this exact structure:
           scopes: input.scopes,
           expiresAt: input.expiresAt,
         });
-        if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate API key" });
+        if (!result)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to generate API key",
+          });
         // Issue a signed RS256 JWT bearer token for external integrations.
         // Verifiable via /.well-known/jwks.json without calling this server.
         const expiresIn = input.expiresAt
           ? `${Math.max(1, Math.floor((input.expiresAt.getTime() - Date.now()) / 1000))}s`
           : "365d";
         const bearerToken = await issueApiToken(
-          { sub: String(ctx.user.id), scope: input.scopes.join(" "), label: input.label },
+          {
+            sub: String(ctx.user.id),
+            scope: input.scopes.join(" "),
+            label: input.label,
+          },
           { expiresIn }
         );
         return { ...result, bearerToken };
@@ -2548,7 +3108,11 @@ Respond in this exact structure:
       .mutation(async ({ ctx, input }) => {
         const { revokeApiKey } = await import("./apiKeyService");
         const revoked = await revokeApiKey(input.keyId, ctx.user.id);
-        if (!revoked) throw new TRPCError({ code: "NOT_FOUND", message: "API key not found or not owned by you" });
+        if (!revoked)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "API key not found or not owned by you",
+          });
         return { revoked: true };
       }),
 
@@ -2558,7 +3122,9 @@ Respond in this exact structure:
       .query(async ({ input, ctx }) => {
         const { validateApiKey } = await import("./apiKeyService");
         const callerIp =
-          (ctx.req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+          (ctx.req.headers["x-forwarded-for"] as string | undefined)
+            ?.split(",")[0]
+            ?.trim() ??
           ctx.req.socket?.remoteAddress ??
           "unknown";
         return validateApiKey(input.rawKey, callerIp);
@@ -2578,7 +3144,11 @@ Respond in this exact structure:
           const payload = await verifyApiToken(input.token);
           return { valid: true, payload };
         } catch (err) {
-          return { valid: false, payload: null, reason: (err as Error).message };
+          return {
+            valid: false,
+            payload: null,
+            reason: (err as Error).message,
+          };
         }
       }),
   }),
@@ -2597,7 +3167,9 @@ Respond in this exact structure:
     latest: publicProcedure
       .input(z.object({ claimId: z.number().int().positive() }))
       .query(async ({ input }) => {
-        const { getLatestConfidence } = await import("./confidenceTrendService");
+        const { getLatestConfidence } = await import(
+          "./confidenceTrendService"
+        );
         return getLatestConfidence(input.claimId);
       }),
 
@@ -2634,7 +3206,8 @@ Respond in this exact structure:
     listCycles: protectedProcedure
       .input(z.object({ limit: z.number().min(1).max(100).default(50) }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { selfPromptLog } = await import("../drizzle/schema");
         const { getDb } = await import("./db");
         const { sql: sqlFn } = await import("drizzle-orm");
@@ -2654,12 +3227,42 @@ Respond in this exact structure:
       const { getDb } = await import("./db");
       const { sql: sqlFn } = await import("drizzle-orm");
       const db = await getDb();
-      if (!db) return { totalCycles: 0, convergenceRate: 0, avgActionsGenerated: 0, avgDurationMs: 0, eventBreakdown: {} };
-      const all = await db.select().from(selfPromptLog).orderBy(sqlFn`${selfPromptLog.createdAt} DESC`).limit(500);
-      if (all.length === 0) return { totalCycles: 0, convergenceRate: 0, avgActionsGenerated: 0, avgDurationMs: 0, eventBreakdown: {} };
-      const convergedCount = all.filter((r: { converged: boolean | null }) => r.converged).length;
-      const avgActionsGenerated = all.reduce((s: number, r: { actionCount: number | null }) => s + (r.actionCount ?? 0), 0) / all.length;
-      const avgDurationMs = all.reduce((s: number, r: { durationMs: number | null }) => s + (r.durationMs ?? 0), 0) / all.length;
+      if (!db)
+        return {
+          totalCycles: 0,
+          convergenceRate: 0,
+          avgActionsGenerated: 0,
+          avgDurationMs: 0,
+          eventBreakdown: {},
+        };
+      const all = await db
+        .select()
+        .from(selfPromptLog)
+        .orderBy(sqlFn`${selfPromptLog.createdAt} DESC`)
+        .limit(500);
+      if (all.length === 0)
+        return {
+          totalCycles: 0,
+          convergenceRate: 0,
+          avgActionsGenerated: 0,
+          avgDurationMs: 0,
+          eventBreakdown: {},
+        };
+      const convergedCount = all.filter(
+        (r: { converged: boolean | null }) => r.converged
+      ).length;
+      const avgActionsGenerated =
+        all.reduce(
+          (s: number, r: { actionCount: number | null }) =>
+            s + (r.actionCount ?? 0),
+          0
+        ) / all.length;
+      const avgDurationMs =
+        all.reduce(
+          (s: number, r: { durationMs: number | null }) =>
+            s + (r.durationMs ?? 0),
+          0
+        ) / all.length;
       const eventBreakdown: Record<string, number> = {};
       for (const r of all) {
         eventBreakdown[r.eventType] = (eventBreakdown[r.eventType] ?? 0) + 1;
@@ -2675,13 +3278,23 @@ Respond in this exact structure:
 
     /** Manually trigger a self-prompt cycle for testing */
     triggerCycle: protectedProcedure
-      .input(z.object({
-        eventType: z.enum(["verdict_assigned", "contradiction_found", "gap_closed", "source_down", "meta_alert", "user_submitted", "scheduled_tick"]),
-        description: z.string().min(1).max(500),
-        claimId: z.number().optional(),
-        documentId: z.number().optional(),
-        gapId: z.number().optional(),
-      }))
+      .input(
+        z.object({
+          eventType: z.enum([
+            "verdict_assigned",
+            "contradiction_found",
+            "gap_closed",
+            "source_down",
+            "meta_alert",
+            "user_submitted",
+            "scheduled_tick",
+          ]),
+          description: z.string().min(1).max(500),
+          claimId: z.number().optional(),
+          documentId: z.number().optional(),
+          gapId: z.number().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
         const { runSelfPromptCycle } = await import("./selfPrompt/engine");
         return runSelfPromptCycle({
@@ -2714,20 +3327,32 @@ Respond in this exact structure:
       .input(
         z.object({
           status: z
-            .enum(["open", "pursued", "narrowing", "closed_verified", "closed_resolved", "stale", "all"])
+            .enum([
+              "open",
+              "pursued",
+              "narrowing",
+              "closed_verified",
+              "closed_resolved",
+              "stale",
+              "all",
+            ])
             .default("all"),
           limit: z.number().int().min(1).max(100).default(20),
           offset: z.number().int().min(0).default(0),
         })
       )
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const { knowledgeGaps } = await import("../drizzle/schema");
         const { eq, sql } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) return { gaps: [], total: 0 };
-        const statusFilter = input.status === "all" ? undefined : eq(knowledgeGaps.status, input.status);
+        const statusFilter =
+          input.status === "all"
+            ? undefined
+            : eq(knowledgeGaps.status, input.status);
         const [gaps, countResult] = await Promise.all([
           db
             .select()
@@ -2736,7 +3361,10 @@ Respond in this exact structure:
             .orderBy(sql`priorityScore DESC`)
             .limit(input.limit)
             .offset(input.offset),
-          db.select({ cnt: sql<number>`COUNT(*)` }).from(knowledgeGaps).where(statusFilter),
+          db
+            .select({ cnt: sql<number>`COUNT(*)` })
+            .from(knowledgeGaps)
+            .where(statusFilter),
         ]);
         return { gaps, total: countResult[0]?.cnt ?? 0 };
       }),
@@ -2745,7 +3373,8 @@ Respond in this exact structure:
     gapTimeline: protectedProcedure
       .input(z.object({ gapId: z.number().int().positive() }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getGapTimeline } = await import("./frontier/frontierEngine");
         return getGapTimeline(input.gapId);
       }),
@@ -2754,8 +3383,9 @@ Respond in this exact structure:
     topGaps: protectedProcedure
       .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { getTopGaps } = await import("./frontier/frontierEngine");
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { getTopGaps } = await import("./frontier/gapRanker");
         return getTopGaps(input.limit);
       }),
 
@@ -2763,59 +3393,83 @@ Respond in this exact structure:
     recentLog: protectedProcedure
       .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const { frontierLog } = await import("../drizzle/schema");
         const db = await getDb();
         if (!db) return [];
         return db
           .select()
-                    .from(frontierLog)
+          .from(frontierLog)
           .orderBy(frontierLog.createdAt)
           .limit(input.limit);
       }),
 
     /** Mark a knowledge gap as resolved by an operator */
     resolveGap: protectedProcedure
-      .input(z.object({
-        gapId: z.number().int().positive(),
-        resolution: z.enum(["closed_verified", "closed_resolved", "stale"]),
-        note: z.string().max(500).optional(),
-      }))
+      .input(
+        z.object({
+          gapId: z.number().int().positive(),
+          resolution: z.enum(["closed_verified", "closed_resolved", "stale"]),
+          note: z.string().max(500).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        const { knowledgeGaps, frontierLog: fLog } = await import("../drizzle/schema");
+        if (!db)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "DB unavailable",
+          });
+        const { knowledgeGaps, frontierLog: fLog } = await import(
+          "../drizzle/schema"
+        );
         const { eq } = await import("drizzle-orm");
-        const [gap] = await db.select().from(knowledgeGaps).where(eq(knowledgeGaps.id, input.gapId)).limit(1);
-        if (!gap) throw new TRPCError({ code: "NOT_FOUND", message: "Gap not found" });
-        await db.update(knowledgeGaps)
+        const [gap] = await db
+          .select()
+          .from(knowledgeGaps)
+          .where(eq(knowledgeGaps.id, input.gapId))
+          .limit(1);
+        if (!gap)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Gap not found" });
+        await db
+          .update(knowledgeGaps)
           .set({ status: input.resolution })
           .where(eq(knowledgeGaps.id, input.gapId));
         await db.insert(fLog).values({
           actionType: "gap_closed",
           gapId: input.gapId,
-          reasoning: { resolution: input.resolution, note: input.note ?? null, resolvedBy: ctx.user.id },
+          reasoning: {
+            resolution: input.resolution,
+            note: input.note ?? null,
+            resolvedBy: ctx.user.id,
+          },
           outcome: `manually_${input.resolution}`,
         });
-        return { success: true, gapId: input.gapId, newStatus: input.resolution };
+        return {
+          success: true,
+          gapId: input.gapId,
+          newStatus: input.resolution,
+        };
       }),
   }),
 
   // ─── Override Audit Log ────────────────────────────────────────────────────
   overrides: router({
     /** List overrides grouped by epistemic category */
-    summary: protectedProcedure
-      .query(async ({ ctx }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { getDb } = await import("./db");
-        const db = await getDb();
-        if (!db) return [];
-        const { overrideAuditLog } = await import("../drizzle/schema");
-        const { sql: sqlFn, count } = await import("drizzle-orm");
-        return db.select({
+    summary: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      const { overrideAuditLog } = await import("../drizzle/schema");
+      const { sql: sqlFn, count } = await import("drizzle-orm");
+      return db
+        .select({
           overrideCategory: overrideAuditLog.overrideCategory,
           total: count(),
           // count where originalVerdict != newVerdict (all overrides change verdict by definition)
@@ -2824,25 +3478,44 @@ Respond in this exact structure:
         .from(overrideAuditLog)
         .groupBy(overrideAuditLog.overrideCategory)
         .orderBy(sqlFn`COUNT(*) DESC`);
-      }),
+    }),
 
     /** Paginated list of all override records */
     list: protectedProcedure
-      .input(z.object({
-        category: z.enum(["domain_expertise","new_evidence","context_clarification","scope_adjustment","error_correction"]).optional(),
-        limit: z.number().min(1).max(200).default(50),
-        offset: z.number().min(0).default(0),
-      }))
+      .input(
+        z.object({
+          category: z
+            .enum([
+              "domain_expertise",
+              "new_evidence",
+              "context_clarification",
+              "scope_adjustment",
+              "error_correction",
+            ])
+            .optional(),
+          limit: z.number().min(1).max(200).default(50),
+          offset: z.number().min(0).default(0),
+        })
+      )
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return { items: [], total: 0 };
         const { overrideAuditLog } = await import("../drizzle/schema");
         const { eq, count, desc } = await import("drizzle-orm");
-        const where = input.category ? eq(overrideAuditLog.overrideCategory, input.category) : undefined;
-        const [{ total }] = await db.select({ total: count() }).from(overrideAuditLog).where(where);
-        const items = await db.select().from(overrideAuditLog).where(where)
+        const where = input.category
+          ? eq(overrideAuditLog.overrideCategory, input.category)
+          : undefined;
+        const [{ total }] = await db
+          .select({ total: count() })
+          .from(overrideAuditLog)
+          .where(where);
+        const items = await db
+          .select()
+          .from(overrideAuditLog)
+          .where(where)
           .orderBy(desc(overrideAuditLog.createdAt))
           .limit(input.limit)
           .offset(input.offset);
@@ -2850,15 +3523,15 @@ Respond in this exact structure:
       }),
 
     /** Verdict flip analysis — which LLM verdicts are most often overridden */
-    flipAnalysis: protectedProcedure
-      .query(async ({ ctx }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { getDb } = await import("./db");
-        const db = await getDb();
-        if (!db) return [];
-        const { overrideAuditLog } = await import("../drizzle/schema");
-        const { sql: sqlFn, count } = await import("drizzle-orm");
-        return db.select({
+    flipAnalysis: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      const { overrideAuditLog } = await import("../drizzle/schema");
+      const { sql: sqlFn, count } = await import("drizzle-orm");
+      return db
+        .select({
           originalVerdict: overrideAuditLog.originalVerdict,
           newVerdict: overrideAuditLog.newVerdict,
           total: count(),
@@ -2867,17 +3540,18 @@ Respond in this exact structure:
         .groupBy(overrideAuditLog.originalVerdict, overrideAuditLog.newVerdict)
         .orderBy(sqlFn`COUNT(*) DESC`)
         .limit(30);
-      }),
+    }),
     /** Health score trend — last N meta-agent checks with health score */
     healthTrend: protectedProcedure
       .input(z.object({ days: z.number().min(1).max(90).default(30) }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
         const { metaAgentChecks } = await import("../drizzle/schema");
-        const { gte, desc, sql: sqlFn } = await import("drizzle-orm");
+        const { gte, desc } = await import("drizzle-orm");
         const cutoff = new Date(Date.now() - input.days * 86400000);
         const rows = await db
           .select({
@@ -2894,7 +3568,7 @@ Respond in this exact structure:
           .limit(200);
         // Derive a health score per check: critical=-10, warning=-3, info=0; start at 100
         let score = 100;
-        const trend = rows.reverse().map((r) => {
+        const trend = rows.reverse().map(r => {
           if (r.severity === "critical") score = Math.max(0, score - 10);
           else if (r.severity === "warning") score = Math.max(0, score - 3);
           else score = Math.min(100, score + 1);
@@ -2914,27 +3588,57 @@ Respond in this exact structure:
   inversePrompt: router({
     // List generated claims with optional status filter
     list: protectedProcedure
-      .input(z.object({
-        status: z.enum(["pending", "queued", "processing", "rejected", "deferred"]).optional(),
-        inferenceType: z.enum(["gap_fill", "homology_projection", "contradiction_chase"]).optional(),
-        limit: z.number().min(1).max(200).default(50),
-        offset: z.number().min(0).default(0),
-      }))
+      .input(
+        z.object({
+          status: z
+            .enum(["pending", "queued", "processing", "rejected", "deferred"])
+            .optional(),
+          inferenceType: z
+            .enum(["gap_fill", "homology_projection", "contradiction_chase"])
+            .optional(),
+          limit: z.number().min(1).max(200).default(50),
+          offset: z.number().min(0).default(0),
+        })
+      )
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return { items: [], total: 0 };
         const { generatedClaims } = await import("../drizzle/schema");
         const { eq, and, count, sql } = await import("drizzle-orm");
         const conditions: ReturnType<typeof eq>[] = [];
-        if (input.status) conditions.push(eq(generatedClaims.status, input.status as "pending" | "queued" | "processing" | "rejected" | "deferred"));
-        if (input.inferenceType) conditions.push(eq(generatedClaims.inferenceType, input.inferenceType));
+        if (input.status)
+          conditions.push(
+            eq(
+              generatedClaims.status,
+              input.status as
+                | "pending"
+                | "queued"
+                | "processing"
+                | "rejected"
+                | "deferred"
+            )
+          );
+        if (input.inferenceType)
+          conditions.push(
+            eq(generatedClaims.inferenceType, input.inferenceType)
+          );
         const where = conditions.length > 0 ? and(...conditions) : undefined;
-        const [{ total }] = await db.select({ total: count() }).from(generatedClaims).where(where);
-        const items = await db.select().from(generatedClaims).where(where)
-          .orderBy(sql`${generatedClaims.priority} DESC, ${generatedClaims.createdAt} DESC`)
-          .limit(input.limit).offset(input.offset);
+        const [{ total }] = await db
+          .select({ total: count() })
+          .from(generatedClaims)
+          .where(where);
+        const items = await db
+          .select()
+          .from(generatedClaims)
+          .where(where)
+          .orderBy(
+            sql`${generatedClaims.priority} DESC, ${generatedClaims.createdAt} DESC`
+          )
+          .limit(input.limit)
+          .offset(input.offset);
         return { items, total };
       }),
 
@@ -2947,12 +3651,30 @@ Respond in this exact structure:
       const { generatedClaims } = await import("../drizzle/schema");
       const { count, eq } = await import("drizzle-orm");
       const [total] = await db.select({ total: count() }).from(generatedClaims);
-      const [queued] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.status, "queued"));
-      const [rejected] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.status, "rejected"));
-      const [deferred] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.status, "deferred"));
-      const [gapFill] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.inferenceType, "gap_fill"));
-      const [homology] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.inferenceType, "homology_projection"));
-      const [contradiction] = await db.select({ total: count() }).from(generatedClaims).where(eq(generatedClaims.inferenceType, "contradiction_chase"));
+      const [queued] = await db
+        .select({ total: count() })
+        .from(generatedClaims)
+        .where(eq(generatedClaims.status, "queued"));
+      const [rejected] = await db
+        .select({ total: count() })
+        .from(generatedClaims)
+        .where(eq(generatedClaims.status, "rejected"));
+      const [deferred] = await db
+        .select({ total: count() })
+        .from(generatedClaims)
+        .where(eq(generatedClaims.status, "deferred"));
+      const [gapFill] = await db
+        .select({ total: count() })
+        .from(generatedClaims)
+        .where(eq(generatedClaims.inferenceType, "gap_fill"));
+      const [homology] = await db
+        .select({ total: count() })
+        .from(generatedClaims)
+        .where(eq(generatedClaims.inferenceType, "homology_projection"));
+      const [contradiction] = await db
+        .select({ total: count() })
+        .from(generatedClaims)
+        .where(eq(generatedClaims.inferenceType, "contradiction_chase"));
       return {
         total: total.total,
         queued: queued.total,
@@ -2966,12 +3688,15 @@ Respond in this exact structure:
       };
     }),
 
-        // Trigger a full Inverse Prompt Engine run (admin only)
+    // Trigger a full Inverse Prompt Engine run (admin only)
     trigger: protectedProcedure
       .input(z.object({ topN: z.number().min(1).max(100).default(20) }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { runInversePromptEngine } = await import("./inversePrompt/inversePromptEngine");
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { runInversePromptEngine } = await import(
+          "./inversePrompt/inversePromptEngine"
+        );
         const result = await runInversePromptEngine(input.topN);
         return result;
       }),
@@ -2983,14 +3708,23 @@ Respond in this exact structure:
     status: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       const { getDb } = await import("./db");
-      const { loopRun, loopConfig, eventQueue } = await import("../drizzle/schema");
+      const { loopRun, loopConfig, eventQueue } = await import(
+        "../drizzle/schema"
+      );
       const { desc, count, sql: sqlFn } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [lastRun] = await db.select().from(loopRun).orderBy(desc(loopRun.createdAt)).limit(1);
+      const [lastRun] = await db
+        .select()
+        .from(loopRun)
+        .orderBy(desc(loopRun.createdAt))
+        .limit(1);
       const [cfg] = await db.select().from(loopConfig).limit(1);
       const [eventStats] = await db
-        .select({ total: count(), pending: sqlFn<number>`SUM(CASE WHEN ${eventQueue.status} = 'pending' THEN 1 ELSE 0 END)` })
+        .select({
+          total: count(),
+          pending: sqlFn<number>`SUM(CASE WHEN ${eventQueue.status} = 'pending' THEN 1 ELSE 0 END)`,
+        })
         .from(eventQueue);
       return {
         safeMode: cfg?.safeMode ?? false,
@@ -3002,21 +3736,35 @@ Respond in this exact structure:
 
     // Get recent event log with filtering
     eventLog: protectedProcedure
-      .input(z.object({
-        limit: z.number().min(1).max(200).default(50),
-        eventType: z.string().optional(),
-        status: z.enum(["pending", "processing", "complete", "failed", "skipped"]).optional(),
-      }))
+      .input(
+        z.object({
+          limit: z.number().min(1).max(200).default(50),
+          eventType: z.string().optional(),
+          status: z
+            .enum(["pending", "processing", "complete", "failed", "skipped"])
+            .optional(),
+        })
+      )
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const { eventQueue } = await import("../drizzle/schema");
         const { desc, eq, and } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         const conditions = [];
-        if (input.eventType) conditions.push(eq(eventQueue.eventType, input.eventType as never));
-        if (input.status) conditions.push(eq(eventQueue.status, input.status === "complete" ? "processed" : input.status as never));
+        if (input.eventType)
+          conditions.push(eq(eventQueue.eventType, input.eventType as never));
+        if (input.status)
+          conditions.push(
+            eq(
+              eventQueue.status,
+              input.status === "complete"
+                ? "processed"
+                : (input.status as never)
+            )
+          );
         const rows = await db
           .select()
           .from(eventQueue)
@@ -3030,33 +3778,50 @@ Respond in this exact structure:
     runHistory: protectedProcedure
       .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
-      const { loopRun } = await import("../drizzle/schema");
-      const { desc } = await import("drizzle-orm");
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      return db.select().from(loopRun).orderBy(desc(loopRun.createdAt)).limit(input.limit);
+        const { loopRun } = await import("../drizzle/schema");
+        const { desc } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return db
+          .select()
+          .from(loopRun)
+          .orderBy(desc(loopRun.createdAt))
+          .limit(input.limit);
       }),
 
     // Manually trigger an event through the loop
     triggerEvent: protectedProcedure
-      .input(z.object({
-        eventType: z.string(),
-        payload: z.record(z.string(), z.unknown()).optional(),
-      }))
+      .input(
+        z.object({
+          eventType: z.string(),
+          payload: z.record(z.string(), z.unknown()).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { publishEvent } = await import("./autonomousLoop/eventBus");
-        const { processEvent } = await import("./autonomousLoop/loopOrchestrator");
-        const eventId = await publishEvent(input.eventType as never, input.payload ?? {});
+        const { processEvent } = await import(
+          "./autonomousLoop/loopOrchestrator"
+        );
+        const eventId = await publishEvent(
+          input.eventType as never,
+          input.payload ?? {}
+        );
         // Fetch the event and process it immediately
         const { getDb } = await import("./db");
         const { eventQueue: eq2 } = await import("../drizzle/schema");
         const { eq: eqFn } = await import("drizzle-orm");
         const db2 = await getDb();
         if (!db2) return { eventId, result: null };
-        const [event] = await db2.select().from(eq2).where(eqFn(eq2.id, eventId)).limit(1);
+        const [event] = await db2
+          .select()
+          .from(eq2)
+          .where(eqFn(eq2.id, eventId))
+          .limit(1);
         const result = event ? await processEvent(event as never) : null;
         return { eventId, result };
       }),
@@ -3065,8 +3830,11 @@ Respond in this exact structure:
     setSafeMode: protectedProcedure
       .input(z.object({ enabled: z.boolean(), reason: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { enterSafeMode, exitSafeMode } = await import("./autonomousLoop/safeModeController");
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { enterSafeMode, exitSafeMode } = await import(
+          "./autonomousLoop/safeModeController"
+        );
         if (input.enabled) {
           await enterSafeMode(input.reason ?? "Manual toggle by admin");
         } else {
@@ -3079,8 +3847,11 @@ Respond in this exact structure:
     drainQueue: protectedProcedure
       .input(z.object({ maxEvents: z.number().min(1).max(50).default(10) }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { processEvent } = await import("./autonomousLoop/loopOrchestrator");
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { processEvent } = await import(
+          "./autonomousLoop/loopOrchestrator"
+        );
         const { getDb } = await import("./db");
         const { eventQueue: eq3 } = await import("../drizzle/schema");
         const { eq: eqFn3 } = await import("drizzle-orm");
@@ -3088,7 +3859,11 @@ Respond in this exact structure:
         if (!db3) return { processed: 0, results: [] };
         const results = [];
         for (let i = 0; i < input.maxEvents; i++) {
-          const [nextEvent] = await db3.select().from(eq3).where(eqFn3(eq3.status, "pending")).limit(1);
+          const [nextEvent] = await db3
+            .select()
+            .from(eq3)
+            .where(eqFn3(eq3.status, "pending"))
+            .limit(1);
           if (!nextEvent) break;
           const result = await processEvent(nextEvent as never);
           results.push(result);
@@ -3103,7 +3878,8 @@ Respond in this exact structure:
     getSessions: protectedProcedure
       .input(z.object({ limit: z.number().min(1).max(100).default(20) }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getRecentDreamSessions } = await import("./dream/dreamEngine");
         return getRecentDreamSessions(input.limit);
       }),
@@ -3112,7 +3888,8 @@ Respond in this exact structure:
     getSession: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDreamSession } = await import("./dream/dreamEngine");
         const session = await getDreamSession(input.id);
         if (!session) throw new TRPCError({ code: "NOT_FOUND" });
@@ -3120,18 +3897,18 @@ Respond in this exact structure:
       }),
 
     // Get aggregate dream stats
-    getStats: protectedProcedure
-      .query(async ({ ctx }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { getDreamStats } = await import("./dream/dreamEngine");
-        return getDreamStats();
-      }),
+    getStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getDreamStats } = await import("./dream/dreamEngine");
+      return getDreamStats();
+    }),
 
     // Check dream eligibility
     checkEligibility: protectedProcedure
       .input(z.object({ healthScore: z.number().min(0).max(100).default(80) }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { checkDreamEligibility } = await import("./dream/dreamEngine");
         return checkDreamEligibility(input.healthScore);
       }),
@@ -3140,13 +3917,18 @@ Respond in this exact structure:
     triggerSession: protectedProcedure
       .input(z.object({ healthScore: z.number().min(0).max(100).default(80) }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { runDreamSession } = await import("./dream/dreamEngine");
         const result = await runDreamSession({
           healthScore: input.healthScore,
           manualTrigger: true,
         });
-        if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Dream session failed to start" });
+        if (!result)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Dream session failed to start",
+          });
         return result;
       }),
   }),
@@ -3163,7 +3945,8 @@ Respond in this exact structure:
     runNow: protectedProcedure
       .input(z.object({ taskUid: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { ENV } = await import("./_core/env");
         const resp = await fetch(
           `${ENV.forgeApiUrl}/webdev.v1.WebDevHeartbeatService/RunHeartbeatJobNow`,
@@ -3180,24 +3963,32 @@ Respond in this exact structure:
         );
         if (!resp.ok) {
           const detail = await resp.text().catch(() => "");
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `RunNow failed: ${detail}` });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `RunNow failed: ${detail}`,
+          });
         }
         return { success: true };
       }),
     /** Get the last N run records for a specific job (or all jobs). Admin-only. */
     history: protectedProcedure
-      .input(z.object({
-        jobName: z.string().max(128).optional(),
-        limit: z.number().int().min(1).max(100).default(20),
-      }))
+      .input(
+        z.object({
+          jobName: z.string().max(128).optional(),
+          limit: z.number().int().min(1).max(100).default(20),
+        })
+      )
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
         const { cronRunLog } = await import("../drizzle/schema");
         const { desc, eq } = await import("drizzle-orm");
-        const query = db.select().from(cronRunLog)
+        const query = db
+          .select()
+          .from(cronRunLog)
           .orderBy(desc(cronRunLog.ranAt))
           .limit(input.limit);
         if (input.jobName) {
@@ -3217,24 +4008,38 @@ Respond in this exact structure:
       if (!db) return [];
       const { verticalConfigs } = await import("../drizzle/schema");
       const { desc } = await import("drizzle-orm");
-      return db.select().from(verticalConfigs).orderBy(desc(verticalConfigs.createdAt));
+      return db
+        .select()
+        .from(verticalConfigs)
+        .orderBy(desc(verticalConfigs.createdAt));
     }),
     /** Create a new vertical config. Admin-only. */
     create: protectedProcedure
-      .input(z.object({
-        domainKey: z.string().min(2).max(64).regex(/^[a-z0-9_]+$/),
-        displayName: z.string().min(2).max(128),
-        description: z.string().max(1024).optional(),
-        meshTerms: z.array(z.string()).default([]),
-        sourceWhitelist: z.array(z.string()).default([]),
-        qualityTier: z.enum(["draft", "verified"]).default("draft"),
-        enabled: z.boolean().default(true),
-      }))
+      .input(
+        z.object({
+          domainKey: z
+            .string()
+            .min(2)
+            .max(64)
+            .regex(/^[a-z0-9_]+$/),
+          displayName: z.string().min(2).max(128),
+          description: z.string().max(1024).optional(),
+          meshTerms: z.array(z.string()).default([]),
+          sourceWhitelist: z.array(z.string()).default([]),
+          qualityTier: z.enum(["draft", "verified"]).default("draft"),
+          enabled: z.boolean().default(true),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        if (!db)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "DB unavailable",
+          });
         const { verticalConfigs } = await import("../drizzle/schema");
         await db.insert(verticalConfigs).values({
           domainKey: input.domainKey,
@@ -3249,31 +4054,45 @@ Respond in this exact structure:
       }),
     /** Update an existing vertical config. Admin-only. */
     update: protectedProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        displayName: z.string().min(2).max(128).optional(),
-        description: z.string().max(1024).optional(),
-        meshTerms: z.array(z.string()).optional(),
-        sourceWhitelist: z.array(z.string()).optional(),
-        qualityTier: z.enum(["draft", "verified"]).optional(),
-        enabled: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          displayName: z.string().min(2).max(128).optional(),
+          description: z.string().max(1024).optional(),
+          meshTerms: z.array(z.string()).optional(),
+          sourceWhitelist: z.array(z.string()).optional(),
+          qualityTier: z.enum(["draft", "verified"]).optional(),
+          enabled: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { getDb } = await import("./db");
         const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        if (!db)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "DB unavailable",
+          });
         const { verticalConfigs } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         const patch: Record<string, unknown> = {};
-        if (input.displayName !== undefined) patch.displayName = input.displayName;
-        if (input.description !== undefined) patch.description = input.description;
+        if (input.displayName !== undefined)
+          patch.displayName = input.displayName;
+        if (input.description !== undefined)
+          patch.description = input.description;
         if (input.meshTerms !== undefined) patch.meshTerms = input.meshTerms;
-        if (input.sourceWhitelist !== undefined) patch.sourceWhitelist = input.sourceWhitelist;
-        if (input.qualityTier !== undefined) patch.qualityTier = input.qualityTier;
+        if (input.sourceWhitelist !== undefined)
+          patch.sourceWhitelist = input.sourceWhitelist;
+        if (input.qualityTier !== undefined)
+          patch.qualityTier = input.qualityTier;
         if (input.enabled !== undefined) patch.enabled = input.enabled;
         if (Object.keys(patch).length === 0) return { success: true };
-        await db.update(verticalConfigs).set(patch).where(eq(verticalConfigs.id, input.id));
+        await db
+          .update(verticalConfigs)
+          .set(patch)
+          .where(eq(verticalConfigs.id, input.id));
         return { success: true };
       }),
   }),
@@ -3287,7 +4106,7 @@ Respond in this exact structure:
     list: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       const { SOURCE_WHITELIST } = await import("./sourceRegistry");
-      return SOURCE_WHITELIST.map((s) => ({
+      return SOURCE_WHITELIST.map(s => ({
         id: s.id,
         displayName: s.displayName,
         description: s.description,
@@ -3305,10 +4124,15 @@ Respond in this exact structure:
     healthCheck: protectedProcedure
       .input(z.object({ sourceId: z.string() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { runHealthCheck } = await import("./sourceRegistry");
         const result = await runHealthCheck(input.sourceId);
-        if (!result) throw new TRPCError({ code: "NOT_FOUND", message: `Source "${input.sourceId}" not found in whitelist` });
+        if (!result)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Source "${input.sourceId}" not found in whitelist`,
+          });
         return result;
       }),
 
@@ -3326,10 +4150,15 @@ Respond in this exact structure:
     approve: protectedProcedure
       .input(z.object({ sourceId: z.string() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { approveSource } = await import("./sourceRegistry");
         const ok = approveSource(input.sourceId);
-        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: `Source "${input.sourceId}" not found` });
+        if (!ok)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Source "${input.sourceId}" not found`,
+          });
         return { success: true, sourceId: input.sourceId };
       }),
     /**
@@ -3338,10 +4167,15 @@ Respond in this exact structure:
     reject: protectedProcedure
       .input(z.object({ sourceId: z.string() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { rejectSource } = await import("./sourceRegistry");
         const ok = rejectSource(input.sourceId);
-        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: `Source "${input.sourceId}" not found` });
+        if (!ok)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Source "${input.sourceId}" not found`,
+          });
         return { success: true, sourceId: input.sourceId };
       }),
   }),
@@ -3349,16 +4183,20 @@ Respond in this exact structure:
   // ─── Deployment (Micron + Private) ────────────────────────────────────────────────
   deployment: router({
     deploy: protectedProcedure
-      .input(z.object({
-        verticalKey: z.string(),
-        displayName: z.string(),
-        deployTarget: z.enum(["vercel", "netlify", "docker", "ipfs"]),
-        domain: z.string().optional(),
-        deployConfig: z.record(z.string(), z.string()).optional(),
-        apiBase: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          verticalKey: z.string(),
+          displayName: z.string(),
+          deployTarget: z.enum(["vercel", "netlify", "docker", "ipfs"]),
+          domain: z.string().optional(),
+          deployConfig: z.record(z.string(), z.string()).optional(),
+          apiBase: z.string().optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        const { createMicronDeployment, deployMicron } = await import("./micronDeploy");
+        const { createMicronDeployment, deployMicron } = await import(
+          "./micronDeploy"
+        );
         const deployment = await createMicronDeployment({
           verticalKey: input.verticalKey,
           displayName: input.displayName,
@@ -3388,29 +4226,39 @@ Respond in this exact structure:
       return getAllMicronDeployments();
     }),
     generateDockerCompose: protectedProcedure
-      .input(z.object({
-        verticalKey: z.string(),
-        domain: z.string().optional(),
-        includeLocalDb: z.boolean().optional(),
-        includeNginx: z.boolean().optional(),
-        includeSaml: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          verticalKey: z.string(),
+          domain: z.string().optional(),
+          includeLocalDb: z.boolean().optional(),
+          includeNginx: z.boolean().optional(),
+          includeSaml: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
-        const { generateDockerCompose, generateNginxConfig } = await import("./privateMode");
+        const { generateDockerCompose, generateNginxConfig } = await import(
+          "./privateMode"
+        );
         return {
           composeYml: generateDockerCompose(input),
-          nginxConf: input.includeNginx ? generateNginxConfig({ domain: input.domain ?? "localhost" }) : null,
+          nginxConf: input.includeNginx
+            ? generateNginxConfig({ domain: input.domain ?? "localhost" })
+            : null,
         };
       }),
     generateSiteHtml: protectedProcedure
-      .input(z.object({
-        verticalKey: z.string(),
-        displayName: z.string(),
-        domain: z.string().optional(),
-        apiBase: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          verticalKey: z.string(),
+          displayName: z.string(),
+          domain: z.string().optional(),
+          apiBase: z.string().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
-        const { generateSiteConfig, generateSiteHtml } = await import("./micronDeploy");
+        const { generateSiteConfig, generateSiteHtml } = await import(
+          "./micronDeploy"
+        );
         const config = generateSiteConfig({
           verticalKey: input.verticalKey,
           displayName: input.displayName,
@@ -3424,16 +4272,26 @@ Respond in this exact structure:
   // ─── Discovery Engine ──────────────────────────────────────────────────────
   discovery: router({
     run: protectedProcedure
-      .input(z.object({
-        verticalKey: z.string(),
-        skipProbe: z.boolean().optional(),
-        skipCodegen: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          verticalKey: z.string(),
+          skipProbe: z.boolean().optional(),
+          skipCodegen: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { createDiscoveryRun, runDiscovery } = await import("./discoveryEngine");
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { createDiscoveryRun, runDiscovery } = await import(
+          "./discoveryEngine"
+        );
         const runId = await createDiscoveryRun(input.verticalKey);
-        runDiscovery({ runId, verticalKey: input.verticalKey, skipProbe: input.skipProbe, skipCodegen: input.skipCodegen }).catch(console.error);
+        runDiscovery({
+          runId,
+          verticalKey: input.verticalKey,
+          skipProbe: input.skipProbe,
+          skipCodegen: input.skipCodegen,
+        }).catch(console.error);
         return { runId, status: "running" };
       }),
     get: protectedProcedure
@@ -3447,24 +4305,40 @@ Respond in this exact structure:
     sources: protectedProcedure
       .input(z.object({ verticalKey: z.string() }))
       .query(async ({ input }) => {
-        const { getRegistryEntriesByVertical } = await import("./discoveryEngine");
+        const { getRegistryEntriesByVertical } = await import(
+          "./discoveryEngine"
+        );
         return getRegistryEntriesByVertical(input.verticalKey);
       }),
     builtInSources: protectedProcedure
-      .input(z.object({ verticalKey: z.string().optional(), category: z.string().optional() }))
+      .input(
+        z.object({
+          verticalKey: z.string().optional(),
+          category: z.string().optional(),
+        })
+      )
       .query(async ({ input }) => {
         const { BUILT_IN_SOURCES } = await import("./discoveryEngine");
         let sources = BUILT_IN_SOURCES;
-        if (input.verticalKey) sources = sources.filter((s) => s.verticals.includes(input.verticalKey!));
-        if (input.category) sources = sources.filter((s) => s.category === input.category);
+        if (input.verticalKey)
+          sources = sources.filter(s =>
+            s.verticals.includes(input.verticalKey!)
+          );
+        if (input.category)
+          sources = sources.filter(s => s.category === input.category);
         return sources;
       }),
     probe: protectedProcedure
       .input(z.object({ sourceId: z.string() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { BUILT_IN_SOURCES, probeSource } = await import("./discoveryEngine");
-        const source = BUILT_IN_SOURCES.find((s) => s.sourceId === input.sourceId);
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { BUILT_IN_SOURCES, probeSource } = await import(
+          "./discoveryEngine"
+        );
+        const source = BUILT_IN_SOURCES.find(
+          s => s.sourceId === input.sourceId
+        );
         if (!source) throw new TRPCError({ code: "NOT_FOUND" });
         return probeSource(source);
       }),
@@ -3478,18 +4352,24 @@ Respond in this exact structure:
   // ─── Saved Research ──────────────────────────────────────────────────────────────────────
   savedResearch: router({
     save: protectedProcedure
-      .input(z.object({
-        question: z.string().min(1).max(2000),
-        claimsJson: z.array(z.unknown()),
-        totalPapers: z.number().int().min(0),
-        supportedClaims: z.number().int().min(0),
-        claimsAnalysed: z.number().int().min(0),
-      }))
+      .input(
+        z.object({
+          question: z.string().min(1).max(2000),
+          claimsJson: z.array(z.unknown()),
+          totalPapers: z.number().int().min(0),
+          supportedClaims: z.number().int().min(0),
+          claimsAnalysed: z.number().int().min(0),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { getDb } = await import("./db");
         const { savedResearch } = await import("../drizzle/schema");
         const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        if (!db)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "DB unavailable",
+          });
         const result = await db.insert(savedResearch).values({
           userId: ctx.user.id,
           question: input.question,
@@ -3498,7 +4378,10 @@ Respond in this exact structure:
           supportedClaims: input.supportedClaims,
           claimsAnalysed: input.claimsAnalysed,
         });
-        return { id: (result as unknown as { insertId: number }).insertId, saved: true };
+        return {
+          id: (result as unknown as { insertId: number }).insertId,
+          saved: true,
+        };
       }),
     list: protectedProcedure
       .input(z.object({ limit: z.number().int().min(1).max(100).optional() }))
@@ -3522,10 +4405,19 @@ Respond in this exact structure:
         const { savedResearch } = await import("../drizzle/schema");
         const { and, eq } = await import("drizzle-orm");
         const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        if (!db)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "DB unavailable",
+          });
         await db
           .delete(savedResearch)
-          .where(and(eq(savedResearch.id, input.id), eq(savedResearch.userId, ctx.user.id)));
+          .where(
+            and(
+              eq(savedResearch.id, input.id),
+              eq(savedResearch.userId, ctx.user.id)
+            )
+          );
         return { deleted: true };
       }),
   }),
@@ -3533,14 +4425,23 @@ Respond in this exact structure:
   // ─── Embed ────────────────────────────────────────────────────────────────
   embed: router({
     generateCode: protectedProcedure
-      .input(z.object({
-        vertical: z.string(),
-        theme: z.enum(["auto", "light", "dark"]).optional(),
-        position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left"]).optional(),
-        apiBase: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          vertical: z.string(),
+          theme: z.enum(["auto", "light", "dark"]).optional(),
+          position: z
+            .enum(["bottom-right", "bottom-left", "top-right", "top-left"])
+            .optional(),
+          apiBase: z.string().optional(),
+        })
+      )
       .mutation(({ input }) => {
-        const { vertical, theme = "auto", position = "bottom-right", apiBase = "" } = input;
+        const {
+          vertical,
+          theme = "auto",
+          position = "bottom-right",
+          apiBase = "",
+        } = input;
         const base = apiBase || "https://protein-desk-5r5rzpyg.manus.space";
         return {
           iframeCode: `<!-- Truth Desk Embed Widget -->\n<iframe\n  src="${base}/api/embed/frame?vertical=${vertical}&theme=${theme}"\n  width="400" height="440" frameborder="0"\n  style="border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.15);"\n  title="Truth Desk Claim Verifier"\n  sandbox="allow-scripts allow-same-origin allow-popups"\n></iframe>`,
@@ -3549,6 +4450,5 @@ Respond in this exact structure:
         };
       }),
   }),
-
 });
 export type AppRouter = typeof appRouter;

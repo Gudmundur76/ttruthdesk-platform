@@ -2,19 +2,46 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import {
-  Activity, AlertTriangle, CheckCircle2, Clock, Cpu, Layers,
-  Play, RefreshCw, Shield, ShieldOff, Zap, ChevronDown, ChevronRight,
-  BarChart3, List, History, Moon, ExternalLink
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Cpu,
+  Layers,
+  Play,
+  RefreshCw,
+  Shield,
+  ShieldOff,
+  Zap,
+  ChevronDown,
+  ChevronRight,
+  BarChart3,
+  List,
+  History,
+  Moon,
+  ExternalLink,
 } from "lucide-react";
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
@@ -38,7 +65,13 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
-const LAYER_NAMES = ["L0: Friction", "L1: Truth", "L2: Self-Prompt", "L3: Frontier", "L4: Meta"];
+const LAYER_NAMES = [
+  "L0: Friction",
+  "L1: Truth",
+  "L2: Self-Prompt",
+  "L3: Frontier",
+  "L4: Meta",
+];
 
 function layerBitmaskToNames(bitmask: number): string[] {
   return LAYER_NAMES.filter((_, i) => (bitmask >> i) & 1);
@@ -62,7 +95,10 @@ function formatRelative(ts: Date | string | null | undefined): string {
 
 // ─── Last Dream Widget ───────────────────────────────────────────────────────
 function LastDreamWidget() {
-  const { data: sessions, isLoading } = trpc.dream.getSessions.useQuery({ limit: 1 }, { refetchInterval: 30000 });
+  const { data: sessions, isLoading } = trpc.dream.getSessions.useQuery(
+    { limit: 1 },
+    { refetchInterval: 30000 }
+  );
   const last = sessions?.[0];
 
   const cycleLabels: Record<string, string> = {
@@ -82,28 +118,48 @@ function LastDreamWidget() {
       </CardHeader>
       <CardContent className="px-4 pb-4">
         {isLoading ? (
-          <div className="flex justify-center py-4"><Spinner /></div>
+          <div className="flex justify-center py-4">
+            <Spinner />
+          </div>
         ) : !last ? (
-          <p className="text-xs text-muted-foreground text-center py-3">No dream sessions yet</p>
+          <p className="text-xs text-muted-foreground text-center py-3">
+            No dream sessions yet
+          </p>
         ) : (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Started</span>
-              <span className="text-xs font-mono">{formatRelative(last.startedAt)}</span>
+              <span className="text-xs font-mono">
+                {formatRelative(last.startedAt)}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Wake reason</span>
-              <span className="text-xs font-mono truncate max-w-28" title={last.reasonForWaking ?? undefined}>{last.reasonForWaking ?? "—"}</span>
+              <span
+                className="text-xs font-mono truncate max-w-28"
+                title={last.reasonForWaking ?? undefined}
+              >
+                {last.reasonForWaking ?? "—"}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Cycles</span>
-              <span className="text-xs font-mono">{last.cyclesCompleted ?? 0} / 5</span>
+              <span className="text-xs font-mono">
+                {last.cyclesCompleted ?? 0} / 5
+              </span>
             </div>
             {last.cyclesCompleted != null && last.cyclesCompleted > 0 && (
               <div className="flex flex-wrap gap-1 pt-1">
-                {Object.entries(cycleLabels).slice(0, last.cyclesCompleted).map(([, label]) => (
-                  <span key={label} className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">{label}</span>
-                ))}
+                {Object.entries(cycleLabels)
+                  .slice(0, last.cyclesCompleted)
+                  .map(([, label]) => (
+                    <span
+                      key={label}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                    >
+                      {label}
+                    </span>
+                  ))}
               </div>
             )}
             <a
@@ -125,7 +181,9 @@ export default function AutonomousLoopDashboard() {
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [expandedRun, setExpandedRun] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"events" | "runs" | "metrics">("events");
+  const [activeTab, setActiveTab] = useState<"events" | "runs" | "metrics">(
+    "events"
+  );
   const [triggerEventType, setTriggerEventType] = useState("scheduled_tick");
   const [safeModeReason, setSafeModeReason] = useState("");
 
@@ -136,20 +194,26 @@ export default function AutonomousLoopDashboard() {
 
   const utils = trpc.useUtils();
 
-  const { data: status, isLoading: statusLoading } = trpc.autonomousLoop.status.useQuery(undefined, {
-    refetchInterval: 10000,
-  });
+  const { data: status, isLoading: statusLoading } =
+    trpc.autonomousLoop.status.useQuery(undefined, {
+      refetchInterval: 10000,
+    });
 
-  const { data: eventLog, isLoading: eventsLoading } = trpc.autonomousLoop.eventLog.useQuery({
-    limit: 100,
-    eventType: eventTypeFilter !== "all" ? eventTypeFilter : undefined,
-    status: statusFilter !== "all" ? statusFilter as never : undefined,
-  }, { refetchInterval: 15000 });
+  const { data: eventLog, isLoading: eventsLoading } =
+    trpc.autonomousLoop.eventLog.useQuery(
+      {
+        limit: 100,
+        eventType: eventTypeFilter !== "all" ? eventTypeFilter : undefined,
+        status: statusFilter !== "all" ? (statusFilter as never) : undefined,
+      },
+      { refetchInterval: 15000 }
+    );
 
-  const { data: runHistory, isLoading: runsLoading } = trpc.autonomousLoop.runHistory.useQuery(
-    { limit: 30 },
-    { refetchInterval: 15000 }
-  );
+  const { data: runHistory, isLoading: runsLoading } =
+    trpc.autonomousLoop.runHistory.useQuery(
+      { limit: 30 },
+      { refetchInterval: 15000 }
+    );
 
   const triggerMutation = trpc.autonomousLoop.triggerEvent.useMutation({
     onSuccess: () => {
@@ -158,25 +222,25 @@ export default function AutonomousLoopDashboard() {
       utils.autonomousLoop.eventLog.invalidate();
       utils.autonomousLoop.runHistory.invalidate();
     },
-    onError: (e) => toast.error(`Trigger failed: ${e.message}`),
+    onError: e => toast.error(`Trigger failed: ${e.message}`),
   });
 
   const drainMutation = trpc.autonomousLoop.drainQueue.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       toast.success(`Drained ${data.processed} pending events`);
       utils.autonomousLoop.status.invalidate();
       utils.autonomousLoop.eventLog.invalidate();
       utils.autonomousLoop.runHistory.invalidate();
     },
-    onError: (e) => toast.error(`Drain failed: ${e.message}`),
+    onError: e => toast.error(`Drain failed: ${e.message}`),
   });
 
   const safeModeMutation = trpc.autonomousLoop.setSafeMode.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       toast.success(data.safeMode ? "Safe mode enabled" : "Safe mode disabled");
       utils.autonomousLoop.status.invalidate();
     },
-    onError: (e) => toast.error(`Safe mode toggle failed: ${e.message}`),
+    onError: e => toast.error(`Safe mode toggle failed: ${e.message}`),
   });
 
   const handleSafeModeToggle = (enabled: boolean) => {
@@ -194,7 +258,9 @@ export default function AutonomousLoopDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-semibold">Autonomous Loop</h1>
-              <p className="text-xs text-muted-foreground">Event-driven orchestration across all 5 layers</p>
+              <p className="text-xs text-muted-foreground">
+                Event-driven orchestration across all 5 layers
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -231,16 +297,26 @@ export default function AutonomousLoopDashboard() {
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Last Run</span>
               </div>
-              <p className="text-lg font-semibold">{statusLoading ? "…" : formatRelative(status?.lastRun?.createdAt)}</p>
+              <p className="text-lg font-semibold">
+                {statusLoading
+                  ? "…"
+                  : formatRelative(status?.lastRun?.createdAt)}
+              </p>
             </CardContent>
           </Card>
           <Card className="border-border/50">
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-2 mb-1">
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Total Events</span>
+                <span className="text-xs text-muted-foreground">
+                  Total Events
+                </span>
               </div>
-              <p className="text-lg font-semibold">{statusLoading ? "…" : (status?.totalEvents ?? 0).toLocaleString()}</p>
+              <p className="text-lg font-semibold">
+                {statusLoading
+                  ? "…"
+                  : (status?.totalEvents ?? 0).toLocaleString()}
+              </p>
             </CardContent>
           </Card>
           <Card className="border-border/50">
@@ -249,19 +325,26 @@ export default function AutonomousLoopDashboard() {
                 <Cpu className="h-4 w-4 text-yellow-400" />
                 <span className="text-xs text-muted-foreground">Pending</span>
               </div>
-              <p className="text-lg font-semibold text-yellow-400">{statusLoading ? "…" : (status?.pendingEvents ?? 0)}</p>
+              <p className="text-lg font-semibold text-yellow-400">
+                {statusLoading ? "…" : (status?.pendingEvents ?? 0)}
+              </p>
             </CardContent>
           </Card>
           <Card className="border-border/50">
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-2 mb-1">
                 <Layers className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Last Run Layers</span>
+                <span className="text-xs text-muted-foreground">
+                  Last Run Layers
+                </span>
               </div>
               <p className="text-sm font-medium">
-                {statusLoading ? "…" : status?.lastRun
-                  ? layerBitmaskToNames(status.lastRun.layersExecuted).length + " layers"
-                  : "—"}
+                {statusLoading
+                  ? "…"
+                  : status?.lastRun
+                    ? layerBitmaskToNames(status.lastRun.layersExecuted)
+                        .length + " layers"
+                    : "—"}
               </p>
             </CardContent>
           </Card>
@@ -272,7 +355,7 @@ export default function AutonomousLoopDashboard() {
           <div className="lg:col-span-2 space-y-4">
             {/* Tab bar */}
             <div className="flex gap-1 border-b border-border">
-              {(["events", "runs", "metrics"] as const).map((tab) => (
+              {(["events", "runs", "metrics"] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -282,9 +365,15 @@ export default function AutonomousLoopDashboard() {
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {tab === "events" && <List className="h-3.5 w-3.5 inline mr-1.5" />}
-                  {tab === "runs" && <History className="h-3.5 w-3.5 inline mr-1.5" />}
-                  {tab === "metrics" && <BarChart3 className="h-3.5 w-3.5 inline mr-1.5" />}
+                  {tab === "events" && (
+                    <List className="h-3.5 w-3.5 inline mr-1.5" />
+                  )}
+                  {tab === "runs" && (
+                    <History className="h-3.5 w-3.5 inline mr-1.5" />
+                  )}
+                  {tab === "metrics" && (
+                    <BarChart3 className="h-3.5 w-3.5 inline mr-1.5" />
+                  )}
                   {tab}
                 </button>
               ))}
@@ -294,14 +383,19 @@ export default function AutonomousLoopDashboard() {
             {activeTab === "events" && (
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
+                  <Select
+                    value={eventTypeFilter}
+                    onValueChange={setEventTypeFilter}
+                  >
                     <SelectTrigger className="w-48 h-8 text-xs">
                       <SelectValue placeholder="Event type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All types</SelectItem>
-                      {Object.keys(EVENT_TYPE_COLORS).map((t) => (
-                        <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
+                      {Object.keys(EVENT_TYPE_COLORS).map(t => (
+                        <SelectItem key={t} value={t}>
+                          {t.replace(/_/g, " ")}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -321,30 +415,45 @@ export default function AutonomousLoopDashboard() {
                 </div>
 
                 {eventsLoading ? (
-                  <div className="flex justify-center py-12"><Spinner /></div>
+                  <div className="flex justify-center py-12">
+                    <Spinner />
+                  </div>
                 ) : !eventLog?.length ? (
-                  <div className="text-center py-12 text-muted-foreground text-sm">No events found</div>
+                  <div className="text-center py-12 text-muted-foreground text-sm">
+                    No events found
+                  </div>
                 ) : (
                   <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
-                    {eventLog.map((ev) => (
+                    {eventLog.map(ev => (
                       <div
                         key={ev.id}
                         className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border/40 bg-card/30 hover:bg-card/60 transition-colors text-sm"
                       >
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-mono ${EVENT_TYPE_COLORS[ev.eventType] ?? "bg-muted text-muted-foreground"}`}>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full border font-mono ${EVENT_TYPE_COLORS[ev.eventType] ?? "bg-muted text-muted-foreground"}`}
+                        >
                           {ev.eventType.replace(/_/g, " ")}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLORS[ev.status] ?? ""}`}>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLORS[ev.status] ?? ""}`}
+                        >
                           {ev.status}
                         </span>
-                        <span className="text-xs text-muted-foreground ml-auto">{formatRelative(ev.createdAt)}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {formatRelative(ev.createdAt)}
+                        </span>
                         {ev.skipReason && (
-                          <span className="text-xs text-muted-foreground italic truncate max-w-32" title={ev.skipReason}>
+                          <span
+                            className="text-xs text-muted-foreground italic truncate max-w-32"
+                            title={ev.skipReason}
+                          >
                             {ev.skipReason}
                           </span>
                         )}
                         {ev.errorMessage && (
-                          <span title={ev.errorMessage ?? undefined}><AlertTriangle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" /></span>
+                          <span title={ev.errorMessage ?? undefined}>
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+                          </span>
                         )}
                       </div>
                     ))}
@@ -357,64 +466,108 @@ export default function AutonomousLoopDashboard() {
             {activeTab === "runs" && (
               <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
                 {runsLoading ? (
-                  <div className="flex justify-center py-12"><Spinner /></div>
+                  <div className="flex justify-center py-12">
+                    <Spinner />
+                  </div>
                 ) : !runHistory?.length ? (
-                  <div className="text-center py-12 text-muted-foreground text-sm">No runs yet</div>
+                  <div className="text-center py-12 text-muted-foreground text-sm">
+                    No runs yet
+                  </div>
                 ) : (
-                  runHistory.map((run) => (
-                    <div key={run.id} className="border border-border/40 rounded-lg bg-card/30">
+                  runHistory.map(run => (
+                    <div
+                      key={run.id}
+                      className="border border-border/40 rounded-lg bg-card/30"
+                    >
                       <button
                         className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-card/60 transition-colors rounded-lg"
-                        onClick={() => setExpandedRun(expandedRun === run.id ? null : run.id)}
+                        onClick={() =>
+                          setExpandedRun(expandedRun === run.id ? null : run.id)
+                        }
                       >
                         {expandedRun === run.id ? (
                           <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         ) : (
                           <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         )}
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${EVENT_TYPE_COLORS[run.eventType] ?? "bg-muted text-muted-foreground"}`}>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full border ${EVENT_TYPE_COLORS[run.eventType] ?? "bg-muted text-muted-foreground"}`}
+                        >
                           {run.eventType.replace(/_/g, " ")}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {layerBitmaskToNames(run.layersExecuted).length} layers
+                          {layerBitmaskToNames(run.layersExecuted).length}{" "}
+                          layers
                         </span>
                         {run.converged && (
-                          <span title="Converged"><CheckCircle2 className="h-3.5 w-3.5 text-green-400" /></span>
+                          <span title="Converged">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+                          </span>
                         )}
                         {run.safeModeTriggered && (
-                          <span title="Safe mode triggered"><Shield className="h-3.5 w-3.5 text-red-400" /></span>
+                          <span title="Safe mode triggered">
+                            <Shield className="h-3.5 w-3.5 text-red-400" />
+                          </span>
                         )}
-                        <span className="text-xs text-muted-foreground ml-auto">{formatDuration(run.durationMs)}</span>
-                        <span className="text-xs text-muted-foreground">{formatRelative(run.createdAt)}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {formatDuration(run.durationMs)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatRelative(run.createdAt)}
+                        </span>
                       </button>
 
                       {expandedRun === run.id && (
                         <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3">
                           <div className="flex flex-wrap gap-1.5">
-                            {layerBitmaskToNames(run.layersExecuted).map((l) => (
-                              <span key={l} className="text-xs px-2 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20">{l}</span>
+                            {layerBitmaskToNames(run.layersExecuted).map(l => (
+                              <span
+                                key={l}
+                                className="text-xs px-2 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20"
+                              >
+                                {l}
+                              </span>
                             ))}
                           </div>
                           {run.convergenceReason && (
-                            <p className="text-xs text-muted-foreground italic">Convergence: {run.convergenceReason}</p>
+                            <p className="text-xs text-muted-foreground italic">
+                              Convergence: {run.convergenceReason}
+                            </p>
                           )}
-                          {Array.isArray(run.actionsExecuted) && run.actionsExecuted.length > 0 && (
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Actions</p>
-                              {run.actionsExecuted.map((action, i) => (
-                                <div key={i} className="flex items-start gap-2 text-xs">
-                                  <span className={`mt-0.5 flex-shrink-0 ${
-                                    action.result === "success" ? "text-green-400" :
-                                    action.result === "failed" ? "text-red-400" : "text-muted-foreground"
-                                  }`}>
-                                    {action.result === "success" ? "✓" : action.result === "failed" ? "✗" : "–"}
-                                  </span>
-                                  <span className="text-muted-foreground font-mono">[{action.type}]</span>
-                                  <span>{action.description}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          {Array.isArray(run.actionsExecuted) &&
+                            run.actionsExecuted.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                  Actions
+                                </p>
+                                {run.actionsExecuted.map((action, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex items-start gap-2 text-xs"
+                                  >
+                                    <span
+                                      className={`mt-0.5 flex-shrink-0 ${
+                                        action.result === "success"
+                                          ? "text-green-400"
+                                          : action.result === "failed"
+                                            ? "text-red-400"
+                                            : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      {action.result === "success"
+                                        ? "✓"
+                                        : action.result === "failed"
+                                          ? "✗"
+                                          : "–"}
+                                    </span>
+                                    <span className="text-muted-foreground font-mono">
+                                      [{action.type}]
+                                    </span>
+                                    <span>{action.description}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                         </div>
                       )}
                     </div>
@@ -427,24 +580,47 @@ export default function AutonomousLoopDashboard() {
             {activeTab === "metrics" && (
               <div className="space-y-4">
                 {runsLoading ? (
-                  <div className="flex justify-center py-12"><Spinner /></div>
+                  <div className="flex justify-center py-12">
+                    <Spinner />
+                  </div>
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { label: "Total Runs", value: runHistory?.length ?? 0 },
-                        { label: "Converged", value: runHistory?.filter(r => r.converged).length ?? 0 },
-                        { label: "Safe Mode Triggered", value: runHistory?.filter(r => r.safeModeTriggered).length ?? 0 },
-                        { label: "Avg Duration", value: formatDuration(
-                          runHistory && runHistory.length > 0
-                            ? Math.round(runHistory.reduce((s, r) => s + (r.durationMs ?? 0), 0) / runHistory.length)
-                            : null
-                        )},
+                        {
+                          label: "Converged",
+                          value:
+                            runHistory?.filter(r => r.converged).length ?? 0,
+                        },
+                        {
+                          label: "Safe Mode Triggered",
+                          value:
+                            runHistory?.filter(r => r.safeModeTriggered)
+                              .length ?? 0,
+                        },
+                        {
+                          label: "Avg Duration",
+                          value: formatDuration(
+                            runHistory && runHistory.length > 0
+                              ? Math.round(
+                                  runHistory.reduce(
+                                    (s, r) => s + (r.durationMs ?? 0),
+                                    0
+                                  ) / runHistory.length
+                                )
+                              : null
+                          ),
+                        },
                       ].map(({ label, value }) => (
                         <Card key={label} className="border-border/50">
                           <CardContent className="pt-3 pb-3">
-                            <p className="text-xs text-muted-foreground">{label}</p>
-                            <p className="text-xl font-semibold mt-0.5">{value}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {label}
+                            </p>
+                            <p className="text-xl font-semibold mt-0.5">
+                              {value}
+                            </p>
                           </CardContent>
                         </Card>
                       ))}
@@ -452,22 +628,35 @@ export default function AutonomousLoopDashboard() {
 
                     <Card className="border-border/50">
                       <CardHeader className="pb-2 pt-4 px-4">
-                        <CardTitle className="text-sm">Layer Activation Frequency</CardTitle>
+                        <CardTitle className="text-sm">
+                          Layer Activation Frequency
+                        </CardTitle>
                       </CardHeader>
                       <CardContent className="px-4 pb-4">
                         {LAYER_NAMES.map((name, i) => {
-                          const count = runHistory?.filter(r => (r.layersExecuted >> i) & 1).length ?? 0;
-                          const pct = runHistory?.length ? Math.round((count / runHistory.length) * 100) : 0;
+                          const count =
+                            runHistory?.filter(r => (r.layersExecuted >> i) & 1)
+                              .length ?? 0;
+                          const pct = runHistory?.length
+                            ? Math.round((count / runHistory.length) * 100)
+                            : 0;
                           return (
-                            <div key={name} className="flex items-center gap-3 py-1.5">
-                              <span className="text-xs text-muted-foreground w-28 flex-shrink-0">{name}</span>
+                            <div
+                              key={name}
+                              className="flex items-center gap-3 py-1.5"
+                            >
+                              <span className="text-xs text-muted-foreground w-28 flex-shrink-0">
+                                {name}
+                              </span>
                               <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                                 <div
                                   className="h-full bg-violet-500 rounded-full transition-all"
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
-                              <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                              <span className="text-xs text-muted-foreground w-10 text-right">
+                                {pct}%
+                              </span>
                             </div>
                           );
                         })}
@@ -503,14 +692,16 @@ export default function AutonomousLoopDashboard() {
                     onCheckedChange={handleSafeModeToggle}
                     disabled={safeModeMutation.isPending || statusLoading}
                   />
-                  <Label className="text-sm">{status?.safeMode ? "Enabled" : "Disabled"}</Label>
+                  <Label className="text-sm">
+                    {status?.safeMode ? "Enabled" : "Disabled"}
+                  </Label>
                 </div>
                 {!status?.safeMode && (
                   <input
                     className="w-full text-xs bg-muted/50 border border-border rounded px-2 py-1.5 placeholder:text-muted-foreground"
                     placeholder="Reason (optional)"
                     value={safeModeReason}
-                    onChange={(e) => setSafeModeReason(e.target.value)}
+                    onChange={e => setSafeModeReason(e.target.value)}
                   />
                 )}
               </CardContent>
@@ -527,13 +718,18 @@ export default function AutonomousLoopDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-3">
-                <Select value={triggerEventType} onValueChange={setTriggerEventType}>
+                <Select
+                  value={triggerEventType}
+                  onValueChange={setTriggerEventType}
+                >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.keys(EVENT_TYPE_COLORS).map((t) => (
-                      <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
+                    {Object.keys(EVENT_TYPE_COLORS).map(t => (
+                      <SelectItem key={t} value={t}>
+                        {t.replace(/_/g, " ")}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -541,13 +737,21 @@ export default function AutonomousLoopDashboard() {
                   size="sm"
                   className="w-full"
                   disabled={triggerMutation.isPending || status?.safeMode}
-                  onClick={() => triggerMutation.mutate({ eventType: triggerEventType })}
+                  onClick={() =>
+                    triggerMutation.mutate({ eventType: triggerEventType })
+                  }
                 >
-                  {triggerMutation.isPending ? <Spinner className="h-3.5 w-3.5 mr-1.5" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
+                  {triggerMutation.isPending ? (
+                    <Spinner className="h-3.5 w-3.5 mr-1.5" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5 mr-1.5" />
+                  )}
                   Trigger
                 </Button>
                 {status?.safeMode && (
-                  <p className="text-xs text-red-400 text-center">Disabled in safe mode</p>
+                  <p className="text-xs text-red-400 text-center">
+                    Disabled in safe mode
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -567,10 +771,17 @@ export default function AutonomousLoopDashboard() {
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  disabled={drainMutation.isPending || (status?.pendingEvents ?? 0) === 0}
+                  disabled={
+                    drainMutation.isPending ||
+                    (status?.pendingEvents ?? 0) === 0
+                  }
                   onClick={() => drainMutation.mutate({ maxEvents: 10 })}
                 >
-                  {drainMutation.isPending ? <Spinner className="h-3.5 w-3.5 mr-1.5" /> : <Zap className="h-3.5 w-3.5 mr-1.5" />}
+                  {drainMutation.isPending ? (
+                    <Spinner className="h-3.5 w-3.5 mr-1.5" />
+                  ) : (
+                    <Zap className="h-3.5 w-3.5 mr-1.5" />
+                  )}
                   Drain ({status?.pendingEvents ?? 0} pending)
                 </Button>
               </CardContent>
@@ -586,14 +797,36 @@ export default function AutonomousLoopDashboard() {
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-2">
                 {[
-                  { name: "L0: Friction", desc: "Intent & assumption gate", color: "bg-blue-500" },
-                  { name: "L1: Truth", desc: "Re-verify changed sources", color: "bg-green-500" },
-                  { name: "L2: Self-Prompt", desc: "Meaning-making & reasoning", color: "bg-violet-500" },
-                  { name: "L3: Frontier", desc: "Gap mapping & evidence", color: "bg-orange-500" },
-                  { name: "L4: Meta", desc: "Health checks & safe mode", color: "bg-red-500" },
+                  {
+                    name: "L0: Friction",
+                    desc: "Intent & assumption gate",
+                    color: "bg-blue-500",
+                  },
+                  {
+                    name: "L1: Truth",
+                    desc: "Re-verify changed sources",
+                    color: "bg-green-500",
+                  },
+                  {
+                    name: "L2: Self-Prompt",
+                    desc: "Meaning-making & reasoning",
+                    color: "bg-violet-500",
+                  },
+                  {
+                    name: "L3: Frontier",
+                    desc: "Gap mapping & evidence",
+                    color: "bg-orange-500",
+                  },
+                  {
+                    name: "L4: Meta",
+                    desc: "Health checks & safe mode",
+                    color: "bg-red-500",
+                  },
                 ].map(({ name, desc, color }) => (
                   <div key={name} className="flex items-start gap-2.5">
-                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${color}`} />
+                    <div
+                      className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${color}`}
+                    />
                     <div>
                       <p className="text-xs font-medium">{name}</p>
                       <p className="text-xs text-muted-foreground">{desc}</p>

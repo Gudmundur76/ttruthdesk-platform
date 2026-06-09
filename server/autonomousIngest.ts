@@ -74,7 +74,12 @@ const SYSTEM_USER_ID = 1;
 
 interface ExtractedClaim {
   claimText: string;
-  claimType: "protein_name" | "organism" | "pdb_id" | "general_molecular" | "ligand";
+  claimType:
+    | "protein_name"
+    | "organism"
+    | "pdb_id"
+    | "general_molecular"
+    | "ligand";
   proteinName?: string;
   organism?: string;
   pdbId?: string;
@@ -90,7 +95,8 @@ async function extractClaimsFromText(text: string): Promise<ExtractedClaim[]> {
       messages: [
         {
           role: "system" as const,
-          content: "You are a scientific claim extractor. Extract verifiable molecular biology claims from the provided text. Return a JSON array of claims. Each claim must have: claimText (full verifiable claim, max 300 chars), claimType (one of: protein_name, organism, pdb_id, general_molecular, ligand), proteinName (optional), organism (optional), pdbId (optional, 4-char format), extractedValue (optional). Extract 3-8 claims maximum. Focus on falsifiable, specific claims about proteins, structures, functions, or organisms. Return ONLY valid JSON, no markdown.",
+          content:
+            "You are a scientific claim extractor. Extract verifiable molecular biology claims from the provided text. Return a JSON array of claims. Each claim must have: claimText (full verifiable claim, max 300 chars), claimType (one of: protein_name, organism, pdb_id, general_molecular, ligand), proteinName (optional), organism (optional), pdbId (optional, 4-char format), extractedValue (optional). Extract 3-8 claims maximum. Focus on falsifiable, specific claims about proteins, structures, functions, or organisms. Return ONLY valid JSON, no markdown.",
         },
         {
           role: "user" as const,
@@ -134,9 +140,9 @@ async function extractClaimsFromText(text: string): Promise<ExtractedClaim[]> {
     if (!content) return [];
 
     const parsed = JSON.parse(content) as { claims: ExtractedClaim[] };
-    return (parsed.claims ?? []).slice(0, 8).filter(
-      (c) => c.claimText && c.claimText.length >= 10
-    );
+    return (parsed.claims ?? [])
+      .slice(0, 8)
+      .filter(c => c.claimText && c.claimText.length >= 10);
   } catch (err) {
     console.warn("[autonomousIngest] Claim extraction failed:", err);
     return [];
@@ -172,7 +178,12 @@ async function upsertEntitiesFromClaims(
         entityType: "protein",
         canonicalName: claim.proteinName.slice(0, 256),
         firstSeenDocumentId: documentId,
-        metadata: { documentId, claimId: claim.id, vertical, source: "copilot_query" },
+        metadata: {
+          documentId,
+          claimId: claim.id,
+          vertical,
+          source: "copilot_query",
+        },
       });
       if (proteinEntity && docEntity) {
         await upsertGraphRelation({
@@ -241,8 +252,15 @@ async function upsertEntitiesFromClaims(
  * Process tool results from a CopilotKit query.
  * This is called fire-and-forget after every tool call.
  */
-export async function processQueryResults(results: QueryResults): Promise<void> {
-  const { query, pubmedResults = [], uniprotEntries = [], vertical = "structural_biology" } = results;
+export async function processQueryResults(
+  results: QueryResults
+): Promise<void> {
+  const {
+    query,
+    pubmedResults = [],
+    uniprotEntries = [],
+    vertical = "structural_biology",
+  } = results;
 
   // Build combined text for claim extraction
   const textParts: string[] = [];
@@ -283,8 +301,9 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
     : `CopilotKit Query: ${query.slice(0, 200)}`;
 
   // Build source URL — prefer first PubMed citation, fall back to EuropePMC search
-  const sourceUrl = pubmedResults[0]?.citationUrl
-    ?? `https://europepmc.org/search?query=${encodeURIComponent(query)}`;
+  const sourceUrl =
+    pubmedResults[0]?.citationUrl ??
+    `https://europepmc.org/search?query=${encodeURIComponent(query)}`;
 
   // Create a document record as the provenance anchor
   let documentId: number;
@@ -306,10 +325,27 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
   }
 
   // Insert claims into the DB
-  type ClaimTypeEnum = "pdb_id" | "protein_name" | "experimental_method" | "resolution" | "organism" | "ligand" | "general_molecular";
-  const validClaimTypes = new Set<string>(["pdb_id", "protein_name", "experimental_method", "resolution", "organism", "ligand", "general_molecular"]);
-  const claimInserts = extractedClaims.map((c) => {
-    const ct = (validClaimTypes.has(c.claimType) ? c.claimType : "general_molecular") as ClaimTypeEnum;
+  type ClaimTypeEnum =
+    | "pdb_id"
+    | "protein_name"
+    | "experimental_method"
+    | "resolution"
+    | "organism"
+    | "ligand"
+    | "general_molecular";
+  const validClaimTypes = new Set<string>([
+    "pdb_id",
+    "protein_name",
+    "experimental_method",
+    "resolution",
+    "organism",
+    "ligand",
+    "general_molecular",
+  ]);
+  const claimInserts = extractedClaims.map(c => {
+    const ct = (
+      validClaimTypes.has(c.claimType) ? c.claimType : "general_molecular"
+    ) as ClaimTypeEnum;
     return {
       documentId,
       claimText: c.claimText.slice(0, 2000),
@@ -325,7 +361,9 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
     await insertClaims(claimInserts);
   } catch (err) {
     console.error("[autonomousIngest] Failed to insert claims:", err);
-    await updateDocumentStatus(documentId, "failed", { errorMessage: String(err) });
+    await updateDocumentStatus(documentId, "failed", {
+      errorMessage: String(err),
+    });
     return;
   }
 
@@ -341,23 +379,23 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
   for (let i = 0; i < insertedClaims.length; i += CONCURRENCY) {
     const batch = insertedClaims.slice(i, i + CONCURRENCY);
     await Promise.allSettled(
-      batch.map(async (claim) => {
+      batch.map(async claim => {
         try {
           const adapter = getVertical(vertical);
           let verdict = "Insufficient Evidence";
           let rationale = "No adapter available for this vertical";
           let evidenceUrl: string | null = null;
-          let confidenceScore = 0.3;
-
           if (adapter) {
             const result = await adapter.lookupEvidence({
               claimText: claim.claimText,
               extractedValue: claim.extractedValue ?? claim.claimText,
             });
             verdict = result.found ? "Supported" : "Insufficient Evidence";
-            rationale = result.evidenceRaw ? String(result.evidenceRaw).slice(0, 1000) : rationale;
+            rationale = result.evidenceRaw
+              ? String(result.evidenceRaw).slice(0, 1000)
+              : rationale;
             evidenceUrl = result.sourceUrl ?? null;
-            confidenceScore = result.confidenceScore ?? 0.5;
+            // confidenceScore stored in result but not persisted here (updateClaimVerdict handles it)
           }
 
           await updateClaimVerdict(claim.id, {
@@ -371,7 +409,10 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
             contradictedClaims.push({ ...claim, verdict });
           }
         } catch (err) {
-          console.warn(`[autonomousIngest] Verdict failed for claim ${claim.id}:`, err);
+          console.warn(
+            `[autonomousIngest] Verdict failed for claim ${claim.id}:`,
+            err
+          );
         }
       })
     );
@@ -388,7 +429,7 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
     await upsertEntitiesFromClaims(
       documentId,
       vertical,
-      verifiedClaims.map((c) => ({
+      verifiedClaims.map(c => ({
         id: c.id,
         claimText: c.claimText,
         proteinName: c.proteinName,
@@ -468,7 +509,9 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
         documentId,
         query,
         source: "autonomousIngest",
-      }).catch(() => { /* non-critical */ });
+      }).catch(() => {
+        /* non-critical */
+      });
     }
   }
 
@@ -480,8 +523,8 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
       query,
       claimCount: insertedClaims.length,
       contradictedCount: contradictedClaims.length,
-      pmids: pubmedResults.map((r) => r.pmid).filter(Boolean),
-      uniprotAccessions: uniprotEntries.map((e) => e.accession).filter(Boolean),
+      pmids: pubmedResults.map(r => r.pmid).filter(Boolean),
+      uniprotAccessions: uniprotEntries.map(e => e.accession).filter(Boolean),
     });
   } catch (err) {
     console.warn("[autonomousIngest] Event publish failed:", err);
@@ -489,8 +532,8 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
 
   console.log(
     `[autonomousIngest] ✓ Query "${query.slice(0, 60)}" → doc:${documentId}, ` +
-    `${insertedClaims.length} claims, ${contradictedClaims.length} contradicted, ` +
-    `${pubmedResults.length} PMIDs, ${uniprotEntries.length} UniProt entries`
+      `${insertedClaims.length} claims, ${contradictedClaims.length} contradicted, ` +
+      `${pubmedResults.length} PMIDs, ${uniprotEntries.length} UniProt entries`
   );
 }
 
@@ -499,7 +542,10 @@ export async function processQueryResults(results: QueryResults): Promise<void> 
  * Catches all errors so it never throws into the caller.
  */
 export function triggerAutonomousIngest(results: QueryResults): void {
-  processQueryResults(results).catch((err) => {
-    console.error("[autonomousIngest] Unhandled error in processQueryResults:", err);
+  processQueryResults(results).catch(err => {
+    console.error(
+      "[autonomousIngest] Unhandled error in processQueryResults:",
+      err
+    );
   });
 }

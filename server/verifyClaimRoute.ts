@@ -56,15 +56,19 @@ import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
 
 // ─── EuropePMC search ─────────────────────────────────────────────────────────
 
-const EUROPE_PMC_SEARCH = "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
+const EUROPE_PMC_SEARCH =
+  "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
 
-async function fetchPubMedResults(query: string, limit = 5): Promise<PubMedResult[]> {
+async function fetchPubMedResults(
+  query: string,
+  limit = 5
+): Promise<PubMedResult[]> {
   const encoded = encodeURIComponent(query);
   const url = `${EUROPE_PMC_SEARCH}?query=${encoded}&format=json&pageSize=${limit}&resultType=core&sort=CITED+desc`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
     if (!res.ok) return [];
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       resultList?: {
         result?: Array<{
           pmid?: string;
@@ -78,17 +82,20 @@ async function fetchPubMedResults(query: string, limit = 5): Promise<PubMedResul
       };
     };
     const results = data.resultList?.result ?? [];
-    return results.slice(0, limit).map((r) => ({
-      pmid: r.pmid ?? r.id ?? "",
-      title: r.title ?? "Untitled",
-      abstractSnippet: (r.abstractText ?? "").slice(0, 400),
-      citationUrl: r.pmid
-        ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`
-        : `https://europepmc.org/article/MED/${r.id ?? ""}`,
-      authors: r.authorString ? r.authorString.split(", ").slice(0, 5) : [],
-      journal: r.journalTitle ?? undefined,
-      year: r.pubYear ? parseInt(r.pubYear, 10) : undefined,
-    })).filter((r) => r.pmid);
+    return results
+      .slice(0, limit)
+      .map(r => ({
+        pmid: r.pmid ?? r.id ?? "",
+        title: r.title ?? "Untitled",
+        abstractSnippet: (r.abstractText ?? "").slice(0, 400),
+        citationUrl: r.pmid
+          ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`
+          : `https://europepmc.org/article/MED/${r.id ?? ""}`,
+        authors: r.authorString ? r.authorString.split(", ").slice(0, 5) : [],
+        journal: r.journalTitle ?? undefined,
+        year: r.pubYear ? parseInt(r.pubYear, 10) : undefined,
+      }))
+      .filter(r => r.pmid);
   } catch {
     return [];
   }
@@ -96,9 +103,15 @@ async function fetchPubMedResults(query: string, limit = 5): Promise<PubMedResul
 
 // ─── Derive verdict from PubMed paper count ───────────────────────────────────
 
-function verdictFromPubMed(papers: PubMedResult[], claimText: string): VerdictResult {
+function verdictFromPubMed(
+  papers: PubMedResult[],
+  claimText: string
+): VerdictResult {
   if (papers.length >= 2) {
-    const pmids = papers.slice(0, 3).map((p) => `PMID:${p.pmid}`).join(", ");
+    const pmids = papers
+      .slice(0, 3)
+      .map(p => `PMID:${p.pmid}`)
+      .join(", ");
     return {
       verdict: "Supported",
       rationale: `${papers.length} peer-reviewed papers support this claim. Top sources: ${pmids}.`,
@@ -124,25 +137,30 @@ function verdictFromPubMed(papers: PubMedResult[], claimText: string): VerdictRe
 
 // ─── EvidenceResult → VerdictResult mapper ────────────────────────────────────
 
-function evidenceToVerdict(evidence: EvidenceResult, claimText: string): VerdictResult {
+function evidenceToVerdict(
+  evidence: EvidenceResult,
+  claimText: string
+): VerdictResult {
   if (!evidence.found) {
     return {
       verdict: "Insufficient Evidence",
-      rationale: evidence.confidenceFlags.length > 0
-        ? evidence.confidenceFlags.join("; ")
-        : `No structural database evidence found for: "${claimText.substring(0, 120)}"`,
+      rationale:
+        evidence.confidenceFlags.length > 0
+          ? evidence.confidenceFlags.join("; ")
+          : `No structural database evidence found for: "${claimText.substring(0, 120)}"`,
       evidenceUrl: evidence.sourceUrl,
       evidenceRaw: evidence.evidenceRaw as never,
     };
   }
   let verdict: VerdictResult["verdict"];
   if (evidence.confidenceScore >= 0.85) verdict = "Supported";
-  else if (evidence.confidenceScore >= 0.60) verdict = "Partially Supported";
-  else if (evidence.confidenceScore >= 0.30) verdict = "Ambiguous";
+  else if (evidence.confidenceScore >= 0.6) verdict = "Partially Supported";
+  else if (evidence.confidenceScore >= 0.3) verdict = "Ambiguous";
   else verdict = "Needs Expert Review";
-  const flags = evidence.confidenceFlags.length > 0
-    ? ` Flags: ${evidence.confidenceFlags.join("; ")}`
-    : "";
+  const flags =
+    evidence.confidenceFlags.length > 0
+      ? ` Flags: ${evidence.confidenceFlags.join("; ")}`
+      : "";
   return {
     verdict,
     rationale: `Source: ${evidence.sourceId ?? evidence.sourceUrl ?? "unknown"} (confidence ${(evidence.confidenceScore * 100).toFixed(0)}%).${flags}`,
@@ -154,16 +172,18 @@ function evidenceToVerdict(evidence: EvidenceResult, claimText: string): Verdict
 // ─── Verdict rank (higher = better) ──────────────────────────────────────────
 
 const VERDICT_RANK: Record<string, number> = {
-  "Supported": 6,
+  Supported: 6,
   "Partially Supported": 5,
-  "Ambiguous": 4,
+  Ambiguous: 4,
   "Needs Expert Review": 3,
   "Insufficient Evidence": 2,
   "Out of Scope": 1,
 };
 
 function bestVerdict(a: VerdictResult, b: VerdictResult): VerdictResult {
-  return (VERDICT_RANK[a.verdict] ?? 0) >= (VERDICT_RANK[b.verdict] ?? 0) ? a : b;
+  return (VERDICT_RANK[a.verdict] ?? 0) >= (VERDICT_RANK[b.verdict] ?? 0)
+    ? a
+    : b;
 }
 
 // ─── In-memory rate limiter ───────────────────────────────────────────────────
@@ -172,7 +192,11 @@ const RATE_LIMIT = 30;
 const WINDOW_MS = 60 * 1000;
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetAt: number } {
+function checkRateLimit(ip: string): {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+} {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
   if (!entry || now > entry.resetAt) {
@@ -184,15 +208,22 @@ function checkRateLimit(ip: string): { allowed: boolean; remaining: number; rese
     return { allowed: false, remaining: 0, resetAt: entry.resetAt };
   }
   entry.count++;
-  return { allowed: true, remaining: RATE_LIMIT - entry.count, resetAt: entry.resetAt };
+  return {
+    allowed: true,
+    remaining: RATE_LIMIT - entry.count,
+    resetAt: entry.resetAt,
+  };
 }
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of Array.from(rateLimitMap.entries())) {
-    if (now > entry.resetAt) rateLimitMap.delete(ip);
-  }
-}, 5 * 60 * 1000);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [ip, entry] of Array.from(rateLimitMap.entries())) {
+      if (now > entry.resetAt) rateLimitMap.delete(ip);
+    }
+  },
+  5 * 60 * 1000
+);
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
@@ -201,9 +232,15 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  if (req.method === "OPTIONS") { res.status(204).end(); return; }
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
 
-  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
+    req.ip ??
+    "unknown";
   const rl = checkRateLimit(ip);
   res.setHeader("X-RateLimit-Limit", String(RATE_LIMIT));
   res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
@@ -231,7 +268,12 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     return;
   }
   if (claim.trim().length > 2000) {
-    res.status(400).json({ ok: false, error: "Claim text must be 2000 characters or fewer." });
+    res
+      .status(400)
+      .json({
+        ok: false,
+        error: "Claim text must be 2000 characters or fewer.",
+      });
     return;
   }
 
@@ -248,7 +290,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     let translatedClaims: string[] = [];
     let allPubMedResults: PubMedResult[] = [];
     let bestVerdictResult: VerdictResult | null = null;
-    let primaryClaimText = claimText;
+    let _primaryClaimText = claimText;
     let primaryClaimType = "general_molecular";
     let primaryPdbId: string | null = null;
     let primaryProteinName: string | null = null;
@@ -256,7 +298,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     if (extracted && extracted.length > 0) {
       // Structured path: use first extracted claim for structural DB lookup
       const primaryClaim = extracted[0];
-      primaryClaimText = primaryClaim.claimText;
+      _primaryClaimText = primaryClaim.claimText;
       primaryClaimType = primaryClaim.claimType;
       primaryPdbId = primaryClaim.pdbId ?? null;
       primaryProteinName = primaryClaim.proteinName ?? null;
@@ -285,15 +327,17 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       // Also search PubMed to enrich with literature evidence
       const pubmedResults = await fetchPubMedResults(primaryClaim.claimText, 5);
       allPubMedResults = pubmedResults;
-      const pubmedVerdict = verdictFromPubMed(pubmedResults, primaryClaim.claimText);
+      const pubmedVerdict = verdictFromPubMed(
+        pubmedResults,
+        primaryClaim.claimText
+      );
 
       // Use whichever verdict is stronger
       bestVerdictResult = bestVerdict(structuralVerdict, pubmedVerdict);
-
     } else {
       // Natural-language path: translate question → specific claims → PubMed
       const translated = await translateQueryToClaims(claimText);
-      translatedClaims = translated.map((c) => c.claimText);
+      translatedClaims = translated.map(c => c.claimText);
 
       if (translated.length === 0) {
         // Absolute fallback: search PubMed with the raw text
@@ -303,17 +347,21 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         primaryProteinName = null;
       } else {
         // Search PubMed for each translated claim in parallel (max 3 to stay fast)
-        const searchPromises = translated.slice(0, 3).map((c) =>
-          fetchPubMedResults(c.searchQuery, 4)
-        );
+        const searchPromises = translated
+          .slice(0, 3)
+          .map(c => fetchPubMedResults(c.searchQuery, 4));
         const allResults = await Promise.all(searchPromises);
-        allPubMedResults = allResults.flat().filter(
-          (r, i, arr) => arr.findIndex((x) => x.pmid === r.pmid) === i
-        ).slice(0, 10);
+        allPubMedResults = allResults
+          .flat()
+          .filter((r, i, arr) => arr.findIndex(x => x.pmid === r.pmid) === i)
+          .slice(0, 10);
 
         // Derive verdict from total unique papers found
-        bestVerdictResult = verdictFromPubMed(allPubMedResults, translated[0].claimText);
-        primaryClaimText = translated[0].claimText;
+        bestVerdictResult = verdictFromPubMed(
+          allPubMedResults,
+          translated[0].claimText
+        );
+        _primaryClaimText = translated[0].claimText;
         primaryProteinName = translated[0].proteinName;
         primaryClaimType = "general_molecular";
       }
@@ -339,7 +387,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       pdbId: primaryPdbId,
       proteinName: primaryProteinName,
       signalDensity,
-      pubmedResults: allPubMedResults.slice(0, 5).map((p) => ({
+      pubmedResults: allPubMedResults.slice(0, 5).map(p => ({
         pmid: p.pmid,
         title: p.title,
         journal: p.journal ?? null,
@@ -350,7 +398,6 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       processedAt,
       apiVersion: "1.1",
     });
-
   } catch (err) {
     console.error("[VerifyClaim] Error:", err);
     res.status(500).json({
@@ -367,7 +414,10 @@ export function registerVerifyClaimRoute(app: Express): void {
   app.options("/api/public/verify-claim", (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization"
+    );
     res.status(204).end();
   });
   app.post("/api/public/verify-claim", handleVerifyClaim);

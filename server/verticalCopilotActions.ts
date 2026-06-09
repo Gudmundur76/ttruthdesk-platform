@@ -27,11 +27,7 @@ import {
   generateSiteConfig,
   generateSiteHtml,
 } from "./micronDeploy";
-import {
-  generateDockerCompose,
-  generateNginxConfig,
-  generateSamlConfig,
-} from "./privateMode";
+import { generateDockerCompose, generateNginxConfig } from "./privateMode";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -74,7 +70,7 @@ export const LAXEY_TOOLS = {
       .limit(50);
 
     const lower = claim.toLowerCase();
-    const match = allClaims.find((c) =>
+    const match = allClaims.find(c =>
       c.claimText.toLowerCase().includes(lower.slice(0, 30))
     );
 
@@ -191,7 +187,12 @@ export const ALVOTECH_TOOLS = {
   /** Get entity claims (protein, PDB ID, etc.) */
   async getEntityClaims(args: { entityType: string; canonicalName: string }) {
     const db = await getDb();
-    if (!db) return { claims: [], entityType: args.entityType, canonicalName: args.canonicalName };
+    if (!db)
+      return {
+        claims: [],
+        entityType: args.entityType,
+        canonicalName: args.canonicalName,
+      };
     // Fetch a broader set then filter in-memory by canonicalName match
     const all = await db
       .select({
@@ -207,17 +208,26 @@ export const ALVOTECH_TOOLS = {
       .limit(200);
     const lower = args.canonicalName.toLowerCase();
     const rows = all
-      .filter(c =>
-        (c.claimText?.toLowerCase().includes(lower)) ||
-        (c.proteinName?.toLowerCase().includes(lower)) ||
-        (c.pdbId?.toLowerCase() === lower)
+      .filter(
+        c =>
+          c.claimText?.toLowerCase().includes(lower) ||
+          c.proteinName?.toLowerCase().includes(lower) ||
+          c.pdbId?.toLowerCase() === lower
       )
       .slice(0, 30);
-    return { claims: rows, entityType: args.entityType, canonicalName: args.canonicalName };
+    return {
+      claims: rows,
+      entityType: args.entityType,
+      canonicalName: args.canonicalName,
+    };
   },
 
   /** Compare two claims */
-  async compareClaims(args: { claimA: string; claimB: string; vertical?: string }) {
+  async compareClaims(args: {
+    claimA: string;
+    claimB: string;
+    vertical?: string;
+  }) {
     const { claimA, claimB, vertical = "structural_biology" } = args;
     const [resultA, resultB] = await Promise.all([
       LAXEY_TOOLS.verifyClaim({ claim: claimA, vertical }),
@@ -262,7 +272,7 @@ export const ALVOTECH_TOOLS = {
       deployTarget: args.deployTarget,
       config: args.deployConfig ?? {},
       apiBase,
-    }).catch((e) => console.error("[deployMicron] error:", e));
+    }).catch(e => console.error("[deployMicron] error:", e));
 
     return {
       deploymentId: deployment.id,
@@ -295,7 +305,7 @@ export const ACADEMIC_TOOLS = {
       verticalKey: args.verticalKey,
       skipProbe: args.skipProbe,
       skipCodegen: args.skipCodegen,
-    }).catch((e) => console.error("[runDiscovery] error:", e));
+    }).catch(e => console.error("[runDiscovery] error:", e));
     return {
       runId,
       status: "running",
@@ -319,17 +329,17 @@ export const ACADEMIC_TOOLS = {
   getBuiltInSources(args: { verticalKey?: string; category?: string }) {
     let sources = BUILT_IN_SOURCES;
     if (args.verticalKey) {
-      sources = sources.filter((s) => s.verticals.includes(args.verticalKey!));
+      sources = sources.filter(s => s.verticals.includes(args.verticalKey!));
     }
     if (args.category) {
-      sources = sources.filter((s) => s.category === args.category);
+      sources = sources.filter(s => s.category === args.category);
     }
     return sources;
   },
 
   /** Probe a specific source */
   async probeSource(args: { sourceId: string }) {
-    const source = BUILT_IN_SOURCES.find((s) => s.sourceId === args.sourceId);
+    const source = BUILT_IN_SOURCES.find(s => s.sourceId === args.sourceId);
     if (!source) return { error: `Source ${args.sourceId} not found` };
     return probeSource(source);
   },
@@ -388,7 +398,10 @@ export const ACADEMIC_TOOLS = {
   },
 
   /** Export knowledge base as JSON-LD */
-  async exportKnowledgeBase(args: { verticalKey: string; format?: "jsonld" | "csv" | "json" }) {
+  async exportKnowledgeBase(args: {
+    verticalKey: string;
+    format?: "jsonld" | "csv" | "json";
+  }) {
     const { verticalKey, format = "json" } = args;
     const rows = await getRecentClaimsForVertical(verticalKey, 500);
 
@@ -398,14 +411,19 @@ export const ACADEMIC_TOOLS = {
         "@type": "Dataset",
         name: `Truth Desk Knowledge Base — ${verticalKey}`,
         description: `Verified scientific claims for ${verticalKey}`,
-        hasPart: rows.map((c) => ({
+        hasPart: rows.map(c => ({
           "@type": "Claim",
           "@id": `https://truthdesk.claims/claims/${c.id}`,
           text: c.claimText,
           claimReviewed: c.claimText,
           reviewRating: {
             "@type": "Rating",
-            ratingValue: c.verdict === "Supported" ? 5 : c.verdict === "Contradicted" ? 1 : 3,
+            ratingValue:
+              c.verdict === "Supported"
+                ? 5
+                : c.verdict === "Contradicted"
+                  ? 1
+                  : 3,
             bestRating: 5,
             worstRating: 1,
             alternateName: c.verdict,

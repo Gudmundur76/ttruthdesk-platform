@@ -26,7 +26,7 @@ export interface MetaLayerResult {
 
 export async function runMetaLayer(
   event: LoopEvent,
-  priorActions: LoopAction[]
+  _priorActions: LoopAction[]
 ): Promise<MetaLayerResult> {
   const actions: LoopAction[] = [];
   let safeModeTriggered = false;
@@ -37,13 +37,15 @@ export async function runMetaLayer(
   // Publish system_health_change event when health drops below threshold
   if (
     healthScore < HEALTH_CHANGE_THRESHOLD &&
-    (_lastPublishedHealthScore === null || _lastPublishedHealthScore >= HEALTH_CHANGE_THRESHOLD)
+    (_lastPublishedHealthScore === null ||
+      _lastPublishedHealthScore >= HEALTH_CHANGE_THRESHOLD)
   ) {
     try {
-      await publishEvent(
-        "system_health_change",
-        { score: healthScore, threshold: HEALTH_CHANGE_THRESHOLD, previousScore: _lastPublishedHealthScore }
-      );
+      await publishEvent("system_health_change", {
+        score: healthScore,
+        threshold: HEALTH_CHANGE_THRESHOLD,
+        previousScore: _lastPublishedHealthScore,
+      });
     } catch {
       // Non-fatal: don't block the meta layer if event publishing fails
     }

@@ -10,41 +10,77 @@ export default tseslint.config(
       "dist/**",
       "drizzle/migrations/**",
       "patches/**",
-      "client/public/**",   // Manus runtime assets — not our code
-      "scripts/**",         // Node.js ESM scripts — separate lint pass if needed
+      "client/public/**", // Manus runtime assets — not our code
+      "scripts/**", // Node.js ESM scripts — separate lint pass if needed
     ],
   },
 
-  // TypeScript files
+  // TypeScript files — base recommended rules
   ...tseslint.configs.recommended,
+
+  // ─── Production code (server + client, not tests) ────────────────────────
   {
     files: ["**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
     rules: {
-      // Quality gates — warn so CI sees them but doesn't block
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      // ── Hard errors: these should never appear in production code ──────────
       "no-debugger": "error",
-      // Allow @ts-expect-error without descriptions (common in test mocks)
-      "@typescript-eslint/ban-ts-comment": ["warn", {
-        "ts-expect-error": "allow-with-description",
-        minimumDescriptionLength: 3,
-      }],
-      // Allow 'this' aliasing (used in some legacy patterns)
+      "no-eval": "error",
+      "no-implied-eval": "error",
+      "react-hooks/rules-of-hooks": "error",
+
+      // ── Promoted from warn to error for production server code ─────────────
+      // `any` in server code bypasses the type system entirely. Every `any`
+      // must be a conscious decision — use `unknown` + narrowing instead.
+      "@typescript-eslint/no-explicit-any": "error",
+      // Unused variables are dead code and often indicate a logic mistake.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      // prefer-const prevents accidental mutation of variables.
+      "prefer-const": "error",
+
+      // ── Warnings: important but not blocking ───────────────────────────────
+      "react-hooks/exhaustive-deps": "warn",
+      // @ts-expect-error is fine but must explain why
+      "@typescript-eslint/ban-ts-comment": [
+        "warn",
+        {
+          "ts-expect-error": "allow-with-description",
+          minimumDescriptionLength: 3,
+        },
+      ],
       "@typescript-eslint/no-this-alias": "warn",
-      // Allow prefer-const to be a warning not error
-      "prefer-const": "warn",
+      // Complexity gate: warn when a function exceeds 20 branches
+      complexity: ["warn", 20],
+      // Warn on console.log in production code (use structured logging instead)
+      "no-console": ["warn", { allow: ["warn", "error", "info"] }],
     },
   },
-  // Relax for test files — mocks use any extensively
+
+  // ─── Server-only overrides ────────────────────────────────────────────────
+  // Server code uses console.info for structured logging — allow it
   {
-    files: ["**/*.test.ts", "**/*.test.tsx"],
+    files: ["server/**/*.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+
+  // ─── Test files — relax rules that conflict with mock patterns ────────────
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/ban-ts-comment": "off",
+      "no-console": "off",
+      "prefer-const": "warn",
     },
-  },
+  }
 );

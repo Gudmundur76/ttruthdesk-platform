@@ -1,4 +1,4 @@
-import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -255,7 +255,9 @@ class SDKServer {
       payload
     );
 
-    const rawData = data as GetUserInfoWithJwtResponse & { platforms?: string[] };
+    const rawData = data as GetUserInfoWithJwtResponse & {
+      platforms?: string[];
+    };
     const loginMethod = this.deriveLoginMethod(
       rawData?.platforms,
       rawData?.platform ?? null
@@ -288,7 +290,10 @@ class SDKServer {
 
     // Magic-link email users have openId prefixed with "email_"
     if (session.openId.startsWith(EMAIL_OPEN_ID_PREFIX)) {
-      const emailUserId = parseInt(session.openId.slice(EMAIL_OPEN_ID_PREFIX.length), 10);
+      const emailUserId = parseInt(
+        session.openId.slice(EMAIL_OPEN_ID_PREFIX.length),
+        10
+      );
       const emailUser = await db.getEmailUserById(emailUserId);
       if (!emailUser) throw ForbiddenError("Email user not found");
       // Map emailUser to the User shape expected by tRPC context
@@ -312,15 +317,19 @@ class SDKServer {
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
-        const isNetworkError = error instanceof Error &&
-          (error.message.includes('ENOTFOUND') ||
-           error.message.includes('ECONNREFUSED') ||
-           error.message.includes('getaddrinfo') ||
-           error.message.includes('os error') ||
-           error.message.includes('host lookup') ||
-           error.message.includes('timeout'));
+        const isNetworkError =
+          error instanceof Error &&
+          (error.message.includes("ENOTFOUND") ||
+            error.message.includes("ECONNREFUSED") ||
+            error.message.includes("getaddrinfo") ||
+            error.message.includes("os error") ||
+            error.message.includes("host lookup") ||
+            error.message.includes("timeout"));
         if (isNetworkError) {
-          console.error("[Auth] OAuth server unreachable (DNS/network error) — treating as unauthenticated:", (error as Error).message);
+          console.error(
+            "[Auth] OAuth server unreachable (DNS/network error) — treating as unauthenticated:",
+            (error as Error).message
+          );
         } else {
           console.error("[Auth] Failed to sync user from OAuth:", error);
         }
@@ -350,7 +359,14 @@ export type AuthenticatedUser = User & {
   isCron?: boolean;
 };
 
-function buildEmailUser(emailUser: { id: number; email: string; name: string | null; role: "user" | "admin"; createdAt: Date; lastSignedIn: Date }): AuthenticatedUser {
+function buildEmailUser(emailUser: {
+  id: number;
+  email: string;
+  name: string | null;
+  role: "user" | "admin";
+  createdAt: Date;
+  lastSignedIn: Date;
+}): AuthenticatedUser {
   const now = new Date();
   return {
     id: emailUser.id,

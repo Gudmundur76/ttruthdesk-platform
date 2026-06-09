@@ -18,7 +18,7 @@ import {
   claims,
   webhookAlerts,
 } from "../../drizzle/schema";
-import { eq, count, and, gte, lte, lt, sql, isNotNull } from "drizzle-orm";
+import { eq, count, and, gte, lte, lt, isNotNull } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,20 +70,27 @@ export interface SystemState {
   queueSnapshot: QueueSnapshot;
   metaHealth: MetaHealthSnapshot;
   subscriptionSnapshot: SubscriptionSnapshot;
-  staleEvidenceCount: number;   // Claims with pdbEvidenceCheckedAt > 180 days ago
-  lowConfidenceCount: number;   // Claims with confidenceScore < 0.4
+  staleEvidenceCount: number; // Claims with pdbEvidenceCheckedAt > 180 days ago
+  lowConfidenceCount: number; // Claims with confidenceScore < 0.4
 }
 
 // ─── State Collector ──────────────────────────────────────────────────────────
 
-export async function collectSystemState(event: SelfPromptEvent): Promise<SystemState> {
+export async function collectSystemState(
+  event: SelfPromptEvent
+): Promise<SystemState> {
   const db = await getDb();
 
   if (!db) {
     // DB unavailable — return a minimal safe state
     return {
       recentEvent: event,
-      graphSnapshot: { entityCount: 0, contradictionCount: 0, openGapCount: 0, highPriorityGapCount: 0 },
+      graphSnapshot: {
+        entityCount: 0,
+        contradictionCount: 0,
+        openGapCount: 0,
+        highPriorityGapCount: 0,
+      },
       queueSnapshot: { pendingItems: 0, failedItems: 0 },
       metaHealth: { score: 100, grade: "A", criticalCount: 0, warningCount: 0 },
       subscriptionSnapshot: { activeWebhookCount: 0 },
@@ -108,47 +115,86 @@ export async function collectSystemState(event: SelfPromptEvent): Promise<System
     // Graph entity count
     db.select({ cnt: count() }).from(graphEntities),
     // Contradiction edge count
-    db.select({ cnt: count() }).from(graphRelations).where(eq(graphRelations.relationType, "contradicts")),
+    db
+      .select({ cnt: count() })
+      .from(graphRelations)
+      .where(eq(graphRelations.relationType, "contradicts")),
     // Open gap count
-    db.select({ cnt: count() }).from(knowledgeGaps).where(eq(knowledgeGaps.status, "open")),
+    db
+      .select({ cnt: count() })
+      .from(knowledgeGaps)
+      .where(eq(knowledgeGaps.status, "open")),
     // High-priority gaps (score > 50)
-    db.select({ cnt: count() }).from(knowledgeGaps).where(
-      and(eq(knowledgeGaps.status, "open"), gte(knowledgeGaps.priorityScore, 50))
-    ),
+    db
+      .select({ cnt: count() })
+      .from(knowledgeGaps)
+      .where(
+        and(
+          eq(knowledgeGaps.status, "open"),
+          gte(knowledgeGaps.priorityScore, 50)
+        )
+      ),
     // Pending queue items
-    db.select({ cnt: count() }).from(coordQueue).where(eq(coordQueue.status, "pending")),
+    db
+      .select({ cnt: count() })
+      .from(coordQueue)
+      .where(eq(coordQueue.status, "pending")),
     // Failed queue items
-    db.select({ cnt: count() }).from(coordQueue).where(eq(coordQueue.status, "failed")),
+    db
+      .select({ cnt: count() })
+      .from(coordQueue)
+      .where(eq(coordQueue.status, "failed")),
     // Recent critical meta-agent checks (last 24h)
-    db.select({ cnt: count() }).from(metaAgentChecks).where(
-      and(
-        eq(metaAgentChecks.severity, "critical"),
-        gte(metaAgentChecks.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000))
-      )
-    ),
+    db
+      .select({ cnt: count() })
+      .from(metaAgentChecks)
+      .where(
+        and(
+          eq(metaAgentChecks.severity, "critical"),
+          gte(
+            metaAgentChecks.createdAt,
+            new Date(Date.now() - 24 * 60 * 60 * 1000)
+          )
+        )
+      ),
     // Recent warning meta-agent checks (last 24h)
-    db.select({ cnt: count() }).from(metaAgentChecks).where(
-      and(
-        eq(metaAgentChecks.severity, "warning"),
-        gte(metaAgentChecks.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000))
-      )
-    ),
+    db
+      .select({ cnt: count() })
+      .from(metaAgentChecks)
+      .where(
+        and(
+          eq(metaAgentChecks.severity, "warning"),
+          gte(
+            metaAgentChecks.createdAt,
+            new Date(Date.now() - 24 * 60 * 60 * 1000)
+          )
+        )
+      ),
     // Active webhook subscriptions
-    db.select({ cnt: count() }).from(webhookAlerts).where(eq(webhookAlerts.active, true)),
+    db
+      .select({ cnt: count() })
+      .from(webhookAlerts)
+      .where(eq(webhookAlerts.active, true)),
     // Stale PDB evidence: claims where pdbEvidenceCheckedAt is older than 180 days
-    db.select({ cnt: count() }).from(claims).where(
-      and(
-        isNotNull(claims.pdbEvidenceCheckedAt),
-        lt(claims.pdbEvidenceCheckedAt, new Date(Date.now() - 180 * 24 * 60 * 60 * 1000))
-      )
-    ),
+    db
+      .select({ cnt: count() })
+      .from(claims)
+      .where(
+        and(
+          isNotNull(claims.pdbEvidenceCheckedAt),
+          lt(
+            claims.pdbEvidenceCheckedAt,
+            new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
+          )
+        )
+      ),
     // Low confidence claims: confidenceScore < 0.4 and not null
-    db.select({ cnt: count() }).from(claims).where(
-      and(
-        isNotNull(claims.confidenceScore),
-        lte(claims.confidenceScore, 0.4)
-      )
-    ),
+    db
+      .select({ cnt: count() })
+      .from(claims)
+      .where(
+        and(isNotNull(claims.confidenceScore), lte(claims.confidenceScore, 0.4))
+      ),
   ]);
 
   const entityCount = entityCountResult[0]?.cnt ?? 0;
@@ -171,10 +217,15 @@ export async function collectSystemState(event: SelfPromptEvent): Promise<System
   score = Math.max(0, Math.min(100, score));
 
   const grade =
-    score >= 90 ? "A" :
-    score >= 80 ? "B" :
-    score >= 70 ? "C" :
-    score >= 60 ? "D" : "F";
+    score >= 90
+      ? "A"
+      : score >= 80
+        ? "B"
+        : score >= 70
+          ? "C"
+          : score >= 60
+            ? "D"
+            : "F";
 
   return {
     recentEvent: event,

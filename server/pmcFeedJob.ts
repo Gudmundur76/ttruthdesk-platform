@@ -34,12 +34,11 @@ import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import { publishEvent } from "./autonomousLoop/eventBus";
 import { logCronRun } from "./cronRunLogger";
-import {
+import { type VerticalFeedConfig } from "./verticalFeedConfig";
+export {
   VERTICAL_FEED_CONFIGS,
-  type VerticalFeedConfig,
+  getVerticalFeedConfig,
 } from "./verticalFeedConfig";
-export { VERTICAL_FEED_CONFIGS, getVerticalFeedConfig } from "./verticalFeedConfig";
-
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -84,7 +83,9 @@ async function esearch(
   retmax: number,
   lookbackDays: number
 ): Promise<string[]> {
-  const url = new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi");
+  const url = new URL(
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+  );
   url.searchParams.set("db", "pubmed");
   url.searchParams.set("term", query);
   url.searchParams.set("retmax", String(retmax));
@@ -110,7 +111,9 @@ async function esearch(
 async function efetchBatch(pmids: string[]): Promise<Map<string, PaperMeta>> {
   if (pmids.length === 0) return new Map();
 
-  const url = new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi");
+  const url = new URL(
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+  );
   url.searchParams.set("db", "pubmed");
   url.searchParams.set("id", pmids.join(","));
   url.searchParams.set("rettype", "xml");
@@ -133,7 +136,8 @@ function parseEfetchXml(xml: string): Map<string, PaperMeta> {
   const result = new Map<string, PaperMeta>();
 
   // Split by PubmedArticle to process each record independently
-  const articleBlocks = xml.match(/<PubmedArticle>[\s\S]*?<\/PubmedArticle>/g) ?? [];
+  const articleBlocks =
+    xml.match(/<PubmedArticle>[\s\S]*?<\/PubmedArticle>/g) ?? [];
 
   for (const block of articleBlocks) {
     try {
@@ -143,13 +147,17 @@ function parseEfetchXml(xml: string): Map<string, PaperMeta> {
       const pmid = pmidMatch[1];
 
       // Title
-      const titleMatch = block.match(/<ArticleTitle[^>]*>([\s\S]*?)<\/ArticleTitle>/);
+      const titleMatch = block.match(
+        /<ArticleTitle[^>]*>([\s\S]*?)<\/ArticleTitle>/
+      );
       const title = titleMatch ? stripTags(titleMatch[1]) : "";
       if (!title) continue;
 
       // Abstract — collect all AbstractText sections
       const abstractMatches = Array.from(
-        block.matchAll(/<AbstractText(?:[^>]* Label="([^"]*)"|[^>]*)>([\s\S]*?)<\/AbstractText>/g)
+        block.matchAll(
+          /<AbstractText(?:[^>]* Label="([^"]*)"|[^>]*)>([\s\S]*?)<\/AbstractText>/g
+        )
       );
       const abstractParts: string[] = [];
       for (const m of abstractMatches) {
@@ -159,21 +167,29 @@ function parseEfetchXml(xml: string): Map<string, PaperMeta> {
       }
 
       // Authors (first 8 + et al.)
-      const authorMatches = Array.from(block.matchAll(/<LastName>([^<]+)<\/LastName>/g));
+      const authorMatches = Array.from(
+        block.matchAll(/<LastName>([^<]+)<\/LastName>/g)
+      );
       const authors =
         authorMatches
           .slice(0, 8)
-          .map((m) => m[1])
+          .map(m => m[1])
           .join(", ") + (authorMatches.length > 8 ? " et al." : "");
 
       // Journal
-      const journalMatch = block.match(/<ISOAbbreviation>([^<]+)<\/ISOAbbreviation>/);
+      const journalMatch = block.match(
+        /<ISOAbbreviation>([^<]+)<\/ISOAbbreviation>/
+      );
 
       // Year
-      const yearMatch = block.match(/<PubDate>[\s\S]*?<Year>([0-9]{4})<\/Year>/);
+      const yearMatch = block.match(
+        /<PubDate>[\s\S]*?<Year>([0-9]{4})<\/Year>/
+      );
 
       // DOI
-      const doiMatch = block.match(/<ELocationID EIdType="doi"[^>]*>([^<]+)<\/ELocationID>/);
+      const doiMatch = block.match(
+        /<ELocationID EIdType="doi"[^>]*>([^<]+)<\/ELocationID>/
+      );
 
       result.set(pmid, {
         pmid,
@@ -200,7 +216,9 @@ function buildRawText(meta: PaperMeta, fullTextSections?: string): string {
   const parts = [
     `Title: ${meta.title}`,
     meta.authors ? `Authors: ${meta.authors}` : "",
-    meta.journal ? `Journal: ${meta.journal}${meta.pubYear ? ` (${meta.pubYear})` : ""}` : "",
+    meta.journal
+      ? `Journal: ${meta.journal}${meta.pubYear ? ` (${meta.pubYear})` : ""}`
+      : "",
     meta.doi ? `DOI: ${meta.doi}` : "",
     `PMID: ${meta.pmid}`,
     "",
@@ -219,7 +237,9 @@ function buildRawText(meta: PaperMeta, fullTextSections?: string): string {
  */
 async function fetchPmcFullTextSections(pmcid: string): Promise<string | null> {
   try {
-    const url = new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi");
+    const url = new URL(
+      "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+    );
     url.searchParams.set("db", "pmc");
     url.searchParams.set("id", pmcid);
     url.searchParams.set("rettype", "xml");
@@ -295,11 +315,17 @@ async function runVerticalFeed(
   for (const query of config.meshQueries) {
     result.queriesRun++;
     try {
-      const pmids = await esearch(query, config.maxResultsPerQuery, lookbackDays);
+      const pmids = await esearch(
+        query,
+        config.maxResultsPerQuery,
+        lookbackDays
+      );
       for (const p of pmids) allPmids.add(p);
       await delay(NCBI_RATE_DELAY_MS);
     } catch (err) {
-      result.errors.push(`ESearch failed for vertical ${config.domainKey}: ${String(err)}`);
+      result.errors.push(
+        `ESearch failed for vertical ${config.domainKey}: ${String(err)}`
+      );
     }
   }
 
@@ -364,12 +390,12 @@ async function runVerticalFeed(
         try {
           const pmcid = await Promise.race([
             pmidToPmcid(pmid),
-            new Promise<null>((r) => setTimeout(() => r(null), 2000)),
+            new Promise<null>(r => setTimeout(() => r(null), 2000)),
           ]);
           if (pmcid) {
             fullTextSections = await Promise.race([
               fetchPmcFullTextSections(pmcid as string),
-              new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+              new Promise<null>(r => setTimeout(() => r(null), 3000)),
             ]);
           }
         } catch {
@@ -385,7 +411,9 @@ async function runVerticalFeed(
           verticalDomain: config.domainKey,
         });
 
-        await updateAutoIngestedPaperStatus(pmid, "submitted", { documentId: docId });
+        await updateAutoIngestedPaperStatus(pmid, "submitted", {
+          documentId: docId,
+        });
 
         // Publish paper_discovered event into the Autonomous Loop
         publishEvent("paper_discovered", {
@@ -393,26 +421,38 @@ async function runVerticalFeed(
           pmid,
           title: meta.title,
           vertical: config.domainKey,
-        }).catch(() => {/* non-fatal */});
+        }).catch(() => {
+          /* non-fatal */
+        });
 
         // Fire-and-forget pipeline — runs async, does not block the seed loop
         runAnalysisPipeline(docId, rawText, SYSTEM_USER_ID)
-          .then(() => updateAutoIngestedPaperStatus(pmid, "complete", { documentId: docId }))
+          .then(() =>
+            updateAutoIngestedPaperStatus(pmid, "complete", {
+              documentId: docId,
+            })
+          )
           .catch((err: unknown) =>
-            updateAutoIngestedPaperStatus(pmid, "failed", { errorMessage: String(err) })
+            updateAutoIngestedPaperStatus(pmid, "failed", {
+              errorMessage: String(err),
+            })
           );
 
         result.submitted++;
       } catch (err) {
         result.failed++;
-        result.errors.push(`Pipeline submission failed for PMID ${pmid}: ${String(err)}`);
+        result.errors.push(
+          `Pipeline submission failed for PMID ${pmid}: ${String(err)}`
+        );
         try {
-          await updateAutoIngestedPaperStatus(pmid, "failed", { errorMessage: String(err) });
+          await updateAutoIngestedPaperStatus(pmid, "failed", {
+            errorMessage: String(err),
+          });
         } catch {
           // Best-effort
         }
       }
-    }
+    };
 
     // Run with concurrency cap
     const workers: Promise<void>[] = [];
@@ -434,12 +474,15 @@ async function runVerticalFeed(
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise(r => setTimeout(r, ms));
 }
 
 // ─── HTTP handler ─────────────────────────────────────────────────────────────
 
-export async function pmcFeedJobHandler(req: Request, res: Response): Promise<void> {
+export async function pmcFeedJobHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
   const startMs = Date.now();
   // Auth: bearer token check (same pattern as other scheduled handlers)
   const authHeader = req.headers["authorization"] ?? "";
@@ -465,7 +508,7 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
   const { getActiveVerticalFeedConfigs } = await import("./verticalFeedMerger");
   const allActiveConfigs = await getActiveVerticalFeedConfigs();
   const configs = targetVertical
-    ? allActiveConfigs.filter((c) => c.domainKey === targetVertical)
+    ? allActiveConfigs.filter(c => c.domainKey === targetVertical)
     : allActiveConfigs;
 
   if (configs.length === 0) {
@@ -479,7 +522,7 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
   try {
     // Run all verticals in parallel for maximum speed
     const results = await Promise.all(
-      configs.map((config) => runVerticalFeed(config, lookbackDays))
+      configs.map(config => runVerticalFeed(config, lookbackDays))
     );
     for (const result of results) {
       allResults.push(result);
@@ -490,7 +533,7 @@ export async function pmcFeedJobHandler(req: Request, res: Response): Promise<vo
     if (totalSubmitted > 0) {
       const summary = allResults
         .map(
-          (r) =>
+          r =>
             `${r.vertical}: ${r.submitted} submitted (${r.candidatesFound} found, ${r.passedQualityGate} passed gate, ${r.alreadyIngested} already ingested)`
         )
         .join("\n");

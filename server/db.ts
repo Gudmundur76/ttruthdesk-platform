@@ -1,4 +1,16 @@
-import { eq, desc, asc, isNull, isNotNull, and, or, gt, gte, like, sql, count } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  asc,
+  isNull,
+  isNotNull,
+  and,
+  or,
+  gt,
+  gte,
+  like,
+  sql,
+} from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
@@ -88,18 +100,27 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db
+    .insert(users)
+    .values(values)
+    .onDuplicateKeyUpdate({ set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
 // ─── Magic Link Tokens ───────────────────────────────────────────────────────
-export async function createMagicLinkToken(data: InsertMagicLinkToken): Promise<void> {
+export async function createMagicLinkToken(
+  data: InsertMagicLinkToken
+): Promise<void> {
   const db = await getDb();
   if (!db) return;
   await db.insert(magicLinkTokens).values(data);
@@ -115,7 +136,7 @@ export async function findValidMagicLinkToken(tokenHash: string) {
       and(
         eq(magicLinkTokens.tokenHash, tokenHash),
         isNull(magicLinkTokens.usedAt),
-        gt(magicLinkTokens.expiresAt, new Date()),
+        gt(magicLinkTokens.expiresAt, new Date())
       )
     )
     .limit(1);
@@ -125,18 +146,29 @@ export async function findValidMagicLinkToken(tokenHash: string) {
 export async function markMagicLinkTokenUsed(id: number): Promise<void> {
   const db = await getDb();
   if (!db) return;
-  await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, id));
+  await db
+    .update(magicLinkTokens)
+    .set({ usedAt: new Date() })
+    .where(eq(magicLinkTokens.id, id));
 }
 
 /** Count tokens created for this email in the last windowMs milliseconds (rate limiting) */
-export async function countRecentMagicLinkRequests(email: string, windowMs: number): Promise<number> {
+export async function countRecentMagicLinkRequests(
+  email: string,
+  windowMs: number
+): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
   const since = new Date(Date.now() - windowMs);
   const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(magicLinkTokens)
-    .where(and(eq(magicLinkTokens.email, email), gt(magicLinkTokens.createdAt, since)));
+    .where(
+      and(
+        eq(magicLinkTokens.email, email),
+        gt(magicLinkTokens.createdAt, since)
+      )
+    );
   return Number(result[0]?.count ?? 0);
 }
 
@@ -152,9 +184,19 @@ export async function upsertEmailUser(email: string, name?: string) {
   // On first insert: assign plan + trialExpiresAt. On duplicate: only update lastSignedIn.
   await db
     .insert(emailUsers)
-    .values({ email, name: name ?? null, plan, trialExpiresAt, lastSignedIn: new Date() })
+    .values({
+      email,
+      name: name ?? null,
+      plan,
+      trialExpiresAt,
+      lastSignedIn: new Date(),
+    })
     .onDuplicateKeyUpdate({ set: { lastSignedIn: new Date() } });
-  const result = await db.select().from(emailUsers).where(eq(emailUsers.email, email)).limit(1);
+  const result = await db
+    .select()
+    .from(emailUsers)
+    .where(eq(emailUsers.email, email))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -170,14 +212,22 @@ export async function incrementEmailUserAuditCount(id: number): Promise<void> {
 export async function getEmailUserByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(emailUsers).where(eq(emailUsers.email, email)).limit(1);
+  const result = await db
+    .select()
+    .from(emailUsers)
+    .where(eq(emailUsers.email, email))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
 export async function getEmailUserById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(emailUsers).where(eq(emailUsers.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(emailUsers)
+    .where(eq(emailUsers.id, id))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -192,14 +242,22 @@ export async function createDocument(doc: InsertDocument) {
 export async function getDocumentById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(documents)
+    .where(eq(documents.id, id))
+    .limit(1);
   return rows[0] ?? null;
 }
 
 export async function getDocumentsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  const docs = await db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
+  const docs = await db
+    .select()
+    .from(documents)
+    .where(eq(documents.userId, userId))
+    .orderBy(desc(documents.createdAt));
   // Attach topVerdict: the most common non-null verdict for each document
   const VERDICT_PRIORITY = [
     "Contradicted",
@@ -210,25 +268,38 @@ export async function getDocumentsByUser(userId: number) {
     "Supported",
     "Out of Scope",
   ];
-  const docIds = docs.map((d) => d.id);
-  if (docIds.length === 0) return docs.map((d) => ({ ...d, topVerdict: null as string | null }));
+  const docIds = docs.map(d => d.id);
+  if (docIds.length === 0)
+    return docs.map(d => ({ ...d, topVerdict: null as string | null }));
   const claimRows = await db
     .select({ documentId: claims.documentId, verdict: claims.verdict })
     .from(claims)
-    .where(and(isNotNull(claims.verdict), sql`${claims.documentId} IN (${sql.join(docIds.map((id) => sql`${id}`), sql`, `)})`))
+    .where(
+      and(
+        isNotNull(claims.verdict),
+        sql`${claims.documentId} IN (${sql.join(
+          docIds.map(id => sql`${id}`),
+          sql`, `
+        )})`
+      )
+    );
   // Count verdicts per document
   const verdictMap: Record<number, Record<string, number>> = {};
   for (const row of claimRows) {
     if (!row.verdict || !row.documentId) continue;
     verdictMap[row.documentId] ??= {};
-    verdictMap[row.documentId][row.verdict] = (verdictMap[row.documentId][row.verdict] ?? 0) + 1;
+    verdictMap[row.documentId][row.verdict] =
+      (verdictMap[row.documentId][row.verdict] ?? 0) + 1;
   }
-  return docs.map((d) => {
+  return docs.map(d => {
     const counts = verdictMap[d.id];
     let topVerdict: string | null = null;
     if (counts) {
       // Pick highest-priority verdict that appears at least once
-      topVerdict = VERDICT_PRIORITY.find((v) => (counts[v] ?? 0) > 0) ?? Object.keys(counts)[0] ?? null;
+      topVerdict =
+        VERDICT_PRIORITY.find(v => (counts[v] ?? 0) > 0) ??
+        Object.keys(counts)[0] ??
+        null;
     }
     return { ...d, topVerdict };
   });
@@ -236,7 +307,13 @@ export async function getDocumentsByUser(userId: number) {
 
 export async function updateDocumentStatus(
   id: number,
-  status: "pending" | "extracting" | "validating" | "generating_report" | "complete" | "failed",
+  status:
+    | "pending"
+    | "extracting"
+    | "validating"
+    | "generating_report"
+    | "complete"
+    | "failed",
   extra?: {
     claimCount?: number;
     errorMessage?: string;
@@ -309,17 +386,31 @@ export async function updateClaimVerdict(
 ) {
   const db = await getDb();
   if (!db) return;
-  const { verdict, verdictRationale, pdbEvidenceUrl, pdbEvidenceRaw, pdbEvidenceCheckedAt, verdictMethod, sourceCompletenessScore } = update;
+  const {
+    verdict,
+    verdictRationale,
+    pdbEvidenceUrl,
+    pdbEvidenceRaw,
+    pdbEvidenceCheckedAt,
+    verdictMethod,
+    sourceCompletenessScore,
+  } = update;
   const setData: Record<string, unknown> = {};
   if (verdict !== undefined) setData.verdict = verdict;
-  if (verdictRationale !== undefined) setData.verdictRationale = verdictRationale;
+  if (verdictRationale !== undefined)
+    setData.verdictRationale = verdictRationale;
   if (pdbEvidenceUrl !== undefined) setData.pdbEvidenceUrl = pdbEvidenceUrl;
   if (pdbEvidenceRaw !== undefined) setData.pdbEvidenceRaw = pdbEvidenceRaw;
-  if (pdbEvidenceCheckedAt !== undefined) setData.pdbEvidenceCheckedAt = pdbEvidenceCheckedAt;
+  if (pdbEvidenceCheckedAt !== undefined)
+    setData.pdbEvidenceCheckedAt = pdbEvidenceCheckedAt;
   if (verdictMethod !== undefined) setData.verdictMethod = verdictMethod;
-  if (sourceCompletenessScore !== undefined) setData.sourceCompletenessScore = sourceCompletenessScore;
+  if (sourceCompletenessScore !== undefined)
+    setData.sourceCompletenessScore = sourceCompletenessScore;
   if (Object.keys(setData).length > 0) {
-    await db.update(claims).set(setData as never).where(eq(claims.id, claimId));
+    await db
+      .update(claims)
+      .set(setData as never)
+      .where(eq(claims.id, claimId));
   }
 }
 
@@ -330,7 +421,12 @@ export async function overrideClaimVerdict(
   reviewNotes: string,
   options?: {
     justification?: string;
-    overrideCategory?: "domain_expertise" | "new_evidence" | "context_clarification" | "scope_adjustment" | "error_correction";
+    overrideCategory?:
+      | "domain_expertise"
+      | "new_evidence"
+      | "context_clarification"
+      | "scope_adjustment"
+      | "error_correction";
     documentId?: number;
   }
 ) {
@@ -377,7 +473,8 @@ export async function overrideClaimVerdict(
       originalVerdict: originalVerdict as never,
       newVerdict: overriddenVerdict as never,
       justification,
-      overrideCategory: (options?.overrideCategory ?? "error_correction") as never,
+      overrideCategory: (options?.overrideCategory ??
+        "error_correction") as never,
       wikiLogged: false,
     });
   }
@@ -432,18 +529,29 @@ export async function getAllAuditRequests() {
 export async function markAuditRequestOwnerNotified(id: number) {
   const db = await getDb();
   if (!db) return;
-  await db.update(auditRequests).set({ ownerNotified: true }).where(eq(auditRequests.id, id));
+  await db
+    .update(auditRequests)
+    .set({ ownerNotified: true })
+    .where(eq(auditRequests.id, id));
 }
 
 /** Returns the number of audit requests from a given email within the last windowMs milliseconds. */
-export async function getRecentAuditRequestsByEmail(email: string, windowMs: number): Promise<number> {
+export async function getRecentAuditRequestsByEmail(
+  email: string,
+  windowMs: number
+): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
   const since = new Date(Date.now() - windowMs);
   const rows = await db
     .select({ id: auditRequests.id })
     .from(auditRequests)
-    .where(and(eq(auditRequests.contactEmail, email), gt(auditRequests.createdAt, since)));
+    .where(
+      and(
+        eq(auditRequests.contactEmail, email),
+        gt(auditRequests.createdAt, since)
+      )
+    );
   return rows.length;
 }
 
@@ -468,11 +576,18 @@ export async function getMonitoringFeedByDocument(documentId: number) {
 export async function getAllMonitoringFeed(limit = 50) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(monitoringFeed).orderBy(desc(monitoringFeed.discoveredAt)).limit(limit);
+  return db
+    .select()
+    .from(monitoringFeed)
+    .orderBy(desc(monitoringFeed.discoveredAt))
+    .limit(limit);
 }
 
 // ─── Monitoring Jobs ──────────────────────────────────────────────────────────
-export async function upsertMonitoringJob(documentId: number, taskUid?: string) {
+export async function upsertMonitoringJob(
+  documentId: number,
+  taskUid?: string
+) {
   const db = await getDb();
   if (!db) return;
   await db
@@ -497,7 +612,10 @@ export async function getMonitoringJobByTaskUid(taskUid: string) {
 export async function getAllActiveMonitoringJobs() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(monitoringJobs).where(eq(monitoringJobs.isActive, true));
+  return db
+    .select()
+    .from(monitoringJobs)
+    .where(eq(monitoringJobs.isActive, true));
 }
 
 export async function updateMonitoringJobLastRun(documentId: number) {
@@ -672,13 +790,25 @@ export async function getVerticalStats() {
   // Aggregate
   const stats = new Map<
     string,
-    { domain: string; totalDocs: number; completedDocs: number; totalClaims: number; supportedClaims: number }
+    {
+      domain: string;
+      totalDocs: number;
+      completedDocs: number;
+      totalClaims: number;
+      supportedClaims: number;
+    }
   >();
 
   for (const d of docs) {
     const domain = d.verticalDomain ?? "unknown";
     if (!stats.has(domain)) {
-      stats.set(domain, { domain, totalDocs: 0, completedDocs: 0, totalClaims: 0, supportedClaims: 0 });
+      stats.set(domain, {
+        domain,
+        totalDocs: 0,
+        completedDocs: 0,
+        totalClaims: 0,
+        supportedClaims: 0,
+      });
     }
     const s = stats.get(domain)!;
     s.totalDocs++;
@@ -689,11 +819,18 @@ export async function getVerticalStats() {
     // find domain via document
     const domain = docDomainMap.get(c.documentId) ?? "unknown";
     if (!stats.has(domain)) {
-      stats.set(domain, { domain, totalDocs: 0, completedDocs: 0, totalClaims: 0, supportedClaims: 0 });
+      stats.set(domain, {
+        domain,
+        totalDocs: 0,
+        completedDocs: 0,
+        totalClaims: 0,
+        supportedClaims: 0,
+      });
     }
     const s = stats.get(domain)!;
     s.totalClaims++;
-    if (c.verdict === "Supported" || c.verdict === "Partially Supported") s.supportedClaims++;
+    if (c.verdict === "Supported" || c.verdict === "Partially Supported")
+      s.supportedClaims++;
   }
 
   return Array.from(stats.values());
@@ -814,7 +951,9 @@ export async function getRelationsByTargetEntity(
     .orderBy(desc(graphRelations.createdAt));
 }
 
-export async function getAllGraphRelations(limit = 2000): Promise<GraphRelation[]> {
+export async function getAllGraphRelations(
+  limit = 2000
+): Promise<GraphRelation[]> {
   const db = await getDb();
   if (!db) return [];
   return db
@@ -824,7 +963,9 @@ export async function getAllGraphRelations(limit = 2000): Promise<GraphRelation[
     .limit(limit);
 }
 
-export async function getContradictionRelations(limit = 100): Promise<GraphRelation[]> {
+export async function getContradictionRelations(
+  limit = 100
+): Promise<GraphRelation[]> {
   const db = await getDb();
   if (!db) return [];
   return db
@@ -857,7 +998,11 @@ export async function getEntitiesWithMultipleClaims(
 export async function getClaimById(claimId: number) {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
+  const rows = await db
+    .select()
+    .from(claims)
+    .where(eq(claims.id, claimId))
+    .limit(1);
   return rows[0] ?? null;
 }
 
@@ -884,7 +1029,14 @@ export async function getEntityClaimSummary(entityName: string): Promise<{
   lastUpdated: Date | null;
 }> {
   const db = await getDb();
-  if (!db) return { supported: 0, contradicted: 0, ambiguous: 0, total: 0, lastUpdated: null };
+  if (!db)
+    return {
+      supported: 0,
+      contradicted: 0,
+      ambiguous: 0,
+      total: 0,
+      lastUpdated: null,
+    };
   const rows = await db
     .select()
     .from(claims)
@@ -897,7 +1049,9 @@ export async function getEntityClaimSummary(entityName: string): Promise<{
     .orderBy(desc(claims.createdAt))
     .limit(500);
 
-  let supported = 0, contradicted = 0, ambiguous = 0;
+  let supported = 0,
+    contradicted = 0,
+    ambiguous = 0;
   let lastUpdated: Date | null = null;
   for (const row of rows) {
     const v = row.verdict ?? "";
@@ -908,19 +1062,29 @@ export async function getEntityClaimSummary(entityName: string): Promise<{
       lastUpdated = row.createdAt;
     }
   }
-  return { supported, contradicted, ambiguous, total: rows.length, lastUpdated };
+  return {
+    supported,
+    contradicted,
+    ambiguous,
+    total: rows.length,
+    lastUpdated,
+  };
 }
 
 // ─── Prediction helpers ──────────────────────────────────────────────────────
 
-export async function savePredictionModel(data: InsertPredictionModel): Promise<number> {
+export async function savePredictionModel(
+  data: InsertPredictionModel
+): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const [result] = await db.insert(predictionModels).values(data);
   return (result as unknown as ResultSetHeader).insertId;
 }
 
-export async function getPredictionsByClaimId(claimId: number): Promise<PredictionModel[]> {
+export async function getPredictionsByClaimId(
+  claimId: number
+): Promise<PredictionModel[]> {
   const db = await getDb();
   if (!db) return [];
   return db
@@ -931,7 +1095,9 @@ export async function getPredictionsByClaimId(claimId: number): Promise<Predicti
     .limit(5);
 }
 
-export async function getLatestAuthorReliabilityPrediction(userId: number): Promise<PredictionModel | null> {
+export async function getLatestAuthorReliabilityPrediction(
+  userId: number
+): Promise<PredictionModel | null> {
   const db = await getDb();
   if (!db) return null;
   const rows = await db
@@ -948,7 +1114,9 @@ export async function getLatestAuthorReliabilityPrediction(userId: number): Prom
   return rows[0] ?? null;
 }
 
-export async function savePredictionFeature(data: InsertPredictionFeature): Promise<void> {
+export async function savePredictionFeature(
+  data: InsertPredictionFeature
+): Promise<void> {
   const db = await getDb();
   if (!db) return;
   await db.insert(predictionFeatures).values(data);
@@ -968,7 +1136,9 @@ export async function updatePredictionModelValidation(
 
 // ─── Prediction Calibration helpers ─────────────────────────────────────────
 
-export async function getPredictionById(id: number): Promise<PredictionModel | null> {
+export async function getPredictionById(
+  id: number
+): Promise<PredictionModel | null> {
   const db = await getDb();
   if (!db) return null;
   const rows = await db
@@ -979,7 +1149,9 @@ export async function getPredictionById(id: number): Promise<PredictionModel | n
   return rows[0] ?? null;
 }
 
-export async function getPredictionsForReview(limit = 50): Promise<PredictionModel[]> {
+export async function getPredictionsForReview(
+  limit = 50
+): Promise<PredictionModel[]> {
   const db = await getDb();
   if (!db) return [];
   return db
@@ -1016,13 +1188,24 @@ export async function getCalibrationStats(modelType?: string): Promise<{
   totalPending: number;
 }> {
   const db = await getDb();
-  if (!db) return { buckets: [], byDay: [], overallAccuracy: 0, totalValidated: 0, totalPending: 0 };
+  if (!db)
+    return {
+      buckets: [],
+      byDay: [],
+      overallAccuracy: 0,
+      totalValidated: 0,
+      totalPending: 0,
+    };
 
   const conditions: ReturnType<typeof eq>[] = [
-    sql`${predictionModels.validationResult} != 'pending'` as unknown as ReturnType<typeof eq>,
+    sql`${predictionModels.validationResult} != 'pending'` as unknown as ReturnType<
+      typeof eq
+    >,
   ];
   if (modelType) {
-    conditions.push(eq(predictionModels.modelType, modelType as PredictionModel["modelType"]));
+    conditions.push(
+      eq(predictionModels.modelType, modelType as PredictionModel["modelType"])
+    );
   }
 
   const validated = await db
@@ -1038,23 +1221,29 @@ export async function getCalibrationStats(modelType?: string): Promise<{
   const totalPending = Number(pendingRows[0]?.count ?? 0);
 
   const BUCKET_COUNT = 10;
-  const buckets: CalibrationBucket[] = Array.from({ length: BUCKET_COUNT }, (_, i) => ({
-    bucket: `${(i / BUCKET_COUNT).toFixed(1)}–${((i + 1) / BUCKET_COUNT).toFixed(1)}`,
-    bucketMin: i / BUCKET_COUNT,
-    bucketMax: (i + 1) / BUCKET_COUNT,
-    midpoint: (i + 0.5) / BUCKET_COUNT,
-    total: 0,
-    correct: 0,
-    incorrect: 0,
-    actualRate: 0,
-  }));
+  const buckets: CalibrationBucket[] = Array.from(
+    { length: BUCKET_COUNT },
+    (_, i) => ({
+      bucket: `${(i / BUCKET_COUNT).toFixed(1)}–${((i + 1) / BUCKET_COUNT).toFixed(1)}`,
+      bucketMin: i / BUCKET_COUNT,
+      bucketMax: (i + 1) / BUCKET_COUNT,
+      midpoint: (i + 0.5) / BUCKET_COUNT,
+      total: 0,
+      correct: 0,
+      incorrect: 0,
+      actualRate: 0,
+    })
+  );
 
   const dayMap = new Map<string, { total: number; correct: number }>();
 
   for (const row of validated) {
     const pred = row.prediction as { probability?: number } | null;
     const prob = pred?.probability ?? 0.5;
-    const bucketIdx = Math.min(Math.floor(prob * BUCKET_COUNT), BUCKET_COUNT - 1);
+    const bucketIdx = Math.min(
+      Math.floor(prob * BUCKET_COUNT),
+      BUCKET_COUNT - 1
+    );
     const bucket = buckets[bucketIdx];
     bucket.total++;
     if (row.validationResult === "correct") bucket.correct++;
@@ -1084,8 +1273,11 @@ export async function getCalibrationStats(modelType?: string): Promise<{
     }));
 
   const totalValidated = validated.length;
-  const totalCorrect = validated.filter((r) => r.validationResult === "correct").length;
-  const overallAccuracy = totalValidated > 0 ? totalCorrect / totalValidated : 0;
+  const totalCorrect = validated.filter(
+    r => r.validationResult === "correct"
+  ).length;
+  const overallAccuracy =
+    totalValidated > 0 ? totalCorrect / totalValidated : 0;
 
   return { buckets, byDay, overallAccuracy, totalValidated, totalPending };
 }
@@ -1185,7 +1377,12 @@ export async function updateWebhookAlertLastFired(id: number) {
 export async function getGlobalPlatformStats() {
   const db = await getDb();
   if (!db) {
-    return { totalDocuments: 0, totalClaims: 0, supportedVerdicts: 0, verifiedSources: 4 };
+    return {
+      totalDocuments: 0,
+      totalClaims: 0,
+      supportedVerdicts: 0,
+      verifiedSources: 4,
+    };
   }
   const [docRow] = await db
     .select({ count: sql<number>`COUNT(*)` })
@@ -1197,9 +1394,7 @@ export async function getGlobalPlatformStats() {
   const [supportedRow] = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(claims)
-    .where(
-      sql`${claims.verdict} IN ('Supported', 'Partially Supported')`
-    );
+    .where(sql`${claims.verdict} IN ('Supported', 'Partially Supported')`);
   return {
     totalDocuments: Number(docRow?.count ?? 0),
     totalClaims: Number(claimRow?.count ?? 0),
@@ -1224,8 +1419,13 @@ export async function getCorpusGrowthStats(): Promise<{
   const db = await getDb();
   if (!db) {
     return {
-      claimsToday: 0, graphNodesToday: 0, graphEdgesToday: 0, papersToday: 0,
-      totalClaims: 0, totalGraphNodes: 0, totalGraphEdges: 0,
+      claimsToday: 0,
+      graphNodesToday: 0,
+      graphEdgesToday: 0,
+      papersToday: 0,
+      totalClaims: 0,
+      totalGraphNodes: 0,
+      totalGraphEdges: 0,
     };
   }
 
@@ -1298,13 +1498,13 @@ export type PublicClaimRow = {
 };
 
 export async function getPaginatedPublicClaims(opts: {
-  page: number;          // 1-based
-  pageSize?: number;     // default 100, max 500
-  verdict?: string;      // filter by verdict
-  vertical?: string;     // filter by verticalDomain
-  claimType?: string;    // filter by claimType
-  updatedSince?: Date;   // cursor for incremental crawls
-  q?: string;            // full-text search across claim_text and verdict_rationale
+  page: number; // 1-based
+  pageSize?: number; // default 100, max 500
+  verdict?: string; // filter by verdict
+  vertical?: string; // filter by verticalDomain
+  claimType?: string; // filter by claimType
+  updatedSince?: Date; // cursor for incremental crawls
+  q?: string; // full-text search across claim_text and verdict_rationale
 }): Promise<{ rows: PublicClaimRow[]; total: number; totalPages: number }> {
   const db = await getDb();
   if (!db) return { rows: [], total: 0, totalPages: 0 };
@@ -1318,9 +1518,12 @@ export async function getPaginatedPublicClaims(opts: {
     sql`${claims.verdict} IS NOT NULL AND ${claims.verdict} != ''`,
   ];
   if (opts.verdict) conditions.push(sql`${claims.verdict} = ${opts.verdict}`);
-  if (opts.claimType) conditions.push(sql`${claims.claimType} = ${opts.claimType}`);
-  if (opts.updatedSince) conditions.push(gte(claims.updatedAt, opts.updatedSince));
-  if (opts.vertical) conditions.push(sql`${documents.verticalDomain} = ${opts.vertical}`);
+  if (opts.claimType)
+    conditions.push(sql`${claims.claimType} = ${opts.claimType}`);
+  if (opts.updatedSince)
+    conditions.push(gte(claims.updatedAt, opts.updatedSince));
+  if (opts.vertical)
+    conditions.push(sql`${documents.verticalDomain} = ${opts.vertical}`);
   if (opts.q) {
     const pattern = `%${opts.q}%`;
     conditions.push(
@@ -1328,14 +1531,20 @@ export async function getPaginatedPublicClaims(opts: {
         like(claims.claimText, pattern),
         like(claims.verdictRationale, pattern),
         like(claims.pdbId, pattern),
-        like(claims.claimType, pattern),
+        like(claims.claimType, pattern)
       )!
     );
   }
 
-  const whereClause = conditions.length === 1
-    ? conditions[0]
-    : and(...conditions as [ReturnType<typeof sql>, ...ReturnType<typeof sql>[]]);
+  const whereClause =
+    conditions.length === 1
+      ? conditions[0]
+      : and(
+          ...(conditions as [
+            ReturnType<typeof sql>,
+            ...ReturnType<typeof sql>[],
+          ])
+        );
 
   const [countRow] = await db
     .select({ total: sql<number>`COUNT(*)` })

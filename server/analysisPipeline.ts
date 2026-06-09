@@ -16,17 +16,27 @@ import {
   updateClaimVerdict,
 } from "./db";
 import { extractClaims, getActiveLLMProvider } from "./claimExtractor";
-import { verdictForClaim, type VerdictResult, fetchPdbEntry } from "./pdbAdapter";
+import {
+  verdictForClaim,
+  type VerdictResult,
+  fetchPdbEntry,
+} from "./pdbAdapter";
 import { getVertical } from "./verticalAdapters/types";
 import type { EvidenceResult } from "./verticalAdapters/types";
 import {
   verdictForResolution,
   classifyByConfidence,
-  computeFinalVerdict,
   type VerdictDecision,
 } from "./verdictEngine";
-import { checkPdbCompleteness, checkAdapterCompleteness } from "./completenessCheck";
-import { generateHtmlReport, buildVerdictSummary, countHighRisk } from "./reportGenerator";
+import {
+  checkPdbCompleteness,
+  checkAdapterCompleteness,
+} from "./completenessCheck";
+import {
+  generateHtmlReport,
+  buildVerdictSummary,
+  countHighRisk,
+} from "./reportGenerator";
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { compileDocumentToWiki } from "./wikiCompiler";
@@ -35,7 +45,12 @@ import "./verticalAdapters"; // ensure all adapters are registered
 import { generatePdfReport } from "./pdfReportGenerator";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
 import { dispatchHighRiskAlert } from "./alertDispatcher";
-import { notifyIndexNow, notifyIndexNowBatch, claimUrl, reportUrl } from "./seo/indexNow";
+import {
+  notifyIndexNow,
+  notifyIndexNowBatch,
+  claimUrl,
+  reportUrl,
+} from "./seo/indexNow";
 import { recordModelUsage } from "./llmProviderQuality";
 import { runSelfPromptCycle } from "./selfPrompt/engine";
 import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
@@ -52,11 +67,17 @@ export async function runAnalysisPipeline(
     //    it has already been through a pipeline run (status = "complete").
     //    Fresh submissions start as "pending" and are always allowed through.
     const existingDoc = await getDocumentById(documentId);
-    if (existingDoc && existingDoc.qualityTier === "draft" && existingDoc.status === "complete") {
+    if (
+      existingDoc &&
+      existingDoc.qualityTier === "draft" &&
+      existingDoc.status === "complete"
+    ) {
       // Re-running on a draft that has already completed: upgrade to verified tier first.
       // This allows deliberate re-runs (e.g. after provider upgrade) while blocking
       // accidental re-entry of stale draft content.
-      await updateDocumentStatus(documentId, "pending", { qualityTier: "verified" });
+      await updateDocumentStatus(documentId, "pending", {
+        qualityTier: "verified",
+      });
     }
 
     // 1. Extract claims
@@ -64,7 +85,7 @@ export async function runAnalysisPipeline(
     await updateDocumentStatus(documentId, "extracting", { llmProvider });
     const extracted = await extractClaims(rawText, options?.providerOverride);
     // 2. Insert claims into DB
-    const claimInserts = extracted.map((c) => ({
+    const claimInserts = extracted.map(c => ({
       documentId,
       claimText: c.claimText,
       claimType: c.claimType,
@@ -77,17 +98,21 @@ export async function runAnalysisPipeline(
       ligand: c.ligand,
     }));
     await insertClaims(claimInserts as never);
-    await updateDocumentStatus(documentId, "validating", { claimCount: extracted.length });
+    await updateDocumentStatus(documentId, "validating", {
+      claimCount: extracted.length,
+    });
     // 3. Validate each claim — route through vertical adapter if available, else PDB
     const allClaims = await getClaimsByDocument(documentId);
     const doc0 = await getDocumentById(documentId);
-    const verticalDomain: string = (doc0 as Record<string, unknown>)?.verticalDomain as string ?? "structural_biology";
+    const verticalDomain: string =
+      ((doc0 as Record<string, unknown>)?.verticalDomain as string) ??
+      "structural_biology";
     const adapter = getVertical(verticalDomain);
     const CLAIM_CONCURRENCY = 8;
     for (let i = 0; i < allClaims.length; i += CLAIM_CONCURRENCY) {
       const batch = allClaims.slice(i, i + CLAIM_CONCURRENCY);
       const results = await Promise.allSettled(
-        batch.map(async (claim) => {
+        batch.map(async claim => {
           let result: VerdictResult;
           let decision: VerdictDecision | null = null;
 
@@ -117,7 +142,11 @@ export async function runAnalysisPipeline(
               evidenceUrl: evidence.sourceUrl,
               evidenceRaw: evidence.evidenceRaw as never,
             };
-          } else if (claim.claimType === "resolution" && claim.pdbId && claim.resolution != null) {
+          } else if (
+            claim.claimType === "resolution" &&
+            claim.pdbId &&
+            claim.resolution != null
+          ) {
             // ── Phase 79: Deterministic resolution verdict ─────────────────
             const pdbResult = await fetchPdbEntry(claim.pdbId);
             const completeness = checkPdbCompleteness({
@@ -163,7 +192,7 @@ export async function runAnalysisPipeline(
           // After the verdict is computed, run the paper's Answer Audit loop.
           // If the audit flags the rationale as insufficient, retry once with
           // a revised prompt. Non-fatal: original verdict is used on error.
-          let auditedVerdict = result.verdict;
+          const auditedVerdict = result.verdict;
           let auditedRationale = result.rationale;
           try {
             const { runOutputAudit } = await import("./frictionEngine");
@@ -174,14 +203,21 @@ export async function runAnalysisPipeline(
               "The verdict must distinguish between 'Supported', 'Partially Supported', 'Ambiguous', 'Contradicted', 'Needs Expert Review', and 'Insufficient Evidence'.",
             ];
             const auditPrompt = `Claim: ${claim.claimText}\nVerdict: ${result.verdict}\nRationale: ${result.rationale}`;
-            const audit = await runOutputAudit(auditPrompt, result.rationale, auditCriteria);
+            const audit = await runOutputAudit(
+              auditPrompt,
+              result.rationale,
+              auditCriteria
+            );
             if (audit.verdict === "revise" && audit.suggestedRevision) {
               // Append the audit's suggested revision to the rationale
               auditedRationale = `${result.rationale} [Audit note: ${audit.suggestedRevision}]`;
             }
           } catch (auditErr) {
             // Non-fatal — use original verdict/rationale
-            console.warn("[FrictionEngine] Pipeline output audit error (non-fatal):", auditErr);
+            console.warn(
+              "[FrictionEngine] Pipeline output audit error (non-fatal):",
+              auditErr
+            );
           }
           await updateClaimVerdict(claim.id, {
             verdict: auditedVerdict,
@@ -204,8 +240,11 @@ export async function runAnalysisPipeline(
               .then(({ detectEvidenceGapForDocument }) =>
                 detectEvidenceGapForDocument(documentId, 1, claim.claimText)
               )
-              .catch((e) =>
-                console.warn("[FrontierEngine] Gap detection trigger failed (non-fatal):", e)
+              .catch(e =>
+                console.warn(
+                  "[FrontierEngine] Gap detection trigger failed (non-fatal):",
+                  e
+                )
               );
           }
         })
@@ -213,7 +252,10 @@ export async function runAnalysisPipeline(
       // Log any individual claim failures without aborting the whole document
       results.forEach((r, idx) => {
         if (r.status === "rejected") {
-          console.warn(`[Pipeline] Claim ${batch[idx]?.id} validation failed (non-fatal):`, r.reason);
+          console.warn(
+            `[Pipeline] Claim ${batch[idx]?.id} validation failed (non-fatal):`,
+            r.reason
+          );
         }
       });
     }
@@ -243,7 +285,11 @@ export async function runAnalysisPipeline(
     try {
       const pdfBuffer = await generatePdfReport(documentId);
       const pdfKey = `reports/${userId}/${documentId}/audit-report.pdf`;
-      const { url: pdfUrl } = await storagePut(pdfKey, pdfBuffer, "application/pdf");
+      const { url: pdfUrl } = await storagePut(
+        pdfKey,
+        pdfBuffer,
+        "application/pdf"
+      );
       pdfStorageKey = pdfKey;
       pdfStorageUrl = pdfUrl;
     } catch (pdfErr) {
@@ -262,7 +308,8 @@ export async function runAnalysisPipeline(
       totalClaims: finalClaims.length,
     });
     // Track model usage in quality scoring table (fire-and-forget)
-    const isFreeModel = llmProvider === "openrouter" || llmProvider === "freellmapi";
+    const isFreeModel =
+      llmProvider === "openrouter" || llmProvider === "freellmapi";
     recordModelUsage(
       llmProvider,
       llmProvider,
@@ -279,8 +326,10 @@ export async function runAnalysisPipeline(
       needsReview: qualityTier !== "verified",
     });
     // Notify owner that report is ready
-    const supportedCount = (summary as Record<string, number>)["Supported"] ?? 0;
-    const contradictedCount = (summary as Record<string, number>)["Contradicted"] ?? 0;
+    const supportedCount =
+      (summary as Record<string, number>)["Supported"] ?? 0;
+    const contradictedCount =
+      (summary as Record<string, number>)["Contradicted"] ?? 0;
     await notifyOwner({
       title: `Audit Report Ready: ${doc?.title ?? "Untitled"}`,
       content: `Document audit complete.\n\nClaims: ${finalClaims.length} total\nSupported: ${supportedCount}\nContradicted: ${contradictedCount}\nHigh-risk: ${highRisk}\n\nReport: ${htmlUrl}`,
@@ -288,16 +337,20 @@ export async function runAnalysisPipeline(
       /* non-fatal */
     });
     // Ping IndexNow for all claim pages (instant Bing/Perplexity re-indexing)
-    notifyIndexNowBatch(finalClaims.map((c) => claimUrl(c.id))).catch(() => {/* non-fatal */});
+    notifyIndexNowBatch(finalClaims.map(c => claimUrl(c.id))).catch(() => {
+      /* non-fatal */
+    });
     // Ping IndexNow for the public report page
-    notifyIndexNow(reportUrl(documentId)).catch(() => {/* non-fatal */});
+    notifyIndexNow(reportUrl(documentId)).catch(() => {
+      /* non-fatal */
+    });
     // Compile wiki pages and update knowledge graph — S3 + graph entities (non-fatal)
-    compileDocumentToWiki(documentId).catch((err) =>
+    compileDocumentToWiki(documentId).catch(err =>
       console.error("[Pipeline] Wiki compilation error (S3):", err)
     );
     // Ingest into DB-backed LLM wiki (non-fatal, fire-and-forget)
     if (doc) {
-      ingestSourceToWiki(doc as never, finalClaims as never).catch((err) =>
+      ingestSourceToWiki(doc as never, finalClaims as never).catch(err =>
         console.error("[Pipeline] Wiki engine ingest error:", err)
       );
     }
@@ -305,41 +358,58 @@ export async function runAnalysisPipeline(
     // After the full pipeline completes, fire a self-prompt cycle so the system
     // can reason about what to do next (notify subscribers, update wiki, close
     // gaps, reindex, etc.) based on the actual verdict distribution.
-    const contradictedCount2 = (summary as Record<string, number>)["Contradicted"] ?? 0;
-    const insufficientCount = (summary as Record<string, number>)["Insufficient Evidence"] ?? 0;
-    const eventType = contradictedCount2 > 0
-      ? "contradiction_found" as const
-      : insufficientCount > 0
-      ? "verdict_assigned" as const
-      : "verdict_assigned" as const;
+    const contradictedCount2 =
+      (summary as Record<string, number>)["Contradicted"] ?? 0;
+    const insufficientCount =
+      (summary as Record<string, number>)["Insufficient Evidence"] ?? 0;
+    const eventType =
+      contradictedCount2 > 0
+        ? ("contradiction_found" as const)
+        : insufficientCount > 0
+          ? ("verdict_assigned" as const)
+          : ("verdict_assigned" as const);
     runSelfPromptCycle({
       type: eventType,
       description: `Pipeline complete for document ${documentId}: ${finalClaims.length} claims, ${contradictedCount2} contradicted, ${insufficientCount} insufficient evidence`,
       documentId,
       verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
-    }).catch((e) => console.warn("[SelfPromptEngine] Post-pipeline cycle error (non-fatal):", e));
+    }).catch(e =>
+      console.warn(
+        "[SelfPromptEngine] Post-pipeline cycle error (non-fatal):",
+        e
+      )
+    );
     // ── Autonomous Loop: publish events to the event bus ─────────────────────
-    import("./autonomousLoop/eventBus").then(({ publishEvent }) => {
-      const eventPayload = {
-        documentId,
-        claimCount: finalClaims.length,
-        contradictedCount: contradictedCount2,
-        insufficientCount,
-        verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
-      };
-      publishEvent("verdict_complete", eventPayload).catch(() => {});
-      if (contradictedCount2 > 0) {
-        const firstContradicted = finalClaims.find((c) => c.verdict === "Contradicted");
-        publishEvent("contradiction_found", { ...eventPayload, claimId: firstContradicted?.id }).catch(() => {});
-      }
-    }).catch(() => {});
+    import("./autonomousLoop/eventBus")
+      .then(({ publishEvent }) => {
+        const eventPayload = {
+          documentId,
+          claimCount: finalClaims.length,
+          contradictedCount: contradictedCount2,
+          insufficientCount,
+          verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
+        };
+        publishEvent("verdict_complete", eventPayload).catch(() => {});
+        if (contradictedCount2 > 0) {
+          const firstContradicted = finalClaims.find(
+            c => c.verdict === "Contradicted"
+          );
+          publishEvent("contradiction_found", {
+            ...eventPayload,
+            claimId: firstContradicted?.id,
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
 
     // ── Inverse Prompt Architecture: Supported verdicts → graph questions ──────
     // For each Supported claim linked to a known graph entity, fire the Inverse
     // Prompt Engine so verified truth seeds new testable claims.
     // Authority boundary: inversePromptEngine only writes to generated_claims
     // and coord_queue — never to the knowledge graph itself.
-    const supportedClaims = finalClaims.filter((c) => c.verdict === "Supported" && (c.pdbId || c.proteinName));
+    const supportedClaims = finalClaims.filter(
+      c => c.verdict === "Supported" && (c.pdbId || c.proteinName)
+    );
     if (supportedClaims.length > 0) {
       (async () => {
         try {
@@ -357,8 +427,11 @@ export async function runAnalysisPipeline(
               .where(eq(graphEntities.canonicalName, entityName))
               .limit(1);
             if (entity) {
-              runInversePromptForEntity(entity.id).catch((e) =>
-                console.warn("[InversePrompt] Entity generation error (non-fatal):", e)
+              runInversePromptForEntity(entity.id).catch(e =>
+                console.warn(
+                  "[InversePrompt] Entity generation error (non-fatal):",
+                  e
+                )
               );
             }
           }
@@ -380,11 +453,14 @@ export async function runAnalysisPipeline(
             targetUserId: userId,
             prediction: prediction as unknown as Record<string, unknown>,
             baseRate: prediction.baseRate,
-            featuresUsed: prediction.factors as unknown as Record<string, unknown>,
+            featuresUsed: prediction.factors as unknown as Record<
+              string,
+              unknown
+            >,
             validationResult: "pending",
           });
           // Dispatch high-risk alert if probability >= 0.70
-          if (prediction.probabilityContradicted >= 0.70) {
+          if (prediction.probabilityContradicted >= 0.7) {
             dispatchHighRiskAlert({
               claimId: claim.id,
               claimText: claim.claimText,
@@ -394,14 +470,23 @@ export async function runAnalysisPipeline(
               contradictionProbability: prediction.probabilityContradicted,
               confidenceScore: claim.confidenceScore ?? null,
               reportUrl: reportUrl(documentId),
-            }).catch((e) => console.warn("[Pipeline] Alert dispatch error (non-fatal):", e));
+            }).catch(e =>
+              console.warn("[Pipeline] Alert dispatch error (non-fatal):", e)
+            );
           }
         }
-        console.log(`[Pipeline] Predictions saved for ${finalClaims.length} claims in doc ${documentId}`);
+        console.log(
+          `[Pipeline] Predictions saved for ${finalClaims.length} claims in doc ${documentId}`
+        );
       } catch (predErr) {
-        console.warn("[Pipeline] Prediction engine error (non-fatal):", predErr);
+        console.warn(
+          "[Pipeline] Prediction engine error (non-fatal):",
+          predErr
+        );
       }
-    })().catch((predErr) => console.warn("[Pipeline] Prediction IIFE error (non-fatal):", predErr));
+    })().catch(predErr =>
+      console.warn("[Pipeline] Prediction IIFE error (non-fatal):", predErr)
+    );
     // ── TurboVec: auto-index all verified/supported claims into FAISS sidecar ──
     // Non-fatal fire-and-forget. If the Python sidecar is unavailable the
     // vectorStore falls back to SQL FULLTEXT search automatically.
@@ -409,19 +494,25 @@ export async function runAnalysisPipeline(
       try {
         const { indexClaim } = await import("./vectorStore");
         const verifiedClaims = finalClaims.filter(
-          (c) => c.verdict === "Supported" || c.verdict === "Partially Supported"
+          c => c.verdict === "Supported" || c.verdict === "Partially Supported"
         );
-        const domainKey = (doc as Record<string, unknown>)?.verticalDomain as string ?? "structural_biology";
+        const _domainKey =
+          ((doc as Record<string, unknown>)?.verticalDomain as string) ??
+          "structural_biology";
         for (const claim of verifiedClaims) {
           await indexClaim(claim.id, claim.claimText);
         }
         if (verifiedClaims.length > 0) {
-          console.log(`[TurboVec] Auto-indexed ${verifiedClaims.length} verified claims for doc ${documentId}`);
+          console.log(
+            `[TurboVec] Auto-indexed ${verifiedClaims.length} verified claims for doc ${documentId}`
+          );
         }
       } catch (vecErr) {
         console.warn("[TurboVec] Auto-indexing error (non-fatal):", vecErr);
       }
-    })().catch((vecErr) => console.warn("[TurboVec] Auto-index IIFE error (non-fatal):", vecErr));
+    })().catch(vecErr =>
+      console.warn("[TurboVec] Auto-index IIFE error (non-fatal):", vecErr)
+    );
   } catch (err) {
     console.error("[Pipeline] Error:", err);
     await updateDocumentStatus(documentId, "failed", {
@@ -436,13 +527,18 @@ export async function runAnalysisPipeline(
  * Map an EvidenceResult from a vertical adapter to the VerdictResult shape
  * expected by updateClaimVerdict.
  */
-function evidenceToVerdict(evidence: EvidenceResult, claimText: string): VerdictResult {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function evidenceToVerdict(
+  evidence: EvidenceResult,
+  claimText: string
+): VerdictResult {
   if (!evidence.found) {
     return {
       verdict: "Insufficient Evidence",
-      rationale: evidence.confidenceFlags.length > 0
-        ? evidence.confidenceFlags.join("; ")
-        : `No evidence found for: "${claimText.substring(0, 120)}"`,
+      rationale:
+        evidence.confidenceFlags.length > 0
+          ? evidence.confidenceFlags.join("; ")
+          : `No evidence found for: "${claimText.substring(0, 120)}"`,
       evidenceUrl: evidence.sourceUrl,
       evidenceRaw: evidence.evidenceRaw as never,
     };
@@ -451,16 +547,17 @@ function evidenceToVerdict(evidence: EvidenceResult, claimText: string): Verdict
   let verdict: VerdictResult["verdict"];
   if (evidence.confidenceScore >= 0.85) {
     verdict = "Supported";
-  } else if (evidence.confidenceScore >= 0.60) {
+  } else if (evidence.confidenceScore >= 0.6) {
     verdict = "Partially Supported";
-  } else if (evidence.confidenceScore >= 0.30) {
+  } else if (evidence.confidenceScore >= 0.3) {
     verdict = "Ambiguous";
   } else {
     verdict = "Needs Expert Review";
   }
-  const flags = evidence.confidenceFlags.length > 0
-    ? ` Flags: ${evidence.confidenceFlags.join("; ")}`
-    : "";
+  const flags =
+    evidence.confidenceFlags.length > 0
+      ? ` Flags: ${evidence.confidenceFlags.join("; ")}`
+      : "";
   return {
     verdict,
     rationale: `Source: ${evidence.sourceId ?? evidence.sourceUrl ?? "unknown"} (confidence ${(evidence.confidenceScore * 100).toFixed(0)}%).${flags}`,
