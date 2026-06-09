@@ -1202,3 +1202,11 @@
 - [x] Update CLAUDE.md with mandatory completion protocol, HANDOFF.md rules, and context window management instructions
 - [x] Wire session:audit into pre-commit hook (offline mode during commit, full LLM mode via pnpm session:audit)
 - [x] TypeScript check + tests pass + checkpoint (TypeScript: 0 errors, 915 tests passing)
+
+## Phase 91: GitHub CI + Harness Dashboard + Session Habit
+
+- [x] Export project to GitHub via Management UI (user action required — see Settings → GitHub in Management UI)
+- [x] Build /admin/harness page: context snapshot status, session audit result, HANDOFF.md status, Run Audit Now button, last 5 audit results
+- [x] Add tRPC procedures for harness status: harnessStatus (query), refreshSnapshot (mutation)
+- [x] Wire context:snapshot as mandatory session-start in CLAUDE.md quick-start block
+- [x] TypeScript check + tests + checkpoint

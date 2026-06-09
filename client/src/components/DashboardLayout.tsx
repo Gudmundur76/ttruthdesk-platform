@@ -21,19 +21,57 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, FileText, Upload, Activity, TrendingUp, Bell, Zap, BarChart3, ArrowLeftRight, Webhook, GitBranch, Download, Network, Key, Moon, Database, ShieldCheck, Telescope, RefreshCw, Search, Rocket, Radar, Code2, Layers, BookMarked } from "lucide-react";
-import { CSSProperties, Suspense, useEffect, useRef, useState, lazy } from "react";
+import {
+  LayoutDashboard,
+  LogOut,
+  PanelLeft,
+  FileText,
+  Upload,
+  Activity,
+  TrendingUp,
+  Bell,
+  Zap,
+  BarChart3,
+  ArrowLeftRight,
+  Webhook,
+  GitBranch,
+  Download,
+  Network,
+  Key,
+  Moon,
+  Database,
+  ShieldCheck,
+  Telescope,
+  RefreshCw,
+  Search,
+  Rocket,
+  Radar,
+  Code2,
+  Layers,
+  BookMarked,
+  Terminal,
+} from "lucide-react";
+import {
+  CSSProperties,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  lazy,
+} from "react";
 import { useLocation } from "wouter";
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
 // CopilotKit: lazy-loaded to prevent 3.5MB chunk from blocking first paint
 const CopilotSidebar = lazy(() =>
-  import("@copilotkit/react-ui").then((m) => ({ default: m.CopilotSidebar }))
+  import("@copilotkit/react-ui").then(m => ({ default: m.CopilotSidebar }))
 );
 const CopilotRenderers = lazy(() => import("@/components/CopilotRenderers"));
 const ExampleQueryCarousel = lazy(() =>
-  import("@/components/ExampleQueryCarousel").then((m) => ({ default: m.ExampleQueryCarousel }))
+  import("@/components/ExampleQueryCarousel").then(m => ({
+    default: m.ExampleQueryCarousel,
+  }))
 );
 
 const menuItems = [
@@ -63,6 +101,7 @@ const menuItems = [
   { icon: Radar, label: "Auto-Discovery", path: "/admin/discovery" },
   { icon: Code2, label: "Embed Generator", path: "/admin/embed" },
   { icon: Layers, label: "Vertical Mgmt", path: "/admin/vertical-mgmt" },
+  { icon: Terminal, label: "Harness", path: "/admin/harness" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -86,7 +125,7 @@ export default function DashboardLayout({
   }, [sidebarWidth]);
 
   if (loading) {
-    return <DashboardLayoutSkeleton />
+    return <DashboardLayoutSkeleton />;
   }
 
   if (!user) {
@@ -98,7 +137,8 @@ export default function DashboardLayout({
               Sign in to continue
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              Access to this dashboard requires authentication. Continue to
+              launch the login flow.
             </p>
           </div>
           <Button
@@ -299,12 +339,13 @@ function DashboardLayoutContent({
         <ExampleQueryCarousel />
         {/* CopilotKit: AI assistant sidebar */}
         <CopilotSidebar
-        instructions="You are the Truth Desk AI — a scientific evidence engine. For ANY question, call translateAndSearch first to decompose it into verifiable claims and search PubMed. Never say 'out of scope' or 'no molecular claims found'. Always return cited evidence with PMIDs. Everyday questions like 'can I make biotech products from salmon sludge?' are valid — translate them into claims and search the evidence."
-        defaultOpen={false}
-        labels={{
-          title: "Truth Desk AI",
-          initial: "Ask me anything about biotech, proteins, or scientific claims — in plain language. I'll search peer-reviewed literature and return cited evidence. Try: \"can I create biotech products from salmon sludge?\" or \"does astaxanthin reduce inflammation?\"",
-        }}
+          instructions="You are the Truth Desk AI — a scientific evidence engine. For ANY question, call translateAndSearch first to decompose it into verifiable claims and search PubMed. Never say 'out of scope' or 'no molecular claims found'. Always return cited evidence with PMIDs. Everyday questions like 'can I make biotech products from salmon sludge?' are valid — translate them into claims and search the evidence."
+          defaultOpen={false}
+          labels={{
+            title: "Truth Desk AI",
+            initial:
+              'Ask me anything about biotech, proteins, or scientific claims — in plain language. I\'ll search peer-reviewed literature and return cited evidence. Try: "can I create biotech products from salmon sludge?" or "does astaxanthin reduce inflammation?"',
+          }}
         />
       </Suspense>
     </>

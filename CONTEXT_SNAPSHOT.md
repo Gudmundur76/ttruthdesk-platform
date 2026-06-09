@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-09T08:48:07.887Z
+> **Generated:** 2026-06-09T09:44:38.293Z
 > **Branch:** main
-> **Last commit:** 42b9ed2 feat(quality): Phase 89 task completion guarantee system
+> **Last commit:** c902d84 feat(quality): add session completion guarantee system and context window management
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -23,8 +23,8 @@
 
 ## 📋 Current Work Status
 
-**Current phase:** Phase 90: Session Completion Guarantee + Context Window Management
-**Todo progress:** 860 done / 0 remaining
+**Current phase:** Phase 91: GitHub CI + Harness Dashboard + Session Habit
+**Todo progress:** 865 done / 0 remaining
 
 **Uncompleted items:**
 _none_
@@ -93,9 +93,9 @@ DB helpers: `server/db.ts`
 
 ---
 
-## 🔌 tRPC Procedures (159 total)
+## 🔌 tRPC Procedures (161 total)
 
-`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats`, `listAll`, `detail`, `list` ... and 119 more
+`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats`, `listAll`, `detail`, `list` ... and 121 more
 
 Router file: `server/routers.ts`
 
@@ -193,6 +193,7 @@ Router file: `server/routers.ts`
 - `client/src/pages/Admin.tsx`
 - `client/src/pages/AdminAnalytics.tsx`
 - `client/src/pages/AdminCrons.tsx`
+- `client/src/pages/AdminHarness.tsx`
 - `client/src/pages/AdminVerticals.tsx`
 - `client/src/pages/AlertSettings.tsx`
 - `client/src/pages/ApiDocs.tsx`
@@ -294,8 +295,8 @@ clean
 
 **Tests:**
 ```
-Start at  08:48:09
-   Duration  8.44s (transform 2.33s, setup 0ms, collect 8.95s, tests 16.38s, environment 12ms, prepare 4.49s)
+Start at  09:44:39
+   Duration  7.54s (transform 2.20s, setup 0ms, collect 7.88s, tests 15.15s, environment 11ms, prepare 3.99s)
 ```
 
 **Lint:**
@@ -322,6 +323,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+c902d84 feat(quality): add session completion guarantee system and context window management
 42b9ed2 feat(quality): Phase 89 task completion guarantee system
 45353a4 feat: Phase 88 — code quality enforcement layer
 4b83829 Checkpoint: Phase 87: Full agent architecture improvements — expanded self-prompt action vocabulary (drain_queue, reverify_stale, recalibrate_confidence), coordQueueDrainer engine, dream events wired into loop orchestrator, strengthened truthLayer with real PDB re-verification, 2 new pipeline guardian invariants (stalePdbEvidence + lowConfidenceClaims, 7 total). 915 tests passing, TypeScript: 0 errors.
@@ -331,18 +333,16 @@ facbc74 Checkpoint: Phase 85: Meta-Agent Completion. MANUS_API_KEY set to real k
 7d76255 Checkpoint: Phase 83: Three improvements shipped together. (1) Server-side ?q= text search added to GET /api/public/claims — the paginated endpoint now accepts a q= param that filters across claim text, verdict rationale, PDB ID, and claim type via SQL LIKE, and the q value is included in pagination Link headers and the filters object. (2) New GET /api/public/claims/search?q=... dedicated endpoint for external integrations — returns up to 200 matching claims from the full corpus in a single response with no pagination needed; each claim includes a timeline_url deep-link; registered before /api/public/claims/:id to avoid Express routing conflicts. (3) Registry page upgraded to use server-side search — when ?q= is active it debounces a fetch to /api/public/claims/search (400ms), shows a spinner while searching, displays total_matches count, and renders a "View timeline ↗" button in the result count bar and on each claim card. MCP_TOOLS array updated with search_claims tool; llms.txt updated to recommend the new endpoint to agents. 12 new Vitest tests added; all 900 tests pass, TypeScript clean.
 d8393df Checkpoint: Fix: /registry?q=... and /search?q=... now correctly pre-populate their search inputs from the URL on mount. Root cause: both pages initialised their search state to empty string, silently ignoring the ?q= URL param. Fix: (1) Registry.tsx now reads ?q= on mount via useState lazy initialiser, adds a live text search input with client-side filtering (by claim value, rationale, claim type, PDB ID), keeps URL in sync via replaceState, shows match count, and offers a "Full search ↗" button to /search?q=... for semantic search. (2) Search.tsx now reads ?q= on mount so navigating to /search?q=Piscirickettsia+salmonis... immediately fires the keyword search. All 888 tests pass, TypeScript clean.
 c7a3cfd Checkpoint: Checkpoint saved: Phase 82 fully complete — all 8 items done. Added GET /api/public/claims/index.json lightweight crawler index (all claim IDs + verdicts + vertical slugs + api_urls, up to 10,000 rows, X-Total-Count header, RFC 5988 Link headers). Route registered before /api/public/claims/:id to prevent Express param collision. Added 6 Vitest tests for the index endpoint. All 888 tests passing (53 files), TypeScript clean. Phase 82 todo.md: 8/8 items complete.
-8eb2613 Checkpoint: Checkpoint saved: Phase 82 complete — Public Claims API & 4,000-Page Indexable Corpus. Added GET /api/public/claims?page=N paginated endpoint (RFC 5988 Link headers, X-Total-Count, filters), GET /api/public/claims/:id single-claim endpoint with ClaimReview JSON-LD, list_claims MCP tool in /.well-known/mcp.json, dynamic sitemap domain fix, robots.txt + llms.txt updates. Added 22 Vitest tests (13 for paginated list, 9 for single-claim endpoint including 404, 400, CORS, Last-Modified, Link headers). All 882 tests passing (53 files), TypeScript clean.
 ```
 
 **Uncommitted changes:**
 ```
-M  .husky/pre-commit
 M  CLAUDE.md
-A  CONTEXT_SNAPSHOT.md
-M  package.json
-A  scripts/context-snapshot.mjs
-A  scripts/generate-handoff.mjs
-A  scripts/session-audit.mjs
+M  CONTEXT_SNAPSHOT.md
+M  client/src/App.tsx
+M  client/src/components/DashboardLayout.tsx
+A  client/src/pages/AdminHarness.tsx
+M  server/routers.ts
 M  todo.md
 ```
 

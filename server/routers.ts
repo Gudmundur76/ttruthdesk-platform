@@ -1695,6 +1695,116 @@ Respond in this exact structure:
       await seedKnownModels();
       return { success: true };
     }),
+    /**
+     * Returns the current harness health status: context snapshot age, session audit
+     * result, HANDOFF.md presence, and todo.md progress.
+     */
+    harnessStatus: protectedProcedure.query(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const fs = await import("fs");
+      const path = await import("path");
+      const projectRoot = process.cwd();
+
+      // Context snapshot
+      const snapshotPath = path.join(projectRoot, "CONTEXT_SNAPSHOT.md");
+      let snapshotExists = false;
+      let snapshotAgeMinutes: number | null = null;
+      let snapshotLines = 0;
+      try {
+        const stat = fs.statSync(snapshotPath);
+        snapshotExists = true;
+        snapshotAgeMinutes = Math.round((Date.now() - stat.mtimeMs) / 60000);
+        const content = fs.readFileSync(snapshotPath, "utf-8");
+        snapshotLines = content.split("\n").length;
+      } catch {
+        /* file may not exist */
+      }
+
+      // HANDOFF.md
+      const handoffPath = path.join(projectRoot, "HANDOFF.md");
+      let handoffExists = false;
+      let handoffPreview: string | null = null;
+      try {
+        const handoffContent = fs.readFileSync(handoffPath, "utf-8");
+        handoffExists = true;
+        handoffPreview = handoffContent.split("\n").slice(0, 10).join("\n");
+      } catch {
+        /* file may not exist */
+      }
+
+      // Session audit JSON
+      const auditJsonPath = path.join(projectRoot, ".session-audit.json");
+      let lastAudit: Record<string, unknown> | null = null;
+      try {
+        const raw = fs.readFileSync(auditJsonPath, "utf-8");
+        lastAudit = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        /* file may not exist */
+      }
+
+      // Todo progress
+      const todoPath = path.join(projectRoot, "todo.md");
+      let todoDone = 0;
+      let todoPending = 0;
+      try {
+        const todoContent = fs.readFileSync(todoPath, "utf-8");
+        todoDone = (todoContent.match(/^- \[x\]/gm) ?? []).length;
+        todoPending = (todoContent.match(/^- \[ \]/gm) ?? []).length;
+      } catch {
+        /* file may not exist */
+      }
+
+      return {
+        snapshot: {
+          exists: snapshotExists,
+          ageMinutes: snapshotAgeMinutes,
+          lines: snapshotLines,
+          healthy: snapshotExists && (snapshotAgeMinutes ?? 9999) < 120,
+        },
+        handoff: {
+          exists: handoffExists,
+          preview: handoffPreview,
+        },
+        lastAudit,
+        todo: {
+          done: todoDone,
+          pending: todoPending,
+          percentComplete:
+            todoDone + todoPending > 0
+              ? Math.round((todoDone / (todoDone + todoPending)) * 100)
+              : 100,
+        },
+        checkedAt: new Date().toISOString(),
+      };
+    }),
+    /**
+     * Triggers `node scripts/context-snapshot.mjs` and returns success/failure.
+     */
+    refreshSnapshot: protectedProcedure.mutation(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { execSync } = await import("child_process");
+      try {
+        execSync("node scripts/context-snapshot.mjs", {
+          cwd: process.cwd(),
+          timeout: 30000,
+          stdio: "pipe",
+        });
+        return { success: true, message: "Context snapshot refreshed." };
+      } catch (err) {
+        return {
+          success: false,
+          message: `Snapshot failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
+    }),
   }),
 
   // ─── Predictions (Ground Signal) ─────────────────────────────────────────────

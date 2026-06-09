@@ -10,15 +10,19 @@
 ```bash
 cd /home/ubuntu/protein-truth-desk
 
-# 1. Read project state (do this BEFORE anything else)
-cat CONTEXT_SNAPSHOT.md
+# 0. MANDATORY: Regenerate context snapshot FIRST (before reading anything)
+pnpm context:snapshot && cat CONTEXT_SNAPSHOT.md
 
-# 2. Check for incomplete previous session
+# 1. Check for incomplete previous session
 cat HANDOFF.md 2>/dev/null && echo "⚠️ HANDOFF EXISTS — complete it before new work"
 
-# 3. Verify clean starting state
+# 2. Verify clean starting state
 pnpm check && pnpm test && echo "✅ Clean state"
 ```
+
+> **Step 0 is non-negotiable.** `pnpm context:snapshot` regenerates `CONTEXT_SNAPSHOT.md` from the
+> live codebase, ensuring you have an accurate picture of the current state. It also feeds the
+> `/admin/harness` dashboard with fresh data. Never skip it.
 
 If `HANDOFF.md` exists: **complete the handoff items first. Do not start new work.**
 If tests fail or TypeScript has errors: **fix them first. Do not add features on broken code.**
