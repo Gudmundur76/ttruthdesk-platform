@@ -1210,3 +1210,14 @@
 - [x] Add tRPC procedures for harness status: harnessStatus (query), refreshSnapshot (mutation)
 - [x] Wire context:snapshot as mandatory session-start in CLAUDE.md quick-start block
 - [x] TypeScript check + tests + checkpoint
+
+## Phase 92: feature_list.json Contract + agent_tools.ts API Wrappers
+
+- [x] scripts/generate-feature-list.py — parse todo.md → feature_list.json (machine-readable contract with id, category, phase, description, passes, notes)
+- [x] Add pnpm feature:sync script to package.json that runs generate-feature-list.py
+- [x] scripts/agent_tools.ts — typed wrappers: truthdeskVerify, swarmTick, harnessStatus, invokeLLM, storagePut, notifyOwner
+- [x] tRPC admin.featureList query — reads feature_list.json and returns meta + features array
+- [x] tRPC admin.updateFeatureNote mutation — writes notes field for a feature by id
+- [x] Wire feature_list.json panel into /admin/harness: meta card (total/done/pending/%) + filterable feature table
+- [x] Update CLAUDE.md ritual: add pnpm feature:sync as Step 1 (after context:snapshot)
+- [x] TypeScript check + tests + checkpoint + GitHub push

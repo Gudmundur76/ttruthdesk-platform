@@ -13,16 +13,19 @@ cd /home/ubuntu/protein-truth-desk
 # 0. MANDATORY: Regenerate context snapshot FIRST (before reading anything)
 pnpm context:snapshot && cat CONTEXT_SNAPSHOT.md
 
-# 1. Check for incomplete previous session
+# 1. MANDATORY: Sync feature_list.json from todo.md (machine-readable contract)
+pnpm feature:sync
+
+# 2. Check for incomplete previous session
 cat HANDOFF.md 2>/dev/null && echo "⚠️ HANDOFF EXISTS — complete it before new work"
 
-# 2. Verify clean starting state
+# 3. Verify clean starting state
 pnpm check && pnpm test && echo "✅ Clean state"
 ```
 
-> **Step 0 is non-negotiable.** `pnpm context:snapshot` regenerates `CONTEXT_SNAPSHOT.md` from the
-> live codebase, ensuring you have an accurate picture of the current state. It also feeds the
-> `/admin/harness` dashboard with fresh data. Never skip it.
+> **Steps 0 and 1 are non-negotiable.** `pnpm context:snapshot` regenerates `CONTEXT_SNAPSHOT.md`
+> from the live codebase. `pnpm feature:sync` regenerates `feature_list.json` — the machine-readable
+> contract that the `/admin/harness` Feature Contract panel reads. Both must run before any code changes.
 
 If `HANDOFF.md` exists: **complete the handoff items first. Do not start new work.**
 If tests fail or TypeScript has errors: **fix them first. Do not add features on broken code.**

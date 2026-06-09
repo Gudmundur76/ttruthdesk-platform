@@ -1783,6 +1783,90 @@ Respond in this exact structure:
     /**
      * Triggers `node scripts/context-snapshot.mjs` and returns success/failure.
      */
+    /**
+     * Read feature_list.json — the machine-readable contract derived from todo.md.
+     * Run `pnpm feature:sync` to regenerate from the latest todo.md.
+     */
+    featureList: protectedProcedure.query(async ({ ctx }) => {
+      const { ENV } = await import("./_core/env");
+      if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { readFileSync, existsSync } = await import("fs");
+      const { resolve } = await import("path");
+      const path = resolve(process.cwd(), "feature_list.json");
+      if (!existsSync(path)) {
+        return {
+          meta: {
+            source: "todo.md",
+            total: 0,
+            done: 0,
+            pending: 0,
+            percent_complete: 0,
+          },
+          features: [] as Array<{
+            id: string;
+            category: string;
+            phase: string;
+            description: string;
+            passes: boolean;
+            notes: string;
+          }>,
+        };
+      }
+      return JSON.parse(readFileSync(path, "utf8")) as {
+        meta: {
+          source: string;
+          total: number;
+          done: number;
+          pending: number;
+          percent_complete: number;
+        };
+        features: Array<{
+          id: string;
+          category: string;
+          phase: string;
+          description: string;
+          passes: boolean;
+          notes: string;
+        }>;
+      };
+    }),
+
+    /**
+     * Update the `notes` field for a single feature in feature_list.json.
+     * Useful for annotating blockers, decisions, or context during a session.
+     */
+    updateFeatureNote: protectedProcedure
+      .input(z.object({ id: z.string(), notes: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { readFileSync, writeFileSync, existsSync } = await import("fs");
+        const { resolve } = await import("path");
+        const path = resolve(process.cwd(), "feature_list.json");
+        if (!existsSync(path))
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "feature_list.json not found",
+          });
+        const data = JSON.parse(readFileSync(path, "utf8")) as {
+          meta: object;
+          features: Array<{ id: string; notes: string; [k: string]: unknown }>;
+        };
+        const feature = data.features.find(f => f.id === input.id);
+        if (!feature)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Feature ${input.id} not found`,
+          });
+        feature.notes = input.notes;
+        writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
+        return { success: true };
+      }),
+
     refreshSnapshot: protectedProcedure.mutation(async ({ ctx }) => {
       const { ENV } = await import("./_core/env");
       if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {

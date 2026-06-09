@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import {
   CheckCircle2,
   XCircle,
@@ -28,6 +29,8 @@ import {
   Clock,
   ClipboardList,
   Activity,
+  ListChecks,
+  Search,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -72,14 +75,32 @@ function MetricCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const CATEGORY_COLORS: Record<string, string> = {
+  backend: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  frontend: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  infra: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  quality: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  admin: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+  agent: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  feature: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+};
+
 export default function AdminHarness() {
   const [autoRefreshTick, setAutoRefreshTick] = useState(0);
+  const [featureSearch, setFeatureSearch] = useState("");
+  const [featureFilter, setFeatureFilter] = useState<
+    "all" | "pending" | "done"
+  >("all");
 
   // Auto-refresh every 60 seconds
   useEffect(() => {
     const id = setInterval(() => setAutoRefreshTick(t => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  const featureListQuery = trpc.admin.featureList.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
 
   const { data, isLoading, refetch } = trpc.admin.harnessStatus.useQuery(
     undefined,
@@ -302,6 +323,116 @@ export default function AdminHarness() {
                 </div>
               </MetricCard>
             </div>
+
+            {/* Feature List Panel */}
+            {featureListQuery.data && (
+              <MetricCard icon={ListChecks} title="Feature Contract">
+                {/* Meta bar */}
+                <div className="flex flex-wrap gap-4 mb-4 text-sm">
+                  <span className="text-muted-foreground">
+                    <strong className="text-foreground">
+                      {featureListQuery.data.meta.total}
+                    </strong>{" "}
+                    total
+                  </span>
+                  <span className="text-emerald-400">
+                    <strong>{featureListQuery.data.meta.done}</strong> done
+                  </span>
+                  <span className="text-amber-400">
+                    <strong>{featureListQuery.data.meta.pending}</strong>{" "}
+                    pending
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {featureListQuery.data.meta.percent_complete}%
+                  </span>
+                </div>
+                <Progress
+                  value={featureListQuery.data.meta.percent_complete}
+                  className="h-1.5 mb-4"
+                />
+
+                {/* Filter controls */}
+                <div className="flex gap-2 mb-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search features…"
+                      value={featureSearch}
+                      onChange={e => setFeatureSearch(e.target.value)}
+                      className="pl-8 h-8 text-xs"
+                    />
+                  </div>
+                  {(["all", "pending", "done"] as const).map(f => (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={featureFilter === f ? "default" : "outline"}
+                      className="h-8 text-xs capitalize"
+                      onClick={() => setFeatureFilter(f)}
+                    >
+                      {f}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Feature rows */}
+                <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+                  {featureListQuery.data.features
+                    .filter(f => {
+                      if (featureFilter === "pending" && f.passes) return false;
+                      if (featureFilter === "done" && !f.passes) return false;
+                      if (featureSearch) {
+                        const q = featureSearch.toLowerCase();
+                        return (
+                          f.description.toLowerCase().includes(q) ||
+                          f.phase.toLowerCase().includes(q)
+                        );
+                      }
+                      return true;
+                    })
+                    .slice(0, 100)
+                    .map(f => (
+                      <div
+                        key={f.id}
+                        className="flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-muted/40 transition-colors"
+                      >
+                        {f.passes ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
+                        ) : (
+                          <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                        )}
+                        <span className="text-xs text-foreground/80 leading-relaxed flex-1 min-w-0">
+                          {f.description}
+                        </span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${
+                            CATEGORY_COLORS[f.category] ??
+                            CATEGORY_COLORS.feature
+                          }`}
+                        >
+                          {f.category}
+                        </span>
+                      </div>
+                    ))}
+                  {featureListQuery.data.features.filter(f => {
+                    if (featureFilter === "pending" && f.passes) return false;
+                    if (featureFilter === "done" && !f.passes) return false;
+                    if (featureSearch) {
+                      const q = featureSearch.toLowerCase();
+                      return (
+                        f.description.toLowerCase().includes(q) ||
+                        f.phase.toLowerCase().includes(q)
+                      );
+                    }
+                    return true;
+                  }).length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No features match the current filter.
+                    </p>
+                  )}
+                </div>
+              </MetricCard>
+            )}
 
             {/* Footer: last checked */}
             <p className="text-xs text-muted-foreground text-right">
