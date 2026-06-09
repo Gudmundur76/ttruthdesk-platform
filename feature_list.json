@@ -1,8 +1,8 @@
 {
   "meta": {
     "source": "todo.md",
-    "total": 881,
-    "done": 881,
+    "total": 890,
+    "done": 890,
     "pending": 0,
     "percent_complete": 100.0
   },
@@ -7051,6 +7051,78 @@
       "id": "phase-93-coverage-35-45-pre-commit-feature-sync-008",
       "category": "quality",
       "phase": "Phase 93: Coverage 35%/45% + pre-commit feature:sync",
+      "description": "TypeScript check + tests (973 passing) + checkpoint + GitHub push",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-001",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Catch-up sync manus-persistent-drive: update logs/phase-log.md with Phases 81-93 summaries",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-002",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Sync current key service files into data/protein-truth-desk/ snapshot",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-003",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Add session entry for today (Phase 94) to sessions/history/",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-004",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Push manus-persistent-drive to GitHub",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-005",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Design meta-agent: mandate, triggers, enforcement rules, file structure",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-006",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Implement scripts/meta-agent.mjs \u2014 session-start and session-end enforcement",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-007",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Add meta-agent check to CLAUDE.md as mandatory Step -1 (before context:snapshot)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-008",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
+      "description": "Add meta-agent CI check to .github/workflows/ci.yml (drive sync staleness check)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-94-drive-catch-up-sync-meta-agent-009",
+      "category": "agent",
+      "phase": "Phase 94: Drive catch-up sync + meta-agent",
       "description": "TypeScript check + tests (973 passing) + checkpoint + GitHub push",
       "passes": true,
       "notes": ""

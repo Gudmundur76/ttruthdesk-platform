@@ -10,6 +10,9 @@
 ```bash
 cd /home/ubuntu/protein-truth-desk
 
+# -1. MANDATORY: Meta-agent session-start check (drive staleness + phase log gap + session register)
+pnpm meta:start
+
 # 0. MANDATORY: Regenerate context snapshot FIRST (before reading anything)
 pnpm context:snapshot && cat CONTEXT_SNAPSHOT.md
 
@@ -23,9 +26,12 @@ cat HANDOFF.md 2>/dev/null && echo "⚠️ HANDOFF EXISTS — complete it before
 pnpm check && pnpm test && echo "✅ Clean state"
 ```
 
-> **Steps 0 and 1 are non-negotiable.** `pnpm context:snapshot` regenerates `CONTEXT_SNAPSHOT.md`
-> from the live codebase. `pnpm feature:sync` regenerates `feature_list.json` — the machine-readable
-> contract that the `/admin/harness` Feature Contract panel reads. Both must run before any code changes.
+> **Steps -1, 0, and 1 are non-negotiable.**
+> `pnpm meta:start` checks that `manus-persistent-drive` is not stale, that the phase log matches
+> `todo.md`, and registers this session. If it reports a gap, run `pnpm drive:sync` at session end.
+> `pnpm context:snapshot` regenerates `CONTEXT_SNAPSHOT.md` from the live codebase.
+> `pnpm feature:sync` regenerates `feature_list.json` — the machine-readable contract that the
+> `/admin/harness` Feature Contract panel reads. All three must run before any code changes.
 
 If `HANDOFF.md` exists: **complete the handoff items first. Do not start new work.**
 If tests fail or TypeScript has errors: **fix them first. Do not add features on broken code.**

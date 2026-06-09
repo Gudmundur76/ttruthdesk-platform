@@ -1232,3 +1232,15 @@
 - [x] Raise vitest.config.ts thresholds to lines 27, functions 42, statements 27 (actual measured: 27.51% / 42.62% — target 35/50 in Phase 94)
 - [x] Add pnpm feature:sync to .husky/pre-commit hook
 - [x] TypeScript check + tests (973 passing) + checkpoint + GitHub push
+
+## Phase 94: Drive catch-up sync + meta-agent
+
+- [x] Catch-up sync manus-persistent-drive: update logs/phase-log.md with Phases 81-93 summaries
+- [x] Sync current key service files into data/protein-truth-desk/ snapshot
+- [x] Add session entry for today (Phase 94) to sessions/history/
+- [x] Push manus-persistent-drive to GitHub
+- [x] Design meta-agent: mandate, triggers, enforcement rules, file structure
+- [x] Implement scripts/meta-agent.mjs — session-start and session-end enforcement
+- [x] Add meta-agent check to CLAUDE.md as mandatory Step -1 (before context:snapshot)
+- [x] Add meta-agent CI check to .github/workflows/ci.yml (drive sync staleness check)
+- [x] TypeScript check + tests (973 passing) + checkpoint + GitHub push

@@ -110,3 +110,27 @@ jobs:
       - name: Run stub tracker
         run: pnpm stubs || true
         # stubs are advisory — reports overdue stubs but does not fail the build
+
+  # ── Drive Staleness Check ─────────────────────────────────────────────
+  drive-staleness:
+    name: Drive Staleness
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    needs: quality
+    # Only run on pushes to main (not PRs) to avoid rate-limiting the public drive repo
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Check manus-persistent-drive freshness
+        run: |
+          git clone --depth=1 https://github.com/Gudmundur76/manus-persistent-drive.git /tmp/drive
+          LAST_COMMIT_TS=$(cd /tmp/drive && git log -1 --format="%ct")
+          NOW_TS=$(date +%s)
+          AGE_HOURS=$(( (NOW_TS - LAST_COMMIT_TS) / 3600 ))
+          echo "Drive last synced: ${AGE_HOURS}h ago"
+          if [ "$AGE_HOURS" -gt 48 ]; then
+            echo "::error::manus-persistent-drive is STALE: last synced ${AGE_HOURS}h ago (threshold: 48h). Run pnpm drive:sync."
+            exit 1
+          else
+            echo "Drive is fresh (${AGE_HOURS}h < 48h threshold)."
+          fi

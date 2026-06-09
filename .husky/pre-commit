@@ -25,3 +25,6 @@ node scripts/context-snapshot.mjs
 
 echo "📋 Syncing feature_list.json from todo.md..."
 pnpm feature:sync
+
+echo "🔒 Meta-agent drive staleness check (dry-run)..."
+node scripts/meta-agent.mjs --mode=end --dry-run

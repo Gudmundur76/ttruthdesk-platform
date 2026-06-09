@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-09T10:21:35.456Z
+> **Generated:** 2026-06-09T14:23:14.676Z
 > **Branch:** main
-> **Last commit:** 51cc47a feat(admin): Phase 91 — /admin/harness dashboard + harnessStatus/refreshSnapshot tRPC procedures
+> **Last commit:** d6a07ba feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature:sync in pre-commit
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -10,6 +10,7 @@
 ## 🎯 What This Project Is
 
 **Protein Truth Desk** — a scientific claim verification platform that:
+
 - Ingests research papers (PubMed, PMC, bioRxiv, manual upload)
 - Extracts protein/structural biology claims using LLM
 - Verifies claims against PDB (Protein Data Bank) and other evidence sources
@@ -23,21 +24,20 @@
 
 ## 📋 Current Work Status
 
-**Current phase:** Phase 91: GitHub CI + Harness Dashboard + Session Habit
-**Todo progress:** 865 done / 0 remaining
+**Current phase:** Phase 93: Coverage 35%/45% + pre-commit feature:sync
+**Todo progress:** 881 done / 0 remaining
 
 **Uncompleted items:**
 _none_
 
 _No session audit result found. Run `pnpm session:audit` to check._
 
-
-
 ---
 
 ## 🗄️ Database Schema
 
 **Tables (48 total):**
+
 - `users`
 - `documents`
 - `claims`
@@ -93,9 +93,9 @@ DB helpers: `server/db.ts`
 
 ---
 
-## 🔌 tRPC Procedures (161 total)
+## 🔌 tRPC Procedures (163 total)
 
-`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats`, `listAll`, `detail`, `list` ... and 121 more
+`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats`, `listAll`, `detail`, `list` ... and 123 more
 
 Router file: `server/routers.ts`
 
@@ -265,13 +265,13 @@ Scheduled endpoints in: `server/_core/index.ts` (search for `/api/scheduled/`)
 
 The platform has a 5-layer autonomous loop (`server/autonomousLoop/`):
 
-| Layer | File | Purpose |
-|-------|------|---------|
-| L1 — Friction | `frictionLayer.ts` | Handles document_submitted, manual_review_complete |
+| Layer            | File                 | Purpose                                                                             |
+| ---------------- | -------------------- | ----------------------------------------------------------------------------------- |
+| L1 — Friction    | `frictionLayer.ts`   | Handles document_submitted, manual_review_complete                                  |
 | L2 — Self-Prompt | `selfPromptLayer.ts` | LLM decides next action (drain_queue, reverify_stale, recalibrate_confidence, etc.) |
-| L3 — Frontier | `frontierLayer.ts` | Gap detection, hypothesis generation, evidence pursuit |
-| L3 — Truth | `truthLayer.ts` | PDB re-verification, source_data_changed, paper_discovered |
-| L4 — Meta | `metaLayer.ts` | Code guardian, pipeline guardian (7 invariants), alert routing |
+| L3 — Frontier    | `frontierLayer.ts`   | Gap detection, hypothesis generation, evidence pursuit                              |
+| L3 — Truth       | `truthLayer.ts`      | PDB re-verification, source_data_changed, paper_discovered                          |
+| L4 — Meta        | `metaLayer.ts`       | Code guardian, pipeline guardian (7 invariants), alert routing                      |
 
 Event bus: `server/autonomousLoop/eventBus.ts`
 Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
@@ -280,8 +280,6 @@ Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
 
 ## 🔧 Available Environment Variables
 
-
-
 Env config: `server/_core/env.ts`
 
 ---
@@ -289,31 +287,36 @@ Env config: `server/_core/env.ts`
 ## ✅ Quality Gates
 
 **TypeScript:**
+
 ```
 clean
 ```
 
 **Tests:**
+
 ```
-Start at  10:21:36
-   Duration  8.47s (transform 2.41s, setup 0ms, collect 8.79s, tests 16.89s, environment 19ms, prepare 4.32s)
+Start at  14:23:15
+   Duration  14.34s (transform 2.57s, setup 0ms, collect 9.14s, tests 25.39s, environment 14ms, prepare 4.80s)
 ```
 
 **Lint:**
+
 ```
 ✖ 44 problems (0 errors, 44 warnings)
   0 errors and 1 warning potentially fixable with the `--fix` option.
 ```
 
 **Coverage thresholds:**
+
 ```
-lines: 26, // actual: 26.51% — raise to 35% next phase
-        branches: 48, // actual: 65%+ (branches well covered)
-        functions: 36, // actual: 36.64% — raise to 45% next phase
-        statements: 26, // actual: 26.51% — raise to 35% next phase
+lines: 27, // actual: 27.51% (Phase 93 +1.1%) — target 35% Phase 94
+        branches: 48, // actual: 70%+ (branches well covered)
+        functions: 42, // actual: 42.62% (Phase 93 +6%) — target 50% Phase 94
+        statements: 27, // actual: 27.51% — target 35% Phase 94
 ```
 
 **Stubs:**
+
 ```
 unknown
 ```
@@ -323,19 +326,20 @@ unknown
 ## 📝 Recent Git History
 
 ```
+d6a07ba feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature:sync in pre-commit
+405d5ec feat(phase-92): feature_list.json contract + agent_tools.ts API wrappers
+da3bf8e fix(test): inject placeholder OPENROUTER_API_KEY in swarm.test.ts for CI
+526ae50 fix(ci): let packageManager field own pnpm version, remove explicit version: 9
+d3ce6c3 fix(ci): move pnpm install before setup-node, add Node 24 opt-in
+381a21f chore: restore ci.yml locally (push requires GitHub workflows permission)
+c5e4878 chore: temporarily remove ci.yml for push
+2a9d77b chore: update context snapshot
 51cc47a feat(admin): Phase 91 — /admin/harness dashboard + harnessStatus/refreshSnapshot tRPC procedures
 c902d84 feat(quality): add session completion guarantee system and context window management
-42b9ed2 feat(quality): Phase 89 task completion guarantee system
-45353a4 feat: Phase 88 — code quality enforcement layer
-4b83829 Checkpoint: Phase 87: Full agent architecture improvements — expanded self-prompt action vocabulary (drain_queue, reverify_stale, recalibrate_confidence), coordQueueDrainer engine, dream events wired into loop orchestrator, strengthened truthLayer with real PDB re-verification, 2 new pipeline guardian invariants (stalePdbEvidence + lowConfidenceClaims, 7 total). 915 tests passing, TypeScript: 0 errors.
-19b97b0 Checkpoint: Phase 86 complete: Infrastructure Harness Completion. Fixed 4 TypeScript errors (CodeGuardianReport properties + LoopEventType). Added POST /api/scheduled/inverse-prompt, /meta-agent, /self-prompt endpoints. Registered 3 new heartbeat jobs (inverse-prompt-daily 03:00 UTC, meta-agent-daily 04:00 UTC, self-prompt-2h). Strengthened CopilotKit queryGraph tool with getPaginatedPublicClaims for real DB-backed claim search alongside entity name-match. 9 new Vitest tests in scheduledEngines.test.ts. 915 total tests passing. TypeScript: 0 errors. Now 11 heartbeat schedules total on the Manus platform.
-facbc74 Checkpoint: Phase 85: Meta-Agent Completion. MANUS_API_KEY set to real key (HTTP 200 verified). All 8 heartbeat schedules confirmed active on Manus platform. Added POST /api/public/submit-claim (rate-limited 10 req/IP/hour, fires full autonomous pipeline, returns documentId + polling URL) and GET /api/public/submit-claim/status/:id. New public_submissions table added to schema and migrated. submit_claim MCP tool registered. 6 new Vitest tests. 906 total passing. TypeScript clean. Server running cleanly.
-8f8412e Checkpoint: Removed Pricing.tsx, CheckoutSuccess.tsx, /pricing and /checkout/success routes, PayPal checkout router and imports from routers.ts, and the "Request Audit" nav link. Replaced all pricing CTAs with /submit links. Replaced the pricing section on Home.tsx with a "Free to use. Open by design." section. Renamed ttruthdesk.claims → truthdesk.claims across all 15 files (92 occurrences). 900 tests passing, TypeScript clean.
-7d76255 Checkpoint: Phase 83: Three improvements shipped together. (1) Server-side ?q= text search added to GET /api/public/claims — the paginated endpoint now accepts a q= param that filters across claim text, verdict rationale, PDB ID, and claim type via SQL LIKE, and the q value is included in pagination Link headers and the filters object. (2) New GET /api/public/claims/search?q=... dedicated endpoint for external integrations — returns up to 200 matching claims from the full corpus in a single response with no pagination needed; each claim includes a timeline_url deep-link; registered before /api/public/claims/:id to avoid Express routing conflicts. (3) Registry page upgraded to use server-side search — when ?q= is active it debounces a fetch to /api/public/claims/search (400ms), shows a spinner while searching, displays total_matches count, and renders a "View timeline ↗" button in the result count bar and on each claim card. MCP_TOOLS array updated with search_claims tool; llms.txt updated to recommend the new endpoint to agents. 12 new Vitest tests added; all 900 tests pass, TypeScript clean.
-d8393df Checkpoint: Fix: /registry?q=... and /search?q=... now correctly pre-populate their search inputs from the URL on mount. Root cause: both pages initialised their search state to empty string, silently ignoring the ?q= URL param. Fix: (1) Registry.tsx now reads ?q= on mount via useState lazy initialiser, adds a live text search input with client-side filtering (by claim value, rationale, claim type, PDB ID), keeps URL in sync via replaceState, shows match count, and offers a "Full search ↗" button to /search?q=... for semantic search. (2) Search.tsx now reads ?q= on mount so navigating to /search?q=Piscirickettsia+salmonis... immediately fires the keyword search. All 888 tests pass, TypeScript clean.
 ```
 
 **Uncommitted changes:**
+
 ```
 M  CONTEXT_SNAPSHOT.md
 ```
