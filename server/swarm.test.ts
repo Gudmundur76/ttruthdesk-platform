@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ─── multiLLM free model pool tests ──────────────────────────────────────────
+// Inject a fake OPENROUTER_API_KEY so key-pool tests work in CI without a real key
+if (!process.env.OPENROUTER_API_KEY) {
+  process.env.OPENROUTER_API_KEY = "sk-or-ci-test-key-placeholder";
+}
+
+// ─── multiLLM free model pool tests ─────────────────────────────────────────────────────────────────────────────────
 describe("multiLLM free model pool", () => {
   it("FREE_MODEL_ROTATION contains 8 models", async () => {
     const { FREE_MODEL_ROTATION } = await import("./_core/multiLLM");
