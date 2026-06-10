@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-09T14:23:14.676Z
+> **Generated:** 2026-06-10T14:24:40.264Z
 > **Branch:** main
-> **Last commit:** d6a07ba feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature:sync in pre-commit
+> **Last commit:** d0cfa08 feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -24,8 +24,8 @@
 
 ## 📋 Current Work Status
 
-**Current phase:** Phase 93: Coverage 35%/45% + pre-commit feature:sync
-**Todo progress:** 881 done / 0 remaining
+**Current phase:** Phase 94: Drive catch-up sync + meta-agent
+**Todo progress:** 890 done / 0 remaining
 
 **Uncompleted items:**
 _none_
@@ -295,8 +295,8 @@ clean
 **Tests:**
 
 ```
-Start at  14:23:15
-   Duration  14.34s (transform 2.57s, setup 0ms, collect 9.14s, tests 25.39s, environment 14ms, prepare 4.80s)
+Start at  14:24:41
+   Duration  9.30s (transform 2.50s, setup 0ms, collect 9.54s, tests 18.97s, environment 15ms, prepare 5.07s)
 ```
 
 **Lint:**
@@ -326,6 +326,9 @@ unknown
 ## 📝 Recent Git History
 
 ```
+d0cfa08 feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
+ce1ef58 temp: remove ci.yml for push
+0d28b9c feat(meta-agent): session governance script + drive staleness CI check
 d6a07ba feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature:sync in pre-commit
 405d5ec feat(phase-92): feature_list.json contract + agent_tools.ts API wrappers
 da3bf8e fix(test): inject placeholder OPENROUTER_API_KEY in swarm.test.ts for CI
@@ -333,9 +336,6 @@ da3bf8e fix(test): inject placeholder OPENROUTER_API_KEY in swarm.test.ts for CI
 d3ce6c3 fix(ci): move pnpm install before setup-node, add Node 24 opt-in
 381a21f chore: restore ci.yml locally (push requires GitHub workflows permission)
 c5e4878 chore: temporarily remove ci.yml for push
-2a9d77b chore: update context snapshot
-51cc47a feat(admin): Phase 91 — /admin/harness dashboard + harnessStatus/refreshSnapshot tRPC procedures
-c902d84 feat(quality): add session completion guarantee system and context window management
 ```
 
 **Uncommitted changes:**
