@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-10T14:24:40.264Z
+> **Generated:** 2026-06-10T23:16:49.104Z
 > **Branch:** main
-> **Last commit:** d0cfa08 feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
+> **Last commit:** 25d7be1 chore: update context snapshot — force new publish checkpoint
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -24,8 +24,8 @@
 
 ## 📋 Current Work Status
 
-**Current phase:** Phase 94: Drive catch-up sync + meta-agent
-**Todo progress:** 890 done / 0 remaining
+**Current phase:** Phase 97: CopilotKit Removal + Native chat.query
+**Todo progress:** 914 done / 0 remaining
 
 **Uncompleted items:**
 _none_
@@ -93,9 +93,9 @@ DB helpers: `server/db.ts`
 
 ---
 
-## 🔌 tRPC Procedures (163 total)
+## 🔌 tRPC Procedures (164 total)
 
-`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats`, `listAll`, `detail`, `list` ... and 123 more
+`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats`, `listAll`, `detail`, `list` ... and 124 more
 
 Router file: `server/routers.ts`
 
@@ -126,7 +126,6 @@ Router file: `server/routers.ts`
 - `server/confidenceTrendService.ts`
 - `server/coordApi.ts`
 - `server/coordQueueDrainer.ts`
-- `server/copilotRuntime.ts`
 - `server/cronRunLogger.ts`
 - `server/db.ts`
 - `server/discoveryAgent.ts`
@@ -201,6 +200,7 @@ Router file: `server/routers.ts`
 - `client/src/pages/AuditComparison.tsx`
 - `client/src/pages/AuditReport.tsx`
 - `client/src/pages/AutonomousLoopDashboard.tsx`
+- `client/src/pages/ChatPage.tsx`
 - `client/src/pages/ClaimPage.tsx`
 - `client/src/pages/ClaimProvenance.tsx`
 - `client/src/pages/ComponentShowcase.tsx`
@@ -295,14 +295,14 @@ clean
 **Tests:**
 
 ```
-Start at  14:24:41
-   Duration  9.30s (transform 2.50s, setup 0ms, collect 9.54s, tests 18.97s, environment 15ms, prepare 5.07s)
+Start at  23:16:50
+   Duration  9.08s (transform 2.50s, setup 0ms, collect 9.16s, tests 18.66s, environment 14ms, prepare 4.92s)
 ```
 
 **Lint:**
 
 ```
-✖ 44 problems (0 errors, 44 warnings)
+✖ 43 problems (0 errors, 43 warnings)
   0 errors and 1 warning potentially fixable with the `--fix` option.
 ```
 
@@ -326,6 +326,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+25d7be1 chore: update context snapshot — force new publish checkpoint
 d0cfa08 feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
 ce1ef58 temp: remove ci.yml for push
 0d28b9c feat(meta-agent): session governance script + drive staleness CI check
@@ -335,13 +336,31 @@ da3bf8e fix(test): inject placeholder OPENROUTER_API_KEY in swarm.test.ts for CI
 526ae50 fix(ci): let packageManager field own pnpm version, remove explicit version: 9
 d3ce6c3 fix(ci): move pnpm install before setup-node, add Node 24 opt-in
 381a21f chore: restore ci.yml locally (push requires GitHub workflows permission)
-c5e4878 chore: temporarily remove ci.yml for push
 ```
 
 **Uncommitted changes:**
 
 ```
 M  CONTEXT_SNAPSHOT.md
+M  client/index.html
+M  client/public/robots.txt
+M  client/src/App.tsx
+D  client/src/components/CopilotRenderers.tsx
+M  client/src/components/DashboardLayout.tsx
+D  client/src/components/ExampleQueryCarousel.tsx
+M  client/src/components/TopNav.tsx
+M  client/src/const.ts
+M  client/src/index.css
+A  client/src/pages/ChatPage.tsx
+M  client/src/pages/Home.tsx
+M  feature_list.json
+M  package.json
+M  pnpm-lock.yaml
+M  server/_core/index.ts
+D  server/copilotRuntime.ts
+M  server/routers.ts
+M  todo.md
+M  vite.config.ts
 ```
 
 ---

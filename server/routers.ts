@@ -35,6 +35,54 @@ import { getEmailUserById, incrementEmailUserAuditCount } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { storagePut } from "./storage";
+import { translateQueryToClaims } from "./_queryTranslator";
+import { verdictForClaim } from "./pdbAdapter";
+import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
+
+// ─── EuropePMC helper (used by chat.query) ────────────────────────────────────
+const EUROPE_PMC_SEARCH =
+  "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
+async function fetchPubMedResults(
+  query: string,
+  limit = 5
+): Promise<PubMedResult[]> {
+  const encoded = encodeURIComponent(query);
+  const url = `${EUROPE_PMC_SEARCH}?query=${encoded}&format=json&pageSize=${limit}&resultType=core&sort=CITED+desc`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      resultList?: {
+        result?: Array<{
+          pmid?: string;
+          id?: string;
+          title?: string;
+          abstractText?: string;
+          authorString?: string;
+          journalTitle?: string;
+          pubYear?: string;
+        }>;
+      };
+    };
+    const results = data.resultList?.result ?? [];
+    return results
+      .slice(0, limit)
+      .map(r => ({
+        pmid: r.pmid ?? r.id ?? "",
+        title: r.title ?? "Untitled",
+        abstractSnippet: (r.abstractText ?? "").slice(0, 400),
+        citationUrl: r.pmid
+          ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`
+          : `https://europepmc.org/article/MED/${r.id ?? ""}`,
+        authors: r.authorString ? r.authorString.split(", ").slice(0, 5) : [],
+        journal: r.journalTitle ?? undefined,
+        year: r.pubYear ? parseInt(r.pubYear, 10) : undefined,
+      }))
+      .filter(r => r.pmid);
+  } catch {
+    return [];
+  }
+}
 
 // ─── Router ────────────────────────────────────────────────────────
 export const appRouter = router({
@@ -4613,6 +4661,106 @@ Respond in this exact structure:
             )
           );
         return { deleted: true };
+      }),
+  }),
+
+  // ─── Chat ────────────────────────────────────────────────────────────────
+  chat: router({
+    /**
+     * Translates a plain-language question into verifiable claims,
+     * runs each claim through the evidence pipeline, and returns
+     * a structured answer with cited PubMed results.
+     */
+    query: publicProcedure
+      .input(z.object({ question: z.string().min(3).max(2000) }))
+      .mutation(async ({ input }) => {
+        const { question } = input;
+
+        // 1. Translate natural language → structured claims
+        let claims: Awaited<ReturnType<typeof translateQueryToClaims>>;
+        try {
+          claims = await translateQueryToClaims(question);
+        } catch {
+          claims = [];
+        }
+
+        if (claims.length === 0) {
+          return {
+            question,
+            claims: [],
+            summary:
+              "I could not extract any verifiable scientific claims from your question. Try rephrasing with specific protein names, organisms, or biological processes.",
+          };
+        }
+
+        // 2. For each claim: fetch PubMed evidence + run verdict in parallel
+        const claimResults = await Promise.all(
+          claims.slice(0, 5).map(async claim => {
+            const [pubmedResults, verdict] = await Promise.allSettled([
+              fetchPubMedResults(claim.searchQuery, 3),
+              verdictForClaim({
+                claimType: claim.proteinName ? "protein_name" : "general",
+                proteinName: claim.proteinName,
+                organism: claim.organism,
+              }),
+            ]);
+            return {
+              claimText: claim.claimText,
+              verdict:
+                verdict.status === "fulfilled"
+                  ? verdict.value.verdict
+                  : ("Insufficient Evidence" as const),
+              rationale:
+                verdict.status === "fulfilled" ? verdict.value.rationale : "",
+              evidenceUrl:
+                verdict.status === "fulfilled"
+                  ? verdict.value.evidenceUrl
+                  : null,
+              pubmedResults:
+                pubmedResults.status === "fulfilled" ? pubmedResults.value : [],
+            };
+          })
+        );
+
+        // 3. Fire-and-forget: trigger autonomous ingest for background enrichment
+        triggerAutonomousIngest({
+          query: question,
+          pubmedResults: claimResults.flatMap(c => c.pubmedResults),
+        });
+
+        // 4. Build a human-readable summary via LLM
+        const claimSummaryText = claimResults
+          .map(
+            (c, i) =>
+              `Claim ${i + 1}: "${c.claimText}"\nVerdict: ${c.verdict}\n${c.rationale}\nTop evidence: ${c.pubmedResults
+                .slice(0, 2)
+                .map(p => `${p.title} (PMID:${p.pmid})`)
+                .join("; ")}`
+          )
+          .join("\n\n");
+
+        let summary = "";
+        try {
+          const llmResponse = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are Truth Desk AI, a scientific evidence engine. Given a user question and structured claim verdicts with PubMed citations, write a concise, accurate answer in 2-4 paragraphs. Always cite PMIDs inline like (PMID:12345678). Be direct about what the evidence supports, contradicts, or leaves ambiguous. Never fabricate citations.",
+              },
+              {
+                role: "user",
+                content: `Question: ${question}\n\nEvidence:\n${claimSummaryText}`,
+              },
+            ],
+          });
+          summary =
+            (llmResponse.choices?.[0]?.message?.content as string) ?? "";
+        } catch {
+          summary = claimSummaryText;
+        }
+
+        return { question, claims: claimResults, summary };
       }),
   }),
 

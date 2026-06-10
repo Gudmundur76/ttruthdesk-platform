@@ -1,8 +1,8 @@
 {
   "meta": {
     "source": "todo.md",
-    "total": 890,
-    "done": 890,
+    "total": 914,
+    "done": 914,
     "pending": 0,
     "percent_complete": 100.0
   },
@@ -7124,6 +7124,198 @@
       "category": "agent",
       "phase": "Phase 94: Drive catch-up sync + meta-agent",
       "description": "TypeScript check + tests (973 passing) + checkpoint + GitHub push",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-96-admin-only-conversion-001",
+      "category": "admin",
+      "phase": "Phase 96: Admin-Only Conversion",
+      "description": "Replace Home.tsx with immediate redirect to /dashboard",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-96-admin-only-conversion-002",
+      "category": "admin",
+      "phase": "Phase 96: Admin-Only Conversion",
+      "description": "Remove public-only routes from App.tsx (/submit, /trust, /docs/api, /saved-research)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-96-admin-only-conversion-003",
+      "category": "admin",
+      "phase": "Phase 96: Admin-Only Conversion",
+      "description": "Add robots.txt with Disallow: / to client/public/",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-96-admin-only-conversion-004",
+      "category": "admin",
+      "phase": "Phase 96: Admin-Only Conversion",
+      "description": "Add X-Robots-Tag: noindex,nofollow header in server for all responses",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-96-admin-only-conversion-005",
+      "category": "admin",
+      "phase": "Phase 96: Admin-Only Conversion",
+      "description": "Remove SEO/crawler injection from vite.ts (crawlable HTML, JSON-LD, IndexNow, discovery meta)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-96-admin-only-conversion-006",
+      "category": "admin",
+      "phase": "Phase 96: Admin-Only Conversion",
+      "description": "Remove marketing copy from client/index.html (meta description, OG tags, JSON-LD, noscript block)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-96-admin-only-conversion-007",
+      "category": "admin",
+      "phase": "Phase 96: Admin-Only Conversion",
+      "description": "Replace TopNav with minimal admin header (no public marketing links)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-001",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Remove @copilotkit/react-core, @copilotkit/react-ui, @copilotkit/runtime from package.json",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-002",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Delete server/copilotRuntime.ts and remove registration from server/\\_core/index.ts",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-003",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Delete client/src/components/CopilotRenderers.tsx and ExampleQueryCarousel.tsx",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-004",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Remove CopilotKit CSS import from client/src/index.css",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-005",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Remove CopilotKit provider from client/src/App.tsx",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-006",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Remove CopilotKit sidebar from client/src/components/DashboardLayout.tsx",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-007",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Fix Vite config: remove CopilotKit manualChunks split that caused circular React chunk dependency (blank page bug)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-008",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Implement native chat.query tRPC publicProcedure in server/routers.ts",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-009",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Add openSignInDialog() export to client/src/const.ts (dispatches custom event for magic-link dialog)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-010",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Replace getLoginUrl() with openSignInDialog() in DashboardLayout.tsx sign-in button",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-011",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Remove unused Suspense and lazy imports from DashboardLayout.tsx",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-012",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Add Sparkles icon + \"Truth Desk AI\" nav item to DashboardLayout menuItems (\u2192 /chat)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-013",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Create client/src/pages/ChatPage.tsx \u2014 wires AIChatBox to chat.query mutation, renders claim evidence panel",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-014",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Add /chat route to App.tsx (lazy-loaded ChatPage)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-015",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Add Trust + API nav links to TopNav.tsx ADMIN_NAV_LINKS (fixes trustAndApiDocs.test.ts)",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-016",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "TypeScript: 0 errors; build: 0 CopilotKit chunks; tests: 973/973 passing",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "phase-97-copilotkit-removal-native-chat-query-017",
+      "category": "feature",
+      "phase": "Phase 97: CopilotKit Removal + Native chat.query",
+      "description": "Save checkpoint",
       "passes": true,
       "notes": ""
     }

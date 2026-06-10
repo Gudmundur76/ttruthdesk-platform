@@ -19,7 +19,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
+import { openSignInDialog } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard,
@@ -50,32 +50,16 @@ import {
   Layers,
   BookMarked,
   Terminal,
+  Sparkles,
 } from "lucide-react";
-import {
-  CSSProperties,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  lazy,
-} from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
-// CopilotKit: lazy-loaded to prevent 3.5MB chunk from blocking first paint
-const CopilotSidebar = lazy(() =>
-  import("@copilotkit/react-ui").then(m => ({ default: m.CopilotSidebar }))
-);
-const CopilotRenderers = lazy(() => import("@/components/CopilotRenderers"));
-const ExampleQueryCarousel = lazy(() =>
-  import("@/components/ExampleQueryCarousel").then(m => ({
-    default: m.ExampleQueryCarousel,
-  }))
-);
-
 const menuItems = [
   { icon: LayoutDashboard, label: "My Audits", path: "/dashboard" },
+  { icon: Sparkles, label: "Truth Desk AI", path: "/chat" },
   { icon: Upload, label: "New Audit", path: "/submit" },
   { icon: Search, label: "Semantic Search", path: "/search" },
   { icon: BookMarked, label: "Saved Research", path: "/saved-research" },
@@ -143,7 +127,7 @@ export default function DashboardLayout({
           </div>
           <Button
             onClick={() => {
-              window.location.href = getLoginUrl();
+              openSignInDialog();
             }}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
@@ -332,22 +316,6 @@ function DashboardLayoutContent({
         )}
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
-
-      {/* CopilotKit: lazy-loaded — no Suspense fallback needed (these are invisible/overlay components) */}
-      <Suspense fallback={null}>
-        <CopilotRenderers />
-        <ExampleQueryCarousel />
-        {/* CopilotKit: AI assistant sidebar */}
-        <CopilotSidebar
-          instructions="You are the Truth Desk AI — a scientific evidence engine. For ANY question, call translateAndSearch first to decompose it into verifiable claims and search PubMed. Never say 'out of scope' or 'no molecular claims found'. Always return cited evidence with PMIDs. Everyday questions like 'can I make biotech products from salmon sludge?' are valid — translate them into claims and search the evidence."
-          defaultOpen={false}
-          labels={{
-            title: "Truth Desk AI",
-            initial:
-              'Ask me anything about biotech, proteins, or scientific claims — in plain language. I\'ll search peer-reviewed literature and return cited evidence. Try: "can I create biotech products from salmon sludge?" or "does astaxanthin reduce inflammation?"',
-          }}
-        />
-      </Suspense>
     </>
   );
 }

@@ -85,11 +85,7 @@ const AuditComparison = lazy(() => import("@/pages/AuditComparison"));
 const Trust = lazy(() => import("@/pages/Trust"));
 const ApiDocs = lazy(() => import("@/pages/ApiDocs"));
 const SavedResearch = lazy(() => import("@/pages/SavedResearch"));
-
-// ─── CopilotKit: lazy-loaded so it never blocks first paint ──────────────────
-const CopilotKitProvider = lazy(() =>
-  import("@copilotkit/react-core").then(m => ({ default: m.CopilotKit }))
-);
+const ChatPage = lazy(() => import("@/pages/ChatPage"));
 
 function Router() {
   return (
@@ -151,6 +147,7 @@ function Router() {
         <Route path="/trust" component={Trust} />
         <Route path="/docs/api" component={ApiDocs} />
         <Route path="/saved-research" component={SavedResearch} />
+        <Route path="/chat" component={ChatPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
@@ -164,12 +161,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          {/* CopilotKit is lazy — never blocks first paint */}
-          <Suspense fallback={null}>
-            <CopilotKitProvider runtimeUrl="/api/copilot" credentials="include">
-              <Router />
-            </CopilotKitProvider>
-          </Suspense>
+          <Router />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

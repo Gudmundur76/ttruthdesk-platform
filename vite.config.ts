@@ -56,7 +56,7 @@ function writeToLogFile(source: LogSource, entries: unknown[]) {
   const logPath = path.join(LOG_DIR, `${source}.log`);
 
   // Format entries with timestamps
-  const lines = entries.map((entry) => {
+  const lines = entries.map(entry => {
     const ts = new Date().toISOString();
     return `[${ts}] ${JSON.stringify(entry)}`;
   });
@@ -104,7 +104,11 @@ function vitePluginManusDebugCollector(): Plugin {
           return next();
         }
 
-        type LogPayload = { consoleLogs?: unknown[]; networkRequests?: unknown[]; sessionEvents?: unknown[] };
+        type LogPayload = {
+          consoleLogs?: unknown[];
+          networkRequests?: unknown[];
+          sessionEvents?: unknown[];
+        };
         const handlePayload = (payload: LogPayload) => {
           // Write logs directly to files
           if (payload.consoleLogs && payload.consoleLogs.length > 0) {
@@ -133,7 +137,7 @@ function vitePluginManusDebugCollector(): Plugin {
         }
 
         let body = "";
-        req.on("data", (chunk) => {
+        req.on("data", chunk => {
           body += chunk.toString();
         });
 
@@ -151,7 +155,13 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+  vitePluginManusDebugCollector(),
+];
 
 export default defineConfig({
   plugins,
@@ -176,19 +186,24 @@ export default defineConfig({
           // lucide-react has 3472 individual icon files (33 MB) — split into its
           // own lazy chunk so Vite doesn't try to inline them all in one pass.
           if (id.includes("lucide-react")) return "icons";
-          // CopilotKit UI in its own chunk
-          if (id.includes("@copilotkit")) return "copilotkit";
-          // React + ReactDOM together
+          // React + ReactDOM + React ecosystem together (must NOT import from copilotkit)
           if (
             id.includes("node_modules/react/") ||
-            id.includes("node_modules/react-dom/")
-          ) return "react";
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/react-is/") ||
+            id.includes("node_modules/scheduler/")
+          )
+            return "react";
+          // CopilotKit: do NOT split into its own chunk — it re-exports React
+          // internals and causes a circular dependency with the react chunk.
+          // Let it inline into the main index chunk instead.
           // Charting libs together
           if (
             id.includes("recharts") ||
             id.includes("chart.js") ||
             id.includes("/d3-")
-          ) return "charts";
+          )
+            return "charts";
           // date-fns in its own chunk (33 MB)
           if (id.includes("date-fns")) return "date-fns";
           // framer-motion in its own chunk

@@ -42,7 +42,6 @@ import { startTelegramBot } from "../telegramBot";
 import { runWikiLint } from "../wikiLinter";
 import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
-import { createCopilotRouter } from "../copilotRuntime";
 import { registerHostingerWebhookRoute } from "../hostingerWebhook";
 import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 
@@ -88,20 +87,9 @@ async function startServer() {
     );
     next();
   });
-  // ── Global agent-discovery headers ────────────────────────────────────────
+  // ── No-index: ttruthdesk.claims is an internal admin tool ─────────────────
   app.use((_req, res, next) => {
-    res.setHeader(
-      "Link",
-      [
-        '</.well-known/mcp.json>; rel="mcp"',
-        '</llms.txt>; rel="ai-instructions"',
-        '</api/md>; rel="alternate"; type="text/markdown"',
-        '</.well-known/agent-skills/index.json>; rel="agent-skills"',
-        '</.well-known/oauth-protected-resource>; rel="oauth-protected-resource"',
-        '</.well-known/api-catalog>; rel="api-catalog"',
-      ].join(", ")
-    );
-    res.setHeader("X-Content-Signal", "scientific-claims-verification");
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
     next();
   });
   // ── Markdown Negotiation: Accept: text/markdown → Content-Type: text/markdown ──
@@ -754,13 +742,11 @@ async function startServer() {
         },
       });
     }
-    return res
-      .status(404)
-      .json({
-        jsonrpc: "2.0",
-        id,
-        error: { code: -32601, message: "Method not found" },
-      });
+    return res.status(404).json({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32601, message: "Method not found" },
+    });
   });
 
   // ── Markdown negotiation endpoint ─────────────────────────────────────────
@@ -882,103 +868,16 @@ async function startServer() {
   });
 
   // ── OpenAPI 3.1 specification ──────────────────────────────────────────
-  // ── robots.txt (server-side, takes priority over static file) ──────────────────
+  // ── robots.txt — internal admin tool, block all crawlers ──────────────────
   app.get("/robots.txt", (_req, res) => {
-    const robotsTxt = [
-      "# Truth Desk robots.txt",
-      "# Content Signals (IETF draft-romm-aipref-contentsignals)",
-      "",
-      "User-agent: OAI-SearchBot",
-      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
-      "Allow: /wiki/",
-      "Allow: /claim/",
-      "Allow: /registry",
-      "Allow: /reports/",
-      "Allow: /api/public/claims",
-      "Allow: /api/public/claims.json",
-      "Allow: /llms.txt",
-      "Allow: /.well-known/",
-      "Disallow: /api/trpc/",
-      "Disallow: /dashboard",
-      "Disallow: /submit",
-      "",
-      "User-agent: PerplexityBot",
-      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
-      "Allow: /wiki/",
-      "Allow: /claim/",
-      "Allow: /registry",
-      "Allow: /reports/",
-      "Allow: /api/public/claims",
-      "Allow: /api/public/claims.json",
-      "Allow: /llms.txt",
-      "Allow: /.well-known/",
-      "Disallow: /api/trpc/",
-      "Disallow: /dashboard",
-      "Disallow: /submit",
-      "",
-      "User-agent: anthropic-ai",
-      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
-      "Allow: /wiki/",
-      "Allow: /claim/",
-      "Allow: /registry",
-      "Allow: /reports/",
-      "Allow: /api/public/claims",
-      "Allow: /api/public/claims.json",
-      "Allow: /llms.txt",
-      "Allow: /.well-known/",
-      "Disallow: /api/trpc/",
-      "",
-      "User-agent: Claude-Web",
-      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
-      "Allow: /wiki/",
-      "Allow: /claim/",
-      "Allow: /registry",
-      "Allow: /reports/",
-      "Allow: /api/public/claims",
-      "Allow: /api/public/claims.json",
-      "Allow: /llms.txt",
-      "Allow: /.well-known/",
-      "Disallow: /api/trpc/",
-      "",
-      "User-agent: Googlebot",
-      "Content-Signal: ai-train=no, search=yes, ai-input=no",
-      "Allow: /",
-      "Disallow: /api/trpc/",
-      "Disallow: /dashboard",
-      "Disallow: /submit",
-      "Disallow: /monitoring",
-      "",
-      "User-agent: GPTBot",
-      "Content-Signal: ai-train=no, search=no, ai-input=no",
-      "Disallow: /",
-      "",
-      "User-agent: CCBot",
-      "Content-Signal: ai-train=no, search=no, ai-input=no",
-      "Disallow: /",
-      "",
-      "User-agent: *",
-      "Content-Signal: ai-train=no, search=yes, ai-input=yes",
-      "Allow: /wiki/",
-      "Allow: /claim/",
-      "Allow: /registry",
-      "Allow: /reports/",
-      "Allow: /api/public/claims",
-      "Allow: /api/public/claims.json",
-      "Allow: /llms.txt",
-      "Allow: /.well-known/",
-      "Disallow: /api/trpc/",
-      "Disallow: /dashboard",
-      "Disallow: /submit",
-      "Disallow: /monitoring",
-      "",
-      `Sitemap: ${SITE_ORIGIN}/sitemap.xml`,
-    ].join("\n");
     res
       .set({
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "public, max-age=3600",
       })
-      .send(robotsTxt);
+      .send(
+        "# ttruthdesk.claims — internal admin tool\nUser-agent: *\nDisallow: /\n"
+      );
   });
 
   // ── /auth.md root (auth.md spec requires H1 containing 'auth.md') ─────────────────
@@ -1481,8 +1380,6 @@ async function startServer() {
     express.json({ limit: "5mb" }),
     batchAuditRouter
   );
-  // CopilotKit AI runtime: natural language interface to the Truth Desk engine
-  app.use(createCopilotRouter());
   // LLM health check: reports active provider, model pool, and connectivity
   app.get("/api/admin/llm-health", requireOwnerOrAdmin, async (_req, res) => {
     try {
