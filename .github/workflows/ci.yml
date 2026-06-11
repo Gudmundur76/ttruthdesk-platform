@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Layer 1: TypeScript ──────────────────────────────────────────────────
+      - name: TypeScript check
+        run: pnpm check
+
+      # ── Layer 2: Lint ────────────────────────────────────────────────────────
+      - name: ESLint
+        run: pnpm lint
+
+      # ── Layer 3: Tests ───────────────────────────────────────────────────────
+      - name: Run tests
+        run: pnpm test --run
+        env:
+          DATABASE_URL: ""
+          JWT_SECRET: "ci-test-secret"
+          VITE_APP_ID: "ci-test-app-id"
+          OAUTH_SERVER_URL: "https://api.manus.im"
+          VITE_OAUTH_PORTAL_URL: "https://manus.im"
+          BUILT_IN_FORGE_API_URL: "https://api.manus.im"
+          BUILT_IN_FORGE_API_KEY: "ci-test-key"
+          VITE_FRONTEND_FORGE_API_KEY: "ci-test-key"
+          VITE_FRONTEND_FORGE_API_URL: "https://api.manus.im"
+
+      # ── Layer 4: Coverage ────────────────────────────────────────────────────
+      - name: Coverage check
+        run: pnpm test:coverage --run
+        env:
+          DATABASE_URL: ""
+          JWT_SECRET: "ci-test-secret"
+          VITE_APP_ID: "ci-test-app-id"
+          OAUTH_SERVER_URL: "https://api.manus.im"
+          VITE_OAUTH_PORTAL_URL: "https://manus.im"
+          BUILT_IN_FORGE_API_URL: "https://api.manus.im"
+          BUILT_IN_FORGE_API_KEY: "ci-test-key"
+          VITE_FRONTEND_FORGE_API_KEY: "ci-test-key"
+          VITE_FRONTEND_FORGE_API_URL: "https://api.manus.im"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+  # ── Drift Detection ──────────────────────────────────────────────────────────
+  drift:
+    name: Drift Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run drift detector
+        run: pnpm drift || true
+        # drift is advisory — it reports but does not fail the build
+        # Remove "|| true" once all drift categories are clean
+
+      - name: Run stub tracker
+        run: pnpm stubs || true
+        # stubs are advisory — reports overdue stubs but does not fail the build
+
+  # ── Drive Staleness Check ─────────────────────────────────────────────
+  drive-staleness:
+    name: Drive Staleness
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    needs: quality
+    # Only run on pushes to main (not PRs) to avoid rate-limiting the public drive repo
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Check manus-persistent-drive freshness
+        run: |
+          git clone --depth=1 https://github.com/Gudmundur76/manus-persistent-drive.git /tmp/drive
+          LAST_COMMIT_TS=$(cd /tmp/drive && git log -1 --format="%ct")
+          NOW_TS=$(date +%s)
+          AGE_HOURS=$(( (NOW_TS - LAST_COMMIT_TS) / 3600 ))
+          echo "Drive last synced: ${AGE_HOURS}h ago"
+          if [ "$AGE_HOURS" -gt 48 ]; then
+            echo "::error::manus-persistent-drive is STALE: last synced ${AGE_HOURS}h ago (threshold: 48h). Run pnpm drive:sync."
+            exit 1
+          else
+            echo "Drive is fresh (${AGE_HOURS}h < 48h threshold)."
+          fi
