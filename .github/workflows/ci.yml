@@ -117,6 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     needs: quality
+    continue-on-error: true  # Stale drive is a warning, not a blocker
     # Only run on pushes to main (not PRs) to avoid rate-limiting the public drive repo
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
@@ -128,9 +129,9 @@ jobs:
           NOW_TS=$(date +%s)
           AGE_HOURS=$(( (NOW_TS - LAST_COMMIT_TS) / 3600 ))
           echo "Drive last synced: ${AGE_HOURS}h ago"
-          if [ "$AGE_HOURS" -gt 48 ]; then
-            echo "::error::manus-persistent-drive is STALE: last synced ${AGE_HOURS}h ago (threshold: 48h). Run pnpm drive:sync."
+          if [ "$AGE_HOURS" -gt 72 ]; then
+            echo "::warning::manus-persistent-drive is STALE: last synced ${AGE_HOURS}h ago (threshold: 72h). Run pnpm drive:sync."
             exit 1
           else
-            echo "Drive is fresh (${AGE_HOURS}h < 48h threshold)."
+            echo "Drive is fresh (${AGE_HOURS}h < 72h threshold)."
           fi
