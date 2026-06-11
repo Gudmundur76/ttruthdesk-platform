@@ -14,7 +14,7 @@
 
 import { getDb } from "./db";
 import { graphClaimEdges } from "../drizzle/schema";
-import { eq, or, desc, gte, and, inArray } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
