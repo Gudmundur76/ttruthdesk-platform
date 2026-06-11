@@ -1,0 +1,55 @@
+# CodeRabbit configuration for ttruthdesk-platform
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: "en-US"
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+
+  path_instructions:
+    - path: "server/**/*.ts"
+      instructions: |
+        This is the ttruthdesk scientific claim verification engine. Review for:
+        1. No stub/placeholder implementations — all functions must be complete
+        2. All database queries use Drizzle ORM correctly — no raw SQL strings
+        3. No hardcoded secrets, API keys, or credentials
+        4. Input validation on all public API endpoints (Zod schemas)
+        5. No N+1 query patterns — use batch queries or joins
+        6. All async functions have proper error handling
+        7. Claim verification logic must not silently fail — errors must propagate
+        8. No console.log in production code — use structured logging
+        9. Test coverage required for all new functions
+
+    - path: "server/**/*.test.ts"
+      instructions: |
+        Review for:
+        1. Tests assert actual verification behavior, not just that functions exist
+        2. No skipped tests without explanation
+        3. Database tests use proper test isolation
+        4. Mock data reflects real claim/verdict structure
+        5. Edge cases: empty corpus, network failures, malformed input
+
+    - path: "drizzle/schema.ts"
+      instructions: |
+        Review for:
+        1. All new columns have appropriate types and constraints
+        2. Foreign key relationships are correct
+        3. Indexes exist for columns used in WHERE clauses
+        4. No breaking changes to existing column types without migration
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+
+chat:
+  auto_reply: true
