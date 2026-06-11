@@ -748,7 +748,12 @@ export async function getRecentVerifiedClaims(limit = 200) {
     })
     .from(claims)
     .innerJoin(documents, eq(claims.documentId, documents.id))
-    .where(and(isNotNull(claims.verdict), eq(documents.status, "complete")))
+    .where(and(
+      isNotNull(claims.verdict),
+      eq(documents.status, "complete"),
+      // Exclude trivially short entity-only extractions (no real claim sentence)
+      sql`LENGTH(${claims.claimText}) >= 15`,
+    ))
     .orderBy(desc(claims.createdAt))
     .limit(limit);
   return rows;
@@ -1547,6 +1552,9 @@ export async function getPaginatedPublicClaims(opts: {
   // Build WHERE conditions
   const conditions = [
     sql`${claims.verdict} IS NOT NULL AND ${claims.verdict} != ''`,
+    // Exclude claims with empty or trivially short claim text (entity-only extractions)
+    // A real claim sentence needs at least 15 characters
+    sql`LENGTH(${claims.claimText}) >= 15`,
   ];
   if (opts.verdict) conditions.push(sql`${claims.verdict} = ${opts.verdict}`);
   if (opts.claimType)
