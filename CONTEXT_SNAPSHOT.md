@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-10T23:16:49.104Z
+> **Generated:** 2026-06-11T00:03:56.308Z
 > **Branch:** main
-> **Last commit:** 25d7be1 chore: update context snapshot — force new publish checkpoint
+> **Last commit:** b82351a feat: Phase 97 CopilotKit removal and native chat.query tRPC procedure
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -295,8 +295,8 @@ clean
 **Tests:**
 
 ```
-Start at  23:16:50
-   Duration  9.08s (transform 2.50s, setup 0ms, collect 9.16s, tests 18.66s, environment 14ms, prepare 4.92s)
+Start at  00:03:57
+   Duration  9.03s (transform 2.54s, setup 0ms, collect 9.59s, tests 18.43s, environment 14ms, prepare 4.89s)
 ```
 
 **Lint:**
@@ -326,6 +326,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+b82351a feat: Phase 97 CopilotKit removal and native chat.query tRPC procedure
 25d7be1 chore: update context snapshot — force new publish checkpoint
 d0cfa08 feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
 ce1ef58 temp: remove ci.yml for push
@@ -335,32 +336,12 @@ d6a07ba feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature
 da3bf8e fix(test): inject placeholder OPENROUTER_API_KEY in swarm.test.ts for CI
 526ae50 fix(ci): let packageManager field own pnpm version, remove explicit version: 9
 d3ce6c3 fix(ci): move pnpm install before setup-node, add Node 24 opt-in
-381a21f chore: restore ci.yml locally (push requires GitHub workflows permission)
 ```
 
 **Uncommitted changes:**
 
 ```
 M  CONTEXT_SNAPSHOT.md
-M  client/index.html
-M  client/public/robots.txt
-M  client/src/App.tsx
-D  client/src/components/CopilotRenderers.tsx
-M  client/src/components/DashboardLayout.tsx
-D  client/src/components/ExampleQueryCarousel.tsx
-M  client/src/components/TopNav.tsx
-M  client/src/const.ts
-M  client/src/index.css
-A  client/src/pages/ChatPage.tsx
-M  client/src/pages/Home.tsx
-M  feature_list.json
-M  package.json
-M  pnpm-lock.yaml
-M  server/_core/index.ts
-D  server/copilotRuntime.ts
-M  server/routers.ts
-M  todo.md
-M  vite.config.ts
 ```
 
 ---

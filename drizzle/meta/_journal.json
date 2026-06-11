@@ -246,6 +246,62 @@
       "when": 1780951918227,
       "tag": "0034_ambitious_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1781182994077,
+      "tag": "0035_easy_red_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1781183260190,
+      "tag": "0036_lethal_supreme_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1781183815383,
+      "tag": "0037_purple_agent_zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1781184236215,
+      "tag": "0038_lean_dazzler",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1781194130255,
+      "tag": "0039_aspiring_cammi",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1781196130452,
+      "tag": "0040_greedy_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1781198263863,
+      "tag": "0041_fat_silverclaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1781199620477,
+      "tag": "0042_lucky_ultimo",
+      "breakpoints": true
     }
   ]
 }

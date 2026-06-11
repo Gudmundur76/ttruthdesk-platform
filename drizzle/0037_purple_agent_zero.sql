@@ -1,0 +1,1 @@
+ALTER TABLE `claims` ADD `misrepresentationType` enum('amplification','selective_omission','scope_drift','causal_overclaim','fabrication','none','unknown');

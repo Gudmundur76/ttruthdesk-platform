@@ -69,6 +69,16 @@ interface PreflightClaim {
 
 type RecommendedAction = "execute" | "ask_user" | "reject" | "reframe";
 
+interface PriorGraphSignal {
+  claimId: number;
+  claimText: string;
+  documentTitle: string;
+  compositeTruthLabel: string | null;
+  compositeTruthScore: number | null;
+  upstreamVerdict: string | null;
+  edgeWeight: number;
+}
+
 interface FrictionEngineResult {
   surface_request: string;
   inferred_intent: string;
@@ -85,6 +95,7 @@ interface FrictionEngineResult {
   likelyContradicted: number;
   outOfScope: number;
   opinionOrNarrative: number;
+  priorGraphSignals: PriorGraphSignal[];
   durationMs: number;
 }
 
@@ -512,6 +523,53 @@ export function PreflightModal({ open, text, onClose, onProceed }: PreflightModa
             )}
           </div>
         )}
+
+            {/* ── Prior graph signals ── */}
+            {result?.priorGraphSignals && result.priorGraphSignals.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Graph Memory — Similar Claims Already Validated
+                </p>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {result.priorGraphSignals.map((sig, idx) => {
+                    const score = sig.compositeTruthScore != null
+                      ? Math.round(sig.compositeTruthScore * 100)
+                      : null;
+                    const labelColor =
+                      sig.compositeTruthLabel === "verified_faithful" ? "text-green-400"
+                      : sig.compositeTruthLabel === "contradicted" || sig.compositeTruthLabel === "contradicted_amplified" ? "text-red-400"
+                      : sig.compositeTruthLabel === "partially_supported" || sig.compositeTruthLabel === "contested" ? "text-yellow-400"
+                      : "text-muted-foreground";
+                    return (
+                      <div key={idx} className="p-3 rounded-lg border border-border/40 bg-muted/10">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="text-xs text-foreground/80 leading-snug flex-1">
+                            {sig.claimText.length > 120
+                              ? sig.claimText.slice(0, 120) + "…"
+                              : sig.claimText}
+                          </p>
+                          {score !== null && (
+                            <span className={`text-xs font-bold shrink-0 ${labelColor}`}>
+                              {score}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {sig.compositeTruthLabel && (
+                            <span className={`text-[10px] font-medium uppercase tracking-wide ${labelColor}`}>
+                              {sig.compositeTruthLabel.replace(/_/g, " ")}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            from: {sig.documentTitle.length > 40 ? sig.documentTitle.slice(0, 40) + "…" : sig.documentTitle}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
         <DialogFooter className="gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>

@@ -1018,6 +1018,24 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Contradiction Alerts */}
+      <div className="bg-slate-50 rounded-xl border border-border p-5">
+        <h2 className="font-semibold text-slate-900 mb-2">
+          Contradiction Alerts
+        </h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Review claim pairs where the composite truth engine has assigned
+          opposing labels (e.g. verified_faithful vs contradicted) via graph
+          traversal. Alerts are detected weekly by the autonomous loop and can
+          be resolved or dismissed inline.
+        </p>
+        <a
+          href="/admin/contradictions"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Open Contradiction Alerts
+        </a>
+      </div>
       {/* Vertical Expansion Wizard */}
       <div className="bg-slate-50 rounded-xl border border-border p-5">
         <h2 className="font-semibold text-slate-900 mb-2">

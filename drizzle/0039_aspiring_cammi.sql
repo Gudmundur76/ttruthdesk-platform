@@ -1,0 +1,2 @@
+ALTER TABLE `claims` ADD `compositeTruthScore` float;--> statement-breakpoint
+ALTER TABLE `claims` ADD `compositeTruthLabel` enum('verified_faithful','verified_distorted','contradicted','contradicted_amplified','partially_supported','contested','insufficient_evidence','out_of_scope');

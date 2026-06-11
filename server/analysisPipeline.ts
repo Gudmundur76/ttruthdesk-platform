@@ -16,6 +16,8 @@ import {
   updateClaimVerdict,
 } from "./db";
 import { extractClaims, getActiveLLMProvider } from "./claimExtractor";
+import { extractPassageForClaim } from "./passageExtractor";
+import { classifyMisrepresentation } from "./misrepresentationClassifier";
 import {
   verdictForClaim,
   type VerdictResult,
@@ -54,6 +56,8 @@ import {
 import { recordModelUsage } from "./llmProviderQuality";
 import { runSelfPromptCycle } from "./selfPrompt/engine";
 import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
+import { analyzeCitationChain } from "./citationChainAnalyzer";
+import { computeCompositeTruth } from "./compositeTruthEngine";
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -229,6 +233,54 @@ export async function runAnalysisPipeline(
             verdictMethod: decision?.method ?? "fallback",
             sourceCompletenessScore: decision?.sourceCompletenessScore ?? 1.0,
           });
+          // ── Phase 100: Passage-level extraction (Citation-first) ────────
+          // Non-fatal: if extraction fails the verdict is still persisted.
+          // We fire this as a background task so it never blocks the pipeline.
+          if (rawText && rawText.length > 20) {
+            extractPassageForClaim(claim.claimText, rawText)
+              .then(async passage => {
+                if (passage) {
+                  await updateClaimVerdict(claim.id, {
+                    sourcePassage: passage.sourcePassage,
+                    passageConfidence: passage.passageConfidence,
+                    passageStartChar: passage.passageStartChar,
+                    passageEndChar: passage.passageEndChar,
+                  });
+                  // ── Phase 101: Misrepresentation classification ─────────
+                  // Fires only for Contradicted / Partially Supported verdicts
+                  // after the source passage is available.
+                  const misrep = await classifyMisrepresentation(
+                    claim.claimText,
+                    auditedVerdict,
+                    passage.sourcePassage
+                  );
+                  if (misrep) {
+                    await updateClaimVerdict(claim.id, {
+                      misrepresentationType: misrep.misrepresentationType,
+                    });
+                  }
+                } else {
+                  // No passage found — still attempt misrepresentation classification
+                  // using the raw text as fallback context (lower quality but better than nothing)
+                  const misrep = await classifyMisrepresentation(
+                    claim.claimText,
+                    auditedVerdict,
+                    null
+                  );
+                  if (misrep) {
+                    await updateClaimVerdict(claim.id, {
+                      misrepresentationType: misrep.misrepresentationType,
+                    });
+                  }
+                }
+              })
+              .catch(e =>
+                console.warn(
+                  `[PassageExtractor] Claim ${claim.id} passage extraction failed (non-fatal):`,
+                  e
+                )
+              );
+          }
           // ── Frontier Engine: Gap Detection Trigger ──────────────────────
           // When a claim returns "Insufficient Evidence", the Frontier Engine
           // detects the gap and queues evidence pursuit.
@@ -512,6 +564,146 @@ export async function runAnalysisPipeline(
       }
     })().catch(vecErr =>
       console.warn("[TurboVec] Auto-index IIFE error (non-fatal):", vecErr)
+    );
+    // ── Phase 102: Citation Chain Analysis ────────────────────────────────────
+    // After all per-claim tasks complete, fire citation chain analysis for the
+    // document as a whole. Requires a PubMed ID on the document record.
+    // Non-fatal fire-and-forget.
+    (async () => {
+      try {
+        const chainDoc = await getDocumentById(documentId);
+        const sourcePmid = (chainDoc as Record<string, unknown>)?.pubmedId as
+          | string
+          | undefined;
+        if (!sourcePmid) return; // No PMID — skip chain analysis
+
+        const chainClaims = await getClaimsByDocument(documentId);
+        const firstClaim = chainClaims[0];
+        if (!firstClaim) return;
+
+        await analyzeCitationChain({
+          documentId,
+          sourcePmid,
+          sourceTitle: chainDoc?.title ?? undefined,
+          originalClaimId: firstClaim.id,
+          originalClaimText: firstClaim.claimText,
+          maxHops: 10,
+        });
+
+        console.log(
+          `[CitationChain] Chain analysis complete for doc ${documentId} (PMID ${sourcePmid})`
+        );
+      } catch (chainErr) {
+        console.warn(
+          "[CitationChain] Chain analysis error (non-fatal):",
+          chainErr
+        );
+      }
+    })().catch(chainErr =>
+      console.warn(
+        "[CitationChain] Chain analysis IIFE error (non-fatal):",
+        chainErr
+      )
+    );
+
+    // ── Phase 103: Stage 7 — Composite Truth Signal ───────────────────────────
+    // Runs after citation chain analysis is queued (chain data may not be ready
+    // yet for brand-new documents, but we compute an initial composite signal
+    // from the upstream verdict + provenance alone, and the autonomous re-eval
+    // loop will recompute once chain data arrives).
+    // Non-fatal fire-and-forget.
+    (async () => {
+      try {
+        const { getCitationChainStats } = await import(
+          "./citationChainAnalyzer"
+        );
+        const compositeDoc = await getDocumentById(documentId);
+        const compositeClaims = await getClaimsByDocument(documentId);
+
+        // Fetch chain stats for this document (may be empty if no PMID)
+        const chainStats = await getCitationChainStats(documentId);
+
+        for (const claim of compositeClaims) {
+          if (!claim.verdict) continue; // Skip unvalidated claims
+
+          const result = computeCompositeTruth({
+            upstreamVerdict:
+              claim.verdict as import("./compositeTruthEngine").UpstreamVerdict,
+            provenanceScore:
+              ((claim as Record<string, unknown>).provenanceScore as
+                | number
+                | null) ?? null,
+            chainDistortionScore:
+              chainStats.totalCitingPapers > 0
+                ? chainStats.maxDistortionScore
+                : null,
+            chainHopCount:
+              chainStats.totalCitingPapers > 0
+                ? chainStats.totalCitingPapers
+                : null,
+          });
+
+          await updateClaimVerdict(claim.id, {
+            compositeTruthScore: result.score,
+            compositeTruthLabel: result.label,
+          });
+        }
+
+        console.log(
+          `[CompositeTruth] Stage 7 complete for doc ${documentId}: ${compositeClaims.length} claims scored`
+        );
+        void compositeDoc; // suppress unused warning
+      } catch (compErr) {
+        console.warn("[CompositeTruth] Stage 7 error (non-fatal):", compErr);
+      }
+    })().catch(compErr =>
+      console.warn("[CompositeTruth] Stage 7 IIFE error (non-fatal):", compErr)
+    );
+
+    // ── Phase 106: Stage 8 — Knowledge Graph Edge Population ─────────────────
+    // After composite truth signals are written, insert semantic_similar edges
+    // between claims in this document and existing claims with matching entities.
+    // This makes the graph grow with every submission and feeds the re-evaluation
+    // loop with richer signal on the next 6-hour tick.
+    // Non-fatal fire-and-forget — graph edges are advisory, not required.
+    (async () => {
+      try {
+        const { insertGraphClaimEdge, findClaimsByTextSimilarity } =
+          await import("./graphTraversal");
+        const stageClaims = await getClaimsByDocument(documentId);
+
+        let edgesCreated = 0;
+        for (const claim of stageClaims) {
+          if (!claim.claimText || !claim.verdict) continue;
+
+          // Find existing claims with similar text (top 3, excluding self)
+          const similar = await findClaimsByTextSimilarity(
+            claim.claimText,
+            { limit: 3, minScore: 0.6 }
+          );
+
+          for (const match of similar) {
+            if (match.claimId === claim.id) continue;
+            await insertGraphClaimEdge({
+              sourceClaimId: claim.id,
+              targetClaimId: match.claimId,
+              relationType: "semantic_similar",
+              weight: match.edgeWeight ?? 0.5,
+            });
+            edgesCreated++;
+          }
+        }
+
+        if (edgesCreated > 0) {
+          console.log(
+            `[GraphEdges] Stage 8 complete for doc ${documentId}: ${edgesCreated} semantic_similar edge(s) created`
+          );
+        }
+      } catch (graphErr) {
+        console.warn("[GraphEdges] Stage 8 error (non-fatal):", graphErr);
+      }
+    })().catch(graphErr =>
+      console.warn("[GraphEdges] Stage 8 IIFE error (non-fatal):", graphErr)
     );
   } catch (err) {
     console.error("[Pipeline] Error:", err);

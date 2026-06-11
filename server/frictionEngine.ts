@@ -27,6 +27,7 @@
  */
 
 import { invokeMultiLLM } from "./_core/multiLLM";
+import { findClaimsByTextSimilarity, type ClaimSignal } from "./graphTraversal";
 
 // ─── Types — Full Paper JSON Schema ──────────────────────────────────────────
 
@@ -91,6 +92,11 @@ export interface FrictionEngineResult {
   opinionOrNarrative: number;
 
   // ── Meta ────────────────────────────────────────────────────────────────────
+  // ── Graph-backed prior signals ──────────────────────────────────────────────────────
+  // Top-5 semantically similar claims already in the knowledge graph,
+  // with their composite truth signals. Empty array if graph has no matches.
+  priorGraphSignals: ClaimSignal[];
+
   durationMs: number;
 }
 
@@ -349,6 +355,21 @@ export async function runPreflightScan(text: string): Promise<FrictionEngineResu
     recommended_action = "ask_user";
   }
 
+  // ── Stage 7.5: Query knowledge graph for prior composite signals ─────────────
+  // Non-fatal: if graph is empty or DB unavailable, priorGraphSignals is []
+  const priorGraphSignals: ClaimSignal[] = await (async () => {
+    try {
+      const anchorClaim = claims.find(c => c.category === "database_verifiable");
+      if (!anchorClaim) return [];
+      return await findClaimsByTextSimilarity(anchorClaim.text, {
+        limit: 5,
+        minScore: 0.75,
+      });
+    } catch {
+      return [];
+    }
+  })();
+
   return {
     raw_prompt,
     surface_request: parsed.surface_request ?? "Audit this scientific document.",
@@ -371,6 +392,7 @@ export async function runPreflightScan(text: string): Promise<FrictionEngineResu
     likelyContradicted: counts.likely_contradicted,
     outOfScope: counts.out_of_scope,
     opinionOrNarrative: counts.opinion_or_narrative,
+    priorGraphSignals,
     durationMs: Date.now() - start,
   };
 }
@@ -480,6 +502,7 @@ function buildFallbackResult(raw_prompt: string, durationMs: number): FrictionEn
     likelyContradicted: 0,
     outOfScope: 0,
     opinionOrNarrative: 0,
+    priorGraphSignals: [],
     durationMs,
   };
 }

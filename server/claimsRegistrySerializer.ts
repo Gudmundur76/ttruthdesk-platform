@@ -48,6 +48,10 @@ export type ClaimRecord = {
   page_anchors: string[];
   /** ISO date this claim was first extracted */
   date_observed: string;
+  /** Phase 103: Composite truth label combining upstream verdict + provenance + citation chain */
+  composite_truth_label: string | null;
+  /** Phase 103: Composite truth score 0.0–1.0 (null = not yet computed) */
+  composite_truth_score: number | null;
 };
 
 export type ClaimsRegistry = {
@@ -151,6 +155,14 @@ export function serializeClaim(
       `${originBase}/audit/${documentId}#verdict-${verdictSlug}`,
     ],
     date_observed: new Date(claim.createdAt).toISOString(),
+    composite_truth_label:
+      ((claim as Record<string, unknown>).compositeTruthLabel as
+        | string
+        | null) ?? null,
+    composite_truth_score:
+      ((claim as Record<string, unknown>).compositeTruthScore as
+        | number
+        | null) ?? null,
   };
 }
 
@@ -170,7 +182,7 @@ export function buildDocumentRegistry(
     license: "https://creativecommons.org/licenses/by/4.0/",
     attribution: `Protein Truth Desk verifiable-claims registry for document "${doc.title}" (CC BY 4.0)`,
     count: claimRows.length,
-    claims: claimRows.map((c) => serializeClaim(c, doc.id, originBase)),
+    claims: claimRows.map(c => serializeClaim(c, doc.id, originBase)),
   };
 }
 

@@ -54,6 +54,7 @@ const CRON_DESCRIPTIONS: Record<string, string> = {
   "wiki-engine-lint-weekly": "Contradiction detection, orphan pages, stale claims, missing cross-refs, index rebuild.",
   "discovery-loop-daily": "Queries PubMed + bioRxiv + PDB simultaneously, applies signal-density gate, submits new papers.",
   "pubmed-decode-weekly": "deCODE Genetics-specific PubMed scan.",
+  "re-evaluate-composite-truth": "Autonomous re-evaluation loop: discovers claims with stale composite truth signals due to new citation edges, re-scores them deterministically via compositeTruthEngine, writes updated labels back. Idempotent — runs every 6 hours.",
 };
 
 function HistoryPanel({ jobName }: { jobName: string }) {

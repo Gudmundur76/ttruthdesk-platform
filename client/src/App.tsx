@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { MagicLinkDialog } from "@/components/MagicLinkDialog";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -73,6 +74,7 @@ const SourceWhitelist = lazy(() => import("@/pages/SourceWhitelist"));
 const AdminCrons = lazy(() => import("@/pages/AdminCrons"));
 const AdminVerticals = lazy(() => import("@/pages/AdminVerticals"));
 const AdminHarness = lazy(() => import("@/pages/AdminHarness"));
+const AdminContradictions = lazy(() => import("@/pages/admin/ContradictionAlerts"));
 const DeploymentDashboard = lazy(
   () => import("@/pages/admin/DeploymentDashboard")
 );
@@ -137,6 +139,7 @@ function Router() {
         <Route path="/admin/dream" component={DreamDashboard} />
         <Route path="/admin/sources" component={SourceWhitelist} />
         <Route path="/admin/crons" component={AdminCrons} />
+        <Route path="/admin/contradictions" component={AdminContradictions} />
         <Route path="/admin/verticals" component={AdminVerticals} />
         <Route path="/admin/deployments" component={DeploymentDashboard} />
         <Route path="/admin/discovery" component={DiscoveryPanel} />
@@ -156,11 +159,20 @@ function Router() {
 }
 
 function App() {
+  const [signInOpen, setSignInOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setSignInOpen(true);
+    window.addEventListener("open-sign-in-dialog", handler);
+    return () => window.removeEventListener("open-sign-in-dialog", handler);
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
+          <MagicLinkDialog open={signInOpen} onOpenChange={setSignInOpen} />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

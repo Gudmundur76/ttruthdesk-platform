@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, CheckCircle, XCircle, HelpCircle, ExternalLink, Copy, Share2, GitBranch, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { SimilarClaimsPanel } from "@/components/SimilarClaimsPanel";
+import { SparklineChart } from "@/components/SparklineChart";
 import { trpc } from "@/lib/trpc";
 
 // ─── Confidence Sparkline ─────────────────────────────────────────────────────
@@ -100,6 +101,70 @@ function ConfidenceSparkline({ claimId }: { claimId: number }) {
                   {(p.score * 100).toFixed(0)}%
                 </span>
                 <span className="text-slate-600">{new Date(p.recordedAt).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Composite Truth Timeline ────────────────────────────────────────────────
+
+function CompositeTruthTimeline({ claimId }: { claimId: number }) {
+  const { data: history, isLoading } = trpc.claims.getScoreHistory.useQuery(
+    { claimId, limit: 30 },
+    { staleTime: 60_000 }
+  );
+
+  if (isLoading) return <div className="h-12 animate-pulse bg-slate-800 rounded mb-6" />;
+  if (!history || history.length < 2) return null;
+
+  const latest = history[history.length - 1];
+  const latestScore = latest.compositeTruthScore;
+  const latestLabel = latest.compositeTruthLabel ?? undefined;
+  const scoreColor =
+    latestScore >= 0.7 ? "#22c55e" : latestScore >= 0.4 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <Card className="bg-slate-900/60 border-slate-700 mb-6">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
+          <GitBranch className="w-4 h-4" />
+          Composite Truth Timeline
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-end gap-4">
+          <SparklineChart
+            data={history.map(h => ({
+              compositeTruthScore: h.compositeTruthScore,
+              compositeTruthLabel: h.compositeTruthLabel,
+              snapshotAt: h.snapshotAt,
+            }))}
+            width={200}
+            height={40}
+            showLabels
+          />
+          <div className="space-y-1">
+            <div className="text-2xl font-bold" style={{ color: scoreColor }}>
+              {(latestScore * 100).toFixed(0)}%
+            </div>
+            <div className="text-xs text-slate-500 capitalize">
+              {latestLabel?.replace(/_/g, " ") ?? "unscored"}
+            </div>
+          </div>
+        </div>
+        {history.length > 1 && (
+          <div className="mt-3 space-y-1">
+            {([...history].reverse().slice(0, 5) as typeof history).map((h) => (
+              <div key={h.id} className="flex items-center justify-between text-xs text-slate-400">
+                <span className="capitalize">{h.triggerSource?.replace(/_/g, " ")}</span>
+                <span className="font-mono" style={{ color: h.compositeTruthScore >= 0.7 ? "#22c55e" : h.compositeTruthScore >= 0.4 ? "#f59e0b" : "#ef4444" }}>
+                  {(h.compositeTruthScore * 100).toFixed(0)}%
+                </span>
+                <span className="text-slate-600">{new Date(h.snapshotAt).toLocaleDateString()}</span>
               </div>
             ))}
           </div>
@@ -365,6 +430,9 @@ export default function ClaimPage() {
 
         {/* Confidence trend sparkline */}
         <ConfidenceSparkline claimId={data.claim.id} />
+
+        {/* Composite Truth Timeline — Phase 108 */}
+        <CompositeTruthTimeline claimId={data.claim.id} />
 
         {/* Source document */}
         <Card className="bg-slate-900/60 border-slate-700 mb-6">

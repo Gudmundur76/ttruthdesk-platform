@@ -45,6 +45,8 @@ import {
   PredictionModel,
   webhookAlerts,
   overrideAuditLog,
+  claimScoreHistory,
+  ClaimScoreHistory,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -382,6 +384,16 @@ export async function updateClaimVerdict(
     pdbEvidenceCheckedAt?: Date;
     verdictMethod?: string;
     sourceCompletenessScore?: number;
+    // Phase 100: passage-level extraction
+    sourcePassage?: string | null;
+    passageConfidence?: number | null;
+    passageStartChar?: number | null;
+    passageEndChar?: number | null;
+    // Phase 101: misrepresentation classification
+    misrepresentationType?: string | null;
+    // Phase 103: composite truth signal
+    compositeTruthScore?: number | null;
+    compositeTruthLabel?: string | null;
   }
 ) {
   const db = await getDb();
@@ -394,6 +406,10 @@ export async function updateClaimVerdict(
     pdbEvidenceCheckedAt,
     verdictMethod,
     sourceCompletenessScore,
+    sourcePassage,
+    passageConfidence,
+    passageStartChar,
+    passageEndChar,
   } = update;
   const setData: Record<string, unknown> = {};
   if (verdict !== undefined) setData.verdict = verdict;
@@ -406,6 +422,18 @@ export async function updateClaimVerdict(
   if (verdictMethod !== undefined) setData.verdictMethod = verdictMethod;
   if (sourceCompletenessScore !== undefined)
     setData.sourceCompletenessScore = sourceCompletenessScore;
+  if (sourcePassage !== undefined) setData.sourcePassage = sourcePassage;
+  if (passageConfidence !== undefined)
+    setData.passageConfidence = passageConfidence;
+  if (passageStartChar !== undefined)
+    setData.passageStartChar = passageStartChar;
+  if (passageEndChar !== undefined) setData.passageEndChar = passageEndChar;
+  if (update.misrepresentationType !== undefined)
+    setData.misrepresentationType = update.misrepresentationType;
+  if (update.compositeTruthScore !== undefined)
+    setData.compositeTruthScore = update.compositeTruthScore;
+  if (update.compositeTruthLabel !== undefined)
+    setData.compositeTruthLabel = update.compositeTruthLabel;
   if (Object.keys(setData).length > 0) {
     await db
       .update(claims)
@@ -1606,4 +1634,53 @@ export async function getAllClaimIndexRows(limit = 10000) {
     .orderBy(desc(claims.updatedAt), desc(claims.id))
     .limit(limit);
   return rows;
+}
+
+// ─── Claim Score History ──────────────────────────────────────────────────────
+
+/**
+ * Fetch the composite truth score history for a single claim.
+ * Returns up to `limit` rows ordered oldest-first (for sparkline rendering).
+ */
+export async function getClaimScoreHistory(
+  claimId: number,
+  limit = 30
+): Promise<ClaimScoreHistory[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(claimScoreHistory)
+    .where(eq(claimScoreHistory.claimId, claimId))
+    .orderBy(asc(claimScoreHistory.snapshotAt))
+    .limit(limit);
+}
+
+/**
+ * Insert a score snapshot for a claim.
+ * Uses onDuplicateKeyUpdate to handle the rare case where two snapshots
+ * land in the same second (unique index on claimId + snapshotAt).
+ */
+export async function insertClaimScoreSnapshot(
+  claimId: number,
+  score: number,
+  label: string | null,
+  triggerSource: string = "pipeline"
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(claimScoreHistory)
+    .values({
+      claimId,
+      compositeTruthScore: score,
+      compositeTruthLabel: label,
+      triggerSource,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        compositeTruthScore: score,
+        compositeTruthLabel: label,
+      },
+    });
 }

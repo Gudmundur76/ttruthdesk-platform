@@ -3,8 +3,7 @@
  * ttruthdesk.claims is an internal tool. No public marketing links.
  */
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useState } from "react";
-import { MagicLinkDialog } from "@/components/MagicLinkDialog";
+import { openSignInDialog } from "@/const";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
@@ -31,7 +30,6 @@ const ADMIN_NAV_LINKS = [
 export function TopNav() {
   const { user, isAuthenticated } = useAuth();
   const [location] = useLocation();
-  const [showSignIn, setShowSignIn] = useState(false);
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
       window.location.href = "/";
@@ -141,15 +139,12 @@ export function TopNav() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <>
-              <button
-                onClick={() => setShowSignIn(true)}
-                className="px-3 py-1.5 rounded-md text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-              >
-                Sign in
-              </button>
-              <MagicLinkDialog open={showSignIn} onOpenChange={setShowSignIn} />
-            </>
+            <button
+              onClick={() => openSignInDialog()}
+              className="px-3 py-1.5 rounded-md text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              Sign in
+            </button>
           )}
         </div>
       </div>

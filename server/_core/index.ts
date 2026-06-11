@@ -1591,6 +1591,98 @@ async function startServer() {
     }
   );
 
+  // ─── Autonomous Re-evaluation Loop (Phase 105) ────────────────────────────
+  //
+  // Triggered by heartbeat cron (every 6 hours). Discovers all claims whose
+  // composite truth signals are stale because new citation edges have been
+  // written since the last run, then re-scores them deterministically.
+  // Idempotent: running twice produces the same result as running once.
+  app.post(
+    "/api/scheduled/re-evaluate",
+    requireCronOrAdmin,
+    async (req, res) => {
+      try {
+        const { runReEvaluationLoop } = await import("../reEvaluationEngine");
+        const { withCronLog } = await import("../cronRunLogger");
+
+        const lookbackHours = Math.min(
+          parseInt(String(req.body?.lookbackHours ?? "24"), 10) || 24,
+          168 // max 7 days
+        );
+        const batchSize = Math.min(
+          parseInt(String(req.body?.batchSize ?? "500"), 10) || 500,
+          2000
+        );
+        // Optional explicit document IDs (for targeted re-evaluation)
+        const documentIds: number[] | undefined =
+          Array.isArray(req.body?.documentIds) &&
+          req.body.documentIds.length > 0
+            ? (req.body.documentIds as unknown[]).map(Number).filter(n => !isNaN(n))
+            : undefined;
+
+        const result = await withCronLog(
+          "re-evaluate-composite-truth",
+          async () => {
+            const r = await runReEvaluationLoop({
+              lookbackHours,
+              batchSize,
+              documentIds,
+            });
+            return (
+              `Examined ${r.claimsExamined} claims across ${r.affectedDocuments} documents: ` +
+              `${r.claimsUpdated} updated, ${r.claimsUnchanged} unchanged, ` +
+              `${r.claimsErrored} errors — ${r.durationMs}ms`
+            );
+          }
+        );
+
+        res.json({
+          ok: result.status === "ok",
+          status: result.status,
+          summary: result.summary,
+          durationMs: result.durationMs,
+        });
+      } catch (err) {
+        console.error("[ReEval] Scheduled re-evaluation failed:", err);
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    }
+  );
+
+
+  // ── Phase 107: Contradiction Detection Engine ──────────────────────────────
+  //
+  // Triggered by heartbeat cron (weekly). Traverses semantic_similar edges in
+  // graph_claim_edges and flags claim pairs where one side is verified_faithful
+  // or partially_supported and the other is contradicted / contradicted_amplified.
+  // Persists findings to contradiction_alerts idempotently.
+  app.post(
+    "/api/scheduled/contradiction-scan",
+    requireCronOrAdmin,
+    async (req, res) => {
+      try {
+        const { runContradictionScan } = await import("../contradictionDetector");
+        const batchSize = Math.min(
+          parseInt(String(req.body?.batchSize ?? "500"), 10) || 500,
+          2000
+        );
+        const result = await runContradictionScan(batchSize);
+        res.json({
+          ok: result.errors === 0,
+          pairsScanned: result.pairsScanned,
+          newAlerts: result.newAlerts,
+          updatedAlerts: result.updatedAlerts,
+          skippedResolved: result.skippedResolved,
+          errors: result.errors,
+          durationMs: result.durationMs,
+        });
+      } catch (err) {
+        console.error("[ContradictionScan] Scheduled scan failed:", err);
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    }
+  );
+
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
   // Admin re-process: re-runs the analysis pipeline on all failed documents
   app.post(
