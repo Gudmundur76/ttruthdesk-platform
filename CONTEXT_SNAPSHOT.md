@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-11T00:03:56.308Z
+> **Generated:** 2026-06-11T20:23:43.231Z
 > **Branch:** main
-> **Last commit:** b82351a feat: Phase 97 CopilotKit removal and native chat.query tRPC procedure
+> **Last commit:** [33m1450b58[m chore: restore ci.yml — GitHub Actions Drive Staleness workflow
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -24,8 +24,8 @@
 
 ## 📋 Current Work Status
 
-**Current phase:** Phase 97: CopilotKit Removal + Native chat.query
-**Todo progress:** 914 done / 0 remaining
+**Current phase:** Phase 108: Claim Confidence Timeline
+**Todo progress:** 1008 done / 0 remaining
 
 **Uncompleted items:**
 _none_
@@ -36,7 +36,7 @@ _No session audit result found. Run `pnpm session:audit` to check._
 
 ## 🗄️ Database Schema
 
-**Tables (48 total):**
+**Tables (55 total):**
 
 - `users`
 - `documents`
@@ -86,6 +86,13 @@ _No session audit result found. Run `pnpm session:audit` to check._
 - `sourceRegistryEntries`
 - `savedResearch`
 - `publicSubmissions`
+- `siaGenerations`
+- `siaImprovementProposals`
+- `citationEdges`
+- `graphClaimEdges`
+- `contradictionAlerts`
+- `claimScoreHistory`
+- `citations`
 
 Schema file: `drizzle/schema.ts`
 Migrations: `drizzle/migrations/`
@@ -93,9 +100,9 @@ DB helpers: `server/db.ts`
 
 ---
 
-## 🔌 tRPC Procedures (164 total)
+## 🔌 tRPC Procedures (172 total)
 
-`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats`, `listAll`, `detail`, `list` ... and 124 more
+`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `getScoreHistory`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `priorSignals`, `claimSubgraph`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats` ... and 132 more
 
 Router file: `server/routers.ts`
 
@@ -114,6 +121,7 @@ Router file: `server/routers.ts`
 - `server/backfillWikiRoute.ts`
 - `server/badgeRoute.ts`
 - `server/batchAuditRouter.ts`
+- `server/citationChainAnalyzer.ts`
 - `server/claimExtractor.ts`
 - `server/claimPageRoute.ts`
 - `server/claimProvenanceService.ts`
@@ -123,7 +131,9 @@ Router file: `server/routers.ts`
 - `server/claimsRoutes.ts`
 - `server/clinicalTrialsAdapter.ts`
 - `server/completenessCheck.ts`
+- `server/compositeTruthEngine.ts`
 - `server/confidenceTrendService.ts`
+- `server/contradictionDetector.ts`
 - `server/coordApi.ts`
 - `server/coordQueueDrainer.ts`
 - `server/cronRunLogger.ts`
@@ -137,6 +147,8 @@ Router file: `server/routers.ts`
 - `server/europePmcAdapter.ts`
 - `server/exportRouter.ts`
 - `server/frictionEngine.ts`
+- `server/graphTraversal.ts`
+- `server/heartbeatRegistrar.ts`
 - `server/hostingerWebhook.ts`
 - `server/jwksKeys.ts`
 - `server/jwtSigner.ts`
@@ -145,9 +157,11 @@ Router file: `server/routers.ts`
 - `server/magicLink.ts`
 - `server/manusOrchestrator.ts`
 - `server/micronDeploy.ts`
+- `server/misrepresentationClassifier.ts`
 - `server/monitoringJob.ts`
 - `server/openfdaAdapter.ts`
 - `server/orchestratorTickJob.ts`
+- `server/passageExtractor.ts`
 - `server/paypalCheckout.ts`
 - `server/pdbAdapter.ts`
 - `server/pdfReportGenerator.ts`
@@ -159,10 +173,12 @@ Router file: `server/routers.ts`
 - `server/pubmedIngestJob.ts`
 - `server/qualityPassJob.ts`
 - `server/qualityScorerJob.ts`
+- `server/reEvaluationEngine.ts`
 - `server/reportGenerator.ts`
 - `server/routers.ts`
 - `server/searchEngine.ts`
 - `server/seedKnowledgeGraph.ts`
+- `server/siaHarnessRouter.ts`
 - `server/sitemapRoute.ts`
 - `server/sourceRegistry.ts`
 - `server/storage.ts`
@@ -243,18 +259,8 @@ Routes registered in: `client/src/App.tsx`
 ## ⏱️ Heartbeat Jobs (Scheduled)
 
 ```
-"name": "self-prompt-2h",
-      "name": "meta-agent-daily",
-      "name": "inverse-prompt-daily",
-      "name": "quality-scorer-6h",
-      "name": "quality-pass-nightly",
-      "name": "pmc-feed-nightly",
-      "name": "autonomous-loop-tick",
-      "name": "frontier-engine",
-      "name": "swarm-tick-daily",
-      "name": "wiki-engine-lint-weekly",
-      "name": "discovery-loop-daily",
-      "name": "pubmed-decode-weekly",
+"name": "citation-is-warmup",
+      "name": "claim-digest-hourly",
 ```
 
 Scheduled endpoints in: `server/_core/index.ts` (search for `/api/scheduled/`)
@@ -295,14 +301,14 @@ clean
 **Tests:**
 
 ```
-Start at  00:03:57
-   Duration  9.03s (transform 2.54s, setup 0ms, collect 9.59s, tests 18.43s, environment 14ms, prepare 4.89s)
+Start at  20:23:44
+   Duration  9.47s (transform 2.65s, setup 0ms, collect 10.81s, tests 16.71s, environment 16ms, prepare 5.64s)
 ```
 
 **Lint:**
 
 ```
-✖ 43 problems (0 errors, 43 warnings)
+✖ 49 problems (0 errors, 49 warnings)
   0 errors and 1 warning potentially fixable with the `--fix` option.
 ```
 
@@ -326,22 +332,24 @@ unknown
 ## 📝 Recent Git History
 
 ```
-b82351a feat: Phase 97 CopilotKit removal and native chat.query tRPC procedure
-25d7be1 chore: update context snapshot — force new publish checkpoint
-d0cfa08 feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
-ce1ef58 temp: remove ci.yml for push
-0d28b9c feat(meta-agent): session governance script + drive staleness CI check
-d6a07ba feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature:sync in pre-commit
-405d5ec feat(phase-92): feature_list.json contract + agent_tools.ts API wrappers
-da3bf8e fix(test): inject placeholder OPENROUTER_API_KEY in swarm.test.ts for CI
-526ae50 fix(ci): let packageManager field own pnpm version, remove explicit version: 9
-d3ce6c3 fix(ci): move pnpm install before setup-node, add Node 24 opt-in
+[33m1450b58[m chore: restore ci.yml — GitHub Actions Drive Staleness workflow
+[33m6b88c58[m chore: remove ci.yml for GitHub push (no workflows permission)
+[33meaed2be[m fix: remove unused drizzle-orm imports in graphTraversal.ts
+[33m4ea9087[m feat: Phase 105-108 — re-evaluation loop, contradiction detection, score history, heartbeat registration
+[33mb82351a[m feat: Phase 97 CopilotKit removal and native chat.query tRPC procedure
+[33m25d7be1[m chore: update context snapshot — force new publish checkpoint
+[33md0cfa08[m feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
+[33mce1ef58[m temp: remove ci.yml for push
+[33m0d28b9c[m feat(meta-agent): session governance script + drive staleness CI check
+[33md6a07ba[m feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature:sync in pre-commit
 ```
 
 **Uncommitted changes:**
 
 ```
-M  CONTEXT_SNAPSHOT.md
+[32mM[m  drizzle/schema.ts
+[32mM[m  server/db.ts
+[32mM[m  server/routers.ts
 ```
 
 ---
@@ -376,3 +384,5 @@ pnpm stubs          # Run stub tracker
 ---
 
 _This file is auto-generated by `pnpm context:snapshot`. Regenerate after major changes._
+
+# Phase C1 sync — 2026-06-11T20:41:02Z
