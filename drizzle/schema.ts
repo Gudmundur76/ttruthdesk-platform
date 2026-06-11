@@ -2184,8 +2184,51 @@ export const claimScoreHistory = mysqlTable(
   t => ({
     claimIdIdx: index("csh_claim_id_idx").on(t.claimId),
     snapshotAtIdx: index("csh_snapshot_at_idx").on(t.snapshotAt),
-    uniqueSnapshot: uniqueIndex("csh_unique_snapshot").on(t.claimId, t.snapshotAt),
+    uniqueSnapshot: uniqueIndex("csh_unique_snapshot").on(
+      t.claimId,
+      t.snapshotAt
+    ),
   })
 );
 export type ClaimScoreHistory = typeof claimScoreHistory.$inferSelect;
 export type InsertClaimScoreHistory = typeof claimScoreHistory.$inferInsert;
+
+// ─── Citation Passage Extraction (Phase 96) ──────────────────────────────────
+
+export const CITATION_TYPES = [
+  "VERIFIED",
+  "CONTESTED",
+  "IMPLIED",
+  "BEYOND_EVIDENCE",
+] as const;
+export type CitationType = (typeof CITATION_TYPES)[number];
+
+/**
+ * citations — links a claim to the specific passage in its source document
+ * that supports or contradicts the claim verdict.
+ *
+ * One claim may have multiple citations (e.g., one VERIFIED + one CONTESTED).
+ * A BEYOND_EVIDENCE citation has passageText = null and evidenceBoundary describing
+ * the shape of the gap (what evidence would be needed to resolve the claim).
+ */
+export const citations = mysqlTable(
+  "citations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    claimId: int("claimId").notNull(),
+    documentId: int("documentId").notNull(),
+    passageText: text("passageText"),
+    passageSection: varchar("passageSection", { length: 128 }),
+    citationType: mysqlEnum("citationType", CITATION_TYPES).notNull(),
+    citationConfidence: float("citationConfidence").notNull().default(0),
+    evidenceBoundary: text("evidenceBoundary"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    claimIdIdx: index("cit_claim_id_idx").on(t.claimId),
+    documentIdIdx: index("cit_document_id_idx").on(t.documentId),
+    citationTypeIdx: index("cit_citation_type_idx").on(t.citationType),
+  })
+);
+export type Citation = typeof citations.$inferSelect;
+export type InsertCitation = typeof citations.$inferInsert;

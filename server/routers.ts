@@ -32,6 +32,7 @@ import {
   getAllGraphRelations,
   getContradictionRelations,
   getCorpusGrowthStats,
+  getCitationsByClaimId,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { fetchWikiPage } from "./wikiCompiler";
@@ -488,7 +489,14 @@ export const appRouter = router({
         const doc = await getDocumentById(input.documentId);
         if (!doc || doc.userId !== ctx.user.id)
           throw new TRPCError({ code: "NOT_FOUND" });
-        return getClaimsByDocument(input.documentId);
+        const claimsList = await getClaimsByDocument(input.documentId);
+        // Phase 96-E: attach citations[] to each claim
+        return Promise.all(
+          claimsList.map(async claim => {
+            const claimCitations = await getCitationsByClaimId(claim.id);
+            return { ...claim, citations: claimCitations };
+          })
+        );
       }),
 
     override: protectedProcedure
@@ -615,9 +623,14 @@ export const appRouter = router({
 
     // --- Score History (Phase 108) ---
     getScoreHistory: publicProcedure
-      .input(z.object({ claimId: z.number(), limit: z.number().min(1).max(100).default(30) }))
+      .input(
+        z.object({
+          claimId: z.number(),
+          limit: z.number().min(1).max(100).default(30),
+        })
+      )
       .query(async ({ input }) => {
-        const { getClaimScoreHistory } = await import('./db');
+        const { getClaimScoreHistory } = await import("./db");
         return getClaimScoreHistory(input.claimId, input.limit);
       }),
   }),
@@ -1085,7 +1098,7 @@ Respond in this exact structure:
           entityCount: entities.length,
           relationCount: relations.length,
           contradictionCount: contradictions.length,
-                };
+        };
       }),
 
     /**
@@ -2388,7 +2401,17 @@ Respond in this exact structure:
           verticalDomain: input.verticalDomain,
           verdict: input.verdict,
         });
-        return { results, count: results.length };
+        // Phase 96-E: attach citations[] to each search result
+        const resultsWithCitations = await Promise.all(
+          results.map(async result => {
+            const claimCitations = await getCitationsByClaimId(result.id);
+            return { ...result, citations: claimCitations };
+          })
+        );
+        return {
+          results: resultsWithCitations,
+          count: resultsWithCitations.length,
+        };
       }),
 
     /**
@@ -4846,7 +4869,9 @@ Respond in this exact structure:
       if (ctx.user.role !== "admin" && ctx.user.openId !== _env.ownerOpenId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      const { getOpenContradictionAlerts } = await import("./contradictionDetector");
+      const { getOpenContradictionAlerts } = await import(
+        "./contradictionDetector"
+      );
       return getOpenContradictionAlerts(50);
     }),
 
@@ -4859,7 +4884,9 @@ Respond in this exact structure:
       if (ctx.user.role !== "admin" && ctx.user.openId !== _env.ownerOpenId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      const { getContradictionAlertCounts } = await import("./contradictionDetector");
+      const { getContradictionAlertCounts } = await import(
+        "./contradictionDetector"
+      );
       return getContradictionAlertCounts();
     }),
 
@@ -4880,7 +4907,9 @@ Respond in this exact structure:
         if (ctx.user.role !== "admin" && ctx.user.openId !== _env.ownerOpenId) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
-        const { updateContradictionAlertStatus } = await import("./contradictionDetector");
+        const { updateContradictionAlertStatus } = await import(
+          "./contradictionDetector"
+        );
         await updateContradictionAlertStatus(
           input.alertId,
           input.status,
@@ -4894,13 +4923,19 @@ Respond in this exact structure:
      * Useful for testing or after a bulk re-evaluation run.
      */
     runScan: protectedProcedure
-      .input(z.object({ batchSize: z.number().int().min(1).max(2000).default(500) }).optional())
+      .input(
+        z
+          .object({ batchSize: z.number().int().min(1).max(2000).default(500) })
+          .optional()
+      )
       .mutation(async ({ ctx, input }) => {
         const { ENV: _env } = await import("./_core/env");
         if (ctx.user.role !== "admin" && ctx.user.openId !== _env.ownerOpenId) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
-        const { runContradictionScan } = await import("./contradictionDetector");
+        const { runContradictionScan } = await import(
+          "./contradictionDetector"
+        );
         return runContradictionScan(input?.batchSize ?? 500);
       }),
   }),

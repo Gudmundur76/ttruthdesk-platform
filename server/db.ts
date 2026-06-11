@@ -47,6 +47,9 @@ import {
   overrideAuditLog,
   claimScoreHistory,
   ClaimScoreHistory,
+  citations,
+  Citation,
+  InsertCitation,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1683,4 +1686,48 @@ export async function insertClaimScoreSnapshot(
         compositeTruthLabel: label,
       },
     });
+}
+
+// ─── Citation DB Helpers (Phase 96-B) ─────────────────────────────────────────
+
+export async function insertCitation(
+  data: InsertCitation
+): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(citations).values(data);
+  const header = result as unknown as [{ insertId: number }];
+  return header[0]?.insertId ?? null;
+}
+
+/**
+ * Get all citations for a given claim, ordered by createdAt ascending.
+ * Returns [] if DB is unavailable.
+ */
+export async function getCitationsByClaimId(
+  claimId: number
+): Promise<Citation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(citations)
+    .where(eq(citations.claimId, claimId))
+    .orderBy(asc(citations.createdAt));
+}
+
+/**
+ * Get all citations for a given document, ordered by claimId then createdAt.
+ * Returns [] if DB is unavailable.
+ */
+export async function getCitationsByDocumentId(
+  documentId: number
+): Promise<Citation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(citations)
+    .where(eq(citations.documentId, documentId))
+    .orderBy(asc(citations.claimId), asc(citations.createdAt));
 }
