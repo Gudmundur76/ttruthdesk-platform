@@ -1295,7 +1295,15 @@ async function startServer() {
 
   // ── Auth middleware for protected routes ──────────────────────────────────
   // Scheduled endpoints: only cron callbacks (isCron=true) or admin users may call them.
+  // Also accepts BUILT_IN_FORGE_API_KEY as a Bearer token — this is the fallback for
+  // Manus Heartbeat jobs registered under a different project identity (cross-project
+  // cron tokens are rejected by the OAuth server with "permission error for cron cookie").
   const requireCronOrAdmin: express.RequestHandler = async (req, res, next) => {
+    // Fast-path: accept the Forge API key as a Bearer token (Manus Heartbeat fallback)
+    const authHeader = req.headers["authorization"] ?? "";
+    if (ENV.forgeApiKey && authHeader === `Bearer ${ENV.forgeApiKey}`) {
+      return next();
+    }
     try {
       const user = await sdk.authenticateRequest(req);
       if (user.isCron || user.role === "admin") return next();
