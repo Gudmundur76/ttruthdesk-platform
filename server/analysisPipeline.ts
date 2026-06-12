@@ -14,6 +14,7 @@ import {
   getDocumentById,
   upsertAuditReport,
   updateClaimVerdict,
+  insertCitation,
 } from "./db";
 import { extractClaims, getActiveLLMProvider } from "./claimExtractor";
 import { extractPassageForClaim } from "./passageExtractor";
@@ -246,7 +247,30 @@ export async function runAnalysisPipeline(
                     passageStartChar: passage.passageStartChar,
                     passageEndChar: passage.passageEndChar,
                   });
-                  // ── Phase 101: Misrepresentation classification ─────────
+                  // ── Tier 2: Write citations table row ──────────────────────────────────────
+                  // Map the claim verdict to a CitationType for the citations table.
+                  // VERIFIED → Supported/Partially Supported
+                  // CONTESTED → Contradicted/Ambiguous
+                  // BEYOND_EVIDENCE → Insufficient Evidence
+                  // IMPLIED → everything else (general molecular claims)
+                  const verdictToCitationType = (v: string): "VERIFIED" | "CONTESTED" | "IMPLIED" | "BEYOND_EVIDENCE" => {
+                    if (v === "Supported" || v === "Partially Supported") return "VERIFIED";
+                    if (v === "Contradicted" || v === "Ambiguous") return "CONTESTED";
+                    if (v === "Insufficient Evidence") return "BEYOND_EVIDENCE";
+                    return "IMPLIED";
+                  };
+                  insertCitation({
+                    claimId: claim.id,
+                    documentId,
+                    passageText: passage.sourcePassage,
+                    passageSection: null,
+                    citationType: verdictToCitationType(auditedVerdict),
+                    citationConfidence: passage.passageConfidence,
+                    evidenceBoundary: null,
+                  }).catch(e =>
+                    console.warn(`[Citations] Failed to insert citation for claim ${claim.id} (non-fatal):`, e)
+                  );
+                  // ── Phase 101: Misrepresentation classification ───────────
                   // Fires only for Contradicted / Partially Supported verdicts
                   // after the source passage is available.
                   const misrep = await classifyMisrepresentation(
