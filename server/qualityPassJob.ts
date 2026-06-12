@@ -14,15 +14,20 @@
  */
 
 import type { Request, Response } from "express";
-import { getDraftDocuments, updateDocumentStatus, deleteClaimsByDocument } from "./db";
+import {
+  getDraftDocuments,
+  updateDocumentStatus,
+  deleteClaimsByDocument,
+} from "./db";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
 import { logCronRun } from "./cronRunLogger";
+import { collectQualityPassFeedback } from "./sia/qualityPassFeedbackCollector";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface QualityPassResult {
+export interface QualityPassResult {
   processed: number;
   skipped: number;
   failed: number;
@@ -34,7 +39,7 @@ interface QualityPassResult {
 const SYSTEM_USER_ID = 1;
 
 function delay(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
 // ─── Core job ─────────────────────────────────────────────────────────────────
@@ -46,7 +51,13 @@ export async function runQualityPass(options: {
   // Default delay of 8s between docs to avoid free-tier rate limits across all three OpenRouter providers.
   // During off-peak hours this can be reduced to 3000ms.
   const { batchSize = 20, delayMs = 8000 } = options;
-  const result: QualityPassResult = { processed: 0, skipped: 0, failed: 0, errors: [] };
+  const result: QualityPassResult = {
+    processed: 0,
+    skipped: 0,
+    failed: 0,
+    errors: [],
+  };
+  const processedDocIds: number[] = [];
 
   // Verify a quality LLM is available — prefer OpenRouter (Kimi K2.6 free) or fall back to direct Kimi API
   const hasOpenRouter = !!ENV.openRouterApiKey;
@@ -55,8 +66,8 @@ export async function runQualityPass(options: {
   if (!hasOpenRouter && !hasKimi) {
     result.errors.push(
       "Neither OPENROUTER_API_KEY nor KIMI_API_KEY is set. " +
-      "Quality pass requires a premium model. " +
-      "Set LLM_PROVIDER=openrouter + OPENROUTER_API_KEY (free) or LLM_PROVIDER=kimi + KIMI_API_KEY."
+        "Quality pass requires a premium model. " +
+        "Set LLM_PROVIDER=openrouter + OPENROUTER_API_KEY (free) or LLM_PROVIDER=kimi + KIMI_API_KEY."
     );
     return result;
   }
@@ -74,12 +85,18 @@ export async function runQualityPass(options: {
     const draftDocs = await getDraftDocuments(batchSize);
 
     if (draftDocs.length === 0) {
-      console.log("[QualityPass] No draft documents found — corpus is fully verified.");
+      console.log(
+        "[QualityPass] No draft documents found — corpus is fully verified."
+      );
       return result;
     }
 
-    const modelLabel = hasOpenRouter ? "OpenRouter/Kimi K2.6 (free)" : "Kimi K2 direct";
-    console.log(`[QualityPass] Processing ${draftDocs.length} draft documents with ${modelLabel}...`);
+    const modelLabel = hasOpenRouter
+      ? "OpenRouter/Kimi K2.6 (free)"
+      : "Kimi K2 direct";
+    console.log(
+      `[QualityPass] Processing ${draftDocs.length} draft documents with ${modelLabel}...`
+    );
 
     for (const doc of draftDocs) {
       // Skip documents that are not complete (still processing)
@@ -95,7 +112,9 @@ export async function runQualityPass(options: {
       }
 
       try {
-        console.log(`[QualityPass] Re-processing doc ${doc.id}: "${doc.title.slice(0, 60)}..."`);
+        console.log(
+          `[QualityPass] Re-processing doc ${doc.id}: "${doc.title.slice(0, 60)}..."`
+        );
 
         // Delete existing claims first so the re-pass produces a clean set (no duplicates)
         await deleteClaimsByDocument(doc.id);
@@ -104,8 +123,14 @@ export async function runQualityPass(options: {
         await updateDocumentStatus(doc.id, "pending");
 
         // Re-run the full pipeline with the quality provider passed explicitly
-        await runAnalysisPipeline(doc.id, doc.rawText, doc.userId ?? SYSTEM_USER_ID, { providerOverride });
+        await runAnalysisPipeline(
+          doc.id,
+          doc.rawText,
+          doc.userId ?? SYSTEM_USER_ID,
+          { providerOverride }
+        );
         result.processed++;
+        processedDocIds.push(doc.id);
 
         // Rate limit between documents to avoid hammering the Kimi API
         if (delayMs > 0) await delay(delayMs);
@@ -124,6 +149,28 @@ export async function runQualityPass(options: {
   } catch (outerErr) {
     console.error("[QualityPass] Unexpected error:", outerErr);
     result.errors.push(`Unexpected: ${String(outerErr).slice(0, 200)}`);
+  }
+
+  // ── SIA Feedback Loop ────────────────────────────────────────────────────
+  // After each quality-pass run, collect outcome metrics and run the
+  // Feedback-Agent to propose improved extraction prompts for the next run.
+  // Non-fatal: failure here never blocks the quality-pass result.
+  try {
+    const feedbackResult = await collectQualityPassFeedback(
+      result,
+      processedDocIds
+    );
+    if (feedbackResult.proposalActivated) {
+      console.log(
+        `[QualityPass] SIA Feedback-Agent activated generation ${feedbackResult.newGeneration} ` +
+          `for claim_extractor (upgradeRate=${(feedbackResult.upgradeRate * 100).toFixed(1)}%)`
+      );
+    }
+  } catch (feedbackErr) {
+    console.warn(
+      "[QualityPass] SIA feedback collection failed (non-fatal):",
+      feedbackErr
+    );
   }
 
   return result;
@@ -149,7 +196,9 @@ export async function qualityPassJobHandler(req: Request, res: Response) {
     10_000
   );
 
-  console.log(`[QualityPass] Starting quality pass — batchSize=${batchSize}, delayMs=${delayMs}`);
+  console.log(
+    `[QualityPass] Starting quality pass — batchSize=${batchSize}, delayMs=${delayMs}`
+  );
 
   try {
     const result = await runQualityPass({ batchSize, delayMs });
@@ -164,7 +213,9 @@ export async function qualityPassJobHandler(req: Request, res: Response) {
       await notifyOwner({
         title: "Quality Pass Complete",
         content: `${summary}\n\n${result.errors.length > 0 ? "Errors:\n" + result.errors.join("\n") : "No errors."}`,
-      }).catch(() => {/* non-fatal */});
+      }).catch(() => {
+        /* non-fatal */
+      });
     }
 
     void logCronRun(

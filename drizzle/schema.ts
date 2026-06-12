@@ -2232,3 +2232,78 @@ export const citations = mysqlTable(
 );
 export type Citation = typeof citations.$inferSelect;
 export type InsertCitation = typeof citations.$inferInsert;
+
+// ─── SIA Prompt Harness ────────────────────────────────────────────────────────
+// Stores the active extraction prompt per generation.
+// The SIA feedback loop reads the current active prompt, evaluates quality-pass
+// outcomes against it, and proposes a revised prompt for the next generation.
+// Only one row per component has isActive = true at any time.
+export const promptHarness = mysqlTable(
+  "prompt_harness",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    component: mysqlEnum("component", [
+      "claim_extractor",
+      "verdict_rationale",
+      "passage_extractor",
+      "misrep_classifier",
+    ]).notNull(),
+    generation: int("generation").notNull().default(1),
+    promptText: text("promptText").notNull(),
+    isActive: boolean("isActive").notNull().default(false),
+    // Metrics from the quality-pass run that produced this prompt
+    upgradeRate: float("upgradeRate"), // fraction of draft docs that became verified
+    failRate: float("failRate"), // fraction that failed
+    avgClaimsPerDoc: float("avgClaimsPerDoc"),
+    // SIA feedback metadata
+    improvementProposalId: int("improvementProposalId"), // FK → sia_improvement_proposals.id
+    activatedAt: int("activatedAt"),
+    createdAt: int("createdAt").notNull(),
+  },
+  t => ({
+    componentActiveIdx: index("ph_component_active_idx").on(
+      t.component,
+      t.isActive
+    ),
+    generationIdx: index("ph_generation_idx").on(t.generation),
+  })
+);
+
+export type PromptHarness = typeof promptHarness.$inferSelect;
+export type InsertPromptHarness = typeof promptHarness.$inferInsert;
+
+// ─── Quality-Pass Feedback Log ─────────────────────────────────────────────────
+// One row per quality-pass run. Records the outcome metrics that the SIA
+// Feedback-Agent uses to evaluate whether the current prompt harness is improving.
+export const qualityPassFeedback = mysqlTable(
+  "quality_pass_feedback",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    runDate: varchar("runDate", { length: 32 }).notNull(), // ISO date string e.g. "2026-06-12"
+    batchSize: int("batchSize").notNull(),
+    processed: int("processed").notNull(),
+    skipped: int("skipped").notNull(),
+    failed: int("failed").notNull(),
+    // Verdict distribution for the processed batch
+    verdictSupported: int("verdictSupported").notNull().default(0),
+    verdictContested: int("verdictContested").notNull().default(0),
+    verdictInsufficient: int("verdictInsufficient").notNull().default(0),
+    verdictContradicted: int("verdictContradicted").notNull().default(0),
+    // Derived metrics
+    upgradeRate: float("upgradeRate").notNull().default(0), // processed / (processed + failed)
+    avgClaimsPerDoc: float("avgClaimsPerDoc").notNull().default(0),
+    // Which prompt harness generation was active during this run
+    harnessGeneration: int("harnessGeneration").notNull().default(1),
+    // SIA feedback: did the Feedback-Agent propose a new prompt after this run?
+    feedbackProposalId: int("feedbackProposalId"),
+    feedbackReasoning: text("feedbackReasoning"),
+    createdAt: int("createdAt").notNull(),
+  },
+  t => ({
+    runDateIdx: index("qpf_run_date_idx").on(t.runDate),
+    harnessGenIdx: index("qpf_harness_gen_idx").on(t.harnessGeneration),
+  })
+);
+
+export type QualityPassFeedback = typeof qualityPassFeedback.$inferSelect;
+export type InsertQualityPassFeedback = typeof qualityPassFeedback.$inferInsert;
