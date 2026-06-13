@@ -1,4 +1,7 @@
 import { registerVertical, VerticalAdapter, EvidenceResult } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/nist");
+
 
 class NISTAdapter implements VerticalAdapter {
   domainKey = 'nist';
@@ -55,7 +58,7 @@ class NISTAdapter implements VerticalAdapter {
             return { found: true, sourceId: compoundName, sourceUrl, evidenceRaw, confidenceScore: confidence, confidenceFlags: ['NIST Webbook', 'High Authority'] };
           }
         } else {
-          console.error(`NIST Webbook fetch failed: ${response.status} ${response.statusText}`);
+          log.error(`NIST Webbook fetch failed: ${response.status} ${response.statusText}`);
           // Fallback to general search on error
           searchUrl = `https://data.nist.gov/rmm/records?q=${encodeURIComponent(claim.claimText)}&size=5`;
           sourceUrl = `https://data.nist.gov/rmm/records?q=${encodeURIComponent(claim.claimText)}&size=5`;
@@ -81,7 +84,7 @@ class NISTAdapter implements VerticalAdapter {
         }
       }
     } catch (error) {
-      console.error('Error during NIST evidence lookup:', error);
+      log.error('Error during NIST evidence lookup:', errData(error));
       return { found: false, sourceId: null, sourceUrl: null, evidenceRaw: null, confidenceScore: 0.1, confidenceFlags: ['Network Error'] };
     }
 

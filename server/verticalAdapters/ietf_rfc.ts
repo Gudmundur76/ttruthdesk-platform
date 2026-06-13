@@ -1,4 +1,7 @@
 import { registerVertical, VerticalAdapter, EvidenceResult } from './types';
+import { logger } from "../logger";
+const log = logger("verticalAdapters/ietf_rfc");
+
 
 const IETF_RFC_ADAPTER: VerticalAdapter = {
   domainKey: 'ietf_rfc',
@@ -41,7 +44,7 @@ const IETF_RFC_ADAPTER: VerticalAdapter = {
         confidenceFlags.push('rfc_editor_fetch_failed');
       }
     } catch (error) {
-      console.error(`Error fetching RFC from rfc-editor.org: ${error}`);
+      log.error(`Error fetching RFC from rfc-editor.org: ${error}`);
       confidenceFlags.push('rfc_editor_network_error');
     }
 
@@ -58,7 +61,7 @@ const IETF_RFC_ADAPTER: VerticalAdapter = {
         confidenceFlags.push('semantic_scholar_fetch_failed');
       }
     } catch (error) {
-      console.error(`Error fetching from Semantic Scholar: ${error}`);
+      log.error(`Error fetching from Semantic Scholar: ${error}`);
       confidenceFlags.push('semantic_scholar_network_error');
     }
 

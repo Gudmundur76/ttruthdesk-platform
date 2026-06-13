@@ -31,6 +31,9 @@ import {
   invariantResultToMetaFinding,
   type MetaFinding,
 } from "./alertRouter";
+import { logger } from "../logger";
+const log = logger("metaAgent/codeGuardian");
+
 
 export interface CodeGuardianReport {
   agentName: "codeGuardianAgent";
@@ -103,7 +106,7 @@ export async function runCodeGuardian(): Promise<CodeGuardianReport> {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
 
-  console.log("[MetaAgent] codeGuardianAgent starting — running all 4 layers");
+  log.info("[MetaAgent] codeGuardianAgent starting — running all 4 layers");
 
   // Layer 1 + 2 run in parallel (both are mostly sync/file-based)
   // Layer 3 requires DB so runs concurrently
@@ -152,7 +155,7 @@ export async function runCodeGuardian(): Promise<CodeGuardianReport> {
   const completedAt = new Date().toISOString();
   const durationMs = Date.now() - startMs;
 
-  console.log(
+  log.info(
     `[MetaAgent] codeGuardianAgent complete in ${durationMs}ms — ` +
     `Health: ${healthScore}/100 (${healthGrade}), ` +
     `${criticalCount} critical, ${warningCount} warnings`

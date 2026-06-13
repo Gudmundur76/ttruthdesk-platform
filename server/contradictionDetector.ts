@@ -29,6 +29,9 @@ import { getDb } from "./db";
 import { graphClaimEdges, claims, contradictionAlerts } from "../drizzle/schema";
 import { eq, and, or, inArray, sql } from "drizzle-orm";
 import { logCronRun } from "./cronRunLogger";
+import { logger, errData } from "./logger";
+const log = logger("contradictionDetector");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -295,7 +298,7 @@ export async function runContradictionScan(
         // Duplicate key on race condition — safe to ignore
         const msg = String(pairErr);
         if (!msg.includes("Duplicate entry") && !msg.includes("unique constraint")) {
-          console.warn("[ContradictionDetector] Pair upsert error:", pairErr);
+          log.warn("[ContradictionDetector] Pair upsert error:", errData(pairErr));
           errors++;
         }
       }
@@ -308,12 +311,12 @@ export async function runContradictionScan(
 
     await logCronRun("contradiction-scan", errors > 0 ? "error" : "ok", durationMs, summary);
 
-    console.log(`[ContradictionDetector] ${summary}`);
+    log.info(`[ContradictionDetector] ${summary}`);
     return { pairsScanned, newAlerts, updatedAlerts, skippedResolved, errors, durationMs };
   } catch (err) {
     const durationMs = Date.now() - startMs;
     const errMsg = String(err).substring(0, 300);
-    console.error("[ContradictionDetector] Fatal error:", err);
+    log.error("[ContradictionDetector] Fatal error:", errData(err));
     await logCronRun("contradiction-scan", "error", durationMs, `Fatal: ${errMsg}`);
     return { pairsScanned, newAlerts, updatedAlerts, skippedResolved, errors: errors + 1, durationMs };
   }

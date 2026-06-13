@@ -1,4 +1,7 @@
 import { VerticalAdapter, EvidenceResult, registerVertical } from './types';
+import { logger } from "../logger";
+const log = logger("verticalAdapters/europe_pmc");
+
 
 const europePmcAdapter: VerticalAdapter = {
   domainKey: 'europe_pmc',
@@ -97,7 +100,7 @@ const europePmcAdapter: VerticalAdapter = {
     }
     catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching from Europe PMC: ${msg}`);
+      log.error(`Error fetching from Europe PMC: ${msg}`);
       return {
         found: false,
         sourceId: null,

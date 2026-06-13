@@ -1,4 +1,7 @@
 import { registerVertical, VerticalAdapter, EvidenceResult } from './types';
+import { logger } from "../logger";
+const log = logger("verticalAdapters/arxiv");
+
 
 const ARXIV_ID_REGEX = /(\d{4}\.\d{4,5})/; // Matches patterns like 1234.56789 or 1234.5678
 
@@ -100,7 +103,7 @@ const arxivAdapter: VerticalAdapter = {
       };
 
     } catch (error: unknown) {
-      console.error(`Error fetching from arXiv: ${(error as Error).message}`);
+      log.error(`Error fetching from arXiv: ${(error as Error).message}`);
       return {
         found: false,
         sourceId: null,

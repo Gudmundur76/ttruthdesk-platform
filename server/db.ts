@@ -65,7 +65,7 @@ export async function getDb(): Promise<ReturnType<typeof drizzle> | null> {
         _db = drizzle(process.env.DATABASE_URL!);
         return _db;
       } catch (error) {
-        console.warn("[Database] Failed to connect:", error);
+        log.warn("[Database] Failed to connect:", errData(error));
         _db = null;
         return null;
       } finally {
@@ -1754,6 +1754,9 @@ import type {
   Question,
   InsertQuestion,
 } from "../drizzle/schema";
+import { logger, errData } from "./logger";
+const log = logger("db");
+
 
 /**
  * Get the most recent version record for a given sourceId.
@@ -1798,7 +1801,7 @@ export async function upsertSourceVersion(
     const header = result as unknown as [{ insertId: number }];
     return header[0]?.insertId ?? null;
   } catch (err) {
-    console.error("[DB] upsertSourceVersion failed:", err);
+    log.error("[DB] upsertSourceVersion failed:", errData(err));
     return null;
   }
 }
@@ -1817,7 +1820,7 @@ export async function markClaimSuperseded(
     const header = result as unknown as [{ insertId: number }];
     return header[0]?.insertId ?? null;
   } catch (err) {
-    console.error("[DB] markClaimSuperseded failed:", err);
+    log.error("[DB] markClaimSuperseded failed:", errData(err));
     return null;
   }
 }
@@ -1854,7 +1857,7 @@ export async function insertQuestion(
     const header = result as unknown as [{ insertId: number }];
     return header[0]?.insertId ?? null;
   } catch (err) {
-    console.error("[DB] insertQuestion failed:", err);
+    log.error("[DB] insertQuestion failed:", errData(err));
     return null;
   }
 }

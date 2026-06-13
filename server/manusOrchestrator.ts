@@ -36,6 +36,9 @@
  */
 
 import { ENV } from "./_core/env";
+import { logger } from "./logger";
+const log = logger("manusOrchestrator");
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -126,7 +129,7 @@ async function coordCall(
 ): Promise<{ ok: boolean; error?: string; [key: string]: unknown }> {
   const coordApiKey = ENV.coordApiKey;
   if (!coordApiKey) {
-    console.warn("[Orchestrator] COORD_API_KEY not set — coord calls disabled");
+    log.warn("[Orchestrator] COORD_API_KEY not set — coord calls disabled");
     return { ok: false, error: "COORD_API_KEY not set" };
   }
 
@@ -156,7 +159,7 @@ export async function spawnVerticalTask(
 ): Promise<SpawnTaskResult> {
   const { taskId, vertical, prompt, projectId, title, hideInTaskList } = opts;
 
-  console.log(
+  log.info(
     `[Orchestrator] Spawning task ${taskId} for vertical "${vertical}"`
   );
 
@@ -177,7 +180,7 @@ export async function spawnVerticalTask(
   }>("/v2/task.create", "POST", payload);
 
   if (!result.ok) {
-    console.error(
+    log.error(
       `[Orchestrator] Failed to spawn task ${taskId}: ${result.error}`
     );
     return { ok: false, error: result.error };
@@ -195,7 +198,7 @@ export async function spawnVerticalTask(
     meta: { taskUrl, spawnedAt: new Date().toISOString() },
   });
 
-  console.log(
+  log.info(
     `[Orchestrator] Task ${taskId} spawned as Manus task ${manusTaskId}`
   );
   return { ok: true, manusTaskId, taskUrl };
@@ -213,7 +216,7 @@ export async function getManusTaskStatus(
   }>(`/v2/task.detail?task_id=${encodeURIComponent(manusTaskId)}`, "GET");
 
   if (!result.ok) {
-    console.warn(
+    log.warn(
       `[Orchestrator] Could not fetch status for ${manusTaskId}: ${result.error}`
     );
     return null;
@@ -277,7 +280,7 @@ export async function runOrchestratorTick(): Promise<{
     if (!isStale) continue; // Healthy task — skip
 
     summary.stalled++;
-    console.log(
+    log.info(
       `[Orchestrator] Task ${task.taskId} (${task.vertical}) is stale — checking Manus status`
     );
 
@@ -301,7 +304,7 @@ export async function runOrchestratorTick(): Promise<{
 
     if (manusStatus.status === "completed") {
       await coordCall("/tasks/complete", "POST", { taskId: task.taskId });
-      console.log(
+      log.info(
         `[Orchestrator] Task ${task.taskId} synced as completed from Manus`
       );
       summary.synced++;
@@ -313,7 +316,7 @@ export async function runOrchestratorTick(): Promise<{
         taskId: task.taskId,
         errorMsg: `Manus task ${manusStatus.status}`,
       });
-      console.log(
+      log.info(
         `[Orchestrator] Task ${task.taskId} synced as failed from Manus (${manusStatus.status})`
       );
       summary.synced++;
@@ -323,7 +326,7 @@ export async function runOrchestratorTick(): Promise<{
         taskId: task.taskId,
         phase: "stalled-no-callback",
       });
-      console.warn(
+      log.warn(
         `[Orchestrator] Task ${task.taskId} is stalled (Manus running, no callback)`
       );
       // Auto-retry: stop the stalled Manus task and mark as failed so the
@@ -338,7 +341,7 @@ export async function runOrchestratorTick(): Promise<{
           errorMsg: `Stalled (Manus running, no callback) — retry ${retryCount + 1}/${MAX_RETRIES}`,
         });
         summary.retried++;
-        console.log(
+        log.info(
           `[Orchestrator] Task ${task.taskId} stopped and marked failed for retry (${retryCount + 1}/${MAX_RETRIES})`
         );
       }

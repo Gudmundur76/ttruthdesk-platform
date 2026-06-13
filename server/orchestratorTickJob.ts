@@ -32,6 +32,9 @@ import {
 import { VERTICAL_FEED_CONFIGS } from "./verticalFeedConfig";
 import { ENV } from "./_core/env";
 import crypto from "node:crypto";
+import { logger, errData } from "./logger";
+const log = logger("orchestratorTickJob");
+
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -232,14 +235,14 @@ export async function orchestratorTickHandler(
       totalSkipped,
     };
 
-    console.log(
+    log.info(
       `[OrchestratorTick] Done in ${Date.now() - startMs}ms — spawned=${totalSpawned} skipped=${totalSkipped} stalledSynced=${tickResult.stalled}`
     );
 
     res.json(report);
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    console.error("[OrchestratorTick] Fatal error:", error);
+    log.error("[OrchestratorTick] Fatal error:", errData(error));
     res.status(500).json({
       ok: false,
       error,

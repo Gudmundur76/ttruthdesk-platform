@@ -15,6 +15,9 @@ import { ENV } from "./_core/env";
 import * as db from "./db";
 
 import { runAnalysisPipeline } from "./analysisPipeline";
+import { logger, errData } from "./logger";
+const log = logger("telegramBot");
+
 
 const APP_URL = () => ENV.appUrl || "https://truthdesk.claims";
 
@@ -67,7 +70,7 @@ function registerHandlers(bot: Bot) {
         `[View full registry](${APP_URL().replace(/\./g, '\\.')}/registry)`;
       await ctx.reply(msg, { parse_mode: "MarkdownV2" });
     } catch (err) {
-      console.error("[TelegramBot] /status error:", err);
+      log.error("[TelegramBot] /status error:", errData(err));
       await ctx.reply("⚠️ Failed to fetch corpus stats. Please try again.");
     }
   });
@@ -144,7 +147,7 @@ function registerHandlers(bot: Bot) {
 
       // Run pipeline asynchronously
       runAnalysisPipeline(docId, rawText, SYSTEM_USER_ID).catch((e) =>
-        console.error("[TelegramBot] Pipeline error:", e)
+        log.error("[TelegramBot] Pipeline error:", errData(e))
       );
 
       await ctx.reply(
@@ -154,7 +157,7 @@ function registerHandlers(bot: Bot) {
         { parse_mode: "MarkdownV2" }
       );
     } catch (err) {
-      console.error("[TelegramBot] /audit error:", err);
+      log.error("[TelegramBot] /audit error:", errData(err));
       await ctx.reply("⚠️ Audit failed. Please try again.");
     }
   });
@@ -186,7 +189,7 @@ function registerHandlers(bot: Bot) {
         { parse_mode: "MarkdownV2" }
       );
     } catch (err) {
-      console.error("[TelegramBot] /monitor error:", err);
+      log.error("[TelegramBot] /monitor error:", errData(err));
       await ctx.reply("⚠️ Failed to add to monitoring feed. Please try again.");
     }
   });
@@ -204,7 +207,7 @@ function registerHandlers(bot: Bot) {
 export async function postDailyDigest(channelId: string): Promise<void> {
   const bot = getBot();
   if (!bot) {
-    console.warn("[TelegramBot] Bot not configured — skipping daily digest");
+    log.warn("[TelegramBot] Bot not configured — skipping daily digest");
     return;
   }
 
@@ -245,7 +248,7 @@ export async function postDailyDigest(channelId: string): Promise<void> {
       parse_mode: "MarkdownV2",
     });
   } catch (err) {
-    console.error("[TelegramBot] Daily digest send failed:", err);
+    log.error("[TelegramBot] Daily digest send failed:", errData(err));
   }
 }
 
@@ -295,9 +298,9 @@ export async function postContradictionAlert(params: {
     await bot.api.sendMessage(channelId, lines.join("\n"), {
       parse_mode: "MarkdownV2",
     });
-    console.log(`[TelegramBot] Contradiction alert sent for claim #${params.claimId}`);
+    log.info(`[TelegramBot] Contradiction alert sent for claim #${params.claimId}`);
   } catch (err) {
-    console.error("[TelegramBot] Contradiction alert send failed:", err);
+    log.error("[TelegramBot] Contradiction alert send failed:", errData(err));
   }
 }
 
@@ -305,17 +308,17 @@ export async function postContradictionAlert(params: {
 export async function startTelegramBot(): Promise<void> {
   const bot = getBot();
   if (!bot) {
-    console.log("[TelegramBot] TELEGRAM_BOT_TOKEN not set — bot disabled");
+    log.info("[TelegramBot] TELEGRAM_BOT_TOKEN not set — bot disabled");
     return;
   }
 
   try {
     await bot.start({
       onStart: (info) =>
-        console.log(`[TelegramBot] @${info.username} started (long-polling)`),
+        log.info(`[TelegramBot] @${info.username} started (long-polling)`),
     });
   } catch (err) {
-    console.error("[TelegramBot] Failed to start:", err);
+    log.error("[TelegramBot] Failed to start:", errData(err));
   }
 }
 

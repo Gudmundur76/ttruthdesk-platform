@@ -543,13 +543,16 @@ export async function runQualityScorerJob(): Promise<{
   }
 
   const durationMs = Date.now() - startMs;
-  console.log(`[QualityScorer] Scored ${scored} claims in ${durationMs}ms (${errors} errors)`);
+  log.info(`[QualityScorer] Scored ${scored} claims in ${durationMs}ms (${errors} errors)`);
   return { scored, errors, durationMs };
 }
 
 // ─── LLM-enhanced scoring (Kimi large-context) ───────────────────────────────
 
 import { invokeLargeContextLLMJson } from "./_core/llmLargeContext.js";
+import { logger } from "./logger";
+const log = logger("claimQualityScorer");
+
 
 /**
  * LLM-enhanced quality score for a single claim.

@@ -20,6 +20,9 @@ import { documents, claims as claimsTable } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { scoreBatch } from "./claimQualityScorer";
+import { logger, errData } from "./logger";
+const log = logger("batchAuditRouter");
+
 
 // ─── Rate limiter (in-memory, per IP) ────────────────────────────────────────
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
@@ -206,7 +209,7 @@ batchAuditRouter.post("/", async (req: Request, res: Response) => {
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error(`[BatchAudit] Failed to process paper "${paper.title}":`, err);
+      log.error(`[BatchAudit] Failed to process paper "${paper.title}":`, errData(err));
 
       // Mark document as failed if it was created
       if (documentId) {

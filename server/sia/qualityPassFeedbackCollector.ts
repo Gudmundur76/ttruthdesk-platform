@@ -32,6 +32,9 @@ import {
   seedPromptIfMissing,
 } from "./promptHarnessManager";
 import type { QualityPassResult } from "../qualityPassJob";
+import { logger, errData } from "../logger";
+const log = logger("sia/qualityPassFeedbackCollector");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -120,9 +123,9 @@ export async function collectQualityPassFeedback(
         }
       }
     } catch (err) {
-      console.warn(
+      log.warn(
         "[FeedbackCollector] Error counting verdicts (non-fatal):",
-        err
+        errData(err)
       );
     }
   }
@@ -151,7 +154,7 @@ export async function collectQualityPassFeedback(
     });
     feedbackRowId = (insertResult as { insertId?: number }).insertId ?? null;
   } catch (err) {
-    console.error("[FeedbackCollector] Error storing feedback row:", err);
+    log.error("[FeedbackCollector] Error storing feedback row:", errData(err));
   }
 
   // 6. Decide whether to run the Feedback-Agent
@@ -163,7 +166,7 @@ export async function collectQualityPassFeedback(
       result.processed < 3
         ? `Too few documents processed (${result.processed} < 3)`
         : `Upgrade rate healthy (${(upgradeRate * 100).toFixed(1)}% ≥ 75%)`;
-    console.log(`[FeedbackCollector] Skipping Feedback-Agent: ${reason}`);
+    log.info(`[FeedbackCollector] Skipping Feedback-Agent: ${reason}`);
     return {
       feedbackRowId,
       harnessGeneration,
@@ -177,7 +180,7 @@ export async function collectQualityPassFeedback(
   }
 
   // 7. Run the Feedback-Agent for claim_extractor (primary component)
-  console.log(
+  log.info(
     `[FeedbackCollector] Running Feedback-Agent (upgradeRate=${(upgradeRate * 100).toFixed(1)}%, gen=${harnessGeneration})`
   );
 
@@ -222,7 +225,7 @@ export async function collectQualityPassFeedback(
     });
     proposalId = (propResult as { insertId?: number }).insertId ?? null;
   } catch (err) {
-    console.error("[FeedbackCollector] Error storing proposal:", err);
+    log.error("[FeedbackCollector] Error storing proposal:", errData(err));
   }
 
   // 9. Auto-activate low/medium risk proposals
@@ -255,15 +258,15 @@ export async function collectQualityPassFeedback(
           .where(eq(qualityPassFeedback.id, feedbackRowId));
       }
 
-      console.log(
+      log.info(
         `[FeedbackCollector] Activated generation ${newGeneration} for claim_extractor (risk=${proposal.risk})`
       );
     } catch (err) {
-      console.error("[FeedbackCollector] Error activating new prompt:", err);
+      log.error("[FeedbackCollector] Error activating new prompt:", errData(err));
       newGeneration = null;
     }
   } else {
-    console.log(
+    log.info(
       `[FeedbackCollector] High-risk proposal stored for human review (proposalId=${proposalId})`
     );
   }

@@ -34,6 +34,9 @@ import type { Request, Response, Express } from "express";
 import { processQuestion } from "./questionRouter";
 import { insertQuestion } from "./db";
 import { validateApiKey } from "./apiKeyService";
+import { logger, errData } from "./logger";
+const log = logger("answerRoute");
+
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 
@@ -169,7 +172,7 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
         askedAt,
       });
     } catch (dbErr) {
-      console.error("[AnswerRoute] insertQuestion failed:", dbErr);
+      log.error("[AnswerRoute] insertQuestion failed:", errData(dbErr));
     }
 
     // Emit coverage_gap event if loop should be triggered (fire-and-forget)
@@ -185,7 +188,7 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
           })
         )
         .catch(err =>
-          console.warn("[AnswerRoute] coverage_gap event publish failed:", err)
+          log.warn("[AnswerRoute] coverage_gap event publish failed:", errData(err))
         );
     }
 
@@ -203,7 +206,7 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
       apiVersion: "1.0",
     });
   } catch (err) {
-    console.error("[AnswerRoute] Unexpected error:", err);
+    log.error("[AnswerRoute] Unexpected error:", errData(err));
     res.status(500).json({
       ok: false,
       error: "Internal server error. Please try again later.",

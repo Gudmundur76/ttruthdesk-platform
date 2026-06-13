@@ -99,11 +99,17 @@ describe("notifyIndexNow", () => {
   it("logs warning on unexpected status but does not throw", async () => {
     process.env.INDEX_NOW_KEY = "key-xyz";
     mockFetch.mockResolvedValueOnce({ ok: false, status: 429 });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Production code now uses structured logger (writes JSON to stdout)
+    const captured: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: any) => {
+      captured.push(String(chunk));
+      return true;
+    });
 
     await notifyIndexNow("https://example.com/claim/5");
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("429"));
-    warnSpy.mockRestore();
+    stdoutSpy.mockRestore();
+    expect(captured.join("")).toContain("429");
   });
 
   it("does not throw when fetch rejects", async () => {

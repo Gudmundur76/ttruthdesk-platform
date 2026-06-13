@@ -13,6 +13,9 @@ import type { LoopAction } from "../loopOrchestrator";
 import { getDb } from "../../db";
 import { claims, documents } from "../../../drizzle/schema";
 import { eq, isNull } from "drizzle-orm";
+import { logger, errData } from "../../logger";
+const log = logger("layers/truthLayer");
+
 
 export interface TruthLayerResult {
   actions: LoopAction[];
@@ -48,7 +51,7 @@ export async function runTruthLayer(event: LoopEvent): Promise<TruthLayerResult>
           // Fire-and-forget: run the analysis pipeline for the discovered paper
           const { runAnalysisPipeline } = await import("../../analysisPipeline");
           runAnalysisPipeline(documentId, rawText, userId).catch((err: unknown) => {
-            console.error(`[TruthLayer] paper_discovered analysis failed for doc ${documentId}:`, err);
+            log.error(`[TruthLayer] paper_discovered analysis failed for doc ${documentId}:`, errData(err));
           });
           actions.push({
             type: "truth_paper_queued",

@@ -26,6 +26,9 @@ import {
   upsertGraphRelation,
 } from "./db";
 import type { GraphEntity } from "../drizzle/schema";
+import { logger, errData } from "./logger";
+const log = logger("wikiCompiler");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -151,7 +154,7 @@ Rules:
       return content.trim();
     }
   } catch (err) {
-    console.error("[WikiCompiler] LLM error:", err);
+    log.error("[WikiCompiler] LLM error:", errData(err));
   }
 
   // Fallback: append claims as plain text if LLM fails
@@ -167,18 +170,18 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
   try {
     const doc = await getDocumentById(documentId);
     if (!doc) {
-      console.warn(`[WikiCompiler] Document #${documentId} not found`);
+      log.warn(`[WikiCompiler] Document #${documentId} not found`);
       return;
     }
 
     const claims = await getClaimsByDocument(documentId);
     if (!claims.length) {
-      console.log(`[WikiCompiler] No claims for doc #${documentId} — skipping`);
+      log.info(`[WikiCompiler] No claims for doc #${documentId} — skipping`);
       return;
     }
 
     const entities = extractEntitiesFromClaims(claims);
-    console.log(
+    log.info(
       `[WikiCompiler] Doc #${documentId}: ${entities.length} unique entities to compile`
     );
 
@@ -229,7 +232,7 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
       }
     }
 
-    console.log(
+    log.info(
       `[WikiCompiler] Doc #${documentId}: wiki compilation complete (${entities.length} entities)`
     );
     // Ping IndexNow for all compiled wiki pages (instant Bing/Perplexity re-indexing)
@@ -237,7 +240,7 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
     notifyIndexNowBatch(wikiUrls).catch(() => {/* non-fatal */});
   } catch (err) {
     // Non-fatal — pipeline should not fail if wiki compilation fails
-    console.error(`[WikiCompiler] Error compiling doc #${documentId}:`, err);
+    log.error(`[WikiCompiler] Error compiling doc #${documentId}:`, errData(err));
   }
 }
 

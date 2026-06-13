@@ -18,6 +18,9 @@
  */
 
 import { invokeLLM } from "./_core/llm";
+import { logger, errData } from "./logger";
+const log = logger("misrepresentationClassifier");
+
 
 export type MisrepresentationType =
   | "amplification"
@@ -167,7 +170,7 @@ Classify the misrepresentation pattern. If the claim does not clearly fit any ca
     };
   } catch (err) {
     // Non-fatal: log and return null so the pipeline continues
-    console.warn("[MisrepresentationClassifier] Classification failed:", err);
+    log.warn("[MisrepresentationClassifier] Classification failed:", errData(err));
     return null;
   }
 }

@@ -13,6 +13,9 @@
 import { getDb } from "./db";
 import { claims, documents } from "../drizzle/schema";
 import { eq, like, or, isNotNull, sql } from "drizzle-orm";
+import { logger, errData } from "./logger";
+const log = logger("vectorStore");
+
 
 const SIDECAR_URL = process.env.VECTOR_SIDECAR_URL ?? "http://127.0.0.1:5001";
 const SIDECAR_TIMEOUT_MS = 3_000;
@@ -74,10 +77,10 @@ async function bootstrapIndexIfNeeded(): Promise<void> {
       signal: AbortSignal.timeout(30_000),
     });
 
-    console.log(`[vectorStore] Bootstrapped ${items.length} claims into sidecar`);
+    log.info(`[vectorStore] Bootstrapped ${items.length} claims into sidecar`);
   } catch (err) {
     _indexBootstrapped = false; // allow retry on next call
-    console.warn("[vectorStore] Bootstrap failed:", err);
+    log.warn("[vectorStore] Bootstrap failed:", errData(err));
   }
 }
 

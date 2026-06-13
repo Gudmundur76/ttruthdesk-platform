@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/eurostat");
+
 class EurostatAdapter implements VerticalAdapter {
   domainKey = 'eurostat';
   displayName = 'Eurostat';
@@ -51,7 +54,7 @@ class EurostatAdapter implements VerticalAdapter {
       });
 
       if (!response.ok) {
-        console.error(`Eurostat API error: ${response.status} ${response.statusText}`);
+        log.error(`Eurostat API error: ${response.status} ${response.statusText}`);
         return { ...defaultResult, confidenceFlags: ['api-error', `http-status-${response.status}`] };
       }
 
@@ -68,11 +71,11 @@ class EurostatAdapter implements VerticalAdapter {
           confidenceFlags: ['official-source', 'eurostat', 'data-found'],
         };
       } else {
-        console.warn(`Eurostat API returned unexpected data structure for ${datasetCode}`);
+        log.warn(`Eurostat API returned unexpected data structure for ${datasetCode}`);
         return { ...defaultResult, confidenceFlags: ['data-structure-mismatch'], confidenceScore: 0.2 };
       }
     } catch (error) {
-      console.error(`Error fetching Eurostat data for ${datasetCode}:`, error);
+      log.error(`Error fetching Eurostat data for ${datasetCode}:`, errData(error));
       if (error instanceof DOMException && error.name === 'TimeoutError') {
         return { ...defaultResult, confidenceFlags: ['network-timeout'] };
       }

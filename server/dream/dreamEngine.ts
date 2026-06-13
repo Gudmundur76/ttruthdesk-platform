@@ -27,6 +27,9 @@ import { generateTopologyHypotheses } from "./topologyHypothesisGenerator";
 import { runConfidenceRecalibration } from "./confidenceRecalibrator";
 import { runContradictionSimulation } from "./contradictionSimulator";
 import { publishEvent, getPendingEventCount } from "../autonomousLoop/eventBus";
+import { logger, errData } from "../logger";
+const log = logger("dream/dreamEngine");
+
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
@@ -257,7 +260,7 @@ export async function runDreamSession(
     }
   } catch (err) {
     reasonForWaking = "error";
-    console.error("[DreamEngine] Session error:", err);
+    log.error("[DreamEngine] Session error:", errData(err));
   }
 
   const durationMs = Date.now() - startedAt;

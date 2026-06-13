@@ -24,6 +24,9 @@ import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { insertQuestion, getQuestion } from "./db";
+import { logger, errData } from "./logger";
+const log = logger("questionRouter");
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -180,7 +183,7 @@ export async function processQuestion(
       sources = Array.isArray(parsed.sources) ? parsed.sources : [];
     }
   } catch (err) {
-    console.error("[QuestionRouter] LLM call failed:", err);
+    log.error("[QuestionRouter] LLM call failed:", errData(err));
     // Return graceful degradation — loop will be triggered by low confidence
     confidence = 0.1;
     verdict = "insufficient_evidence";
@@ -224,7 +227,7 @@ async function emitCoverageGap(
       detectedAt: Math.floor(Date.now() / 1000),
     });
   } catch (err) {
-    console.warn("[QuestionRouter] coverage_gap event publish failed:", err);
+    log.warn("[QuestionRouter] coverage_gap event publish failed:", errData(err));
   }
 }
 
@@ -265,7 +268,7 @@ export const questionRouter = router({
           askedAt,
         });
       } catch (err) {
-        console.error("[QuestionRouter] insertQuestion failed:", err);
+        log.error("[QuestionRouter] insertQuestion failed:", errData(err));
       }
 
       // Emit coverage_gap event if loop should be triggered

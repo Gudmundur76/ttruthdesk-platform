@@ -32,6 +32,9 @@ import { getDb } from "./db";
 import { apiKeys } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { logger, errData } from "./logger";
+const log = logger("translateAndSearchApi");
+
 
 // ─── Inline PubMed search (mirrors copilotRuntime.ts fetchPubMedResults) ──────
 
@@ -208,9 +211,9 @@ export function registerTranslateAndSearchApi(app: Router) {
     try {
       claims = await translateQueryToClaims(question.trim());
     } catch (err) {
-      console.error(
+      log.error(
         "[translate-and-search] translateQueryToClaims failed:",
-        err
+        errData(err)
       );
       return res
         .status(502)
@@ -280,7 +283,7 @@ export function registerTranslateAndSearchApi(app: Router) {
           }))
         ),
       }).catch(e =>
-        console.error("[translate-and-search] autonomousIngest error:", e)
+        log.error("[translate-and-search] autonomousIngest error:", errData(e))
       );
     });
 

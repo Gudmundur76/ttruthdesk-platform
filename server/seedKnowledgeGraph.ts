@@ -1,3 +1,6 @@
+import { logger, errData } from "./logger";
+const log = logger("seedKnowledgeGraph");
+
 /**
  * seedKnowledgeGraph.ts
  * ─────────────────────────────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ async function fetchPubmedAbstract(pmid: string): Promise<{ title: string; abstr
     // Return title-only if no abstract found
     return { title, abstract: `[No abstract available for PMID ${pmid}]` };
   } catch (err) {
-    console.warn(`  [WARN] Could not fetch PMID ${pmid}: ${(err as Error).message}`);
+    log.warn(`  [WARN] Could not fetch PMID ${pmid}: ${(err as Error).message}`);
     return null;
   }
 }
@@ -184,19 +187,19 @@ async function sleep(ms: number) {
  */
 async function processPaper(paper: { pmid: string; label: string }): Promise<"submitted" | "skipped" | "failed"> {
   const { pmid, label } = paper;
-  console.log(`  [${pmid}] ${label} — starting`);
+  log.info(`  [${pmid}] ${label} — starting`);
 
   // Check if already ingested
   const existing = await getAutoIngestedPaperByPmid(pmid);
   if (existing && existing.status !== "failed") {
-    console.log(`  [${pmid}] SKIP (already ingested, status: ${existing.status})`);
+    log.info(`  [${pmid}] SKIP (already ingested, status: ${existing.status})`);
     return "skipped";
   }
 
   // Fetch abstract from PubMed
   const fetched = await fetchPubmedAbstract(pmid);
   if (!fetched) {
-    console.log(`  [${pmid}] FAIL (fetch error)`);
+    log.info(`  [${pmid}] FAIL (fetch error)`);
     await upsertAutoIngestedPaper({
       pmid, doi: null, title: label, searchQuery: `seed:${pmid}`,
       status: "failed", verticalDomain: getVertical(pmid), ingestSource: "pubmed",
@@ -228,7 +231,7 @@ async function processPaper(paper: { pmid: string; label: string }): Promise<"su
     });
     docId = doc as number;
   } catch (err) {
-    console.log(`  [${pmid}] FAIL (createDocument: ${(err as Error).message})`);
+    log.info(`  [${pmid}] FAIL (createDocument: ${(err as Error).message})`);
     await upsertAutoIngestedPaper({
       pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
       status: "failed", verticalDomain: vertical, ingestSource: "pubmed",
@@ -249,10 +252,10 @@ async function processPaper(paper: { pmid: string; label: string }): Promise<"su
       pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
       status: "complete", documentId: docId, verticalDomain: vertical, ingestSource: "pubmed",
     });
-    console.log(`  [${pmid}] OK (docId: ${docId})`);
+    log.info(`  [${pmid}] OK (docId: ${docId})`);
     return "submitted";
   } catch (err) {
-    console.log(`  [${pmid}] FAIL (pipeline: ${(err as Error).message})`);
+    log.info(`  [${pmid}] FAIL (pipeline: ${(err as Error).message})`);
     await updateDocumentStatus(docId, "failed");
     await upsertAutoIngestedPaper({
       pmid, doi: null, title: fetched.title, searchQuery: `seed:${pmid}`,
@@ -263,8 +266,8 @@ async function processPaper(paper: { pmid: string; label: string }): Promise<"su
 }
 
 async function main() {
-  console.log(`\n🌱 Protein Truth Desk — Knowledge Graph Seeding (Parallel x${DOC_CONCURRENCY})`);
-  console.log(`   Seeding ${SEED_PAPERS.length} curated papers in batches of ${DOC_CONCURRENCY}...\n`);
+  log.info(`\n🌱 Protein Truth Desk — Knowledge Graph Seeding (Parallel x${DOC_CONCURRENCY})`);
+  log.info(`   Seeding ${SEED_PAPERS.length} curated papers in batches of ${DOC_CONCURRENCY}...\n`);
 
   let submitted = 0;
   let skipped = 0;
@@ -273,7 +276,7 @@ async function main() {
   // Process papers in concurrent batches of DOC_CONCURRENCY
   for (let i = 0; i < SEED_PAPERS.length; i += DOC_CONCURRENCY) {
     const batch = SEED_PAPERS.slice(i, i + DOC_CONCURRENCY);
-    console.log(`\n📦 Batch ${Math.floor(i / DOC_CONCURRENCY) + 1}/${Math.ceil(SEED_PAPERS.length / DOC_CONCURRENCY)} (papers ${i + 1}–${Math.min(i + DOC_CONCURRENCY, SEED_PAPERS.length)})`);
+    log.info(`\n📦 Batch ${Math.floor(i / DOC_CONCURRENCY) + 1}/${Math.ceil(SEED_PAPERS.length / DOC_CONCURRENCY)} (papers ${i + 1}–${Math.min(i + DOC_CONCURRENCY, SEED_PAPERS.length)})`);
 
     const results = await Promise.allSettled(batch.map(processPaper));
     results.forEach((r, idx) => {
@@ -282,7 +285,7 @@ async function main() {
         else if (r.value === "skipped") skipped++;
         else failed++;
       } else {
-        console.error(`  [${batch[idx]?.pmid}] Unexpected error:`, r.reason);
+        log.error(`  [${batch[idx]?.pmid}] Unexpected error:`, r.reason);
         failed++;
       }
     });
@@ -293,13 +296,13 @@ async function main() {
     }
   }
 
-  console.log(`\n✅ Seeding complete.`);
-  console.log(`   Submitted: ${submitted} | Skipped: ${skipped} | Failed: ${failed}`);
-  console.log(`   Total papers in seed list: ${SEED_PAPERS.length}\n`);
+  log.info(`\n✅ Seeding complete.`);
+  log.info(`   Submitted: ${submitted} | Skipped: ${skipped} | Failed: ${failed}`);
+  log.info(`   Total papers in seed list: ${SEED_PAPERS.length}\n`);
   process.exit(0);
 }
 
 main().catch((err) => {
-  console.error("\n❌ Seeding script crashed:", err);
+  log.error("\n❌ Seeding script crashed:", errData(err));
   process.exit(1);
 });

@@ -20,6 +20,9 @@ import {
 } from "./db";
 import { runAnalysisPipeline } from "./analysisPipeline";
 import { ENV } from "./_core/env";
+import { logger, errData } from "./logger";
+const log = logger("pubmedIngestJob");
+
 
 // ── Search queries to run on each job execution ─────────────────────────────
 const SEARCH_QUERIES = [
@@ -225,7 +228,7 @@ export async function pubmedIngestJobHandler(req: Request, res: Response): Promi
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("[pubmedIngestJob] Fatal error:", err);
+    log.error("[pubmedIngestJob] Fatal error:", errData(err));
     res.status(500).json({ ok: false, error: String(err) });
   }
 }

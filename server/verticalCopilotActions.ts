@@ -28,6 +28,9 @@ import {
   generateSiteHtml,
 } from "./micronDeploy";
 import { generateDockerCompose, generateNginxConfig } from "./privateMode";
+import { logger, errData } from "./logger";
+const log = logger("verticalCopilotActions");
+
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -272,7 +275,7 @@ export const ALVOTECH_TOOLS = {
       deployTarget: args.deployTarget,
       config: args.deployConfig ?? {},
       apiBase,
-    }).catch(e => console.error("[deployMicron] error:", e));
+    }).catch(e => log.error("[deployMicron] error:", errData(e)));
 
     return {
       deploymentId: deployment.id,
@@ -305,7 +308,7 @@ export const ACADEMIC_TOOLS = {
       verticalKey: args.verticalKey,
       skipProbe: args.skipProbe,
       skipCodegen: args.skipCodegen,
-    }).catch(e => console.error("[runDiscovery] error:", e));
+    }).catch(e => log.error("[runDiscovery] error:", errData(e)));
     return {
       runId,
       status: "running",

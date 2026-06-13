@@ -24,6 +24,9 @@ import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
 import { logCronRun } from "./cronRunLogger";
 import { collectQualityPassFeedback } from "./sia/qualityPassFeedbackCollector";
+import { logger, errData } from "./logger";
+const log = logger("qualityPassJob");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,16 +79,16 @@ export async function runQualityPass(options: {
   // Pass as an explicit parameter instead of mutating the global ENV object (which is not thread-safe)
   const providerOverride = hasOpenRouter ? "openrouter" : "kimi";
   if (hasOpenRouter) {
-    console.log("[QualityPass] Using OpenRouter → moonshotai/kimi-k2.6:free");
+    log.info("[QualityPass] Using OpenRouter → moonshotai/kimi-k2.6:free");
   } else {
-    console.log("[QualityPass] Using direct Kimi API");
+    log.info("[QualityPass] Using direct Kimi API");
   }
 
   try {
     const draftDocs = await getDraftDocuments(batchSize);
 
     if (draftDocs.length === 0) {
-      console.log(
+      log.info(
         "[QualityPass] No draft documents found — corpus is fully verified."
       );
       return result;
@@ -94,7 +97,7 @@ export async function runQualityPass(options: {
     const modelLabel = hasOpenRouter
       ? "OpenRouter/Kimi K2.6 (free)"
       : "Kimi K2 direct";
-    console.log(
+    log.info(
       `[QualityPass] Processing ${draftDocs.length} draft documents with ${modelLabel}...`
     );
 
@@ -112,7 +115,7 @@ export async function runQualityPass(options: {
       }
 
       try {
-        console.log(
+        log.info(
           `[QualityPass] Re-processing doc ${doc.id}: "${doc.title.slice(0, 60)}..."`
         );
 
@@ -147,7 +150,7 @@ export async function runQualityPass(options: {
       }
     }
   } catch (outerErr) {
-    console.error("[QualityPass] Unexpected error:", outerErr);
+    log.error("[QualityPass] Unexpected error:", errData(outerErr));
     result.errors.push(`Unexpected: ${String(outerErr).slice(0, 200)}`);
   }
 
@@ -161,15 +164,15 @@ export async function runQualityPass(options: {
       processedDocIds
     );
     if (feedbackResult.proposalActivated) {
-      console.log(
+      log.info(
         `[QualityPass] SIA Feedback-Agent activated generation ${feedbackResult.newGeneration} ` +
           `for claim_extractor (upgradeRate=${(feedbackResult.upgradeRate * 100).toFixed(1)}%)`
       );
     }
   } catch (feedbackErr) {
-    console.warn(
+    log.warn(
       "[QualityPass] SIA feedback collection failed (non-fatal):",
-      feedbackErr
+      errData(feedbackErr)
     );
   }
 
@@ -196,7 +199,7 @@ export async function qualityPassJobHandler(req: Request, res: Response) {
     10_000
   );
 
-  console.log(
+  log.info(
     `[QualityPass] Starting quality pass — batchSize=${batchSize}, delayMs=${delayMs}`
   );
 
@@ -207,7 +210,7 @@ export async function qualityPassJobHandler(req: Request, res: Response) {
       `Quality pass complete: ${result.processed} verified, ` +
       `${result.skipped} skipped, ${result.failed} failed`;
 
-    console.log(`[QualityPass] ${summary}`);
+    log.info(`[QualityPass] ${summary}`);
 
     if (result.processed > 0) {
       await notifyOwner({
@@ -231,7 +234,7 @@ export async function qualityPassJobHandler(req: Request, res: Response) {
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("[QualityPass] Fatal error:", err);
+    log.error("[QualityPass] Fatal error:", errData(err));
     void logCronRun("quality-pass-nightly", "error", 0, undefined, String(err));
     res.status(500).json({ ok: false, error: String(err) });
   }

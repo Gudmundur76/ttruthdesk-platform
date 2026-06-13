@@ -11,6 +11,9 @@
 import crypto from "crypto";
 import { getActiveWebhookAlerts, updateWebhookAlertLastFired } from "./db";
 import { ENV } from "./_core/env";
+import { logger, errData } from "./logger";
+const log = logger("alertDispatcher");
+
 
 export interface HighRiskClaimPayload {
   claimId: number;
@@ -52,10 +55,10 @@ async function sendTelegramAlert(payload: HighRiskClaimPayload): Promise<void> {
     });
     if (!res.ok) {
       const body = await res.text();
-      console.warn("[AlertDispatcher] Telegram send failed:", res.status, body);
+      log.warn("[AlertDispatcher] Telegram send failed:", { status: String(res.status), body });
     }
   } catch (err) {
-    console.warn("[AlertDispatcher] Telegram fetch error:", err);
+    log.warn("[AlertDispatcher] Telegram fetch error:", errData(err));
   }
 }
 
@@ -95,13 +98,13 @@ async function fireWebhook(
       signal: AbortSignal.timeout(10_000), // 10s timeout
     });
     if (!res.ok) {
-      console.warn(`[AlertDispatcher] Webhook ${webhookId} returned ${res.status}`);
+      log.warn(`[AlertDispatcher] Webhook ${webhookId} returned ${res.status}`);
       return false;
     }
     await updateWebhookAlertLastFired(webhookId);
     return true;
   } catch (err) {
-    console.warn(`[AlertDispatcher] Webhook ${webhookId} error:`, err);
+    log.warn(`[AlertDispatcher] Webhook ${webhookId} error:`, errData(err));
     return false;
   }
 }

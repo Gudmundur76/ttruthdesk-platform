@@ -23,6 +23,9 @@ import {
   upsertGraphRelation,
 } from "./db";
 import { fetchWikiPage } from "./wikiCompiler";
+import { logger, errData } from "./logger";
+const log = logger("wikiLinter");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -120,7 +123,7 @@ Only flag genuine contradictions, not minor differences in wording.`;
     const parsed = JSON.parse(content) as { contradictions: LintContradiction[] };
     return parsed.contradictions ?? [];
   } catch (err) {
-    console.error(`[WikiLinter] LLM lint error for "${entityName}":`, err);
+    log.error(`[WikiLinter] LLM lint error for "${entityName}":`, errData(err));
     return [];
   }
 }
@@ -137,7 +140,7 @@ export async function runWikiLint(): Promise<WikiLintReport> {
   const proteinEntities = await getGraphEntitiesByType("protein", 100);
   const entitiesToLint = [...pdbEntities, ...proteinEntities];
 
-  console.log(
+  log.info(
     `[WikiLinter] Linting ${entitiesToLint.length} entities for contradictions`
   );
 
@@ -175,10 +178,10 @@ export async function runWikiLint(): Promise<WikiLintReport> {
           verdict: "Contradicted",
           rationale: c.explanation,
           claimId: entity.firstSeenDocumentId ?? 0,
-        }).catch((e) => console.error("[WikiLinter] Telegram alert failed:", e));
+        }).catch((e) => log.error("[WikiLinter] Telegram alert failed:", errData(e)));
       } catch {
         // Duplicate edge — already exists, ignore
-        console.debug(`[WikiLinter] Edge already exists for entity #${entity.id}`);
+        log.debug(`[WikiLinter] Edge already exists for entity #${entity.id}`);
       }
     }
   }
@@ -191,7 +194,7 @@ export async function runWikiLint(): Promise<WikiLintReport> {
     processedAt,
   };
 
-  console.log(
+  log.info(
     `[WikiLinter] Lint complete: ${report.processedEntities} entities, ` +
       `${report.contradictionsFound} contradictions, ${report.newEdgesCreated} new edges`
   );

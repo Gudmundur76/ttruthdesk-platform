@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger } from "../logger";
+const log = logger("verticalAdapters/clinvar");
+
 
 interface ClinVarESearchResult {
   esearchresult: {
@@ -138,7 +141,7 @@ class ClinVarAdapter implements VerticalAdapter {
         confidenceFlags,
       };
     } catch (error) {
-      console.error(`Error looking up evidence in ClinVar: ${error}`);
+      log.error(`Error looking up evidence in ClinVar: ${error}`);
       return {
         found: false,
         sourceId: null,

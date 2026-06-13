@@ -9,6 +9,8 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Express, Request, Response } from "express";
 
+
+
 // ─── Allowed verticals for embed ─────────────────────────────────────────────
 const ALLOWED_VERTICALS = new Set([
   "structural_biology",

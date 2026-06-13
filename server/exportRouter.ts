@@ -25,6 +25,9 @@ import { Router, type Request, type Response } from "express";
 import { getDb } from "./db";
 import { claims, documents, auditReports, graphEntities } from "../drizzle/schema";
 import { eq, and, gte, lte, like, desc } from "drizzle-orm";
+import { logger, errData } from "./logger";
+const log = logger("exportRouter");
+
 
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
 const exportRateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -181,7 +184,7 @@ export function createExportRouter(): Router {
         data: rows,
       });
     } catch (err) {
-      console.error("[export] claims.json error:", err);
+      log.error("[export] claims.json error:", errData(err));
       return res.set(CORS).status(500).json({ ok: false, error: "Export failed" });
     }
   });
@@ -201,7 +204,7 @@ export function createExportRouter(): Router {
         })
         .send(csv);
     } catch (err) {
-      console.error("[export] claims.csv error:", err);
+      log.error("[export] claims.csv error:", errData(err));
       return res.set(CORS).status(500).json({ ok: false, error: "Export failed" });
     }
   });
@@ -269,7 +272,7 @@ export function createExportRouter(): Router {
         data: rows,
       });
     } catch (err) {
-      console.error("[export] reports.json error:", err);
+      log.error("[export] reports.json error:", errData(err));
       return res.set(CORS).status(500).json({ ok: false, error: "Export failed" });
     }
   });
@@ -289,7 +292,7 @@ export function createExportRouter(): Router {
         })
         .send(csv);
     } catch (err) {
-      console.error("[export] reports.csv error:", err);
+      log.error("[export] reports.csv error:", errData(err));
       return res.set(CORS).status(500).json({ ok: false, error: "Export failed" });
     }
   });
@@ -346,7 +349,7 @@ export function createExportRouter(): Router {
         data: rows,
       });
     } catch (err) {
-      console.error("[export] entities.json error:", err);
+      log.error("[export] entities.json error:", errData(err));
       return res.set(CORS).status(500).json({ ok: false, error: "Export failed" });
     }
   });
@@ -366,7 +369,7 @@ export function createExportRouter(): Router {
         })
         .send(csv);
     } catch (err) {
-      console.error("[export] entities.csv error:", err);
+      log.error("[export] entities.csv error:", errData(err));
       return res.set(CORS).status(500).json({ ok: false, error: "Export failed" });
     }
   });

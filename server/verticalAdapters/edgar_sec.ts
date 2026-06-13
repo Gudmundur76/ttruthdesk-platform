@@ -1,4 +1,7 @@
 import { registerVertical, VerticalAdapter, EvidenceResult } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/edgar_sec");
+
 
 const edgarSecAdapter: VerticalAdapter = {
   domainKey: 'edgar_sec',
@@ -35,7 +38,7 @@ const edgarSecAdapter: VerticalAdapter = {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.error(`SEC search failed with status: ${response.status}`);
+        log.error(`SEC search failed with status: ${response.status}`);
         return {
           found: false,
           sourceId: null,
@@ -73,7 +76,7 @@ const edgarSecAdapter: VerticalAdapter = {
         };
       }
     } catch (error: unknown) {
-      console.error('Error during SEC lookup:', error);
+      log.error('Error during SEC lookup:', errData(error));
       return {
         found: false,
         sourceId: null,

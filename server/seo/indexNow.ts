@@ -1,3 +1,6 @@
+import { logger, errData } from "../logger";
+const log = logger("seo/indexNow");
+
 /**
  * server/seo/indexNow.ts
  * ─────────────────────────────────────────────────────────────────────────────
@@ -60,12 +63,12 @@ export async function notifyIndexNow(url: string): Promise<void> {
     });
 
     if (!res.ok && res.status !== 202) {
-      console.warn(`[IndexNow] Unexpected status ${res.status} for ${url}`);
+      log.warn(`[IndexNow] Unexpected status ${res.status} for ${url}`);
     } else {
-      console.log(`[IndexNow] Pinged: ${url}`);
+      log.info(`[IndexNow] Pinged: ${url}`);
     }
   } catch (err) {
-    console.warn(`[IndexNow] Failed to ping ${url}:`, err);
+    log.warn(`[IndexNow] Failed to ping ${url}:`, errData(err));
   }
 }
 
@@ -95,12 +98,12 @@ export async function notifyIndexNowBatch(urls: string[]): Promise<void> {
       });
 
       if (!res.ok && res.status !== 202) {
-        console.warn(`[IndexNow] Batch ${i / BATCH_SIZE + 1}: unexpected status ${res.status}`);
+        log.warn(`[IndexNow] Batch ${i / BATCH_SIZE + 1}: unexpected status ${res.status}`);
       } else {
-        console.log(`[IndexNow] Batch pinged: ${batch.length} URLs`);
+        log.info(`[IndexNow] Batch pinged: ${batch.length} URLs`);
       }
     } catch (err) {
-      console.warn(`[IndexNow] Batch failed:`, err);
+      log.warn(`[IndexNow] Batch failed:`, errData(err));
     }
   }
 }

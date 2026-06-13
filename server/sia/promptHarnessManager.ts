@@ -22,6 +22,9 @@ import { getDb } from "../db";
 import { promptHarness } from "../../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import { logger, errData } from "../logger";
+const log = logger("sia/promptHarnessManager");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,7 +174,7 @@ export async function seedPromptIfMissing(
       createdAt: Date.now(),
       activatedAt: Date.now(),
     });
-    console.log(`[PromptHarness] Seeded generation 1 for ${component}`);
+    log.info(`[PromptHarness] Seeded generation 1 for ${component}`);
   }
 }
 
@@ -218,7 +221,7 @@ export async function activatePrompt(
     createdAt: Date.now(),
   });
 
-  console.log(
+  log.info(
     `[PromptHarness] Activated generation ${generation} for ${component}`
   );
   return (result as { insertId?: number }).insertId ?? 0;
@@ -331,7 +334,7 @@ Should this prompt be revised? If so, provide the full revised prompt.`;
     };
 
     if (!parsed.should_revise || !parsed.revised_prompt) {
-      console.log(
+      log.info(
         `[FeedbackAgent] No revision needed for ${component}: ${parsed.reasoning.slice(0, 100)}`
       );
       return null;
@@ -345,9 +348,9 @@ Should this prompt be revised? If so, provide the full revised prompt.`;
       risk: parsed.risk,
     };
   } catch (err) {
-    console.error(
+    log.error(
       `[FeedbackAgent] Error proposing improvement for ${component}:`,
-      err
+      errData(err)
     );
     return null;
   }

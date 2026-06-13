@@ -34,6 +34,9 @@ import { claimScoreHistory } from "../drizzle/schema";
 import { computeCompositeTruth } from "./compositeTruthEngine";
 import { getCitationChainStats } from "./citationChainAnalyzer";
 import { sql } from "drizzle-orm";
+import { logger, errData } from "./logger";
+const log = logger("reEvaluationEngine");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,7 +100,7 @@ export async function getAffectedDocumentIds(
     const result = (rows as unknown) as Array<Record<string, unknown>>;
     return result.map(r => Number(r.sourceDocId)).filter(id => !isNaN(id));
   } catch (err) {
-    console.error("[ReEval] getAffectedDocumentIds failed:", err);
+    log.error("[ReEval] getAffectedDocumentIds failed:", errData(err));
     return [];
   }
 }
@@ -147,9 +150,9 @@ export async function getEligibleClaimsForDocument(
         : null,
     }));
   } catch (err) {
-    console.error(
+    log.error(
       `[ReEval] getEligibleClaimsForDocument(${documentId}) failed:`,
-      err
+      errData(err)
     );
     return [];
   }
@@ -226,9 +229,9 @@ export async function reScoreClaim(
       }
     } catch (snapErr) {
       // Non-fatal — snapshot failure must not block the re-evaluation write
-      console.warn(
+      log.warn(
         `[ReEval] Snapshot write failed for claim ${claim.claimId}:`,
-        snapErr
+        errData(snapErr)
       );
     }
 
@@ -301,14 +304,14 @@ export async function runReEvaluationLoop(opts: {
     };
   }
 
-  console.log(
+  log.info(
     `[ReEval] Starting re-evaluation loop: ${documentIds.length} affected document(s), lookback=${lookbackHours}h, batchSize=${batchSize}`
   );
 
   // Step 2: For each affected document, fetch citation chain stats and re-score claims
   for (const documentId of documentIds) {
     if (claimsExamined >= batchSize) {
-      console.log(
+      log.info(
         `[ReEval] Batch size limit (${batchSize}) reached — stopping early`
       );
       break;
@@ -323,9 +326,9 @@ export async function runReEvaluationLoop(opts: {
         maxDistortionScore: stats.maxDistortionScore,
       };
     } catch (err) {
-      console.warn(
+      log.warn(
         `[ReEval] getCitationChainStats(${documentId}) failed (non-fatal):`,
-        err
+        errData(err)
       );
       chainStats = { totalCitingPapers: 0, maxDistortionScore: 0 };
     }
@@ -354,7 +357,7 @@ export async function runReEvaluationLoop(opts: {
           break;
         case "error":
           claimsErrored++;
-          console.warn(
+          log.warn(
             `[ReEval] Claim ${claim.claimId} re-score error: ${outcome.errorMessage}`
           );
           break;
@@ -364,7 +367,7 @@ export async function runReEvaluationLoop(opts: {
 
   const durationMs = Date.now() - t0;
 
-  console.log(
+  log.info(
     `[ReEval] Loop complete: ${claimsExamined} examined, ${claimsUpdated} updated, ` +
       `${claimsUnchanged} unchanged, ${claimsErrored} errors — ${durationMs}ms`
   );

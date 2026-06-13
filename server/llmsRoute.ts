@@ -12,6 +12,9 @@
 
 import type { Express, Request, Response } from "express";
 import { generateLlmsTxt } from "./wikiCompiler";
+import { logger, errData } from "./logger";
+const log = logger("llmsRoute");
+
 
 const STATIC_FOOTER = `
 ## What this platform does
@@ -102,7 +105,7 @@ export function registerLlmsRoute(app: Express): void {
         .status(200)
         .send(content);
     } catch (err) {
-      console.error("[llmsRoute] Failed to generate dynamic llms.txt:", err);
+      log.error("[llmsRoute] Failed to generate dynamic llms.txt:", errData(err));
       // Fallback static response
       res
         .set({ "Content-Type": "text/plain; charset=utf-8" })

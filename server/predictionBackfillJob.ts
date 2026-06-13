@@ -16,6 +16,9 @@ import { getDb } from "./db";
 import { computeClaimTrajectory, savePrediction } from "./predictionEngine";
 import { claims, documents, predictionModels } from "../drizzle/schema";
 import { isNotNull, eq } from "drizzle-orm";
+import { logger, errData } from "./logger";
+const log = logger("predictionBackfillJob");
+
 
 const BATCH_SIZE = 50;
 
@@ -81,12 +84,12 @@ export async function predictionBackfillHandler(req: Request, res: Response) {
         });
         processed++;
       } catch (err) {
-        console.warn(`[BackfillJob] Failed to compute prediction for claim ${claim.id}:`, err);
+        log.warn(`[BackfillJob] Failed to compute prediction for claim ${claim.id}:`, errData(err));
         errors++;
       }
     }
 
-    console.log(`[BackfillJob] Processed ${processed} claims, ${errors} errors`);
+    log.info(`[BackfillJob] Processed ${processed} claims, ${errors} errors`);
     return res.json({
       ok: true,
       processed,
@@ -94,7 +97,7 @@ export async function predictionBackfillHandler(req: Request, res: Response) {
       remaining: unpredicted.length - processed,
     });
   } catch (err) {
-    console.error("[BackfillJob] Fatal error:", err);
+    log.error("[BackfillJob] Fatal error:", errData(err));
     return res.status(500).json({
       error: String(err),
       timestamp: new Date().toISOString(),

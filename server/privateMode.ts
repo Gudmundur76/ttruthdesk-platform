@@ -12,6 +12,9 @@
 import { getDb } from "./db";
 import fs from "fs";
 import path from "path";
+import { logger } from "./logger";
+const log = logger("privateMode");
+
 
 // ─── Docker Compose generator ─────────────────────────────────────────────────
 
@@ -205,7 +208,7 @@ export class AuditLogger {
     try {
       fs.appendFileSync(filePath, line);
     } catch {
-      console.warn("[AuditLogger] Failed to write to file, logging to console:", line.trim());
+      log.warn("[AuditLogger] Failed to write to file, logging to console:", { line: line.trim() });
     }
 
     // Also persist to DB if available (best-effort — file log is source of truth)

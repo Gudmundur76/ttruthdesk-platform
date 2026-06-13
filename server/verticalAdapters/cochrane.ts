@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/cochrane");
+
 
 class CochraneAdapter implements VerticalAdapter {
   readonly domainKey = 'cochrane';
@@ -57,7 +60,7 @@ class CochraneAdapter implements VerticalAdapter {
       });
 
       if (!response.ok) {
-        console.error(`Cochrane API error: ${response.status} ${response.statusText}`);
+        log.error(`Cochrane API error: ${response.status} ${response.statusText}`);
         return {
           found: false,
           sourceId: null,
@@ -94,7 +97,7 @@ class CochraneAdapter implements VerticalAdapter {
         };
       }
     } catch (error) {
-      console.error('Error fetching from Cochrane Library:', error);
+      log.error('Error fetching from Cochrane Library:', errData(error));
       return {
         found: false,
         sourceId: null,

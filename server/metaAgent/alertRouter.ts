@@ -2,9 +2,9 @@
  * alertRouter.ts — Meta-Agent Alert Routing Layer
  *
  * Routes meta-agent findings to the appropriate notification channel:
- *   - "info"     → console.log only
- *   - "warning"  → console.warn + owner notification (batched)
- *   - "critical" → console.error + immediate owner notification + Telegram
+ *   - "info"     → log.info only
+ *   - "warning"  → log.warn + owner notification (batched)
+ *   - "critical" → log.error + immediate owner notification + Telegram
  *
  * Deduplicates alerts within a 24-hour window so the same finding
  * doesn't spam the owner on every swarm tick.
@@ -17,6 +17,9 @@ import { ENV } from "../_core/env";
 import type { DriftFinding } from "./codeDriftService";
 import type { InvariantResult } from "./pipelineGuardian";
 import { gt, eq, and } from "drizzle-orm";
+import { logger, errData } from "../logger";
+const log = logger("metaAgent/alertRouter");
+
 
 export type AlertSeverity = "info" | "warning" | "critical";
 
@@ -95,7 +98,7 @@ export async function persistFinding(finding: MetaFinding): Promise<number | nul
     });
     return (result as unknown as { insertId: number }).insertId ?? null;
   } catch (err) {
-    console.error("[MetaAgent] Failed to persist finding:", err);
+    log.error("[MetaAgent] Failed to persist finding:", errData(err));
     return null;
   }
 }
@@ -127,10 +130,10 @@ async function sendTelegramMetaAlert(finding: MetaFinding): Promise<void> {
       }),
     });
     if (!res.ok) {
-      console.warn("[MetaAgent] Telegram send failed:", res.status, await res.text());
+      log.warn("[MetaAgent] Telegram send failed:", { status: String(res.status), body: await res.text() });
     }
   } catch (err) {
-    console.warn("[MetaAgent] Telegram fetch error:", err);
+    log.warn("[MetaAgent] Telegram fetch error:", errData(err));
   }
 }
 
@@ -144,19 +147,19 @@ export async function routeFinding(finding: MetaFinding): Promise<void> {
   const { checkType, severity, summary } = finding;
 
   if (severity === "info") {
-    console.log(`[MetaAgent] ℹ️  [${checkType}] ${summary}`);
+    log.info(`[MetaAgent] ℹ️  [${checkType}] ${summary}`);
     await persistFinding({ ...finding, actionTaken: "ok" });
     return;
   }
 
   const alreadyAlerted = await isRecentlyAlerted(checkType, severity);
   if (alreadyAlerted) {
-    console.log(`[MetaAgent] ⏭️  [${checkType}] Deduped — already alerted within 24h`);
+    log.info(`[MetaAgent] ⏭️  [${checkType}] Deduped — already alerted within 24h`);
     return;
   }
 
   if (severity === "warning") {
-    console.warn(`[MetaAgent] ⚠️  [${checkType}] ${summary}`);
+    log.warn(`[MetaAgent] ⚠️  [${checkType}] ${summary}`);
     await persistFinding({ ...finding, actionTaken: "alerted" });
     // Owner notification (non-blocking)
     notifyOwner({
@@ -167,7 +170,7 @@ export async function routeFinding(finding: MetaFinding): Promise<void> {
   }
 
   if (severity === "critical") {
-    console.error(`[MetaAgent] 🚨 [${checkType}] ${summary}`);
+    log.error(`[MetaAgent] 🚨 [${checkType}] ${summary}`);
     await persistFinding({ ...finding, actionTaken: "escalated" });
     // Immediate owner notification
     await notifyOwner({

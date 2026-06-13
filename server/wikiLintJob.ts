@@ -15,11 +15,14 @@
 import type { Request, Response } from "express";
 import { lintWiki, buildIndex } from "./wikiEngine";
 import { notifyOwner } from "./_core/notification";
+import { logger, errData } from "./logger";
+const log = logger("wikiLintJob");
+
 
 export async function wikiEngineLintJobHandler(req: Request, res: Response): Promise<void> {
   const start = Date.now();
   try {
-    console.log("[WikiEngineLint] Starting DB wiki lint pass…");
+    log.info("[WikiEngineLint] Starting DB wiki lint pass…");
 
     // 1. Run lint
     const result = await lintWiki();
@@ -47,7 +50,7 @@ export async function wikiEngineLintJobHandler(req: Request, res: Response): Pro
       /* non-fatal */
     });
 
-    console.log("[WikiEngineLint] Done.", summary);
+    log.info("[WikiEngineLint] Done.", { summary });
 
     res.json({
       ok: true,
@@ -60,7 +63,7 @@ export async function wikiEngineLintJobHandler(req: Request, res: Response): Pro
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("[WikiEngineLint] Error:", err);
+    log.error("[WikiEngineLint] Error:", errData(err));
     res.status(500).json({
       ok: false,
       error: String(err),

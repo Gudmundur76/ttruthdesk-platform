@@ -35,6 +35,9 @@ import { ENV } from "./_core/env";
 import { publishEvent } from "./autonomousLoop/eventBus";
 import { logCronRun } from "./cronRunLogger";
 import { type VerticalFeedConfig } from "./verticalFeedConfig";
+import { logger, errData } from "./logger";
+const log = logger("pmcFeedJob");
+
 export {
   VERTICAL_FEED_CONFIGS,
   getVerticalFeedConfig,
@@ -559,7 +562,7 @@ export async function pmcFeedJobHandler(
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("[pmcFeedJob] Fatal error:", err);
+    log.error("[pmcFeedJob] Fatal error:", errData(err));
     void logCronRun("pmc-feed-nightly", "error", 0, undefined, String(err));
     res.status(500).json({ ok: false, error: String(err) });
   }

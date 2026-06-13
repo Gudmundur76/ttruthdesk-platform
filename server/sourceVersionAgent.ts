@@ -29,6 +29,9 @@ import {
   upsertSourceVersion,
 } from "./db";
 import { publishEvent } from "./autonomousLoop/eventBus";
+import { logger, errData } from "./logger";
+const log = logger("sourceVersionAgent");
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MAX_SOURCES_PER_RUN = 30;
@@ -213,7 +216,7 @@ export async function runSourceVersionAgent(): Promise<SourceVersionRunResult> {
     .filter(s => s.approved)
     .slice(0, MAX_SOURCES_PER_RUN);
 
-  console.log(
+  log.info(
     `[SourceVersionAgent] Starting run: ${approvedSources.length} approved sources`
   );
 
@@ -273,7 +276,7 @@ export async function runSourceVersionAgent(): Promise<SourceVersionRunResult> {
         newHash,
         detectedAt: now,
       }).catch(err =>
-        console.warn(
+        log.warn(
           `[SourceVersionAgent] publishEvent failed for ${source.id}:`,
           err
         )
@@ -288,7 +291,7 @@ export async function runSourceVersionAgent(): Promise<SourceVersionRunResult> {
         newHash,
       });
 
-      console.log(
+      log.info(
         `[SourceVersionAgent] ${source.id}: ${existing ? "updated" : "new"} (${changeType}) — hash ${previousHash?.slice(0, 8) ?? "none"} → ${newHash.slice(0, 8)}`
       );
     } catch (err) {
@@ -298,15 +301,15 @@ export async function runSourceVersionAgent(): Promise<SourceVersionRunResult> {
         status: "error",
         errorMessage: err instanceof Error ? err.message : String(err),
       });
-      console.warn(
+      log.warn(
         `[SourceVersionAgent] ${source.id} error:`,
-        err instanceof Error ? err.message : err
+        errData(err)
       );
     }
   }
 
   const durationMs = Date.now() - t0;
-  console.log(
+  log.info(
     `[SourceVersionAgent] Run complete: ${sourcesUpdated} updated, ` +
       `${sourcesUnchanged} unchanged, ${sourcesErrored} errors, ` +
       `${sourcesSkipped} skipped — ${durationMs}ms`

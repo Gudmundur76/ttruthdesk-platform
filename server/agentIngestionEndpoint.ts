@@ -39,6 +39,9 @@ import { coordQueue } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { getVertical } from "./verticalAdapters";
 import { ENV } from "./_core/env";
+import { logger, errData } from "./logger";
+const log = logger("agentIngestionEndpoint");
+
 
 // ─── Concurrency semaphore ────────────────────────────────────────────────────
 
@@ -317,7 +320,7 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
               }
             }
           } catch (claimErr) {
-            console.warn(`[AgentIngestion] Claim ${claim.id} evidence lookup failed:`, claimErr);
+            log.warn(`[AgentIngestion] Claim ${claim.id} evidence lookup failed:`, errData(claimErr));
           }
         })
       );
@@ -329,7 +332,7 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     // ── Extract graph entities ────────────────────────────────────────────
     const finalClaims = await getClaimsByDocument(documentId);
     await extractAndUpsertEntities(documentId, payload.vertical, finalClaims).catch((err) => {
-      console.warn("[AgentIngestion] Graph entity extraction failed:", err);
+      log.warn("[AgentIngestion] Graph entity extraction failed:", errData(err));
     });
 
     // ── Mark queue item complete ──────────────────────────────────────────
@@ -349,7 +352,7 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     );
 
     const processingMs = Date.now() - startMs;
-    console.log(
+    log.info(
       `[AgentIngestion] Ingested queueItem=${payload.queueItemId} vertical=${payload.vertical} ` +
       `claims=${payload.claims.length} documentId=${documentId} in ${processingMs}ms`
     );
@@ -363,7 +366,7 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    console.error("[AgentIngestion] Fatal error:", error);
+    log.error("[AgentIngestion] Fatal error:", errData(error));
     res.status(500).json({ ok: false, error });
   } finally {
     activeIngestions--;

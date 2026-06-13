@@ -28,6 +28,9 @@
 
 import { invokeMultiLLM } from "./_core/multiLLM";
 import { findClaimsByTextSimilarity, type ClaimSignal } from "./graphTraversal";
+import { logger, errData } from "./logger";
+const log = logger("frictionEngine");
+
 
 // ─── Types — Full Paper JSON Schema ──────────────────────────────────────────
 
@@ -318,7 +321,7 @@ export async function runPreflightScan(text: string): Promise<FrictionEngineResu
       parsed = JSON.parse(content) as Partial<FrictionEngineResult>;
     }
   } catch (err) {
-    console.error("[FrictionEngine] Preflight scan LLM error:", err);
+    log.error("[FrictionEngine] Preflight scan LLM error:", errData(err));
     // Return a safe fallback — never block submission on FrictionEngine failure
     return buildFallbackResult(raw_prompt, Date.now() - start);
   }
@@ -463,7 +466,7 @@ export async function runOutputAudit(
       return parsed;
     }
   } catch (err) {
-    console.error("[FrictionEngine] Output audit LLM error:", err);
+    log.error("[FrictionEngine] Output audit LLM error:", errData(err));
   }
 
   // Fallback: pass through on error — never block on audit failure

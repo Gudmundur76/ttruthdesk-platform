@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/chembl");
+
 
 const CHEMBL_API_BASE = 'https://www.ebi.ac.uk/chembl/api/data';
 const USER_AGENT = 'citation-engine/1.0 (citation-engine@citation.is)';
@@ -96,7 +99,7 @@ const chemblAdapter: VerticalAdapter = {
       };
 
     } catch (error: unknown) {
-      console.error(`Error looking up ChEMBL evidence for '${query}':`, error);
+      log.error(`Error looking up ChEMBL evidence for '${query}':`, errData(error));
       return {
         found: false,
         sourceId: null,

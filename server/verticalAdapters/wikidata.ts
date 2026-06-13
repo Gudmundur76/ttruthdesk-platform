@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger } from "../logger";
+const log = logger("verticalAdapters/wikidata");
+
 
 class WikidataAdapter implements VerticalAdapter {
   domainKey: string = 'wikidata';
@@ -98,7 +101,7 @@ class WikidataAdapter implements VerticalAdapter {
         };
       }
     } catch (error) {
-      console.error(`Wikidata lookup error: ${error}`);
+      log.error(`Wikidata lookup error: ${error}`);
       return {
         found: false,
         sourceId: null,

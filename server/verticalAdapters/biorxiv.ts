@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/biorxiv");
+
 
 const BIORXIV_DOI_REGEX = /10\.1101\/[^\s]+/g;
 
@@ -59,7 +62,7 @@ const biorxivAdapter: VerticalAdapter = {
           }
         }
       } catch (error: unknown) {
-        console.error(`Error fetching from ${apiUrl}:`, (error as Error).message);
+        log.error(`Error fetching from ${apiUrl}:`, errData(error));
         // Continue to the next URL if one fails
       }
     }

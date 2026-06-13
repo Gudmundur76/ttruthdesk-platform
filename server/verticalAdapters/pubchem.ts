@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/pubchem");
+
 
 class PubChemAdapter implements VerticalAdapter {
   domainKey = 'pubchem';
@@ -100,7 +103,7 @@ class PubChemAdapter implements VerticalAdapter {
         };
       }
     } catch (error: unknown) {
-      console.error(`Error fetching PubChem data for ${identifier}:`, error);
+      log.error(`Error fetching PubChem data for ${identifier}:`, errData(error));
       return {
         found: false,
         sourceId: null,

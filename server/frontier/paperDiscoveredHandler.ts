@@ -21,6 +21,9 @@ import { coordQueue, frontierLog } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import type { LoopEvent } from "../autonomousLoop/eventBus";
 import type { LoopAction } from "../autonomousLoop/loopOrchestrator";
+import { logger, errData } from "../logger";
+const log = logger("frontier/paperDiscoveredHandler");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,7 +117,7 @@ Generate 2-3 gap-closing hypothesis claims.`;
       (h) => typeof h.claimText === "string" && h.claimText.length > 10
     );
   } catch (err) {
-    console.warn("[PaperDiscoveredHandler] LLM hypothesis generation failed:", err);
+    log.warn("[PaperDiscoveredHandler] LLM hypothesis generation failed:", errData(err));
     return [];
   }
 }
@@ -163,7 +166,7 @@ async function queuePaperHypothesis(
 
     return queueItemId;
   } catch (err) {
-    console.warn("[PaperDiscoveredHandler] Failed to queue hypothesis:", err);
+    log.warn("[PaperDiscoveredHandler] Failed to queue hypothesis:", errData(err));
     return null;
   }
 }
@@ -192,7 +195,7 @@ export async function handlePaperDiscovered(
     return { actions, result: { hypothesesGenerated: 0, queueItemsCreated: 0, hypotheses: [] } };
   }
 
-  console.log(`[PaperDiscoveredHandler] Generating hypotheses for PMID:${payload.pmid} — "${payload.title.slice(0, 80)}"`);
+  log.info(`[PaperDiscoveredHandler] Generating hypotheses for PMID:${payload.pmid} — "${payload.title.slice(0, 80)}"`);
 
   const hypotheses = await generateHypothesesFromPaper(payload);
 
@@ -209,7 +212,7 @@ export async function handlePaperDiscovered(
     result: queueItemsCreated > 0 ? "success" : "skipped",
   });
 
-  console.log(`[PaperDiscoveredHandler] PMID:${payload.pmid}: ${queueItemsCreated}/${hypotheses.length} hypotheses queued`);
+  log.info(`[PaperDiscoveredHandler] PMID:${payload.pmid}: ${queueItemsCreated}/${hypotheses.length} hypotheses queued`);
 
   return {
     actions,

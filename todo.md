@@ -1413,12 +1413,12 @@
 
 ## Phase 110: Question-to-Claim Interface + Demand-Triggered Loop
 
-- [ ] Build `server/questionRouter.ts`: `answerQuestion` procedure — converts natural language question to a verifiable claim via LLM, runs it through the full analysis pipeline, returns structured answer with verdict + confidence + primary source citations
-- [ ] Add `questions` table to Drizzle schema: `id`, `questionText`, `derivedClaim`, `verdict`, `confidence`, `sources` (JSON), `loopTriggered` (boolean), `askedAt`
+- [x] Build `server/questionRouter.ts`: `answerQuestion` procedure — converts natural language question to a verifiable claim via LLM, runs it through the full analysis pipeline, returns structured answer with verdict + confidence + primary source citations
+- [x] Add `questions` table to Drizzle schema: `id`, `questionText`, `derivedClaim`, `verdict`, `confidence`, `sources` (JSON), `loopTriggered` (boolean), `askedAt`
 - [x] Run `pnpm drizzle-kit generate` and apply migration
-- [ ] Add `insertQuestion`, `getQuestion` DB helpers to `db.ts`
-- [ ] Wire demand-triggered loop: if `confidence < 0.6` or `verdict === insufficient_evidence`, emit a `coverage_gap` event to the autonomous loop event bus so the frontier engine pursues the gap
-- [ ] Register `questionRouter` in `server/routers.ts`
-- [ ] Expose `POST /api/public/answer` as a public REST endpoint (rate-limited: 10/hour per IP, unlimited for API key holders)
-- [ ] Write Vitest tests: question-to-claim conversion, low-confidence loop trigger, high-confidence no-trigger, rate limiting, answer schema validation
-- [ ] Commit: `feat(engine): phase 110 — question-to-claim interface and demand-triggered loop`
+- [x] Add `insertQuestion`, `getQuestion` DB helpers to `db.ts`
+- [x] Wire demand-triggered loop: if `confidence < 0.6` or `verdict === insufficient_evidence`, emit a `coverage_gap` event to the autonomous loop event bus so the frontier engine pursues the gap
+- [x] Register `questionRouter` in `server/routers.ts`
+- [x] Expose `POST /api/public/answer` as a public REST endpoint (rate-limited: 10/hour per IP, unlimited for API key holders)
+- [x] Write Vitest tests: question-to-claim conversion, low-confidence loop trigger, high-confidence no-trigger, rate limiting, answer schema validation
+- [x] Commit: `feat(engine): phase 110 — question-to-claim interface and demand-triggered loop`

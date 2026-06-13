@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/who");
+
 
 class WHOAdapter implements VerticalAdapter {
   readonly domainKey = 'who';
@@ -50,7 +53,7 @@ class WHOAdapter implements VerticalAdapter {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.error(`WHO API request failed: ${response.status} ${response.statusText}`);
+        log.error(`WHO API request failed: ${response.status} ${response.statusText}`);
         return {
           found: false,
           sourceId: null,
@@ -86,7 +89,7 @@ class WHOAdapter implements VerticalAdapter {
         };
       }
     } catch (error) {
-      console.error('Error fetching from WHO API:', error);
+      log.error('Error fetching from WHO API:', errData(error));
       return {
         found: false,
         sourceId: null,

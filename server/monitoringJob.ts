@@ -14,6 +14,9 @@ import { sdk } from "./_core/sdk";
 import { invokeLLM } from "./_core/llm";
 import { insertMonitoringItems, getAllActiveMonitoringJobs, getDocumentById } from "./db";
 import { notifyIndexNow, reportUrl } from "./seo/indexNow";
+import { logger, errData } from "./logger";
+const log = logger("monitoringJob");
+
 
 interface FeedItem {
   source: "pubmed" | "biorxiv" | "patent";
@@ -186,7 +189,7 @@ export async function monitoringJobHandler(req: Request, res: Response) {
           notifyIndexNow(reportUrl(doc.id)).catch(() => {/* non-fatal */});
         }
       } catch (docErr) {
-        console.error(`[monitoring-job] Error processing doc ${doc.id}:`, docErr);
+        log.error(`[monitoring-job] Error processing doc ${doc.id}:`, errData(docErr));
       }
     }
 

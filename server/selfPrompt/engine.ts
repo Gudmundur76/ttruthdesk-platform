@@ -23,6 +23,9 @@ import { runSelfPrompt } from "./promptEngine";
 import { executeActions } from "./actionExecutor";
 import { getDb } from "../db";
 import { selfPromptLog } from "../../drizzle/schema";
+import { logger, errData } from "../logger";
+const log = logger("selfPrompt/engine");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,10 +88,10 @@ export async function runSelfPromptCycle(
       cycleId = (insertResult as { insertId?: number }).insertId ?? null;
     }
   } catch (err) {
-    console.error("[SelfPromptEngine] Failed to log cycle:", err);
+    log.error("[SelfPromptEngine] Failed to log cycle:", errData(err));
   }
 
-  console.log(
+  log.info(
     `[SelfPromptEngine] Cycle complete: event=${event.type}, ` +
       `actions=${selfPrompt.actions.length}, executed=${actionsToExecute.length}, ` +
       `converged=${selfPrompt.converge}, duration=${durationMs}ms`

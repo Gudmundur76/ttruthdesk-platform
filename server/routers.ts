@@ -45,6 +45,9 @@ import { storagePut } from "./storage";
 import { translateQueryToClaims } from "./_queryTranslator";
 import { verdictForClaim } from "./pdbAdapter";
 import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
+import { logger, errData } from "./logger";
+const log = logger("routers");
+
 
 // ─── EuropePMC helper (used by chat.query) ────────────────────────────────────
 const EUROPE_PMC_SEARCH =
@@ -162,7 +165,7 @@ export const appRouter = router({
         }
         // Run pipeline async (fire and forget)
         runAnalysisPipeline(docId, input.text, ctx.user.id).catch(
-          console.error
+          log.error
         );
         // Publish to autonomous loop event bus (fire and forget)
         import("./autonomousLoop/eventBus")
@@ -226,7 +229,7 @@ export const appRouter = router({
           await incrementEmailUserAuditCount(emailUserId).catch(() => {});
         }
         runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(
-          console.error
+          log.error
         );
         // Publish to autonomous loop event bus (fire and forget)
         import("./autonomousLoop/eventBus")
@@ -405,7 +408,7 @@ export const appRouter = router({
             return { title, text: fullText, pmid, doi: doi ?? null, citation };
           }
         } catch (err) {
-          console.error("PubMed fetch error:", err);
+          log.error("PubMed fetch error:", errData(err));
         }
 
         // ── Europe PMC fallback ───────────────────────────────────────────────
@@ -454,7 +457,7 @@ export const appRouter = router({
             }
           }
         } catch (err) {
-          console.error("Europe PMC fallback error:", err);
+          log.error("Europe PMC fallback error:", errData(err));
         }
 
         throw new TRPCError({
@@ -554,9 +557,9 @@ export const appRouter = router({
               1,
               `claim-${input.claimId}`,
               input.documentId
-            ).catch(console.error)
+            ).catch(log.error)
           )
-          .catch(console.error);
+          .catch(log.error);
         // Calibration loop: record that the model which produced the original verdict was incorrect.
         // We look up the document's llmProvider to identify the responsible model.
         // This feeds the LLM quality scoring system and can trigger auto-bans on low-accuracy models.
@@ -565,11 +568,11 @@ export const appRouter = router({
             if (!doc?.llmProvider) return;
             import("./llmProviderQuality")
               .then(({ recordModelOutcome }) =>
-                recordModelOutcome(doc.llmProvider, false).catch(console.error)
+                recordModelOutcome(doc.llmProvider, false).catch(log.error)
               )
-              .catch(console.error);
+              .catch(log.error);
           })
-          .catch(console.error);
+          .catch(log.error);
         // Publish manual_review_complete event into the Autonomous Loop
         import("./autonomousLoop/eventBus")
           .then(({ publishEvent }) =>
@@ -579,9 +582,9 @@ export const appRouter = router({
               overriddenVerdict: input.overriddenVerdict,
               overrideCategory: input.overrideCategory,
               reviewerId: ctx.user.id,
-            }).catch(console.error)
+            }).catch(log.error)
           )
-          .catch(console.error);
+          .catch(log.error);
         return { success: true };
       }),
 
@@ -659,7 +662,7 @@ export const appRouter = router({
             message: "No text available",
           });
         runAnalysisPipeline(input.documentId, doc.rawText, ctx.user.id).catch(
-          console.error
+          log.error
         );
         return { success: true };
       }),
@@ -1074,9 +1077,9 @@ Respond in this exact structure:
           }
         } catch (auditErr) {
           // Audit failure is non-fatal — proceed with original answer
-          console.warn(
+          log.warn(
             "[FrictionEngine] Output audit error (non-fatal):",
-            auditErr
+            errData(auditErr)
           );
         }
 
@@ -1486,8 +1489,8 @@ Respond in this exact structure:
       const { runBackfillWiki } = await import("./backfillWikiRoute");
       // Fire-and-forget — return immediately so the HTTP connection doesn't time out
       runBackfillWiki(origin, msg => {
-        console.log(`[BackfillWiki/tRPC] ${msg}`);
-      }).catch(console.error);
+        log.info(`[BackfillWiki/tRPC] ${msg}`);
+      }).catch(log.error);
       return {
         status: "started" as const,
         message:
@@ -1576,9 +1579,9 @@ Respond in this exact structure:
           });
           secretPersisted = resp.ok;
         } catch (err) {
-          console.warn(
+          log.warn(
             "[RotateJwks] Could not persist new key via Forge API:",
-            err
+            errData(err)
           );
         }
       }
@@ -1591,7 +1594,7 @@ Respond in this exact structure:
         "jwks-key-rotation"
       );
 
-      console.log(
+      log.info(
         `[RotateJwks] Key rotated by ${ctx.user.openId}. Old kid: ${oldKid} \u2192 New kid: ${newPublicJwk.kid}. Secret persisted: ${secretPersisted}`
       );
 
@@ -4521,7 +4524,7 @@ Respond in this exact structure:
           deployTarget: input.deployTarget,
           config: (input.deployConfig ?? {}) as Record<string, string>,
           apiBase: input.apiBase ?? "",
-        }).catch(console.error);
+        }).catch(log.error);
         return { deploymentId: deployment.id, status: "building" };
       }),
     list: protectedProcedure.query(async ({ ctx }) => {
@@ -4599,7 +4602,7 @@ Respond in this exact structure:
           verticalKey: input.verticalKey,
           skipProbe: input.skipProbe,
           skipCodegen: input.skipCodegen,
-        }).catch(console.error);
+        }).catch(log.error);
         return { runId, status: "running" };
       }),
     get: protectedProcedure

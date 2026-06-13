@@ -1,4 +1,7 @@
 import { registerVertical, VerticalAdapter, EvidenceResult } from './types';
+import { logger } from "../logger";
+const log = logger("verticalAdapters/openfda_labels");
+
 
 class OpenFDAAdapter implements VerticalAdapter {
   domainKey = 'openfda_labels';
@@ -61,7 +64,7 @@ class OpenFDAAdapter implements VerticalAdapter {
         };
       }
     } catch (error) {
-      console.error(`Error fetching OpenFDA drug label: ${error}`);
+      log.error(`Error fetching OpenFDA drug label: ${error}`);
       return {
         found: false,
         sourceId: null,

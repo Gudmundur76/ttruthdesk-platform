@@ -12,6 +12,9 @@
  */
 
 import crypto from "crypto";
+import { logger } from "./logger";
+const log = logger("jwksKeys");
+
 
 // Built-in RSA-2048 key pair (generated at project init, 2026-06-06).
 // Override via JWKS_PRIVATE_KEY environment secret.
@@ -95,10 +98,10 @@ const envPem = envRaw.length > 100 ? normalisePem(envRaw) : "";
 const envKey = envPem ? deriveJwkFromPem(envPem) : null;
 
 if (envKey) {
-  console.log(`[JWKS] Using key from JWKS_PRIVATE_KEY secret (kid: ${envKey.kid})`);
+  log.info(`[JWKS] Using key from JWKS_PRIVATE_KEY secret (kid: ${envKey.kid})`);
 } else {
   if (envRaw.length > 0) {
-    console.warn("[JWKS] JWKS_PRIVATE_KEY is set but could not be parsed — falling back to built-in key");
+    log.warn("[JWKS] JWKS_PRIVATE_KEY is set but could not be parsed — falling back to built-in key");
   }
 }
 

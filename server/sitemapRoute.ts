@@ -14,6 +14,9 @@
 import type { Express, Request, Response } from "express";
 import { getCompletedPublicPapers, getAllGraphEntities, getVerifiedClaimsForSitemap } from "./db";
 import { slugify } from "./wikiCompiler";
+import { logger, errData } from "./logger";
+const log = logger("sitemapRoute");
+
 
 /** Resolve the canonical domain from the incoming request (supports custom domains). */
 function getDomain(req: Request): string {
@@ -124,7 +127,7 @@ ${wikiEntries}
         .status(200)
         .send(xml);
     } catch (err) {
-      console.error("[sitemapRoute] Error generating sitemap:", err);
+      log.error("[sitemapRoute] Error generating sitemap:", errData(err));
       res.status(500).send("<?xml version=\"1.0\"?><urlset/>");
     }
   });

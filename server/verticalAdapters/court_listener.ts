@@ -1,3 +1,6 @@
+import { logger, errData } from "../logger";
+const log = logger("verticalAdapters/court_listener");
+
 export interface EvidenceResult {
   found: boolean;
   sourceId: string | null;
@@ -17,7 +20,7 @@ export interface VerticalAdapter {
 
 // Placeholder for registerVertical function, assuming it's imported from './types'
 function registerVertical(adapter: VerticalAdapter): void {
-  console.log(`Registering vertical adapter: ${adapter.displayName}`);
+  log.info(`Registering vertical adapter: ${adapter.displayName}`);
 }
 
 class CourtListenerAdapter implements VerticalAdapter {
@@ -69,7 +72,7 @@ class CourtListenerAdapter implements VerticalAdapter {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.error(`CourtListener API error: ${response.status} ${response.statusText}`);
+        log.error(`CourtListener API error: ${response.status} ${response.statusText}`);
         return {
           found: false,
           sourceId: null,
@@ -118,7 +121,7 @@ class CourtListenerAdapter implements VerticalAdapter {
         };
       }
     } catch (error) {
-      console.error('Network or parsing error during CourtListener lookup:', error);
+      log.error('Network or parsing error during CourtListener lookup:', errData(error));
       return {
         found: false,
         sourceId: null,

@@ -11,6 +11,9 @@
 
 import { invokeLLM } from "../_core/llm";
 import type { SystemState } from "./stateCollector";
+import { logger, errData } from "../logger";
+const log = logger("selfPrompt/promptEngine");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -238,7 +241,7 @@ export async function runSelfPrompt(state: SystemState): Promise<SelfPrompt> {
       : "";
     return parseSelfPromptResponse(rawContent, state.metaHealth.score);
   } catch (err) {
-    console.error("[SelfPromptEngine] LLM call failed:", err);
+    log.error("[SelfPromptEngine] LLM call failed:", errData(err));
     return {
       reasoning: `LLM call failed: ${String(err)}`,
       actions: [],

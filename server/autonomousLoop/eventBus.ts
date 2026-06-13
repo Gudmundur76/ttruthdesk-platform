@@ -25,6 +25,9 @@
 import { getDb } from "../db";
 import { eventQueue } from "../../drizzle/schema";
 import { eq, and, lt, sql } from "drizzle-orm";
+import { logger, errData } from "../logger";
+const log = logger("autonomousLoop/eventBus");
+
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -116,11 +119,11 @@ async function _drainPass(): Promise<void> {
       } catch (err) {
         // Mark failed and continue — do not abort the whole drain pass
         await markEventFailed(event.id, String(err));
-        console.error(`[EventBus] processEvent(${event.id}) failed:`, err);
+        log.error(`[EventBus] processEvent(${event.id}) failed:`, errData(err));
       }
     }
   } catch (err) {
-    console.error("[EventBus] drain pass error:", err);
+    log.error("[EventBus] drain pass error:", errData(err));
   } finally {
     _draining = false;
   }

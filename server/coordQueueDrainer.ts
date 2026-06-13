@@ -23,6 +23,9 @@ import { runAnalysisPipeline } from "./analysisPipeline";
 import { createDocument } from "./db";
 import { getAutoIngestedPaperByPmid, upsertAutoIngestedPaper, updateAutoIngestedPaperStatus } from "./db";
 import { publishEvent } from "./autonomousLoop/eventBus";
+import { logger, errData } from "./logger";
+const log = logger("coordQueueDrainer");
+
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 const DRAINER_TASK_ID = "coord-queue-drainer";
@@ -229,7 +232,7 @@ async function processItem(
       }
     })
     .catch((err) => {
-      console.warn(`[CoordQueueDrainer] Pipeline failed for item ${item.id}:`, err);
+      log.warn(`[CoordQueueDrainer] Pipeline failed for item ${item.id}:`, errData(err));
     });
 
   return { success: true, skipped: false };
@@ -260,12 +263,12 @@ export async function drainCoordQueue(): Promise<DrainerResult> {
 
   const batch = await claimNextBatch(db);
   if (batch.length === 0) {
-    console.log("[CoordQueueDrainer] No pending items to process");
+    log.info("[CoordQueueDrainer] No pending items to process");
     result.durationMs = Date.now() - startMs;
     return result;
   }
 
-  console.log(`[CoordQueueDrainer] Processing ${batch.length} items`);
+  log.info(`[CoordQueueDrainer] Processing ${batch.length} items`);
 
   for (const item of batch) {
     result.itemsProcessed++;
@@ -292,7 +295,7 @@ export async function drainCoordQueue(): Promise<DrainerResult> {
   }
 
   result.durationMs = Date.now() - startMs;
-  console.log(
+  log.info(
     `[CoordQueueDrainer] Done: ${result.itemsSucceeded} succeeded, ` +
     `${result.itemsFailed} failed, ${result.itemsSkipped} skipped in ${result.durationMs}ms`
   );

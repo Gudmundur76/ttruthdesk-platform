@@ -12,6 +12,9 @@
 
 import { getDb } from "./db";
 import { cronRunLog } from "../drizzle/schema";
+import { logger, errData } from "./logger";
+const log = logger("cronRunLogger");
+
 
 export type CronRunStatus = "ok" | "error" | "skipped";
 
@@ -37,7 +40,7 @@ export async function logCronRun(
       errorMessage: errorMessage ?? null,
     });
   } catch (err) {
-    console.warn(`[CronRunLogger] Failed to write run record for ${jobName}:`, err);
+    log.warn(`[CronRunLogger] Failed to write run record for ${jobName}:`, errData(err));
   }
 }
 

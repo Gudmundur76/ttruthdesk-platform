@@ -15,6 +15,9 @@ import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
 import { citationEdges } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { logger, errData } from "./logger";
+const log = logger("citationChainAnalyzer");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -485,7 +488,7 @@ export async function analyzeCitationChain(params: {
       dominantDistortionType,
     };
   } catch (err) {
-    console.error("[CitationChain] Analysis failed:", err);
+    log.error("[CitationChain] Analysis failed:", errData(err));
     return null;
   }
 }

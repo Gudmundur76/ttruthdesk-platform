@@ -59,6 +59,9 @@ import { runSelfPromptCycle } from "./selfPrompt/engine";
 import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
 import { analyzeCitationChain } from "./citationChainAnalyzer";
 import { computeCompositeTruth } from "./compositeTruthEngine";
+import { logger, errData } from "./logger";
+const log = logger("analysisPipeline");
+
 
 export async function runAnalysisPipeline(
   documentId: number,
@@ -219,9 +222,9 @@ export async function runAnalysisPipeline(
             }
           } catch (auditErr) {
             // Non-fatal — use original verdict/rationale
-            console.warn(
+            log.warn(
               "[FrictionEngine] Pipeline output audit error (non-fatal):",
-              auditErr
+              errData(auditErr)
             );
           }
           await updateClaimVerdict(claim.id, {
@@ -268,7 +271,7 @@ export async function runAnalysisPipeline(
                     citationConfidence: passage.passageConfidence,
                     evidenceBoundary: null,
                   }).catch(e =>
-                    console.warn(`[Citations] Failed to insert citation for claim ${claim.id} (non-fatal):`, e)
+                    log.warn(`[Citations] Failed to insert citation for claim ${claim.id} (non-fatal):`, errData(e))
                   );
                   // ── Phase 101: Misrepresentation classification ───────────
                   // Fires only for Contradicted / Partially Supported verdicts
@@ -299,7 +302,7 @@ export async function runAnalysisPipeline(
                 }
               })
               .catch(e =>
-                console.warn(
+                log.warn(
                   `[PassageExtractor] Claim ${claim.id} passage extraction failed (non-fatal):`,
                   e
                 )
@@ -317,7 +320,7 @@ export async function runAnalysisPipeline(
                 detectEvidenceGapForDocument(documentId, 1, claim.claimText)
               )
               .catch(e =>
-                console.warn(
+                log.warn(
                   "[FrontierEngine] Gap detection trigger failed (non-fatal):",
                   e
                 )
@@ -328,7 +331,7 @@ export async function runAnalysisPipeline(
       // Log any individual claim failures without aborting the whole document
       results.forEach((r, idx) => {
         if (r.status === "rejected") {
-          console.warn(
+          log.warn(
             `[Pipeline] Claim ${batch[idx]?.id} validation failed (non-fatal):`,
             r.reason
           );
@@ -369,7 +372,7 @@ export async function runAnalysisPipeline(
       pdfStorageKey = pdfKey;
       pdfStorageUrl = pdfUrl;
     } catch (pdfErr) {
-      console.error("[Pipeline] PDF generation failed (non-fatal):", pdfErr);
+      log.error("[Pipeline] PDF generation failed (non-fatal):", errData(pdfErr));
     }
     // 7. Upsert audit report record (with PDF if available)
     await upsertAuditReport({
@@ -391,7 +394,7 @@ export async function runAnalysisPipeline(
       llmProvider,
       llmProvider.split(":")[0],
       isFreeModel
-    ).catch(console.error);
+    ).catch(log.error);
 
     // Mark quality tier: kimi = verified, everything else = draft (needs quality pass)
     const qualityTier = llmProvider === "kimi" ? "verified" : "draft";
@@ -422,12 +425,12 @@ export async function runAnalysisPipeline(
     });
     // Compile wiki pages and update knowledge graph — S3 + graph entities (non-fatal)
     compileDocumentToWiki(documentId).catch(err =>
-      console.error("[Pipeline] Wiki compilation error (S3):", err)
+      log.error("[Pipeline] Wiki compilation error (S3):", errData(err))
     );
     // Ingest into DB-backed LLM wiki (non-fatal, fire-and-forget)
     if (doc) {
       ingestSourceToWiki(doc as never, finalClaims as never).catch(err =>
-        console.error("[Pipeline] Wiki engine ingest error:", err)
+        log.error("[Pipeline] Wiki engine ingest error:", errData(err))
       );
     }
     // ── Self-Prompting Engine: Post-Pipeline Cycle ──────────────────────────
@@ -450,7 +453,7 @@ export async function runAnalysisPipeline(
       documentId,
       verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
     }).catch(e =>
-      console.warn(
+      log.warn(
         "[SelfPromptEngine] Post-pipeline cycle error (non-fatal):",
         e
       )
@@ -504,7 +507,7 @@ export async function runAnalysisPipeline(
               .limit(1);
             if (entity) {
               runInversePromptForEntity(entity.id).catch(e =>
-                console.warn(
+                log.warn(
                   "[InversePrompt] Entity generation error (non-fatal):",
                   e
                 )
@@ -512,7 +515,7 @@ export async function runAnalysisPipeline(
             }
           }
         } catch (e) {
-          console.warn("[InversePrompt] Entity lookup error (non-fatal):", e);
+          log.warn("[InversePrompt] Entity lookup error (non-fatal):", errData(e));
         }
       })();
     }
@@ -547,21 +550,21 @@ export async function runAnalysisPipeline(
               confidenceScore: claim.confidenceScore ?? null,
               reportUrl: reportUrl(documentId),
             }).catch(e =>
-              console.warn("[Pipeline] Alert dispatch error (non-fatal):", e)
+              log.warn("[Pipeline] Alert dispatch error (non-fatal):", errData(e))
             );
           }
         }
-        console.log(
+        log.info(
           `[Pipeline] Predictions saved for ${finalClaims.length} claims in doc ${documentId}`
         );
       } catch (predErr) {
-        console.warn(
+        log.warn(
           "[Pipeline] Prediction engine error (non-fatal):",
-          predErr
+          errData(predErr)
         );
       }
     })().catch(predErr =>
-      console.warn("[Pipeline] Prediction IIFE error (non-fatal):", predErr)
+      log.warn("[Pipeline] Prediction IIFE error (non-fatal):", errData(predErr))
     );
     // ── TurboVec: auto-index all verified/supported claims into FAISS sidecar ──
     // Non-fatal fire-and-forget. If the Python sidecar is unavailable the
@@ -579,15 +582,15 @@ export async function runAnalysisPipeline(
           await indexClaim(claim.id, claim.claimText);
         }
         if (verifiedClaims.length > 0) {
-          console.log(
+          log.info(
             `[TurboVec] Auto-indexed ${verifiedClaims.length} verified claims for doc ${documentId}`
           );
         }
       } catch (vecErr) {
-        console.warn("[TurboVec] Auto-indexing error (non-fatal):", vecErr);
+        log.warn("[TurboVec] Auto-indexing error (non-fatal):", errData(vecErr));
       }
     })().catch(vecErr =>
-      console.warn("[TurboVec] Auto-index IIFE error (non-fatal):", vecErr)
+      log.warn("[TurboVec] Auto-index IIFE error (non-fatal):", errData(vecErr))
     );
     // ── Phase 102: Citation Chain Analysis ────────────────────────────────────
     // After all per-claim tasks complete, fire citation chain analysis for the
@@ -614,17 +617,17 @@ export async function runAnalysisPipeline(
           maxHops: 10,
         });
 
-        console.log(
+        log.info(
           `[CitationChain] Chain analysis complete for doc ${documentId} (PMID ${sourcePmid})`
         );
       } catch (chainErr) {
-        console.warn(
+        log.warn(
           "[CitationChain] Chain analysis error (non-fatal):",
-          chainErr
+          errData(chainErr)
         );
       }
     })().catch(chainErr =>
-      console.warn(
+      log.warn(
         "[CitationChain] Chain analysis IIFE error (non-fatal):",
         chainErr
       )
@@ -673,15 +676,15 @@ export async function runAnalysisPipeline(
           });
         }
 
-        console.log(
+        log.info(
           `[CompositeTruth] Stage 7 complete for doc ${documentId}: ${compositeClaims.length} claims scored`
         );
         void compositeDoc; // suppress unused warning
       } catch (compErr) {
-        console.warn("[CompositeTruth] Stage 7 error (non-fatal):", compErr);
+        log.warn("[CompositeTruth] Stage 7 error (non-fatal):", errData(compErr));
       }
     })().catch(compErr =>
-      console.warn("[CompositeTruth] Stage 7 IIFE error (non-fatal):", compErr)
+      log.warn("[CompositeTruth] Stage 7 IIFE error (non-fatal):", compErr)
     );
 
     // ── Phase 106: Stage 8 — Knowledge Graph Edge Population ─────────────────
@@ -719,18 +722,18 @@ export async function runAnalysisPipeline(
         }
 
         if (edgesCreated > 0) {
-          console.log(
+          log.info(
             `[GraphEdges] Stage 8 complete for doc ${documentId}: ${edgesCreated} semantic_similar edge(s) created`
           );
         }
       } catch (graphErr) {
-        console.warn("[GraphEdges] Stage 8 error (non-fatal):", graphErr);
+        log.warn("[GraphEdges] Stage 8 error (non-fatal):", errData(graphErr));
       }
     })().catch(graphErr =>
-      console.warn("[GraphEdges] Stage 8 IIFE error (non-fatal):", graphErr)
+      log.warn("[GraphEdges] Stage 8 IIFE error (non-fatal):", graphErr)
     );
   } catch (err) {
-    console.error("[Pipeline] Error:", err);
+    log.error("[Pipeline] Error:", errData(err));
     await updateDocumentStatus(documentId, "failed", {
       errorMessage: String(err).substring(0, 500),
       // Preserve provider info even on failure so quality pass can skip or retry

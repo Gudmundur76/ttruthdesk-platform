@@ -29,6 +29,9 @@ import { getDb } from "./db";
 import { documents } from "../drizzle/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { logCronRun } from "./cronRunLogger";
+import { logger, errData } from "./logger";
+const log = logger("swarmTickJob");
+
 
 // ─── Agent: Harvester ─────────────────────────────────────────────────────────
 
@@ -228,7 +231,7 @@ export async function runSwarmTick(): Promise<SwarmTickResult> {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
 
-  console.log("[Swarm] Starting tick — fanning out 6 agents in parallel (Agent 7: codeGuardianAgent)");
+  log.info("[Swarm] Starting tick — fanning out 6 agents in parallel (Agent 7: codeGuardianAgent)");
 
   const [harvester, wikiCompiler, qualityAuditor, backfillPredictor, monitoringScanner, codeGuardian] =
     await Promise.allSettled([
@@ -263,18 +266,18 @@ export async function runSwarmTick(): Promise<SwarmTickResult> {
     skip: agentResults.filter((r) => r.status === "skip").length,
   };
 
-  console.log(`[Swarm] Tick complete in ${durationMs}ms — ${summary.ok}/${summary.total} agents OK`);
+  log.info(`[Swarm] Tick complete in ${durationMs}ms — ${summary.ok}/${summary.total} agents OK`);
   agentResults.forEach((r) => {
     const icon = r.status === "ok" ? "✅" : r.status === "skip" ? "⏭️" : "❌";
-    console.log(`  ${icon} [${r.agent}] ${r.detail.slice(0, 120)}`);
+    log.info(`  ${icon} [${r.agent}] ${r.detail.slice(0, 120)}`);
   });
 
   // Persist TurboVec FAISS index to S3 (fire-and-forget, non-fatal)
   const sidecarPort = process.env.VECTOR_SIDECAR_PORT ?? "5001";
   fetch(`http://127.0.0.1:${sidecarPort}/save`, { method: "POST" })
     .then((r) => r.json())
-    .then((d) => console.log(`[Swarm] TurboVec S3 save: ${JSON.stringify(d)}`))
-    .catch((e) => console.warn(`[Swarm] TurboVec S3 save skipped (sidecar not running): ${e.message}`));
+    .then((d) => log.info(`[Swarm] TurboVec S3 save: ${JSON.stringify(d)}`))
+    .catch((e) => log.warn(`[Swarm] TurboVec S3 save skipped (sidecar not running): ${e.message}`));
 
   return { startedAt, completedAt, durationMs, agents: agentResults, summary };
 }
@@ -293,7 +296,7 @@ export async function swarmTickHandler(req: Request, res: Response): Promise<voi
     );
     res.json(result);
   } catch (err) {
-    console.error("[Swarm] Fatal coordinator error:", err);
+    log.error("[Swarm] Fatal coordinator error:", errData(err));
     void logCronRun("swarm-tick-daily", "error", 0, undefined, String(err));
     res.status(500).json({ error: String(err) });
   }

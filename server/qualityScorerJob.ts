@@ -13,6 +13,9 @@ import type { Request, Response } from "express";
 import { runQualityScorerJob } from "./claimQualityScorer";
 import { ENV } from "./_core/env";
 import { logCronRun } from "./cronRunLogger";
+import { logger, errData } from "./logger";
+const log = logger("qualityScorerJob");
+
 
 export async function qualityScorerJobHandler(req: Request, res: Response): Promise<void> {
   // Validate heartbeat secret
@@ -27,14 +30,14 @@ export async function qualityScorerJobHandler(req: Request, res: Response): Prom
     return;
   }
 
-  console.log("[QualityScorerJob] Starting quality scoring run...");
+  log.info("[QualityScorerJob] Starting quality scoring run...");
   const startMs = Date.now();
 
   try {
     const result = await runQualityScorerJob();
     const totalMs = Date.now() - startMs;
 
-    console.log(
+    log.info(
       `[QualityScorerJob] Complete: scored=${result.scored} errors=${result.errors} ` +
       `duration=${totalMs}ms`
     );
@@ -54,7 +57,7 @@ export async function qualityScorerJobHandler(req: Request, res: Response): Prom
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    console.error("[QualityScorerJob] Fatal error:", error);
+    log.error("[QualityScorerJob] Fatal error:", errData(error));
     void logCronRun("quality-scorer-6h", "error", Date.now() - startMs, undefined, error);
     res.status(500).json({ ok: false, error });
   }

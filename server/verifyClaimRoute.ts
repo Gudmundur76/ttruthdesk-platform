@@ -53,6 +53,9 @@ import type { EvidenceResult } from "./verticalAdapters/types";
 import "./verticalAdapters"; // ensure all adapters are registered
 import { translateQueryToClaims } from "./_queryTranslator";
 import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
+import { logger, errData } from "./logger";
+const log = logger("verifyClaimRoute");
+
 
 // ─── EuropePMC search ─────────────────────────────────────────────────────────
 
@@ -399,7 +402,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       apiVersion: "1.1",
     });
   } catch (err) {
-    console.error("[VerifyClaim] Error:", err);
+    log.error("[VerifyClaim] Error:", errData(err));
     res.status(500).json({
       ok: false,
       error: "Verification failed due to an internal error. Please try again.",

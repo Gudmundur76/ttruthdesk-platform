@@ -24,6 +24,9 @@ import {
   VERTICAL_FEED_CONFIGS,
   type VerticalFeedConfig,
 } from "./verticalFeedConfig";
+import { logger, errData } from "./logger";
+const log = logger("verticalFeedMerger");
+
 
 /**
  * Returns the merged list of VerticalFeedConfig objects to use for the current
@@ -55,9 +58,9 @@ export async function getActiveVerticalFeedConfigs(): Promise<
   } catch (err) {
     // If the table doesn't exist yet (first deploy before migration), fall back
     // to static configs gracefully.
-    console.warn(
+    log.warn(
       "[VerticalFeedMerger] Could not query vertical_configs table, using static configs:",
-      err
+      errData(err)
     );
     return VERTICAL_FEED_CONFIGS;
   }
@@ -106,7 +109,7 @@ export async function getActiveVerticalFeedConfigs(): Promise<
   }
 
   const result = Array.from(merged.values()) as VerticalFeedConfig[];
-  console.log(
+  log.info(
     `[VerticalFeedMerger] Active verticals: ${result.map(c => c.domainKey).join(", ")} (${result.length} total, ${dbMap.size} from DB)`
   );
   return result;

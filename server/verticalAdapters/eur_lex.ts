@@ -1,4 +1,7 @@
 import { registerVertical, EvidenceResult, VerticalAdapter } from './types';
+import { logger } from "../logger";
+const log = logger("verticalAdapters/eur_lex");
+
 
 const USER_AGENT = 'citation-engine/1.0 (citation-engine@citation.is)';
 
@@ -79,7 +82,7 @@ LIMIT 1
           };
         }
       } catch (error) {
-        console.error(`SPARQL query failed: ${error}`);
+        log.error(`SPARQL query failed: ${error}`);
         // Fallback to quick search if SPARQL fails
       }
     }
@@ -121,7 +124,7 @@ LIMIT 1
         };
       }
     } catch (error) {
-      console.error(`EUR-Lex quick search failed: ${error}`);
+      log.error(`EUR-Lex quick search failed: ${error}`);
     }
 
     return {

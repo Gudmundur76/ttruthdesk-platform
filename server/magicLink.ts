@@ -21,6 +21,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { ENV } from "./_core/env";
 import { signJwt, verifyJwt } from "./jwtSigner";
+import { logger, errData } from "./logger";
+const log = logger("magicLink");
+
 
 const MAGIC_LINK_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
@@ -70,7 +73,7 @@ async function sendMagicLinkEmail(email: string, magicUrl: string): Promise<void
   const forgeApiKey = ENV.forgeApiKey;
 
   if (!forgeApiUrl || !forgeApiKey) {
-    console.warn("[MagicLink] Forge API not configured — cannot send email");
+    log.warn("[MagicLink] Forge API not configured — cannot send email");
     return;
   }
 
@@ -109,10 +112,10 @@ async function sendMagicLinkEmail(email: string, magicUrl: string): Promise<void
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      console.warn(`[MagicLink] Email send failed (${response.status}): ${detail}`);
+      log.warn(`[MagicLink] Email send failed (${response.status}): ${detail}`);
     }
   } catch (err) {
-    console.warn("[MagicLink] Email send error:", err);
+    log.warn("[MagicLink] Email send error:", errData(err));
   }
 }
 
@@ -151,9 +154,9 @@ export function registerMagicLinkRoutes(app: Express) {
 
       await sendMagicLinkEmail(email, magicUrl);
 
-      console.log(`[MagicLink] RS256 JWT link generated for ${email} (expires ${expiresAt.toISOString()})`);
+      log.info(`[MagicLink] RS256 JWT link generated for ${email} (expires ${expiresAt.toISOString()})`);
     } catch (err) {
-      console.error("[MagicLink] Request error:", err);
+      log.error("[MagicLink] Request error:", errData(err));
       // Still return 200 — don't leak errors to the client
     }
 
@@ -208,10 +211,10 @@ export function registerMagicLinkRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      console.log(`[MagicLink] User ${emailUser.email} signed in via RS256 JWT magic link`);
+      log.info(`[MagicLink] User ${emailUser.email} signed in via RS256 JWT magic link`);
       return res.redirect("/");
     } catch (err) {
-      console.error("[MagicLink] Verify error:", err);
+      log.error("[MagicLink] Verify error:", errData(err));
       return res.redirect("/?auth_error=server_error");
     }
   });

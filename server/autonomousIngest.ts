@@ -37,6 +37,9 @@ import { getVertical } from "./verticalAdapters";
 import { dispatchHighRiskAlert } from "./alertDispatcher";
 import { publishEvent } from "./autonomousLoop/eventBus";
 import { reportUrl } from "./seo/indexNow";
+import { logger, errData } from "./logger";
+const log = logger("autonomousIngest");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -144,7 +147,7 @@ async function extractClaimsFromText(text: string): Promise<ExtractedClaim[]> {
       .slice(0, 8)
       .filter(c => c.claimText && c.claimText.length >= 10);
   } catch (err) {
-    console.warn("[autonomousIngest] Claim extraction failed:", err);
+    log.warn("[autonomousIngest] Claim extraction failed:", errData(err));
     return [];
   }
 }
@@ -290,7 +293,7 @@ export async function processQueryResults(
   // Extract claims from the combined text
   const extractedClaims = await extractClaimsFromText(combinedText);
   if (extractedClaims.length === 0) {
-    console.log(`[autonomousIngest] No claims extracted for query: "${query}"`);
+    log.info(`[autonomousIngest] No claims extracted for query: "${query}"`);
     return;
   }
 
@@ -320,7 +323,7 @@ export async function processQueryResults(
       qualityTier: "draft",
     });
   } catch (err) {
-    console.error("[autonomousIngest] Failed to create document:", err);
+    log.error("[autonomousIngest] Failed to create document:", errData(err));
     return;
   }
 
@@ -360,7 +363,7 @@ export async function processQueryResults(
   try {
     await insertClaims(claimInserts);
   } catch (err) {
-    console.error("[autonomousIngest] Failed to insert claims:", err);
+    log.error("[autonomousIngest] Failed to insert claims:", errData(err));
     await updateDocumentStatus(documentId, "failed", {
       errorMessage: String(err),
     });
@@ -409,9 +412,9 @@ export async function processQueryResults(
             contradictedClaims.push({ ...claim, verdict });
           }
         } catch (err) {
-          console.warn(
+          log.warn(
             `[autonomousIngest] Verdict failed for claim ${claim.id}:`,
-            err
+            errData(err)
           );
         }
       })
@@ -474,7 +477,7 @@ export async function processQueryResults(
       }
     }
   } catch (err) {
-    console.warn("[autonomousIngest] Graph upsert failed:", err);
+    log.warn("[autonomousIngest] Graph upsert failed:", errData(err));
   }
 
   // Dispatch high-risk alerts for contradicted claims
@@ -491,7 +494,7 @@ export async function processQueryResults(
         reportUrl: reportUrl(documentId),
       });
     } catch (err) {
-      console.warn("[autonomousIngest] Alert dispatch failed:", err);
+      log.warn("[autonomousIngest] Alert dispatch failed:", errData(err));
     }
   }
 
@@ -527,10 +530,10 @@ export async function processQueryResults(
       uniprotAccessions: uniprotEntries.map(e => e.accession).filter(Boolean),
     });
   } catch (err) {
-    console.warn("[autonomousIngest] Event publish failed:", err);
+    log.warn("[autonomousIngest] Event publish failed:", errData(err));
   }
 
-  console.log(
+  log.info(
     `[autonomousIngest] ✓ Query "${query.slice(0, 60)}" → doc:${documentId}, ` +
       `${insertedClaims.length} claims, ${contradictedClaims.length} contradicted, ` +
       `${pubmedResults.length} PMIDs, ${uniprotEntries.length} UniProt entries`
@@ -543,7 +546,7 @@ export async function processQueryResults(
  */
 export function triggerAutonomousIngest(results: QueryResults): void {
   processQueryResults(results).catch(err => {
-    console.error(
+    log.error(
       "[autonomousIngest] Unhandled error in processQueryResults:",
       err
     );

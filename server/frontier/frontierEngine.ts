@@ -32,6 +32,9 @@ import {
   getFrontierMetrics,
   type FrontierMetrics,
 } from "./uncertaintyTracker";
+import { logger, errData } from "../logger";
+const log = logger("frontier/frontierEngine");
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +68,7 @@ export interface FrontierEngineRunResult {
  */
 export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   const startTime = Date.now();
-  console.log("[FrontierEngine] Starting full pipeline run...");
+  log.info("[FrontierEngine] Starting full pipeline run...");
 
   // Stage 1: Gap Mapping
   let gapMapping: GapMapResult = {
@@ -78,31 +81,31 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   };
   try {
     gapMapping = await runGapMapper();
-    console.log(
+    log.info(
       `[FrontierEngine] Gap mapping: ${gapMapping.newGapsCreated} new gaps detected`
     );
   } catch (err) {
-    console.warn("[FrontierEngine] Gap mapping failed (non-fatal):", err);
+    log.warn("[FrontierEngine] Gap mapping failed (non-fatal):", errData(err));
   }
 
   // Stage 2: Gap Ranking
   let gapsRanked = 0;
   try {
     gapsRanked = await rankAllOpenGaps();
-    console.log(`[FrontierEngine] Gap ranking: ${gapsRanked} gaps scored`);
+    log.info(`[FrontierEngine] Gap ranking: ${gapsRanked} gaps scored`);
   } catch (err) {
-    console.warn("[FrontierEngine] Gap ranking failed (non-fatal):", err);
+    log.warn("[FrontierEngine] Gap ranking failed (non-fatal):", errData(err));
   }
 
   // Stage 3: Evidence Pursuit (top 5 gaps)
   let pursuitResults: PursuitResult[] = [];
   try {
     pursuitResults = await pursueTopGaps(5);
-    console.log(
+    log.info(
       `[FrontierEngine] Evidence pursuit: ${pursuitResults.length} gaps pursued`
     );
   } catch (err) {
-    console.warn("[FrontierEngine] Evidence pursuit failed (non-fatal):", err);
+    log.warn("[FrontierEngine] Evidence pursuit failed (non-fatal):", errData(err));
   }
 
   // Stage 4: Hypothesis Generation
@@ -113,13 +116,13 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   };
   try {
     hypothesisGeneration = await runHypothesisGenerator();
-    console.log(
+    log.info(
       `[FrontierEngine] Hypothesis generation: ${hypothesisGeneration.hypothesesGenerated} hypotheses, ${hypothesisGeneration.queueItemsCreated} queued`
     );
   } catch (err) {
-    console.warn(
+    log.warn(
       "[FrontierEngine] Hypothesis generation failed (non-fatal):",
-      err
+      errData(err)
     );
   }
 
@@ -128,12 +131,12 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   try {
     staleGapsMarked = await markStaleGaps();
     if (staleGapsMarked > 0) {
-      console.log(
+      log.info(
         `[FrontierEngine] Stale cleanup: ${staleGapsMarked} gaps marked stale`
       );
     }
   } catch (err) {
-    console.warn("[FrontierEngine] Stale cleanup failed (non-fatal):", err);
+    log.warn("[FrontierEngine] Stale cleanup failed (non-fatal):", errData(err));
   }
 
   // Metrics
@@ -153,7 +156,7 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   }));
 
   const durationMs = Date.now() - startTime;
-  console.log(`[FrontierEngine] Pipeline complete in ${durationMs}ms`);
+  log.info(`[FrontierEngine] Pipeline complete in ${durationMs}ms`);
 
   return {
     runAt: new Date(),

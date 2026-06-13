@@ -38,6 +38,9 @@
 import type { Express, Request, Response } from "express";
 import crypto from "crypto";
 import { publishEvent } from "./autonomousLoop/eventBus";
+import { logger, errData } from "./logger";
+const log = logger("hostingerWebhook");
+
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -154,7 +157,7 @@ async function publishLoopEventFromHostinger(
         pageUrl: body.pageUrl,
         vertical: body.vertical ?? "structural_biology",
       });
-      console.log(`[HostingerWebhook] search_query from ${body.origin} → paper_discovered event #${eventId}`);
+      log.info(`[HostingerWebhook] search_query from ${body.origin} → paper_discovered event #${eventId}`);
       return eventId;
     }
 
@@ -169,7 +172,7 @@ async function publishLoopEventFromHostinger(
         vertical: body.vertical ?? "structural_biology",
         origin: body.origin,
       });
-      console.log(`[HostingerWebhook] claim_verified from ${body.origin} → document_submitted event #${eventId}`);
+      log.info(`[HostingerWebhook] claim_verified from ${body.origin} → document_submitted event #${eventId}`);
       return eventId;
     }
 
@@ -186,7 +189,7 @@ async function publishLoopEventFromHostinger(
         pageUrl: body.pageUrl,
         vertical: body.vertical ?? "structural_biology",
       });
-      console.log(`[HostingerWebhook] paper_clicked PMID:${body.pmid} from ${body.origin} → paper_discovered event #${eventId}`);
+      log.info(`[HostingerWebhook] paper_clicked PMID:${body.pmid} from ${body.origin} → paper_discovered event #${eventId}`);
       return eventId;
     }
 
@@ -194,11 +197,11 @@ async function publishLoopEventFromHostinger(
     case "widget_opened":
     case "widget_closed":
       // Low-signal events — log only, no loop event
-      console.log(`[HostingerWebhook] ${body.eventType} from ${body.origin} — logged, no loop event`);
+      log.info(`[HostingerWebhook] ${body.eventType} from ${body.origin} — logged, no loop event`);
       return null;
 
     default:
-      console.warn(`[HostingerWebhook] Unknown eventType: ${(body as { eventType: string }).eventType}`);
+      log.warn(`[HostingerWebhook] Unknown eventType: ${(body as { eventType: string }).eventType}`);
       return null;
   }
 }
@@ -230,7 +233,7 @@ export function registerHostingerWebhookRoute(app: Express): void {
         // ── 2. Verify signature ──────────────────────────────────────────────
         const sigHeader = (req.headers["x-truthdesk-signature"] as string) ?? "";
         if (!verifySignature(rawBody, sigHeader, GLOBAL_SECRET)) {
-          console.warn(`[HostingerWebhook] Invalid signature from ${req.ip}`);
+          log.warn(`[HostingerWebhook] Invalid signature from ${req.ip}`);
           res.status(401).json({ error: "Invalid signature" });
           return;
         }
@@ -248,7 +251,7 @@ export function registerHostingerWebhookRoute(app: Express): void {
         const allowedOrigins = getAllowedOrigins();
         const originDomain = (body.origin ?? "").replace(/^https?:\/\//, "").split("/")[0];
         if (!allowedOrigins.has(originDomain)) {
-          console.warn(`[HostingerWebhook] Rejected origin: ${originDomain}`);
+          log.warn(`[HostingerWebhook] Rejected origin: ${originDomain}`);
           res.status(403).json({ error: "Origin not allowed" });
           return;
         }
@@ -276,11 +279,11 @@ export function registerHostingerWebhookRoute(app: Express): void {
           loopTriggered: eventId !== null,
         });
       } catch (err) {
-        console.error("[HostingerWebhook] Unexpected error:", err);
+        log.error("[HostingerWebhook] Unexpected error:", errData(err));
         res.status(500).json({ error: "Internal server error" });
       }
     }
   );
 
-  console.log("[HostingerWebhook] Route registered: POST /api/webhook/hostinger");
+  log.info("[HostingerWebhook] Route registered: POST /api/webhook/hostinger");
 }

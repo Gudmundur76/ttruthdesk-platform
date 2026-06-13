@@ -25,6 +25,9 @@ import { runAnalysisPipeline } from "./analysisPipeline";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import { logCronRun } from "./cronRunLogger";
+import { logger, errData } from "./logger";
+const log = logger("discoveryLoopJob");
+
 
 // ─── Claim signal density check ───────────────────────────────────────────────
 
@@ -164,7 +167,7 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
 
   try {
     const verticals = listVerticals();
-    console.log(`[DiscoveryLoop] Running with ${verticals.length} verticals`);
+    log.info(`[DiscoveryLoop] Running with ${verticals.length} verticals`);
 
     // Run multi-source discovery
     const discovery = await runDiscoveryAgent({
@@ -173,7 +176,7 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
       pdbMaxResults: 6,
     });
     stats.discovered = discovery.deduplicatedCount;
-    console.log(
+    log.info(
       `[DiscoveryLoop] Discovered ${discovery.deduplicatedCount} candidates ` +
       `(${discovery.totalFetched} raw, sources: ${JSON.stringify(discovery.sourceBreakdown)})`
     );
@@ -195,7 +198,7 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
         newCandidates.push(candidate);
       }
     }
-    console.log(`[DiscoveryLoop] ${newCandidates.length} new candidates after dedup`);
+    log.info(`[DiscoveryLoop] ${newCandidates.length} new candidates after dedup`);
 
     // Process each new candidate
     for (const candidate of newCandidates) {
@@ -208,7 +211,7 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
         const density = computeSignalDensity(textToScore);
         if (density < 2) {
           stats.lowSignal++;
-          console.log(
+          log.info(
             `[DiscoveryLoop] Skipping low-signal: "${candidate.title.slice(0, 60)}" (density=${density})`
           );
           // Record so we don't re-fetch
@@ -282,12 +285,12 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
         });
 
         stats.submitted++;
-        console.log(
+        log.info(
           `[DiscoveryLoop] Submitted: "${candidate.title.slice(0, 60)}" (${candidate.ingestSource})`
         );
       } catch (err) {
         stats.failed++;
-        console.error(`[DiscoveryLoop] Failed candidate ${candidate.pmid}:`, err);
+        log.error(`[DiscoveryLoop] Failed candidate ${candidate.pmid}:`, errData(err));
       }
     }
 
@@ -324,7 +327,7 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
       durationMs: finalDur,
     });
   } catch (err) {
-    console.error("[DiscoveryLoop] Fatal error:", err);
+    log.error("[DiscoveryLoop] Fatal error:", errData(err));
     void logCronRun("discovery-loop-daily", "error", Date.now() - startedAt, undefined, String(err));
     res.status(500).json({ ok: false, error: String(err), stats });
   }

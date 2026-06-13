@@ -11,6 +11,9 @@ import { runAnalysisPipeline } from "./analysisPipeline";
 import { ENV } from "./_core/env";
 import { publicSubmissions } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { logger, errData } from "./logger";
+const log = logger("submitClaimRoute");
+
 
 const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -129,7 +132,7 @@ async function handleSubmitClaim(req: Request, res: Response): Promise<void> {
             .catch(() => {});
       })
       .catch(err => {
-        console.error("[SubmitClaim] Pipeline error for doc", docId, err);
+        log.error("[SubmitClaim] Pipeline error for doc", { docId: String(docId), ...errData(err) });
         if (db)
           db.update(publicSubmissions)
             .set({ status: "failed" })
@@ -160,7 +163,7 @@ async function handleSubmitClaim(req: Request, res: Response): Promise<void> {
         processedAt,
       });
   } catch (err) {
-    console.error("[SubmitClaim] Error:", err);
+    log.error("[SubmitClaim] Error:", errData(err));
     res
       .status(500)
       .json({
@@ -212,7 +215,7 @@ async function handleSubmitClaimStatus(
       updatedAt: row.updatedAt,
     });
   } catch (err) {
-    console.error("[SubmitClaimStatus] Error:", err);
+    log.error("[SubmitClaimStatus] Error:", errData(err));
     res.status(500).json({ ok: false, error: "Status check failed." });
   }
 }

@@ -175,6 +175,9 @@ export async function runBackfillWiki(
 // ─── Express route registration ───────────────────────────────────────────────
 
 import type { RequestHandler } from "express";
+import { logger, errData } from "./logger";
+const log = logger("backfillWikiRoute");
+
 
 export function registerBackfillWikiRoute(
   app: Express,
@@ -198,9 +201,9 @@ export function registerBackfillWikiRoute(
 
     // Run in background (do not await)
     runBackfillWiki(origin, (msg) => {
-      console.log(`[BackfillWiki] ${msg}`);
+      log.info(`[BackfillWiki] ${msg}`);
     }).catch((err) => {
-      console.error("[BackfillWiki] Fatal error:", err);
+      log.error("[BackfillWiki] Fatal error:", errData(err));
     });
   });
 
@@ -214,7 +217,7 @@ export function registerBackfillWikiRoute(
 
     try {
       const result = await runBackfillWiki(origin, (msg) => {
-        console.log(`[BackfillWiki/sync] ${msg}`);
+        log.info(`[BackfillWiki/sync] ${msg}`);
       });
       res.json({ ok: true, ...result });
     } catch (err) {
