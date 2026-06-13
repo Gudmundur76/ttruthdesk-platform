@@ -278,6 +278,350 @@ export const SOURCE_WHITELIST: SourceDefinition[] = [
       }
     },
   },
+  // ── Science & medicine (approved 2026-06-13) ─────────────────────────────────
+  {
+    id: "who",
+    displayName: "WHO Global Health Observatory",
+    description: "World Health Organization official health indicators and statistics.",
+    apiBaseUrl: "https://ghoapi.azureedge.net/api",
+    schema: ["IndicatorCode", "SpatialDim", "TimeDim", "NumericValue"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://ghoapi.azureedge.net/api/Indicator?$top=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "cochrane",
+    displayName: "Cochrane Library",
+    description: "Systematic reviews and meta-analyses — gold standard for clinical evidence.",
+    apiBaseUrl: "https://www.cochranelibrary.com",
+    schema: ["doi", "title", "abstract", "reviewGroup"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD000980.pub4/full", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok || res.status === 403, latencyMs: Date.now() - start, error: null };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "biorxiv",
+    displayName: "bioRxiv / medRxiv",
+    description: "Preprint server for biology and medicine.",
+    apiBaseUrl: "https://api.biorxiv.org",
+    schema: ["doi", "title", "abstract", "date", "category"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://api.biorxiv.org/details/biorxiv/10.1101/2020.01.22.914440/na/json", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "europe_pmc",
+    displayName: "Europe PMC",
+    description: "Open access life sciences literature from EBI.",
+    apiBaseUrl: "https://www.ebi.ac.uk/europepmc/webservices/rest",
+    schema: ["pmid", "pmcid", "doi", "title", "abstractText"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=aspirin&format=json&pageSize=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "clinvar",
+    displayName: "ClinVar",
+    description: "NCBI database of genetic variants and clinical significance.",
+    apiBaseUrl: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils",
+    schema: ["variation_id", "clinical_significance", "gene", "condition"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=clinvar&term=BRCA1&retmode=json&retmax=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "chembl",
+    displayName: "ChEMBL",
+    description: "EMBL-EBI bioactivity database for drug compounds.",
+    apiBaseUrl: "https://www.ebi.ac.uk/chembl/api/data",
+    schema: ["molecule_chembl_id", "pref_name", "max_phase", "molecule_type"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://www.ebi.ac.uk/chembl/api/data/molecule?format=json&limit=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "pubchem",
+    displayName: "PubChem",
+    description: "NCBI chemical compound database with bioactivity data.",
+    apiBaseUrl: "https://pubchem.ncbi.nlm.nih.gov/rest/pug",
+    schema: ["CID", "IUPACName", "MolecularFormula", "MolecularWeight"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/aspirin/JSON", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "openfda_labels",
+    displayName: "OpenFDA Drug Labels",
+    description: "FDA-approved drug label information.",
+    apiBaseUrl: "https://api.fda.gov/drug/label.json",
+    schema: ["openfda.brand_name", "indications_and_usage", "contraindications", "dosage_and_administration"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://api.fda.gov/drug/label.json?search=aspirin&limit=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  // ── Law & regulation (approved 2026-06-13) ───────────────────────────────────────
+  {
+    id: "edgar_sec",
+    displayName: "SEC EDGAR",
+    description: "US Securities and Exchange Commission financial filings.",
+    apiBaseUrl: "https://efts.sec.gov/LATEST",
+    schema: ["entityName", "filingDate", "formType", "fileNum"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://efts.sec.gov/LATEST/search-index?q=apple&forms=10-K", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "eur_lex",
+    displayName: "EUR-Lex",
+    description: "Official EU law — regulations, directives, treaties.",
+    apiBaseUrl: "https://eur-lex.europa.eu",
+    schema: ["celex", "title", "date", "type"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://eur-lex.europa.eu/search.html?type=quick&lang=en&text=GDPR", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "court_listener",
+    displayName: "CourtListener",
+    description: "US federal and state court opinions and case law.",
+    apiBaseUrl: "https://www.courtlistener.com/api/rest/v4",
+    schema: ["caseName", "dateFiled", "court", "citation"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://www.courtlistener.com/api/rest/v4/search/?q=roe+wade&type=o&format=json&page_size=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "ietf_rfc",
+    displayName: "IETF RFC Editor",
+    description: "Internet standards and technical specifications.",
+    apiBaseUrl: "https://www.rfc-editor.org",
+    schema: ["rfc", "title", "status", "date"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://www.rfc-editor.org/rfc/rfc9110.txt", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  // ── Government & data (approved 2026-06-13) ───────────────────────────────────────
+  {
+    id: "world_bank",
+    displayName: "World Bank Open Data",
+    description: "World Bank development indicators and economic statistics.",
+    apiBaseUrl: "https://api.worldbank.org/v2",
+    schema: ["indicator", "country", "date", "value"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json&mrv=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "owid",
+    displayName: "Our World in Data",
+    description: "Long-run global data on health, economics, and development.",
+    apiBaseUrl: "https://ourworldindata.org",
+    schema: ["entity", "year", "value", "variable"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://ourworldindata.org/grapher/life-expectancy.csv", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "oecd",
+    displayName: "OECD iLibrary",
+    description: "OECD economic, social, and environmental statistics.",
+    apiBaseUrl: "https://stats.oecd.org/SDMX-JSON/data",
+    schema: ["dataset", "country", "indicator", "value", "year"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://stats.oecd.org/SDMX-JSON/data/QNA/USA.B1_GE.VOBARSA.Q/all?format=jsonvnd.oecd.data+json&lastNObservations=1", { signal: AbortSignal.timeout(10_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "eurostat",
+    displayName: "Eurostat",
+    description: "Official EU statistical office — economic, social, and demographic data.",
+    apiBaseUrl: "https://ec.europa.eu/eurostat/api/dissemination",
+    schema: ["dataset", "geo", "time", "value"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&geo=EU27_2020&na_item=B1GQ&unit=CP_MEUR&time=2023", { signal: AbortSignal.timeout(10_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "ipcc",
+    displayName: "IPCC Assessment Reports",
+    description: "IPCC climate science assessment reports — highest scientific consensus.",
+    apiBaseUrl: "https://api.crossref.org/works",
+    schema: ["doi", "title", "year", "report"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://api.crossref.org/works/10.1017/9781009157896", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  // ── Standards & technical (approved 2026-06-13) ────────────────────────────────────
+  {
+    id: "arxiv",
+    displayName: "arXiv",
+    description: "Open access preprints in physics, maths, CS, biology, and economics.",
+    apiBaseUrl: "https://export.arxiv.org/api",
+    schema: ["arxivId", "title", "summary", "authors", "published"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://export.arxiv.org/api/query?search_query=all:electron&max_results=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "wikidata",
+    displayName: "Wikidata",
+    description: "Structured knowledge graph — facts, entities, and relationships.",
+    apiBaseUrl: "https://www.wikidata.org/w/api.php",
+    schema: ["qid", "label", "description", "claims"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://www.wikidata.org/w/api.php?action=wbsearchentities&search=aspirin&language=en&format=json&limit=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
+  {
+    id: "nist",
+    displayName: "NIST",
+    description: "US National Institute of Standards and Technology — measurement standards.",
+    apiBaseUrl: "https://data.nist.gov/rmm",
+    schema: ["title", "description", "keyword", "modified"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch("https://data.nist.gov/rmm/records?q=cybersecurity&size=1", { signal: AbortSignal.timeout(8_000) });
+        return { healthy: res.ok, latencyMs: Date.now() - start, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) { return { healthy: false, latencyMs: Date.now() - start, error: String(err) }; }
+    },
+  },
 ];
 
 // ─── Registry helpers ──────────────────────────────────────────────────────────
