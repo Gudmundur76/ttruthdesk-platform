@@ -1596,3 +1596,9 @@
 - [x] Wire clusterEntitiesBySimilarity into compileDocumentToWiki
 - [x] Wire buildClusterCrossLinks to append Related Entities section to each wiki page
 - [x] TSC clean, 1608/1608 GREEN
+
+## Phase 126 — coordLayer Round-Trip + GET /tasks/:taskId
+- [x] Add GET /tasks/:taskId single-task status lookup to tasksRouter.ts
+- [x] Implement coordRoundTrip.ts (enqueue → dequeue → complete → status cycle)
+- [x] Write 10 tests for coordStatusRoute (5 for GET /:taskId, 5 for RoundTripResult)
+- [x] TSC clean, 1618/1618 GREEN

@@ -149,6 +149,25 @@ export function createTasksRouter() {
     }
   });
 
+  /** GET /tasks/:taskId — single-task status lookup */
+  router.get("/:taskId", async (req: Request, res: Response) => {
+    try {
+      const db = await requireDb(res);
+      if (!db) return;
+      const rows = await db
+        .select()
+        .from(coordTasks)
+        .where(eq(coordTasks.taskId, req.params.taskId));
+      if (rows.length === 0) {
+        res.status(404).json({ error: `Task '${req.params.taskId}' not found` });
+        return;
+      }
+      res.json({ task: rows[0] });
+    } catch (err: unknown) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   /** DELETE /tasks/:taskId */
   router.delete("/:taskId", async (req: Request, res: Response) => {
     try {
