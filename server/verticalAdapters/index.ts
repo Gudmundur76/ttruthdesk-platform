@@ -59,4 +59,5 @@ import "./ipcc";              // IPCC Assessment Reports — climate science
 import "./arxiv";             // arXiv — preprints across CS, physics, maths
 import "./wikidata";          // Wikidata — structured knowledge graph
 import "./nist";              // NIST — measurement standards
+import "./opencitations";      // OpenCitations — open citation graph + bibliographic metadata
 import "./genericSource";     // URL/DOI fallback — must be last (lowest priority)
