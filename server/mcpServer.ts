@@ -2,7 +2,7 @@
  * mcpServer.ts
  *
  * MCP (Model Context Protocol) server for citation.is.
- * Exposes 11 tools to any MCP-compatible AI agent:
+ * Exposes 12 tools to any MCP-compatible AI agent:
  *   1.  verify_claim         — submit a claim, receive a structured verdict
  *   2.  search_claims        — full-text search over the verified claim registry
  *   3.  get_claim            — retrieve a single claim by ID
@@ -14,6 +14,7 @@
  *   9.  flag_stale           — agent feedback: flag stale claim
  *   10. report_contradiction — agent feedback: report contradiction
  *   11. get_provenance       — epistemic provenance chain (distortion + neighbours)
+ *   12. find_similar          — semantically similar claims with staleness indicator
  *
  * Transport: HTTP (Streamable HTTP per MCP 2025-03-26 spec)
  *   GET  /api/mcp  → server capabilities (JSON)
@@ -37,15 +38,21 @@ import type { Express, Request, Response } from "express";
 import { createHash } from "crypto";
 import { logger, errData } from "./logger";
 import { validateApiKey } from "./apiKeyService";
-import {
-  getClaimById,
-  getPaginatedPublicClaims,
-  getSourceVersion,
-} from "./db";
+import { getClaimById, getPaginatedPublicClaims, getSourceVersion } from "./db";
 import { processQuestion } from "./questionRouter";
 import { buildEvidenceWithExcerpts } from "./pubmedAbstractFetcher";
-import { verdictAtDate, buildTemporalWindow, TOOLS_MANIFEST as TEMPORAL_TOOLS, type TemporalClaim } from "./temporalVersioning";
-import { validateBatchInput, batchVerifyClaims, buildBatchResult, BATCH_TOOLS_MANIFEST } from "./batchVerify";
+import {
+  verdictAtDate,
+  buildTemporalWindow,
+  TOOLS_MANIFEST as TEMPORAL_TOOLS,
+  type TemporalClaim,
+} from "./temporalVersioning";
+import {
+  validateBatchInput,
+  batchVerifyClaims,
+  buildBatchResult,
+  BATCH_TOOLS_MANIFEST,
+} from "./batchVerify";
 import {
   validateSubmitClaim,
   validateFlagStale,
@@ -59,6 +66,10 @@ import {
   buildProvenanceResult,
   PROVENANCE_TOOLS_MANIFEST,
 } from "./epistemicProvenance";
+import {
+  toolFindSimilar,
+  FIND_SIMILAR_TOOLS_MANIFEST,
+} from "./findSimilarRoute";
 
 const log = logger("mcpServer");
 
@@ -84,7 +95,10 @@ interface RateBucket {
 
 const rateBuckets = new Map<string, RateBucket>();
 
-function checkMcpRateLimit(ip: string, tool: string): { allowed: boolean; resetAt: number } {
+function checkMcpRateLimit(
+  ip: string,
+  tool: string
+): { allowed: boolean; resetAt: number } {
   const key = `${ip}:${tool}`;
   const now = Date.now();
   const bucket = rateBuckets.get(key);
@@ -124,7 +138,12 @@ async function resolveAuth(
 }
 
 // ─── JSON-RPC helpers ─────────────────────────────────────────────────────────
-function mcpError(id: unknown, code: number, message: string, data?: Record<string, unknown>) {
+function mcpError(
+  id: unknown,
+  code: number,
+  message: string,
+  data?: Record<string, unknown>
+) {
   return {
     jsonrpc: "2.0" as const,
     id: id ?? null,
@@ -143,10 +162,16 @@ function mcpResult(id: unknown, result: unknown) {
 function validateClaimParam(params: Record<string, unknown>): string {
   const claim = params["claim"];
   if (typeof claim !== "string" || claim.trim().length === 0) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "claim must be a non-empty string" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "claim must be a non-empty string",
+    };
   }
   if (claim.length > 1000) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "claim must be at most 1000 characters" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "claim must be at most 1000 characters",
+    };
   }
   return claim.trim();
 }
@@ -170,12 +195,21 @@ async function callVerifyEndpoint(
     signal: AbortSignal.timeout(30_000),
   });
   if (!resp.ok && resp.status !== 200) {
-    const errBody = await resp.json().catch(() => ({})) as Record<string, unknown>;
-    throw { code: MCP_ERRORS.INTERNAL_ERROR, message: (errBody["error"] as string) ?? "Verification failed" };
+    const errBody = (await resp.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    throw {
+      code: MCP_ERRORS.INTERNAL_ERROR,
+      message: (errBody["error"] as string) ?? "Verification failed",
+    };
   }
-  const data = await resp.json() as Record<string, unknown>;
+  const data = (await resp.json()) as Record<string, unknown>;
   if (!data["ok"]) {
-    throw { code: MCP_ERRORS.INTERNAL_ERROR, message: (data["error"] as string) ?? "Verification failed" };
+    throw {
+      code: MCP_ERRORS.INTERNAL_ERROR,
+      message: (data["error"] as string) ?? "Verification failed",
+    };
   }
   return data;
 }
@@ -198,7 +232,8 @@ function buildVerifyResult(
       belowThreshold: true,
     };
   }
-  const pubmedResults = (data["pubmedResults"] as Array<Record<string, unknown>>) ?? [];
+  const pubmedResults =
+    (data["pubmedResults"] as Array<Record<string, unknown>>) ?? [];
   const claimText = (data["claimText"] as string | undefined) ?? "";
   const mappedResults = pubmedResults.map(p => ({
     pmid: String(p["pmid"] ?? ""),
@@ -222,41 +257,57 @@ function buildVerifyResult(
   };
 }
 
-
 // ─── Tool: verify_claim ───────────────────────────────────────────────────────
 async function toolVerifyClaim(
   params: Record<string, unknown>,
   req: Request
 ): Promise<unknown> {
   const claim = validateClaimParam(params);
-  const domain = typeof params["domain"] === "string" ? params["domain"] : undefined;
+  const domain =
+    typeof params["domain"] === "string" ? params["domain"] : undefined;
   const confidenceThreshold =
     typeof params["confidence_threshold"] === "number"
       ? Math.max(0, Math.min(1, params["confidence_threshold"]))
       : 0;
-  const forwardedFor = (req.headers["x-forwarded-for"] as string) ?? req.ip ?? "127.0.0.1";
+  const forwardedFor =
+    (req.headers["x-forwarded-for"] as string) ?? req.ip ?? "127.0.0.1";
   const data = await callVerifyEndpoint(claim, domain, forwardedFor);
   // signalDensity is a raw keyword-count (0, 1, 2, …); normalise to [0,1]
   // by dividing by 10 and capping at 1. A density of 0 → 0.0, ≥10 → 1.0.
-  const rawDensity = typeof data["signalDensity"] === "number" ? (data["signalDensity"] as number) : 5;
+  const rawDensity =
+    typeof data["signalDensity"] === "number"
+      ? (data["signalDensity"] as number)
+      : 5;
   const confidence = Math.min(1, Math.max(0, rawDensity / 10));
   return buildVerifyResult(data, confidence, confidenceThreshold, domain);
 }
 
 // ─── Tool: search_claims ──────────────────────────────────────────────────────
-async function toolSearchClaims(params: Record<string, unknown>): Promise<unknown> {
-  const query = typeof params["query"] === "string" ? params["query"].trim() : "";
+async function toolSearchClaims(
+  params: Record<string, unknown>
+): Promise<unknown> {
+  const query =
+    typeof params["query"] === "string" ? params["query"].trim() : "";
   if (!query) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "query must be a non-empty string" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "query must be a non-empty string",
+    };
   }
-  const verdict = typeof params["verdict"] === "string" ? params["verdict"] : undefined;
-  const domain = typeof params["domain"] === "string" ? params["domain"] : undefined;
+  const verdict =
+    typeof params["verdict"] === "string" ? params["verdict"] : undefined;
+  const domain =
+    typeof params["domain"] === "string" ? params["domain"] : undefined;
   const minConfidence =
     typeof params["min_confidence"] === "number"
       ? Math.max(0, Math.min(1, params["min_confidence"]))
       : undefined;
-  const limit = typeof params["limit"] === "number" ? Math.min(50, Math.max(1, params["limit"])) : 10;
-  const offset = typeof params["offset"] === "number" ? Math.max(0, params["offset"]) : 0;
+  const limit =
+    typeof params["limit"] === "number"
+      ? Math.min(50, Math.max(1, params["limit"]))
+      : 10;
+  const offset =
+    typeof params["offset"] === "number" ? Math.max(0, params["offset"]) : 0;
   const page = Math.floor(offset / limit) + 1;
 
   let result: Awaited<ReturnType<typeof getPaginatedPublicClaims>>;
@@ -273,9 +324,10 @@ async function toolSearchClaims(params: Record<string, unknown>): Promise<unknow
     return { total: 0, claims: [] };
   }
 
-  const filtered = minConfidence !== undefined
-    ? result.rows.filter(r => (r.confidenceScore ?? 0) >= minConfidence)
-    : result.rows;
+  const filtered =
+    minConfidence !== undefined
+      ? result.rows.filter(r => (r.confidenceScore ?? 0) >= minConfidence)
+      : result.rows;
 
   return {
     total: result.total,
@@ -295,14 +347,18 @@ async function toolSearchClaims(params: Record<string, unknown>): Promise<unknow
 // ─── Tool: get_claim ──────────────────────────────────────────────────────────
 async function toolGetClaim(params: Record<string, unknown>): Promise<unknown> {
   const claimIdRaw = params["claim_id"];
-  const claimId = typeof claimIdRaw === "number"
-    ? claimIdRaw
-    : typeof claimIdRaw === "string"
-    ? parseInt(claimIdRaw, 10)
-    : NaN;
+  const claimId =
+    typeof claimIdRaw === "number"
+      ? claimIdRaw
+      : typeof claimIdRaw === "string"
+        ? parseInt(claimIdRaw, 10)
+        : NaN;
 
   if (isNaN(claimId) || claimId <= 0) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "claim_id must be a positive integer" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "claim_id must be a positive integer",
+    };
   }
 
   let claim: Awaited<ReturnType<typeof getClaimById>>;
@@ -334,10 +390,16 @@ async function toolGetClaim(params: Record<string, unknown>): Promise<unknown> {
 }
 
 // ─── Tool: get_source_version ─────────────────────────────────────────────────
-async function toolGetSourceVersion(params: Record<string, unknown>): Promise<unknown> {
-  const sourceId = typeof params["source_id"] === "string" ? params["source_id"].trim() : "";
+async function toolGetSourceVersion(
+  params: Record<string, unknown>
+): Promise<unknown> {
+  const sourceId =
+    typeof params["source_id"] === "string" ? params["source_id"].trim() : "";
   if (!sourceId) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "source_id must be a non-empty string" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "source_id must be a non-empty string",
+    };
   }
 
   const version = await getSourceVersion(sourceId);
@@ -356,7 +418,10 @@ async function toolGetSourceVersion(params: Record<string, unknown>): Promise<un
   return {
     sourceId: version.sourceId,
     currentVersionHash: version.versionHash,
-    lastChecked: version.detectedAt != null ? new Date(version.detectedAt * 1000).toISOString() : null,
+    lastChecked:
+      version.detectedAt != null
+        ? new Date(version.detectedAt * 1000).toISOString()
+        : null,
     changeType: version.changeType ?? null,
     affectedClaimCount: version.affectedClaimCount ?? 0,
     versionLabel: version.versionLabel ?? null,
@@ -365,17 +430,27 @@ async function toolGetSourceVersion(params: Record<string, unknown>): Promise<un
 }
 
 // ─── Tool: verify_claim_at_date ──────────────────────────────────────────────
-async function toolVerifyClaimAtDate(params: Record<string, unknown>): Promise<unknown> {
+async function toolVerifyClaimAtDate(
+  params: Record<string, unknown>
+): Promise<unknown> {
   const claim = validateClaimParam(params);
-  const queryDateRaw = typeof params["query_date"] === "string" ? params["query_date"].trim() : "";
+  const queryDateRaw =
+    typeof params["query_date"] === "string" ? params["query_date"].trim() : "";
   if (!queryDateRaw) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "query_date must be a non-empty string (ISO 8601 or 'latest')" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "query_date must be a non-empty string (ISO 8601 or 'latest')",
+    };
   }
 
   // Resolve query date
-  const queryDate = queryDateRaw === "latest" ? new Date() : new Date(queryDateRaw);
+  const queryDate =
+    queryDateRaw === "latest" ? new Date() : new Date(queryDateRaw);
   if (isNaN(queryDate.getTime())) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: `query_date '${queryDateRaw}' is not a valid ISO 8601 date` };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: `query_date '${queryDateRaw}' is not a valid ISO 8601 date`,
+    };
   }
 
   // Build a synthetic TemporalClaim from the claim text (no DB lookup needed for the date check)
@@ -396,8 +471,12 @@ async function toolVerifyClaimAtDate(params: Record<string, unknown>): Promise<u
     queryDate: queryDate.toISOString().slice(0, 10),
     temporallyValid: temporalResult.temporallyValid,
     validFrom: window.validFrom.toISOString().slice(0, 10),
-    validUntil: window.validUntil ? window.validUntil.toISOString().slice(0, 10) : null,
-    staleSince: temporalResult.staleSince ? temporalResult.staleSince.toISOString().slice(0, 10) : null,
+    validUntil: window.validUntil
+      ? window.validUntil.toISOString().slice(0, 10)
+      : null,
+    staleSince: temporalResult.staleSince
+      ? temporalResult.staleSince.toISOString().slice(0, 10)
+      : null,
     reason: temporalResult.reason ?? null,
     note: "Temporal window derived from query date. For full verdict, use verify_claim with the claim text.",
   };
@@ -411,68 +490,108 @@ async function toolVerifyClaimsBatch(
   const rawClaims = params["claims"];
   const validation = validateBatchInput(rawClaims as string[]);
   if (!validation.valid) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: validation.error ?? "Invalid claims input" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: validation.error ?? "Invalid claims input",
+    };
   }
 
   const confidenceThreshold =
     typeof params["confidence_threshold"] === "number"
       ? Math.max(0, Math.min(1, params["confidence_threshold"]))
       : 0;
-  const domain = typeof params["domain"] === "string" ? params["domain"] : undefined;
+  const domain =
+    typeof params["domain"] === "string" ? params["domain"] : undefined;
   const port = Number(process.env["PORT"] ?? 3000);
 
   // Log the batch request for observability
-  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
-  log.info(`batch verify request ip=${ip} size=${validation.normalised.length} dups=${validation.duplicatesRemoved}`);
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
+    req.ip ??
+    "unknown";
+  log.info(
+    `batch verify request ip=${ip} size=${validation.normalised.length} dups=${validation.duplicatesRemoved}`
+  );
 
   const startMs = Date.now();
-  const results = await batchVerifyClaims(validation.normalised, { confidenceThreshold, domain, port });
+  const results = await batchVerifyClaims(validation.normalised, {
+    confidenceThreshold,
+    domain,
+    port,
+  });
   return buildBatchResult(results, startMs);
 }
 
 // ─── Tool: submit_claim ─────────────────────────────────────────────────────
-async function toolSubmitClaim(params: Record<string, unknown>): Promise<unknown> {
+async function toolSubmitClaim(
+  params: Record<string, unknown>
+): Promise<unknown> {
   const input = {
-    claimText: typeof params["claimText"] === "string" ? params["claimText"] : "",
+    claimText:
+      typeof params["claimText"] === "string" ? params["claimText"] : "",
     domain: typeof params["domain"] === "string" ? params["domain"] : undefined,
-    sourceUrl: typeof params["sourceUrl"] === "string" ? params["sourceUrl"] : undefined,
-    agentId: typeof params["agentId"] === "string" ? params["agentId"] : undefined,
+    sourceUrl:
+      typeof params["sourceUrl"] === "string" ? params["sourceUrl"] : undefined,
+    agentId:
+      typeof params["agentId"] === "string" ? params["agentId"] : undefined,
   };
   const v = validateSubmitClaim(input);
   if (!v.valid) {
     throw { code: MCP_ERRORS.INVALID_PARAMS, message: v.error };
   }
   const { createHash: sha256 } = await import("crypto");
-  const hash = sha256("sha256").update(input.claimText.toLowerCase().trim()).digest("hex").slice(0, 16);
+  const hash = sha256("sha256")
+    .update(input.claimText.toLowerCase().trim())
+    .digest("hex")
+    .slice(0, 16);
   const ack = buildFeedbackAck("submit_claim", hash);
-  log.info("agent feedback: submit_claim queued", { hash, agentId: input.agentId });
+  log.info("agent feedback: submit_claim queued", {
+    hash,
+    agentId: input.agentId,
+  });
   return ack;
 }
 
 // ─── Tool: flag_stale ────────────────────────────────────────────────────────
-async function toolFlagStale(params: Record<string, unknown>): Promise<unknown> {
+async function toolFlagStale(
+  params: Record<string, unknown>
+): Promise<unknown> {
   const input = {
-    claimHash: typeof params["claimHash"] === "string" ? params["claimHash"] : "",
+    claimHash:
+      typeof params["claimHash"] === "string" ? params["claimHash"] : "",
     reason: typeof params["reason"] === "string" ? params["reason"] : "",
-    agentId: typeof params["agentId"] === "string" ? params["agentId"] : undefined,
-    newSourceUrl: typeof params["newSourceUrl"] === "string" ? params["newSourceUrl"] : undefined,
+    agentId:
+      typeof params["agentId"] === "string" ? params["agentId"] : undefined,
+    newSourceUrl:
+      typeof params["newSourceUrl"] === "string"
+        ? params["newSourceUrl"]
+        : undefined,
   };
   const v = validateFlagStale(input);
   if (!v.valid) {
     throw { code: MCP_ERRORS.INVALID_PARAMS, message: v.error };
   }
   const ack = buildFeedbackAck("flag_stale", input.claimHash);
-  log.info("agent feedback: flag_stale queued", { claimHash: input.claimHash, agentId: input.agentId });
+  log.info("agent feedback: flag_stale queued", {
+    claimHash: input.claimHash,
+    agentId: input.agentId,
+  });
   return ack;
 }
 
 // ─── Tool: report_contradiction ──────────────────────────────────────────────
-async function toolReportContradiction(params: Record<string, unknown>): Promise<unknown> {
+async function toolReportContradiction(
+  params: Record<string, unknown>
+): Promise<unknown> {
   const input = {
-    claimHashA: typeof params["claimHashA"] === "string" ? params["claimHashA"] : "",
-    claimHashB: typeof params["claimHashB"] === "string" ? params["claimHashB"] : "",
-    explanation: typeof params["explanation"] === "string" ? params["explanation"] : "",
-    agentId: typeof params["agentId"] === "string" ? params["agentId"] : undefined,
+    claimHashA:
+      typeof params["claimHashA"] === "string" ? params["claimHashA"] : "",
+    claimHashB:
+      typeof params["claimHashB"] === "string" ? params["claimHashB"] : "",
+    explanation:
+      typeof params["explanation"] === "string" ? params["explanation"] : "",
+    agentId:
+      typeof params["agentId"] === "string" ? params["agentId"] : undefined,
   };
   const v = validateReportContradiction(input);
   if (!v.valid) {
@@ -480,18 +599,30 @@ async function toolReportContradiction(params: Record<string, unknown>): Promise
   }
   const referenceId = `${input.claimHashA}:${input.claimHashB}`;
   const ack = buildFeedbackAck("report_contradiction", referenceId);
-  log.info("agent feedback: report_contradiction queued", { referenceId, agentId: input.agentId });
+  log.info("agent feedback: report_contradiction queued", {
+    referenceId,
+    agentId: input.agentId,
+  });
   return ack;
 }
 
 // ─── Tool: ask_question ───────────────────────────────────────────────────────
-async function toolAskQuestion(params: Record<string, unknown>): Promise<unknown> {
-  const question = typeof params["question"] === "string" ? params["question"].trim() : "";
+async function toolAskQuestion(
+  params: Record<string, unknown>
+): Promise<unknown> {
+  const question =
+    typeof params["question"] === "string" ? params["question"].trim() : "";
   if (!question) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "question must be a non-empty string" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "question must be a non-empty string",
+    };
   }
   if (question.length > 1000) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "question must be at most 1000 characters" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "question must be at most 1000 characters",
+    };
   }
 
   const result = await processQuestion(question);
@@ -508,7 +639,9 @@ async function toolAskQuestion(params: Record<string, unknown>): Promise<unknown
 }
 
 // ─── Tool: get_provenance ────────────────────────────────────────────────────
-async function toolGetProvenance(params: Record<string, unknown>): Promise<unknown> {
+async function toolGetProvenance(
+  params: Record<string, unknown>
+): Promise<unknown> {
   const rawId = params["claim_id"];
   const claimId =
     typeof rawId === "number"
@@ -517,14 +650,15 @@ async function toolGetProvenance(params: Record<string, unknown>): Promise<unkno
         ? parseInt(rawId, 10)
         : NaN;
   if (isNaN(claimId) || claimId <= 0) {
-    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "claim_id must be a positive integer" };
+    throw {
+      code: MCP_ERRORS.INVALID_PARAMS,
+      message: "claim_id must be a positive integer",
+    };
   }
 
   const rawLimit = params["limit"];
   const limit =
-    typeof rawLimit === "number" && rawLimit > 0
-      ? Math.min(rawLimit, 50)
-      : 10;
+    typeof rawLimit === "number" && rawLimit > 0 ? Math.min(rawLimit, 50) : 10;
 
   const [hops, neighbours] = await Promise.all([
     getDistortionChain(claimId),
@@ -532,22 +666,43 @@ async function toolGetProvenance(params: Record<string, unknown>): Promise<unkno
   ]);
 
   const provenance = buildProvenanceResult(claimId, hops, neighbours);
-  log.info("get_provenance called", { claimId, hopCount: hops.length, neighbourCount: neighbours.length });
+  log.info("get_provenance called", {
+    claimId,
+    hopCount: hops.length,
+    neighbourCount: neighbours.length,
+  });
   return provenance;
 }
 
 // ─── Tool registry ────────────────────────────────────────────────────────────
-type ToolHandler = (params: Record<string, unknown>, req: Request) => Promise<unknown>;
+type ToolHandler = (
+  params: Record<string, unknown>,
+  req: Request
+) => Promise<unknown>;
 
-const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSchema: Record<string, unknown> }> = {
+const TOOLS: Record<
+  string,
+  {
+    description: string;
+    handler: ToolHandler;
+    inputSchema: Record<string, unknown>;
+  }
+> = {
   verify_claim: {
     description:
       "Submit a natural language claim and receive a structured verdict with evidence. Returns verdict (supported/refuted/inconclusive/needs_context/superseded), confidence score, evidence array with source IDs, and provenance.",
     inputSchema: {
       type: "object",
       properties: {
-        claim: { type: "string", description: "The claim to verify (max 1000 chars)", maxLength: 1000 },
-        domain: { type: "string", description: "Optional domain hint: biotech, climate, law, etc." },
+        claim: {
+          type: "string",
+          description: "The claim to verify (max 1000 chars)",
+          maxLength: 1000,
+        },
+        domain: {
+          type: "string",
+          description: "Optional domain hint: biotech, climate, law, etc.",
+        },
         confidence_threshold: {
           type: "number",
           description: "Minimum confidence to return (0.0–1.0, default 0.0)",
@@ -569,30 +724,53 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
         query: { type: "string", description: "Full-text search query" },
         verdict: {
           type: "string",
-          enum: ["supported", "refuted", "inconclusive", "needs_context", "superseded"],
+          enum: [
+            "supported",
+            "refuted",
+            "inconclusive",
+            "needs_context",
+            "superseded",
+          ],
           description: "Filter by verdict",
         },
         domain: { type: "string", description: "Filter by domain" },
-        min_confidence: { type: "number", minimum: 0, maximum: 1, description: "Minimum confidence score" },
-        limit: { type: "integer", minimum: 1, maximum: 50, description: "Max results (default 10)" },
-        offset: { type: "integer", minimum: 0, description: "Pagination offset (default 0)" },
+        min_confidence: {
+          type: "number",
+          minimum: 0,
+          maximum: 1,
+          description: "Minimum confidence score",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Max results (default 10)",
+        },
+        offset: {
+          type: "integer",
+          minimum: 0,
+          description: "Pagination offset (default 0)",
+        },
       },
       required: ["query"],
       additionalProperties: false,
     },
-    handler: async (params) => toolSearchClaims(params),
+    handler: async params => toolSearchClaims(params),
   },
   get_claim: {
     description: "Retrieve a single verified claim by its stable ID.",
     inputSchema: {
       type: "object",
       properties: {
-        claim_id: { type: ["integer", "string"], description: "The claim ID (integer or numeric string)" },
+        claim_id: {
+          type: ["integer", "string"],
+          description: "The claim ID (integer or numeric string)",
+        },
       },
       required: ["claim_id"],
       additionalProperties: false,
     },
-    handler: async (params) => toolGetClaim(params),
+    handler: async params => toolGetClaim(params),
   },
   get_source_version: {
     description:
@@ -600,17 +778,21 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
     inputSchema: {
       type: "object",
       properties: {
-        source_id: { type: "string", description: "Source identifier (e.g. pubmed, uniprot, opencitations)" },
+        source_id: {
+          type: "string",
+          description:
+            "Source identifier (e.g. pubmed, uniprot, opencitations)",
+        },
       },
       required: ["source_id"],
       additionalProperties: false,
     },
-    handler: async (params) => toolGetSourceVersion(params),
+    handler: async params => toolGetSourceVersion(params),
   },
   verify_claim_at_date: {
     description: TEMPORAL_TOOLS[0].description,
     inputSchema: TEMPORAL_TOOLS[0].inputSchema as Record<string, unknown>,
-    handler: async (params) => toolVerifyClaimAtDate(params),
+    handler: async params => toolVerifyClaimAtDate(params),
   },
   verify_claims_batch: {
     description: BATCH_TOOLS_MANIFEST[0].description,
@@ -619,18 +801,27 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
   },
   submit_claim: {
     description: FEEDBACK_TOOLS_MANIFEST[0].description,
-    inputSchema: FEEDBACK_TOOLS_MANIFEST[0].inputSchema as Record<string, unknown>,
-    handler: async (params) => toolSubmitClaim(params),
+    inputSchema: FEEDBACK_TOOLS_MANIFEST[0].inputSchema as Record<
+      string,
+      unknown
+    >,
+    handler: async params => toolSubmitClaim(params),
   },
   flag_stale: {
     description: FEEDBACK_TOOLS_MANIFEST[1].description,
-    inputSchema: FEEDBACK_TOOLS_MANIFEST[1].inputSchema as Record<string, unknown>,
-    handler: async (params) => toolFlagStale(params),
+    inputSchema: FEEDBACK_TOOLS_MANIFEST[1].inputSchema as Record<
+      string,
+      unknown
+    >,
+    handler: async params => toolFlagStale(params),
   },
   report_contradiction: {
     description: FEEDBACK_TOOLS_MANIFEST[2].description,
-    inputSchema: FEEDBACK_TOOLS_MANIFEST[2].inputSchema as Record<string, unknown>,
-    handler: async (params) => toolReportContradiction(params),
+    inputSchema: FEEDBACK_TOOLS_MANIFEST[2].inputSchema as Record<
+      string,
+      unknown
+    >,
+    handler: async params => toolReportContradiction(params),
   },
   ask_question: {
     description:
@@ -638,17 +829,32 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
     inputSchema: {
       type: "object",
       properties: {
-        question: { type: "string", description: "The question to answer (max 1000 chars)", maxLength: 1000 },
+        question: {
+          type: "string",
+          description: "The question to answer (max 1000 chars)",
+          maxLength: 1000,
+        },
       },
       required: ["question"],
       additionalProperties: false,
     },
-    handler: async (params) => toolAskQuestion(params),
+    handler: async params => toolAskQuestion(params),
   },
   get_provenance: {
     description: PROVENANCE_TOOLS_MANIFEST[0].description,
-    inputSchema: PROVENANCE_TOOLS_MANIFEST[0].inputSchema as Record<string, unknown>,
-    handler: async (params) => toolGetProvenance(params),
+    inputSchema: PROVENANCE_TOOLS_MANIFEST[0].inputSchema as Record<
+      string,
+      unknown
+    >,
+    handler: async params => toolGetProvenance(params),
+  },
+  find_similar: {
+    description: FIND_SIMILAR_TOOLS_MANIFEST[0].description,
+    inputSchema: FIND_SIMILAR_TOOLS_MANIFEST[0].inputSchema as Record<
+      string,
+      unknown
+    >,
+    handler: async params => toolFindSimilar(params),
   },
 };
 
@@ -681,23 +887,37 @@ function buildCapabilities() {
 
 // ─── Protocol dispatch helper ─────────────────────────────────────────────────
 /** Returns true if the method was handled (caller should return immediately). */
-function handleProtocolMethod(method: string, id: unknown, res: Response): boolean {
+function handleProtocolMethod(
+  method: string,
+  id: unknown,
+  res: Response
+): boolean {
   if (method === "initialize") {
     res.json(mcpResult(id, buildCapabilities()));
     return true;
   }
   if (method === "tools/list") {
-    res.json(mcpResult(id, {
-      tools: Object.entries(TOOLS).map(([name, t]) => ({
-        name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-      })),
-    }));
+    res.json(
+      mcpResult(id, {
+        tools: Object.entries(TOOLS).map(([name, t]) => ({
+          name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+        })),
+      })
+    );
     return true;
   }
   if (method !== "tools/call") {
-    res.status(404).json(mcpError(id, MCP_ERRORS.METHOD_NOT_FOUND, `Method "${method}" not found`));
+    res
+      .status(404)
+      .json(
+        mcpError(
+          id,
+          MCP_ERRORS.METHOD_NOT_FOUND,
+          `Method "${method}" not found`
+        )
+      );
     return true;
   }
   return false;
@@ -708,7 +928,10 @@ function handleProtocolMethod(method: string, id: unknown, res: Response): boole
 async function handleMcpPost(req: Request, res: Response): Promise<void> {
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Test-Reset-RateLimit");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Test-Reset-RateLimit"
+  );
 
   const ip =
     (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
@@ -716,7 +939,10 @@ async function handleMcpPost(req: Request, res: Response): Promise<void> {
     "unknown";
 
   // Test-only: clear all rate limit buckets for this IP when X-Test-Reset-RateLimit header is present
-  if (process.env["NODE_ENV"] === "test" && req.headers["x-test-reset-ratelimit"] === "1") {
+  if (
+    process.env["NODE_ENV"] === "test" &&
+    req.headers["x-test-reset-ratelimit"] === "1"
+  ) {
     for (const key of Array.from(rateBuckets.keys())) {
       if (key.startsWith(`${ip}:`)) rateBuckets.delete(key);
     }
@@ -727,7 +953,15 @@ async function handleMcpPost(req: Request, res: Response): Promise<void> {
   // Parse JSON-RPC body
   const body = req.body as Record<string, unknown>;
   if (!body || body["jsonrpc"] !== "2.0" || !body["method"]) {
-    res.status(400).json(mcpError(body?.["id"], MCP_ERRORS.INVALID_REQUEST, "Invalid JSON-RPC 2.0 request"));
+    res
+      .status(400)
+      .json(
+        mcpError(
+          body?.["id"],
+          MCP_ERRORS.INVALID_REQUEST,
+          "Invalid JSON-RPC 2.0 request"
+        )
+      );
     return;
   }
 
@@ -738,45 +972,65 @@ async function handleMcpPost(req: Request, res: Response): Promise<void> {
   // Handle MCP protocol methods (initialize, tools/list, tools/call)
   if (handleProtocolMethod(method, id, res)) return;
 
-    // tools/call
-    const toolName = typeof params["name"] === "string" ? params["name"] : "";
-    const toolParams = (params["arguments"] ?? {}) as Record<string, unknown>;
-    const tool = TOOLS[toolName];
-  
-    if (!tool) {
-      res.status(404).json(mcpError(id, MCP_ERRORS.METHOD_NOT_FOUND, `Tool "${toolName}" not found`));
+  // tools/call
+  const toolName = typeof params["name"] === "string" ? params["name"] : "";
+  const toolParams = (params["arguments"] ?? {}) as Record<string, unknown>;
+  const tool = TOOLS[toolName];
+
+  if (!tool) {
+    res
+      .status(404)
+      .json(
+        mcpError(
+          id,
+          MCP_ERRORS.METHOD_NOT_FOUND,
+          `Tool "${toolName}" not found`
+        )
+      );
+    return;
+  }
+
+  // Auth check — authenticated callers skip rate limiting
+  const auth = await resolveAuth(req);
+  if (!auth.authenticated) {
+    const rl = checkMcpRateLimit(ip, toolName);
+    if (!rl.allowed) {
+      res.status(429).json(
+        mcpError(
+          id,
+          MCP_ERRORS.RATE_LIMITED,
+          "Rate limit exceeded. 10 requests per hour per tool for anonymous callers.",
+          {
+            resetAt: new Date(rl.resetAt).toISOString(),
+            upgradeHint:
+              "Obtain an API key at https://citation.is/settings/api-keys for unlimited access.",
+          }
+        )
+      );
       return;
     }
-  
-    // Auth check — authenticated callers skip rate limiting
-    const auth = await resolveAuth(req);
-    if (!auth.authenticated) {
-      const rl = checkMcpRateLimit(ip, toolName);
-      if (!rl.allowed) {
-        res.status(429).json(
-          mcpError(id, MCP_ERRORS.RATE_LIMITED, "Rate limit exceeded. 10 requests per hour per tool for anonymous callers.", {
-            resetAt: new Date(rl.resetAt).toISOString(),
-            upgradeHint: "Obtain an API key at https://citation.is/settings/api-keys for unlimited access.",
-          })
-        );
-        return;
-      }
+  }
+
+  // Execute tool
+  try {
+    const result = await tool.handler(toolParams, req);
+    res.json(
+      mcpResult(id, {
+        content: [{ type: "text", text: JSON.stringify(result) }],
+      })
+    );
+  } catch (err) {
+    const mcpErr = err as { code?: number; message?: string };
+    if (mcpErr.code && mcpErr.message) {
+      const status = mcpErr.code === MCP_ERRORS.NOT_FOUND ? 404 : 400;
+      res.status(status).json(mcpError(id, mcpErr.code, mcpErr.message));
+    } else {
+      log.error(`[MCP] Tool "${toolName}" failed:`, errData(err));
+      res
+        .status(500)
+        .json(mcpError(id, MCP_ERRORS.INTERNAL_ERROR, "Internal server error"));
     }
-  
-    // Execute tool
-    try {
-      const result = await tool.handler(toolParams, req);
-      res.json(mcpResult(id, { content: [{ type: "text", text: JSON.stringify(result) }] }));
-    } catch (err) {
-      const mcpErr = err as { code?: number; message?: string };
-      if (mcpErr.code && mcpErr.message) {
-        const status = mcpErr.code === MCP_ERRORS.NOT_FOUND ? 404 : 400;
-        res.status(status).json(mcpError(id, mcpErr.code, mcpErr.message));
-      } else {
-        log.error(`[MCP] Tool "${toolName}" failed:`, errData(err));
-        res.status(500).json(mcpError(id, MCP_ERRORS.INTERNAL_ERROR, "Internal server error"));
-      }
-    }
+  }
 }
 
 // ─── Fingerprint helper for testing ──────────────────────────────────────────
@@ -801,7 +1055,10 @@ export function registerMcpServer(app: Express): void {
   app.options("/api/mcp", (_req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization"
+    );
     res.status(204).end();
   });
 

@@ -55,12 +55,44 @@ vi.mock("./epistemicProvenance", () => ({
   PROVENANCE_TOOLS_MANIFEST: [
     {
       name: "get_provenance",
-      description: "Retrieve the epistemic provenance chain for a verified claim.",
+      description:
+        "Retrieve the epistemic provenance chain for a verified claim.",
       inputSchema: {
         type: "object",
         properties: {
-          claim_id: { type: ["integer", "string"], description: "The claim ID" },
+          claim_id: {
+            type: ["integer", "string"],
+            description: "The claim ID",
+          },
           limit: { type: "integer", minimum: 1, maximum: 50 },
+        },
+        required: ["claim_id"],
+        additionalProperties: false,
+      },
+    },
+  ],
+}));
+vi.mock("./findSimilarRoute", () => ({
+  toolFindSimilar: vi.fn().mockResolvedValue({
+    claimId: 1,
+    sourceIsStale: false,
+    count: 0,
+    similar: [],
+  }),
+  registerFindSimilarRoute: vi.fn(),
+  FIND_SIMILAR_TOOLS_MANIFEST: [
+    {
+      name: "find_similar",
+      description: "Find semantically similar verified claims.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          claim_id: {
+            type: ["integer", "string"],
+            description: "The claim ID",
+          },
+          top_k: { type: "integer", minimum: 1, maximum: 50 },
+          threshold: { type: "number", minimum: 0, maximum: 1 },
         },
         required: ["claim_id"],
         additionalProperties: false,
@@ -145,7 +177,7 @@ describe("buildCapabilities", () => {
     expect(Array.isArray(caps.tools)).toBe(true);
   });
 
-  it("includes all 11 tools in the capabilities response", () => {
+  it("includes all 12 tools in the capabilities response", () => {
     const caps = buildCapabilities();
     const names = caps.tools.map(t => t.name);
     expect(names).toContain("verify_claim");
@@ -159,7 +191,7 @@ describe("buildCapabilities", () => {
     expect(names).toContain("flag_stale");
     expect(names).toContain("report_contradiction");
     expect(names).toContain("get_provenance");
-    expect(names).toHaveLength(11);
+    expect(names).toHaveLength(12);
   });
 
   it("every tool has a description and inputSchema", () => {
@@ -182,8 +214,8 @@ describe("buildCapabilities", () => {
 
 // ─── Tool Registry ────────────────────────────────────────────────────────────
 describe("TOOLS registry", () => {
-  it("contains exactly 11 tools", () => {
-    expect(Object.keys(TOOLS)).toHaveLength(11);
+  it("contains exactly 12 tools", () => {
+    expect(Object.keys(TOOLS)).toHaveLength(12);
   });
 
   it("every tool has a handler function", () => {
@@ -194,33 +226,36 @@ describe("TOOLS registry", () => {
 
   it("every tool inputSchema has required as an array", () => {
     for (const [name, tool] of Object.entries(TOOLS)) {
-      expect(Array.isArray(tool.inputSchema.required), `${name}.inputSchema.required`).toBe(true);
+      expect(
+        Array.isArray(tool.inputSchema.required),
+        `${name}.inputSchema.required`
+      ).toBe(true);
     }
   });
 
   it("verify_claim requires 'claim' parameter", () => {
     const schema = TOOLS["verify_claim"].inputSchema;
-    expect((schema.required as string[])).toContain("claim");
+    expect(schema.required as string[]).toContain("claim");
   });
 
   it("search_claims requires 'query' parameter", () => {
     const schema = TOOLS["search_claims"].inputSchema;
-    expect((schema.required as string[])).toContain("query");
+    expect(schema.required as string[]).toContain("query");
   });
 
   it("get_claim requires 'claim_id' parameter", () => {
     const schema = TOOLS["get_claim"].inputSchema;
-    expect((schema.required as string[])).toContain("claim_id");
+    expect(schema.required as string[]).toContain("claim_id");
   });
 
   it("get_source_version requires 'source_id' parameter", () => {
     const schema = TOOLS["get_source_version"].inputSchema;
-    expect((schema.required as string[])).toContain("source_id");
+    expect(schema.required as string[]).toContain("source_id");
   });
 
   it("ask_question requires 'question' parameter", () => {
     const schema = TOOLS["ask_question"].inputSchema;
-    expect((schema.required as string[])).toContain("question");
+    expect(schema.required as string[]).toContain("question");
   });
 });
 
@@ -256,9 +291,24 @@ describe("mcpServerFingerprint", () => {
     // If we add/remove tools, the fingerprint must change
     const fp = mcpServerFingerprint();
     expect(fp).toBeTruthy();
-    // Verify it encodes the 11 known tools
+    // Verify it encodes the 12 known tools
     const expected = createHash("sha256")
-      .update(["ask_question", "flag_stale", "get_claim", "get_provenance", "get_source_version", "report_contradiction", "search_claims", "submit_claim", "verify_claim", "verify_claim_at_date", "verify_claims_batch"].join(","))
+      .update(
+        [
+          "ask_question",
+          "find_similar",
+          "flag_stale",
+          "get_claim",
+          "get_provenance",
+          "get_source_version",
+          "report_contradiction",
+          "search_claims",
+          "submit_claim",
+          "verify_claim",
+          "verify_claim_at_date",
+          "verify_claims_batch",
+        ].join(",")
+      )
       .digest("hex")
       .slice(0, 16);
     expect(fp).toBe(expected);
@@ -272,7 +322,10 @@ describe("get_source_version tool", () => {
     vi.mocked(getSourceVersion).mockResolvedValueOnce(null);
 
     const handler = TOOLS["get_source_version"].handler;
-    const result = await handler({ source_id: "pubmed" }, {} as never) as Record<string, unknown>;
+    const result = (await handler(
+      { source_id: "pubmed" },
+      {} as never
+    )) as Record<string, unknown>;
 
     expect(result["neverChecked"]).toBe(true);
     expect(result["sourceId"]).toBe("pubmed");
@@ -288,9 +341,11 @@ describe("get_source_version tool", () => {
 
   it("throws INVALID_PARAMS when source_id is empty string", async () => {
     const handler = TOOLS["get_source_version"].handler;
-    await expect(handler({ source_id: "" }, {} as never)).rejects.toMatchObject({
-      code: MCP_ERRORS.INVALID_PARAMS,
-    });
+    await expect(handler({ source_id: "" }, {} as never)).rejects.toMatchObject(
+      {
+        code: MCP_ERRORS.INVALID_PARAMS,
+      }
+    );
   });
 
   it("returns structured version data when DB has a record", async () => {
@@ -306,7 +361,10 @@ describe("get_source_version tool", () => {
     });
 
     const handler = TOOLS["get_source_version"].handler;
-    const result = await handler({ source_id: "opencitations" }, {} as never) as Record<string, unknown>;
+    const result = (await handler(
+      { source_id: "opencitations" },
+      {} as never
+    )) as Record<string, unknown>;
 
     expect(result["sourceId"]).toBe("opencitations");
     expect(result["currentVersionHash"]).toBe("abc123def456");
@@ -324,14 +382,18 @@ describe("get_claim tool", () => {
     vi.mocked(getClaimById).mockResolvedValueOnce(null);
 
     const handler = TOOLS["get_claim"].handler;
-    await expect(handler({ claim_id: 99999 }, {} as never)).rejects.toMatchObject({
+    await expect(
+      handler({ claim_id: 99999 }, {} as never)
+    ).rejects.toMatchObject({
       code: MCP_ERRORS.NOT_FOUND,
     });
   });
 
   it("throws INVALID_PARAMS for non-numeric claim_id", async () => {
     const handler = TOOLS["get_claim"].handler;
-    await expect(handler({ claim_id: "not-a-number" }, {} as never)).rejects.toMatchObject({
+    await expect(
+      handler({ claim_id: "not-a-number" }, {} as never)
+    ).rejects.toMatchObject({
       code: MCP_ERRORS.INVALID_PARAMS,
     });
   });
@@ -391,7 +453,10 @@ describe("get_claim tool", () => {
     } as unknown as NonNullable<Awaited<ReturnType<typeof getClaimById>>>);
 
     const handler = TOOLS["get_claim"].handler;
-    const result = await handler({ claim_id: "42" }, {} as never) as Record<string, unknown>;
+    const result = (await handler({ claim_id: "42" }, {} as never)) as Record<
+      string,
+      unknown
+    >;
 
     expect(result["claimId"]).toBe("42");
     expect(result["verdict"]).toBe("Supported");
@@ -442,7 +507,10 @@ describe("search_claims tool", () => {
     });
 
     const handler = TOOLS["search_claims"].handler;
-    const result = await handler({ query: "PAX7 satellite cells" }, {} as never) as Record<string, unknown>;
+    const result = (await handler(
+      { query: "PAX7 satellite cells" },
+      {} as never
+    )) as Record<string, unknown>;
 
     expect(result["total"]).toBe(1);
     const claims = result["claims"] as Array<Record<string, unknown>>;
@@ -477,7 +545,10 @@ describe("search_claims tool", () => {
     });
 
     const handler = TOOLS["search_claims"].handler;
-    const result = await handler({ query: "test", min_confidence: 0.7 }, {} as never) as Record<string, unknown>;
+    const result = (await handler(
+      { query: "test", min_confidence: 0.7 },
+      {} as never
+    )) as Record<string, unknown>;
 
     // The low-confidence claim should be filtered out
     const claims = result["claims"] as Array<Record<string, unknown>>;
@@ -496,7 +567,9 @@ describe("ask_question tool", () => {
 
   it("throws INVALID_PARAMS when question exceeds 1000 chars", async () => {
     const handler = TOOLS["ask_question"].handler;
-    await expect(handler({ question: "x".repeat(1001) }, {} as never)).rejects.toMatchObject({
+    await expect(
+      handler({ question: "x".repeat(1001) }, {} as never)
+    ).rejects.toMatchObject({
       code: MCP_ERRORS.INVALID_PARAMS,
     });
   });
@@ -509,16 +582,18 @@ describe("ask_question tool", () => {
       verdict: "Supported" as const,
       confidence: 0.82,
       rationale: "Supported by 3 PubMed papers",
-      sources: [{ pmid: "12345", url: "https://pubmed.ncbi.nlm.nih.gov/12345/" }],
+      sources: [
+        { pmid: "12345", url: "https://pubmed.ncbi.nlm.nih.gov/12345/" },
+      ],
       loopTriggered: false,
       processedAt: "2024-06-13T00:00:00.000Z",
     });
 
     const handler = TOOLS["ask_question"].handler;
-    const result = await handler(
+    const result = (await handler(
       { question: "Does salmon PAX7 bind muscle enhancers?" },
       {} as never
-    ) as Record<string, unknown>;
+    )) as Record<string, unknown>;
 
     expect(result["verdict"]).toBe("Supported");
     expect(result["confidence"]).toBe(0.82);

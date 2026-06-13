@@ -16,7 +16,6 @@ import { eq, like, or, isNotNull, sql } from "drizzle-orm";
 import { logger, errData } from "./logger";
 const log = logger("vectorStore");
 
-
 const SIDECAR_URL = process.env.VECTOR_SIDECAR_URL ?? "http://127.0.0.1:5001";
 const SIDECAR_TIMEOUT_MS = 3_000;
 
@@ -26,7 +25,7 @@ let _sidecarAvailable: boolean | null = null;
 let _lastHealthCheck = 0;
 const HEALTH_TTL_MS = 30_000;
 
-async function isSidecarAvailable(): Promise<boolean> {
+export async function isSidecarAvailable(): Promise<boolean> {
   const now = Date.now();
   if (_sidecarAvailable !== null && now - _lastHealthCheck < HEALTH_TTL_MS) {
     return _sidecarAvailable;
@@ -65,8 +64,8 @@ async function bootstrapIndexIfNeeded(): Promise<void> {
     if (rows.length === 0) return;
 
     const items = rows
-      .filter((r) => r.claimText && r.claimText.trim().length > 0)
-      .map((r) => ({ id: r.id, text: r.claimText! }));
+      .filter(r => r.claimText && r.claimText.trim().length > 0)
+      .map(r => ({ id: r.id, text: r.claimText! }));
 
     if (items.length === 0) return;
 
@@ -139,7 +138,10 @@ export async function indexClaim(claimId: number, text: string): Promise<void> {
 
 // ─── Vector search path ───────────────────────────────────────────────────────
 
-async function vectorSearch(opts: SearchOptions, topK: number): Promise<SearchHit[]> {
+async function vectorSearch(
+  opts: SearchOptions,
+  topK: number
+): Promise<SearchHit[]> {
   const res = await fetch(`${SIDECAR_URL}/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -158,8 +160,8 @@ async function vectorSearch(opts: SearchOptions, topK: number): Promise<SearchHi
 
   if (data.results.length === 0) return [];
 
-  const claimIds = data.results.map((r) => r.id);
-  const scoreMap = new Map(data.results.map((r) => [r.id, r.score]));
+  const claimIds = data.results.map(r => r.id);
+  const scoreMap = new Map(data.results.map(r => [r.id, r.score]));
 
   const db = await getDb();
   if (!db) return [];
@@ -175,9 +177,14 @@ async function vectorSearch(opts: SearchOptions, topK: number): Promise<SearchHi
     })
     .from(claims)
     .leftJoin(documents, eq(claims.documentId, documents.id))
-    .where(sql`${claims.id} IN (${sql.join(claimIds.map((id) => sql`${id}`), sql`, `)})`);
+    .where(
+      sql`${claims.id} IN (${sql.join(
+        claimIds.map(id => sql`${id}`),
+        sql`, `
+      )})`
+    );
 
-  let hits: SearchHit[] = rows.map((r) => ({
+  let hits: SearchHit[] = rows.map(r => ({
     claimId: r.id,
     score: scoreMap.get(r.id) ?? 0,
     claimText: r.claimText ?? "",
@@ -189,8 +196,9 @@ async function vectorSearch(opts: SearchOptions, topK: number): Promise<SearchHi
   }));
 
   // Post-filter
-  if (opts.vertical) hits = hits.filter((h) => h.verticalDomain === opts.vertical);
-  if (opts.verdict) hits = hits.filter((h) => h.verdict === opts.verdict);
+  if (opts.vertical)
+    hits = hits.filter(h => h.verticalDomain === opts.vertical);
+  if (opts.verdict) hits = hits.filter(h => h.verdict === opts.verdict);
 
   // Sort by score descending and trim to topK
   hits.sort((a, b) => b.score - a.score);
@@ -199,7 +207,10 @@ async function vectorSearch(opts: SearchOptions, topK: number): Promise<SearchHi
 
 // ─── SQL FULLTEXT fallback ────────────────────────────────────────────────────
 
-async function fulltextSearch(opts: SearchOptions, topK: number): Promise<SearchHit[]> {
+async function fulltextSearch(
+  opts: SearchOptions,
+  topK: number
+): Promise<SearchHit[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -208,16 +219,15 @@ async function fulltextSearch(opts: SearchOptions, topK: number): Promise<Search
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 8)
-    .map((t) => `%${t}%`);
+    .map(t => `%${t}%`);
 
   if (terms.length === 0) return [];
 
   // Build OR-of-LIKE conditions for each term
-  const conditions = terms.map((term) => like(claims.claimText, term));
+  const conditions = terms.map(term => like(claims.claimText, term));
 
-  const whereClause = conditions.length === 1
-    ? conditions[0]
-    : or(...conditions)!;
+  const whereClause =
+    conditions.length === 1 ? conditions[0] : or(...conditions)!;
 
   const rows = await db
     .select({
@@ -233,7 +243,7 @@ async function fulltextSearch(opts: SearchOptions, topK: number): Promise<Search
     .where(whereClause)
     .limit(topK * 3);
 
-  let hits: SearchHit[] = rows.map((r) => ({
+  let hits: SearchHit[] = rows.map(r => ({
     claimId: r.id,
     score: 0.5, // uniform score for SQL fallback
     claimText: r.claimText ?? "",
@@ -244,8 +254,9 @@ async function fulltextSearch(opts: SearchOptions, topK: number): Promise<Search
     source: "fulltext" as const,
   }));
 
-  if (opts.vertical) hits = hits.filter((h) => h.verticalDomain === opts.vertical);
-  if (opts.verdict) hits = hits.filter((h) => h.verdict === opts.verdict);
+  if (opts.vertical)
+    hits = hits.filter(h => h.verticalDomain === opts.vertical);
+  if (opts.verdict) hits = hits.filter(h => h.verdict === opts.verdict);
 
   return hits.slice(0, topK);
 }

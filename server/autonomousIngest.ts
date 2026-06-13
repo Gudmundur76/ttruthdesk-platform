@@ -40,7 +40,6 @@ import { reportUrl } from "./seo/indexNow";
 import { logger, errData } from "./logger";
 const log = logger("autonomousIngest");
 
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PubMedResult {
@@ -407,6 +406,18 @@ export async function processQueryResults(
             pdbEvidenceUrl: evidenceUrl ?? undefined,
             verdictMethod: "llm_ingest",
           });
+
+          // Auto-index supported claims into TurboVec (fire-and-forget)
+          if (verdict === "Supported" || verdict === "Partially Supported") {
+            import("./vectorStore")
+              .then(({ indexClaim }) => indexClaim(claim.id, claim.claimText))
+              .catch((vecErr: unknown) =>
+                log.warn(
+                  `[autonomousIngest] indexClaim failed for claim ${claim.id}:`,
+                  errData(vecErr)
+                )
+              );
+          }
 
           if (verdict === "Contradicted") {
             contradictedClaims.push({ ...claim, verdict });

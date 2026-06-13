@@ -26,6 +26,7 @@ import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { registerAnswerRoute } from "../answerRoute";
 import { registerStreamVerifyRoute } from "../streamVerifyRoute";
 import { registerProvenanceRoute } from "../epistemicProvenance";
+import { registerFindSimilarRoute } from "../findSimilarRoute";
 import { registerMcpServer } from "../mcpServer";
 import { registerSubmitClaimRoute } from "../submitClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
@@ -700,7 +701,13 @@ async function startServer() {
   app.post("/mcp", express.json(), (req, res) => {
     // Forward to the real handler — preserves all headers, auth, rate limiting
     req.url = "/api/mcp";
-    (app as unknown as { _router: { handle: (req: unknown, res: unknown, next: () => void) => void } })._router.handle(req, res, () => {
+    (
+      app as unknown as {
+        _router: {
+          handle: (req: unknown, res: unknown, next: () => void) => void;
+        };
+      }
+    )._router.handle(req, res, () => {
       res.status(404).json({
         jsonrpc: "2.0",
         id: (req.body as Record<string, unknown>)?.["id"] ?? null,
@@ -1585,7 +1592,9 @@ async function startServer() {
         const documentIds: number[] | undefined =
           Array.isArray(req.body?.documentIds) &&
           req.body.documentIds.length > 0
-            ? (req.body.documentIds as unknown[]).map(Number).filter(n => !isNaN(n))
+            ? (req.body.documentIds as unknown[])
+                .map(Number)
+                .filter(n => !isNaN(n))
             : undefined;
 
         const result = await withCronLog(
@@ -1617,7 +1626,6 @@ async function startServer() {
     }
   );
 
-
   // ── Phase 107: Contradiction Detection Engine ──────────────────────────────
   //
   // Triggered by heartbeat cron (weekly). Traverses semantic_similar edges in
@@ -1629,7 +1637,9 @@ async function startServer() {
     requireCronOrAdmin,
     async (req, res) => {
       try {
-        const { runContradictionScan } = await import("../contradictionDetector");
+        const { runContradictionScan } = await import(
+          "../contradictionDetector"
+        );
         const batchSize = Math.min(
           parseInt(String(req.body?.batchSize ?? "500"), 10) || 500,
           2000
@@ -1764,6 +1774,8 @@ async function startServer() {
   registerStreamVerifyRoute(app);
   // Epistemic provenance chain endpoint (Phase 121)
   registerProvenanceRoute(app);
+  // Semantic similarity endpoint (Phase 124b)
+  registerFindSimilarRoute(app);
   registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);

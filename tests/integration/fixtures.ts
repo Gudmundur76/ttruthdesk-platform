@@ -10,10 +10,12 @@
  */
 
 /** A well-formed scientific claim containing a PDB DOI-style identifier */
-export const CLAIM_PDB = "PDB entry 1ABC reports a resolution of 2.1 Å for human lysozyme";
+export const CLAIM_PDB =
+  "PDB entry 1ABC reports a resolution of 2.1 Å for human lysozyme";
 
 /** A claim with an embedded DOI for OpenCitations enrichment path */
-export const CLAIM_WITH_DOI = "According to 10.1093/nar/gkac1052, the PDB holds over 200,000 structures";
+export const CLAIM_WITH_DOI =
+  "According to 10.1093/nar/gkac1052, the PDB holds over 200,000 structures";
 
 /** Prefixed with __mock__ so the test server returns pre-canned SSE events
  *  immediately without making real LLM/PubMed calls. NODE_ENV=test only. */
@@ -53,6 +55,7 @@ export const MCP_TOOLS = {
   FLAG_STALE: "flag_stale",
   REPORT_CONTRADICTION: "report_contradiction",
   GET_PROVENANCE: "get_provenance",
+  FIND_SIMILAR: "find_similar",
 } as const;
 
 /** Expected JSON-RPC error codes */

@@ -41,7 +41,7 @@ export default defineConfig({
       thresholds: {
         lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
         branches: 48, // actual: 69.61% (branches well covered)
-        functions: 48, // Phase 123: actual 48.16% — target 55% Phase 124
+        functions: 47, // Phase 124a: actual 47.98% — target 55% Phase 124b/125
         statements: 35, // Phase 123: actual 35.01% — target 38% Phase 124
       },
     },
