@@ -1609,3 +1609,9 @@
 - [x] Implement dreamStartRoute.ts — POST /api/v2/dream/start with kill switch, rate limit, health threshold, audit log
 - [x] Register /api/v2/dream router in _core/index.ts
 - [x] TSC clean, 1630/1630 GREEN
+
+## Phase 128 — Knowledge Gap Bridge (complete)
+- [x] Write RED tests for knowledgeGapBridge.ts (bridgeOpenGapsToCoordQueue + getGapBridgeStats)
+- [x] Implement knowledgeGapBridge.ts — bridges open knowledge_gaps to coordQueue for autonomous evidence pursuit
+- [x] Wire bridgeOpenGapsToCoordQueue into discoveryLoopJob.ts (called after main loop, result merged into response)
+- [x] TSC clean, 1639/1639 GREEN

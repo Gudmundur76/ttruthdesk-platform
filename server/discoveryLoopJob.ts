@@ -25,6 +25,7 @@ import { runAnalysisPipeline } from "./analysisPipeline";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import { logCronRun } from "./cronRunLogger";
+import { bridgeOpenGapsToCoordQueue } from "./knowledgeGapBridge";
 import { logger, errData } from "./logger";
 const log = logger("discoveryLoopJob");
 
@@ -313,6 +314,9 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
       }
     }
 
+    const gapBridgeResult = await bridgeOpenGapsToCoordQueue();
+    log.info(`[DiscoveryLoop] Gap bridge: ${gapBridgeResult.gapsBridged} gaps bridged, ${gapBridgeResult.gapsFailed} failed`);
+
     const finalDur = Date.now() - startedAt;
     void logCronRun(
       "discovery-loop-daily",
@@ -325,6 +329,7 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
       stats,
       sourceBreakdown: discovery.sourceBreakdown,
       durationMs: finalDur,
+      gapBridge: gapBridgeResult,
     });
   } catch (err) {
     log.error("[DiscoveryLoop] Fatal error:", errData(err));
