@@ -138,19 +138,19 @@ export const SOURCE_WHITELIST: SourceDefinition[] = [
     healthCheckFn: checkClinicalTrialsHealth,
   },
 
-  // ── Pending sources (not yet approved) ────────────────────────────────────
+  // ── OpenFDA (approved 2026-06-13) ───────────────────────────────────────────────
 
   {
     id: "openfda",
     displayName: "OpenFDA (FDA Adverse Events & Drug Labels)",
     description:
-      "Will verify adverse event claims and drug label information for pharmaceutical claims. " +
-      "Opens pharma verification vertical.",
+      "Verifies adverse event claims and drug label information for pharmaceutical claims. " +
+      "Covers FDA drug events, drug labels, and device adverse events.",
     apiBaseUrl: "https://api.fda.gov",
     schema: ["adverse_event", "drug_label", "drug_name", "indication"],
     failureMode: "degrade",
-    approved: false,
-    approvedAt: null,
+    approved: true,
+    approvedAt: "2026-06-13",
     healthCheckFn: async () => {
       const start = Date.now();
       try {
@@ -172,16 +172,111 @@ export const SOURCE_WHITELIST: SourceDefinition[] = [
     description:
       "Will verify toxicological claims and safety thresholds for food and feed substances. " +
       "Opens food safety verification vertical.",
-    apiBaseUrl: "https://efsa.onlinelibrary.wiley.com/doi/10.2903/sp.efsa.2017.EN-1168",
+    apiBaseUrl: "https://data.efsa.europa.eu/api",
     schema: ["substance_name", "tdi", "adi", "noael", "hazard_characterisation"],
-    failureMode: "hard_stop",
-    approved: false,
-    approvedAt: null,
-    healthCheckFn: async () => ({
-      healthy: false,
-      latencyMs: 0,
-      error: "EFSA OpenFoodTox API integration not yet implemented",
-    }),
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(
+          "https://data.efsa.europa.eu/api/catalogue/substance?page=0&size=1",
+          { signal: AbortSignal.timeout(8_000) }
+        );
+        const latencyMs = Date.now() - start;
+        return { healthy: res.ok, latencyMs, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) {
+        return { healthy: false, latencyMs: Date.now() - start, error: String(err) };
+      }
+    },
+  },
+
+  // ── CrossRef (approved 2026-06-13) ───────────────────────────────────────────────
+
+  {
+    id: "crossref",
+    displayName: "CrossRef (130M+ DOIs, All Disciplines)",
+    description:
+      "Domain-agnostic DOI and citation verification across all academic disciplines. " +
+      "The universal citation registry — any citable claim can be verified.",
+    apiBaseUrl: "https://api.crossref.org",
+    schema: ["doi", "title", "journal", "year", "citations", "abstract"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(
+          "https://api.crossref.org/works/10.1038/nature12373",
+          {
+            headers: { "User-Agent": "citation-engine/1.0 (citation-engine@citation.is)" },
+            signal: AbortSignal.timeout(8_000),
+          }
+        );
+        const latencyMs = Date.now() - start;
+        return { healthy: res.ok, latencyMs, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) {
+        return { healthy: false, latencyMs: Date.now() - start, error: String(err) };
+      }
+    },
+  },
+
+  // ── OpenAlex (approved 2026-06-13) ───────────────────────────────────────────────
+
+  {
+    id: "openalex",
+    displayName: "OpenAlex (250M+ Scholarly Works)",
+    description:
+      "Comprehensive open scholarly index covering all academic disciplines. " +
+      "Provides citation graph, concept classification, and open access availability.",
+    apiBaseUrl: "https://api.openalex.org",
+    schema: ["id", "doi", "title", "abstract", "year", "citations", "concepts"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(
+          "https://api.openalex.org/works/doi:10.1038/nature12373?mailto=citation-engine@citation.is",
+          { signal: AbortSignal.timeout(8_000) }
+        );
+        const latencyMs = Date.now() - start;
+        return { healthy: res.ok, latencyMs, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) {
+        return { healthy: false, latencyMs: Date.now() - start, error: String(err) };
+      }
+    },
+  },
+
+  // ── Semantic Scholar (approved 2026-06-13) ────────────────────────────────────────
+
+  {
+    id: "semantic_scholar",
+    displayName: "Semantic Scholar (200M+ Papers, AI-Powered)",
+    description:
+      "Semantic search across 200M+ papers with citation graph and influential citation signals. " +
+      "Strong for AI, computer science, biomedical, and interdisciplinary claims.",
+    apiBaseUrl: "https://api.semanticscholar.org/graph/v1",
+    schema: ["paperId", "doi", "title", "abstract", "year", "citationCount", "influentialCitationCount"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-13",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(
+          "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1038/nature12373?fields=paperId,title",
+          { signal: AbortSignal.timeout(8_000) }
+        );
+        const latencyMs = Date.now() - start;
+        return { healthy: res.ok, latencyMs, error: res.ok ? null : `HTTP ${res.status}` };
+      } catch (err) {
+        return { healthy: false, latencyMs: Date.now() - start, error: String(err) };
+      }
+    },
   },
 ];
 

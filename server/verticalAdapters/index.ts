@@ -17,6 +17,8 @@ export {
 
 // Import adapters after registry is initialised — they call registerVertical()
 // on module load. Order matters: structural_biology first (reference impl).
+
+// ── Domain-specific vertical adapters (biomedical) ───────────────────────────
 import "./structuralBiology";
 import "./salmonBiotech";
 import "./proteinSupplement";
@@ -27,3 +29,10 @@ import "./plantBasedProtein";
 import "./sportsNutritionRct";
 import "./uniprotVertical";
 import "./clinicalTrialsVertical";
+
+// ── Domain-agnostic adapters (approved 2026-06-13) ───────────────────────────
+// These make the engine verifiable across ALL academic disciplines.
+import "./crossRef";          // 130M+ DOIs — universal citation registry
+import "./openAlex";          // 250M+ works — comprehensive scholarly index
+import "./semanticScholar";   // 200M+ papers — semantic search + citation graph
+import "./genericSource";     // URL/DOI fallback — must be last (lowest priority)
