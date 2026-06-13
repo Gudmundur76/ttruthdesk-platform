@@ -99,8 +99,8 @@ const arxivAdapter: VerticalAdapter = {
         confidenceFlags,
       };
 
-    } catch (error: any) {
-      console.error(`Error fetching from arXiv: ${error.message}`);
+    } catch (error: unknown) {
+      console.error(`Error fetching from arXiv: ${(error as Error).message}`);
       return {
         found: false,
         sourceId: null,

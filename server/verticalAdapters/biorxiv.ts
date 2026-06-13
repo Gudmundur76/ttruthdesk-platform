@@ -58,8 +58,8 @@ const biorxivAdapter: VerticalAdapter = {
             };
           }
         }
-      } catch (error: any) {
-        console.error(`Error fetching from ${apiUrl}:`, error.message);
+      } catch (error: unknown) {
+        console.error(`Error fetching from ${apiUrl}:`, (error as Error).message);
         // Continue to the next URL if one fails
       }
     }

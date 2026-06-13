@@ -72,13 +72,13 @@ const edgarSecAdapter: VerticalAdapter = {
           confidenceFlags: ['no_match'],
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error during SEC lookup:', error);
       return {
         found: false,
         sourceId: null,
         sourceUrl: null,
-        evidenceRaw: { error: error.message || 'Unknown network error' },
+        evidenceRaw: { error: (error as Error).message || 'Unknown network error' },
         confidenceScore: 0.1,
         confidenceFlags: ['network_error'],
       };

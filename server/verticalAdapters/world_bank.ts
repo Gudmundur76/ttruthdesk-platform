@@ -86,10 +86,10 @@ const worldBankAdapter: VerticalAdapter = {
           confidenceFlags: ['no_data_for_indicator'],
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       let confidence = 0.1;
       const flags = ['network_error'];
-      if (error.name === 'AbortError') {
+      if ((error as Error).name === 'AbortError') {
         flags.push('request_timeout');
         confidence = 0.05;
       } else if (error instanceof TypeError) {
@@ -100,7 +100,7 @@ const worldBankAdapter: VerticalAdapter = {
         found: false,
         sourceId: null,
         sourceUrl: url,
-        evidenceRaw: { message: error.message, name: error.name },
+        evidenceRaw: { message: (error as Error).message, name: (error as Error).name },
         confidenceScore: confidence,
         confidenceFlags: flags,
       };

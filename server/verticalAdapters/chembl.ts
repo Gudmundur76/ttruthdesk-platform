@@ -11,8 +11,8 @@ const chemblAdapter: VerticalAdapter = {
   discoverySearchTerms: ['drug compound', 'pharmacology', 'clinical trial drug', 'IC50', 'bioactivity'],
 
   async lookupEvidence(claim: { claimText: string; extractedValue: string | null }): Promise<EvidenceResult> {
-    let query = claim.extractedValue || claim.claimText;
-    let chemblIdMatch = query.match(/CHEMBL\d+/i);
+    const query = claim.extractedValue || claim.claimText;
+    const chemblIdMatch = query.match(/CHEMBL\d+/i);
     let url: string;
 
     if (chemblIdMatch) {
@@ -51,7 +51,7 @@ const chemblAdapter: VerticalAdapter = {
       const data = await response.json();
 
       // ChEMBL API returns a list of molecules for search, or a single molecule for ID lookup
-      let moleculeData: any = null;
+      let moleculeData: { chembl_id?: string; max_phase_for_ind?: number; molecule_type?: string; [key: string]: unknown } | null = null;
       if (chemblIdMatch) {
         moleculeData = data; // Direct molecule data
       } else if (data.molecules && data.molecules.length > 0) {
@@ -95,7 +95,7 @@ const chemblAdapter: VerticalAdapter = {
         confidenceFlags: [],
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`Error looking up ChEMBL evidence for '${query}':`, error);
       return {
         found: false,
@@ -103,7 +103,7 @@ const chemblAdapter: VerticalAdapter = {
         sourceUrl: null,
         evidenceRaw: null,
         confidenceScore: 0.1, // Low confidence on any error
-        confidenceFlags: [`Error: ${error.message}`],
+        confidenceFlags: [`Error: ${(error as Error).message}`],
       };
     }
   },

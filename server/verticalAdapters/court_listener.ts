@@ -85,7 +85,7 @@ class CourtListenerAdapter implements VerticalAdapter {
       if (data.results && data.results.length > 0) {
         const firstResult = data.results[0];
         let confidence = 0.5; // Default confidence
-        let confidenceFlags: string[] = [];
+        const confidenceFlags: string[] = [];
 
         // Determine confidence based on court type
         if (isSupremeCourt) {

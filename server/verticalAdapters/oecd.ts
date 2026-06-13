@@ -91,16 +91,16 @@ const oecdAdapter: VerticalAdapter = {
         };
       }
 
-    } catch (error: any) {
-      let confidenceFlags = ['network_error'];
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      const confidenceFlags = ['network_error'];
+      if ((error as Error).name === 'AbortError') {
         confidenceFlags.push('timeout');
       }
       return {
         found: false,
         sourceId: datasetCode,
         sourceUrl: sourceUrl,
-        evidenceRaw: { error: error.message, name: error.name },
+        evidenceRaw: { error: (error as Error).message, name: (error as Error).name },
         confidenceScore: 0.1, // Very low confidence on network/fetch error
         confidenceFlags: confidenceFlags,
       };

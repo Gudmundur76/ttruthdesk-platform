@@ -23,8 +23,8 @@ const IETF_RFC_ADAPTER: VerticalAdapter = {
     }
 
     const rfcNumber = rfcNumberMatch[1];
-    let rfcEditorData: any = null;
-    let semanticScholarData: any = null;
+    let rfcEditorData: { items?: Array<{ doc_id: string; current_status: string }> } | null = null;
+    let semanticScholarData: { data?: Array<{ citationCount?: number }> } | null = null;
     let confidence = 0.0;
     const confidenceFlags: string[] = [];
 

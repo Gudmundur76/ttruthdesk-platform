@@ -21,7 +21,7 @@ const owidAdapter: VerticalAdapter = {
       const slugRegex = /ourworldindata\.org\/grapher\/([a-zA-Z0-9-]+)/i;
       const match = claim.claimText.match(slugRegex) || (claim.extractedValue && claim.extractedValue.match(slugRegex));
       
-      let slug = match ? match[1] : null;
+      const slug = match ? match[1] : null;
 
       if (slug) {
         const csvUrl = `https://ourworldindata.org/grapher/${slug}.csv`;

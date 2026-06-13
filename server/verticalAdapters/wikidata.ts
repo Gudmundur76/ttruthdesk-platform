@@ -17,17 +17,17 @@ class WikidataAdapter implements VerticalAdapter {
     const userAgent = 'citation-engine/1.0 (citation-engine@citation.is)';
     const qNumberRegex = /(Q\d+)/g;
     let qNumberMatch;
-    let qNumbers: string[] = [];
+    const qNumbers: string[] = [];
 
     // Extract Q-numbers from claim text
     while ((qNumberMatch = qNumberRegex.exec(claim.claimText)) !== null) {
       qNumbers.push(qNumberMatch[1]);
     }
 
-    let query = claim.extractedValue || claim.claimText;
+    const query = claim.extractedValue || claim.claimText;
     let searchUrl: string | null = null;
     let sparqlQuery: string | null = null;
-    let foundEvidence: any = null;
+    let foundEvidence: { id?: string; concepturi?: string; [key: string]: unknown } | null = null;
 
     try {
       // Prioritize Q-number search if found
@@ -73,7 +73,7 @@ class WikidataAdapter implements VerticalAdapter {
           const data = await searchResponse.json();
           if (data.search.length > 0) {
             foundEvidence = data.search[0]; // Take the first result
-            searchUrl = foundEvidence.concepturi || `https://www.wikidata.org/wiki/${foundEvidence.id}`;
+            searchUrl = (foundEvidence!.concepturi as string | undefined) || `https://www.wikidata.org/wiki/${foundEvidence!.id as string}`;
           }
         }
       }
@@ -81,7 +81,7 @@ class WikidataAdapter implements VerticalAdapter {
       if (foundEvidence) {
         return {
           found: true,
-          sourceId: foundEvidence.id || null,
+          sourceId: (foundEvidence.id as string | undefined) || null,
           sourceUrl: searchUrl,
           evidenceRaw: foundEvidence,
           confidenceScore: 0.70,

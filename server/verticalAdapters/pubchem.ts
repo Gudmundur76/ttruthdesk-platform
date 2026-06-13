@@ -99,7 +99,7 @@ class PubChemAdapter implements VerticalAdapter {
           confidenceFlags: ['no_compound_data_in_response'],
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`Error fetching PubChem data for ${identifier}:`, error);
       return {
         found: false,
@@ -107,7 +107,7 @@ class PubChemAdapter implements VerticalAdapter {
         sourceUrl: null,
         evidenceRaw: null,
         confidenceScore: 0.1,
-        confidenceFlags: [`network_error: ${error.message}`],
+        confidenceFlags: [`network_error: ${(error as Error).message}`],
       };
     }
   }
