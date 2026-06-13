@@ -25,6 +25,7 @@ import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { registerAnswerRoute } from "../answerRoute";
 import { registerStreamVerifyRoute } from "../streamVerifyRoute";
+import { registerProvenanceRoute } from "../epistemicProvenance";
 import { registerMcpServer } from "../mcpServer";
 import { registerSubmitClaimRoute } from "../submitClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
@@ -1761,6 +1762,8 @@ async function startServer() {
   registerAnswerRoute(app);
   // SSE streaming verification endpoint (Phase 114)
   registerStreamVerifyRoute(app);
+  // Epistemic provenance chain endpoint (Phase 121)
+  registerProvenanceRoute(app);
   registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);

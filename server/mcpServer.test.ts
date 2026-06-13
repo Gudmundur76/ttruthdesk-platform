@@ -41,6 +41,34 @@ vi.mock("./apiKeyService", () => ({
   validateApiKey: vi.fn(),
 }));
 
+vi.mock("./epistemicProvenance", () => ({
+  getDistortionChain: vi.fn().mockResolvedValue([]),
+  getSemanticNeighbours: vi.fn().mockResolvedValue([]),
+  buildProvenanceResult: vi.fn().mockReturnValue({
+    claimId: 42,
+    hopCount: 0,
+    maxDistortionScore: 0,
+    distortionChain: [],
+    semanticNeighbours: [],
+    generatedAt: new Date().toISOString(),
+  }),
+  PROVENANCE_TOOLS_MANIFEST: [
+    {
+      name: "get_provenance",
+      description: "Retrieve the epistemic provenance chain for a verified claim.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          claim_id: { type: ["integer", "string"], description: "The claim ID" },
+          limit: { type: "integer", minimum: 1, maximum: 50 },
+        },
+        required: ["claim_id"],
+        additionalProperties: false,
+      },
+    },
+  ],
+}));
+
 // ─── Rate Limiter ─────────────────────────────────────────────────────────────
 describe("checkMcpRateLimit", () => {
   beforeEach(() => {
@@ -117,7 +145,7 @@ describe("buildCapabilities", () => {
     expect(Array.isArray(caps.tools)).toBe(true);
   });
 
-  it("includes all 10 tools in the capabilities response", () => {
+  it("includes all 11 tools in the capabilities response", () => {
     const caps = buildCapabilities();
     const names = caps.tools.map(t => t.name);
     expect(names).toContain("verify_claim");
@@ -130,7 +158,8 @@ describe("buildCapabilities", () => {
     expect(names).toContain("submit_claim");
     expect(names).toContain("flag_stale");
     expect(names).toContain("report_contradiction");
-    expect(names).toHaveLength(10);
+    expect(names).toContain("get_provenance");
+    expect(names).toHaveLength(11);
   });
 
   it("every tool has a description and inputSchema", () => {
@@ -153,8 +182,8 @@ describe("buildCapabilities", () => {
 
 // ─── Tool Registry ────────────────────────────────────────────────────────────
 describe("TOOLS registry", () => {
-  it("contains exactly 10 tools", () => {
-    expect(Object.keys(TOOLS)).toHaveLength(10);
+  it("contains exactly 11 tools", () => {
+    expect(Object.keys(TOOLS)).toHaveLength(11);
   });
 
   it("every tool has a handler function", () => {
@@ -227,9 +256,9 @@ describe("mcpServerFingerprint", () => {
     // If we add/remove tools, the fingerprint must change
     const fp = mcpServerFingerprint();
     expect(fp).toBeTruthy();
-    // Verify it encodes the 10 known tools
+    // Verify it encodes the 11 known tools
     const expected = createHash("sha256")
-      .update(["ask_question", "flag_stale", "get_claim", "get_source_version", "report_contradiction", "search_claims", "submit_claim", "verify_claim", "verify_claim_at_date", "verify_claims_batch"].join(","))
+      .update(["ask_question", "flag_stale", "get_claim", "get_provenance", "get_source_version", "report_contradiction", "search_claims", "submit_claim", "verify_claim", "verify_claim_at_date", "verify_claims_batch"].join(","))
       .digest("hex")
       .slice(0, 16);
     expect(fp).toBe(expected);

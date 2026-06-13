@@ -2,12 +2,18 @@
  * mcpServer.ts
  *
  * MCP (Model Context Protocol) server for citation.is.
- * Exposes 5 tools to any MCP-compatible AI agent:
- *   1. verify_claim    — submit a claim, receive a structured verdict
- *   2. search_claims   — full-text search over the verified claim registry
- *   3. get_claim       — retrieve a single claim by ID
- *   4. get_source_version — check if a source has been retracted/updated
- *   5. ask_question    — natural language question → derived claim → answer
+ * Exposes 11 tools to any MCP-compatible AI agent:
+ *   1.  verify_claim         — submit a claim, receive a structured verdict
+ *   2.  search_claims        — full-text search over the verified claim registry
+ *   3.  get_claim            — retrieve a single claim by ID
+ *   4.  get_source_version   — check if a source has been retracted/updated
+ *   5.  ask_question         — natural language question → derived claim → answer
+ *   6.  verify_claim_at_date — temporal claim versioning
+ *   7.  verify_claims_batch  — batch verification
+ *   8.  submit_claim         — agent feedback: submit new claim
+ *   9.  flag_stale           — agent feedback: flag stale claim
+ *   10. report_contradiction — agent feedback: report contradiction
+ *   11. get_provenance       — epistemic provenance chain (distortion + neighbours)
  *
  * Transport: HTTP (Streamable HTTP per MCP 2025-03-26 spec)
  *   GET  /api/mcp  → server capabilities (JSON)
@@ -47,6 +53,12 @@ import {
   buildFeedbackAck,
   FEEDBACK_TOOLS_MANIFEST,
 } from "./agentFeedback";
+import {
+  getDistortionChain,
+  getSemanticNeighbours,
+  buildProvenanceResult,
+  PROVENANCE_TOOLS_MANIFEST,
+} from "./epistemicProvenance";
 
 const log = logger("mcpServer");
 
@@ -495,6 +507,35 @@ async function toolAskQuestion(params: Record<string, unknown>): Promise<unknown
   };
 }
 
+// ─── Tool: get_provenance ────────────────────────────────────────────────────
+async function toolGetProvenance(params: Record<string, unknown>): Promise<unknown> {
+  const rawId = params["claim_id"];
+  const claimId =
+    typeof rawId === "number"
+      ? rawId
+      : typeof rawId === "string"
+        ? parseInt(rawId, 10)
+        : NaN;
+  if (isNaN(claimId) || claimId <= 0) {
+    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "claim_id must be a positive integer" };
+  }
+
+  const rawLimit = params["limit"];
+  const limit =
+    typeof rawLimit === "number" && rawLimit > 0
+      ? Math.min(rawLimit, 50)
+      : 10;
+
+  const [hops, neighbours] = await Promise.all([
+    getDistortionChain(claimId),
+    getSemanticNeighbours(claimId, limit),
+  ]);
+
+  const provenance = buildProvenanceResult(claimId, hops, neighbours);
+  log.info("get_provenance called", { claimId, hopCount: hops.length, neighbourCount: neighbours.length });
+  return provenance;
+}
+
 // ─── Tool registry ────────────────────────────────────────────────────────────
 type ToolHandler = (params: Record<string, unknown>, req: Request) => Promise<unknown>;
 
@@ -603,6 +644,11 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
       additionalProperties: false,
     },
     handler: async (params) => toolAskQuestion(params),
+  },
+  get_provenance: {
+    description: PROVENANCE_TOOLS_MANIFEST[0].description,
+    inputSchema: PROVENANCE_TOOLS_MANIFEST[0].inputSchema as Record<string, unknown>,
+    handler: async (params) => toolGetProvenance(params),
   },
 };
 

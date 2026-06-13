@@ -1,10 +1,12 @@
 /**
  * tests/integration/mcp.test.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Phase 116 — MCP tool integration tests.
+ * Phase 116–121 — MCP tool integration tests.
  *
- * Tests all 5 tools exposed at POST /api/mcp:
- *   verify_claim, search_claims, get_claim, get_source_version, ask_question
+ * Tests all 11 tools exposed at POST /api/mcp:
+ *   verify_claim, search_claims, get_claim, get_source_version, ask_question,
+ *   verify_claim_at_date, verify_claims_batch, submit_claim, flag_stale,
+ *   report_contradiction, get_provenance
  *
  * Also tests protocol-level methods: initialize, tools/list.
  *
@@ -261,7 +263,7 @@ export async function runSuite(): Promise<TestResult[]> {
   // Run sequentially to avoid rate limit interference between tests
   const tests: Array<[string, TestFn]> = [
     ["initialize — response shape + streaming capability", testInitialize],
-    ["tools/list — all 5 tools present", testToolsList],
+    ["tools/list — all 11 tools present", testToolsList],
     ["verify_claim — valid claim returns verdict shape", testVerifyClaimShape],
     ["verify_claim — missing claim param → INVALID_PARAMS", testVerifyClaimMissingParam],
     ["verify_claim — claim > 1000 chars → INVALID_PARAMS", testVerifyClaimTooLong],

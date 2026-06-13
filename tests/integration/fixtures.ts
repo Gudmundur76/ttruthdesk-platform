@@ -47,6 +47,12 @@ export const MCP_TOOLS = {
   GET_CLAIM: "get_claim",
   GET_SOURCE_VERSION: "get_source_version",
   ASK_QUESTION: "ask_question",
+  VERIFY_CLAIM_AT_DATE: "verify_claim_at_date",
+  VERIFY_CLAIMS_BATCH: "verify_claims_batch",
+  SUBMIT_CLAIM: "submit_claim",
+  FLAG_STALE: "flag_stale",
+  REPORT_CONTRADICTION: "report_contradiction",
+  GET_PROVENANCE: "get_provenance",
 } as const;
 
 /** Expected JSON-RPC error codes */
