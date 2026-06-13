@@ -39,6 +39,7 @@ import {
 import { processQuestion } from "./questionRouter";
 import { buildEvidenceWithExcerpts } from "./pubmedAbstractFetcher";
 import { verdictAtDate, buildTemporalWindow, TOOLS_MANIFEST as TEMPORAL_TOOLS, type TemporalClaim } from "./temporalVersioning";
+import { validateBatchInput, batchVerifyClaims, buildBatchResult, BATCH_TOOLS_MANIFEST } from "./batchVerify";
 
 const log = logger("mcpServer");
 
@@ -383,6 +384,33 @@ async function toolVerifyClaimAtDate(params: Record<string, unknown>): Promise<u
   };
 }
 
+// ─── Tool: verify_claims_batch ──────────────────────────────────────────────
+async function toolVerifyClaimsBatch(
+  params: Record<string, unknown>,
+  req: Request
+): Promise<unknown> {
+  const rawClaims = params["claims"];
+  const validation = validateBatchInput(rawClaims as string[]);
+  if (!validation.valid) {
+    throw { code: MCP_ERRORS.INVALID_PARAMS, message: validation.error ?? "Invalid claims input" };
+  }
+
+  const confidenceThreshold =
+    typeof params["confidence_threshold"] === "number"
+      ? Math.max(0, Math.min(1, params["confidence_threshold"]))
+      : 0;
+  const domain = typeof params["domain"] === "string" ? params["domain"] : undefined;
+  const port = Number(process.env["PORT"] ?? 3000);
+
+  // Log the batch request for observability
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  log.info(`batch verify request ip=${ip} size=${validation.normalised.length} dups=${validation.duplicatesRemoved}`);
+
+  const startMs = Date.now();
+  const results = await batchVerifyClaims(validation.normalised, { confidenceThreshold, domain, port });
+  return buildBatchResult(results, startMs);
+}
+
 // ─── Tool: ask_question ───────────────────────────────────────────────────────
 async function toolAskQuestion(params: Record<string, unknown>): Promise<unknown> {
   const question = typeof params["question"] === "string" ? params["question"].trim() : "";
@@ -481,6 +509,11 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
     description: TEMPORAL_TOOLS[0].description,
     inputSchema: TEMPORAL_TOOLS[0].inputSchema as Record<string, unknown>,
     handler: async (params) => toolVerifyClaimAtDate(params),
+  },
+  verify_claims_batch: {
+    description: BATCH_TOOLS_MANIFEST[0].description,
+    inputSchema: BATCH_TOOLS_MANIFEST[0].inputSchema as Record<string, unknown>,
+    handler: async (params, req) => toolVerifyClaimsBatch(params, req),
   },
   ask_question: {
     description:
