@@ -39,10 +39,10 @@ export default defineConfig({
       // Next target: lines 40%, functions 50% (add adapter + agent unit tests)
       // Final target: lines 70%, functions 70% (full coverage)
       thresholds: {
-        lines: 27, // actual: 27.51% (Phase 93 +1.1%) — target 35% Phase 94
-        branches: 48, // actual: 70%+ (branches well covered)
-        functions: 42, // actual: 42.62% (Phase 93 +6%) — target 50% Phase 94
-        statements: 27, // actual: 27.51% — target 35% Phase 94
+        lines: 32, // Phase 122: actual 32.85% — target 38% Phase 123
+        branches: 48, // actual: 72.63% (branches well covered)
+        functions: 45, // Phase 122: actual 45.24% — target 55% Phase 123
+        statements: 32, // Phase 122: actual 32.85% — target 38% Phase 123
       },
     },
   },

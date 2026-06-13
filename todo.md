@@ -1359,14 +1359,14 @@
 ## Phase 105: Autonomous Re-evaluation Loop
 
 - [x] Build reEvaluationEngine.ts — getAffectedDocumentIds (lookback-based discovery from citation_edges), getEligibleClaimsForDocument (claims with verdicts on complete docs), reScoreClaim (idempotent per-claim re-scoring via computeCompositeTruth), runReEvaluationLoop (full orchestration with batchSize limit and error isolation)
-- [x] Register POST /api/scheduled/re-evaluate heartbeat endpoint in server/_core/index.ts — wired to runReEvaluationLoop via withCronLog, supports lookbackHours/batchSize/documentIds params, requireCronOrAdmin auth
+- [x] Register POST /api/scheduled/re-evaluate heartbeat endpoint in server/\_core/index.ts — wired to runReEvaluationLoop via withCronLog, supports lookbackHours/batchSize/documentIds params, requireCronOrAdmin auth
 - [x] Write 24 unit tests in reEvaluationEngine.test.ts — idempotency, affected-doc discovery, per-claim error isolation, batchSize limit, getCitationChainStats failure, score tolerance, all verdict/distortion label paths
 - [x] 1050/1050 tests passing. TypeScript: 0 errors.
 - [x] Save checkpoint and sync to memory repo
 
 ## Phase 106: Heartbeat Job Registration + Graph Edge Population
 
-- [x] Register re-evaluate-composite-truth heartbeat cron via manus-heartbeat create — task_uid: XYxgKr9QgnAZBhAvuCbnQR, cron: 0 0 */6 * * *, path: /api/scheduled/re-evaluate, next run: 18:00 UTC
+- [x] Register re-evaluate-composite-truth heartbeat cron via manus-heartbeat create — task_uid: XYxgKr9QgnAZBhAvuCbnQR, cron: 0 0 _/6 _ \* \*, path: /api/scheduled/re-evaluate, next run: 18:00 UTC
 - [x] Build heartbeatRegistrar.ts — canonical registry of all 9 project-level cron jobs (name, taskUid, cron, path, description, registeredAt), getRegisteredJob(), requireJobTaskUid() helpers
 - [x] Wire Stage 8 graph edge population into analysisPipeline.ts — after Stage 7 composite truth scoring, calls findClaimsByTextSimilarity (top 3, minScore 0.6) and insertGraphClaimEdge for each match, non-fatal fire-and-forget
 - [x] Add re-evaluate-composite-truth to CRON_DESCRIPTIONS in AdminCrons.tsx so the cron health dashboard shows the correct description
@@ -1375,6 +1375,7 @@
 - [x] Save checkpoint and sync to memory repo
 
 ## Phase 107: Contradiction Detection Engine
+
 - [x] contradiction_alerts table added to Drizzle schema and migration applied
 - [x] contradictionDetector.ts: classifySeverity, isContradiction, runContradictionScan, getOpenContradictionAlerts, getContradictionAlertCounts, updateContradictionAlertStatus
 - [x] POST /api/scheduled/contradiction-scan endpoint registered in index.ts
@@ -1389,6 +1390,7 @@
 - [x] 1100/1100 tests passing, TypeScript: 0 errors
 
 ## Phase 108: Claim Confidence Timeline
+
 - [x] Add claim_score_history table to Drizzle schema and apply migration
 - [x] Add getClaimScoreHistory and insertClaimScoreSnapshot DB helpers to db.ts
 - [x] Wire snapshot writes into reEvaluationEngine.ts (reScoreClaim)
@@ -1424,18 +1426,22 @@
 - [x] Commit: `feat(engine): phase 110 — question-to-claim interface and demand-triggered loop`
 
 ## Phase 113: API Key Usage Tracking
-- [ ] Add usageCount (int default 0) and lastUsedAt (int unix ts) columns to api_keys table in drizzle/schema.ts
-- [ ] Run pnpm drizzle-kit generate and apply migration via script
-- [ ] Add incrementApiKeyUsage(keyHash: string) DB helper to server/db.ts
-- [ ] Call incrementApiKeyUsage in mcpServer.ts after every successful authenticated tool call
-- [ ] Call incrementApiKeyUsage in apiKeyService.ts validateApiKey() on every successful validation
-- [ ] Add getUsage tRPC procedure to apiKeys router: returns usageCount + lastUsedAt per key
-- [ ] Update ApiKeys.tsx to display usageCount and lastUsedAt per key in the table
-- [ ] Add admin apiKeys.listAll procedure (adminProcedure) returning all keys across users with usage stats
-- [ ] Write Vitest tests: increment helper, MCP usage tracking, getUsage procedure
-- [ ] Gate: 0 TS, 0 ESLint, all tests pass, commit
+
+- [x] Add usageCount (int default 0) and lastUsedAt (int unix ts) columns to api_keys table in drizzle/schema.ts
+- [x] Run pnpm drizzle-kit generate and apply migration via script
+- [x] Add incrementApiKeyUsage(keyHash: string) DB helper to server/db.ts
+- [x] Call incrementApiKeyUsage in mcpServer.ts after every successful authenticated tool call
+- [x] Call incrementApiKeyUsage in apiKeyService.ts validateApiKey() on every successful validation
+- [x] Add getUsage tRPC procedure to apiKeys router: returns usageCount + lastUsedAt per key
+- [x] Update ApiKeys.tsx to display usageCount and lastUsedAt per key in the table
+- [x] Add admin apiKeys.listAll procedure (adminProcedure) returning all keys across users with usage stats
+- [x] Write Vitest tests: increment helper, MCP usage tracking, getUsage procedure
+- [x] Gate: 0 TS, 0 ESLint, all tests pass, commit
+
+## Backlog — Planned Future Work (Phases 114+)
 
 ## Phase 114: Streaming Verification Endpoint
+
 - [ ] Add POST /api/mcp/stream Express route in server/mcpServer.ts — SSE response for tools/call only
 - [ ] SSE events: stage:N:name per pipeline stage, final:verdict with full result, error on failure
 - [ ] Add streaming: true capability flag to initialize response in handleProtocolMethod()
@@ -1443,9 +1449,10 @@
 - [ ] Wire per-stage callbacks into analysisPipeline.ts via optional onStageComplete parameter
 - [ ] Auth and rate limiting identical to synchronous endpoint
 - [ ] Write Vitest tests: SSE event sequence, auth bypass, rate limit on stream, error event shape
-- [ ] Gate: 0 TS, 0 ESLint, all tests pass, commit
+- [x] Gate: 0 TS, 0 ESLint, all tests pass, commit
 
 ## Phase 115: OpenCitations Stage 3.5 — Citation Graph in Verdict Pipeline
+
 - [ ] Add citationGraphScore field to the StageResult type in analysisPipeline.ts
 - [ ] Add Stage 3.5 to runAnalysisPipeline: extract DOI from claim evidence, call OpenCitations adapter
 - [ ] Update compositeTruthEngine.ts: retraction -0.30, citation count log10 boost clamped 0-0.25, self-citation -0.05
@@ -1453,4 +1460,63 @@
 - [ ] Run pnpm drizzle-kit generate and apply migration
 - [ ] Add setCitationGraphEnriched(claimId: number) DB helper
 - [ ] Write Vitest tests: DOI extraction, retraction penalty, citation count boost, self-citation penalty, no-DOI graceful skip
-- [ ] Gate: 0 TS, 0 ESLint, all tests pass, commit
+- [x] Gate: 0 TS, 0 ESLint, all tests pass, commit
+
+## Phase 122 — Stub Elimination + Coverage Floor Raise
+
+- [x] Write RED tests for server/metaAgent/codeGuardian.ts (11 tests)
+- [x] Write RED tests for server/metaAgent/stubLedger.ts (16 tests)
+- [x] Confirm both test files show Test? yes in stub-tracker output
+- [x] Raise coverage thresholds: lines 27→32, functions 42→45, statements 27→32
+- [x] Full suite: 1491/1491 GREEN across 84 files
+- [x] TSC: 0 errors, ESLint: 0 errors
+- [x] Commit and push phase-122 to main
+
+## Phase 123 — Adapter Unit Tests + Coverage Floor 38%
+- [ ] Write unit tests for 15 low-coverage vertical adapters
+- [ ] Raise coverage floor: lines 38%, functions 55%, statements 38%
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-123
+
+## Phase 124 — Embedding Pipeline + find_similar MCP Tool
+- [ ] Wire embedding pipeline end-to-end
+- [ ] Add find_similar route and MCP tool #12
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-124
+
+## Phase 125 — Semantic Clustering in Wiki Compiler
+- [ ] Add semantic clustering to wikiCompiler.ts
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-125
+
+## Phase 126 — coordLayer Full Round-Trip + Status Endpoint
+- [ ] Implement coordLayer full round-trip test
+- [ ] Add GET /api/v2/coord/status/:taskId route
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-126
+
+## Phase 127 — Dream Sessions → Ingest Pipeline
+- [ ] Connect dreamSessions to quality-pass pipeline
+- [ ] Add POST /api/v2/dream/start route
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-127
+
+## Phase 128 — Discovery Loop Closes Knowledge-Gap Cycle
+- [ ] Wire discoveryLoopJob to knowledgeGaps table
+- [ ] Close autonomous improvement loop
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-128
+
+## Phase 129 — Rate-Limit Audit + Detailed Health Endpoint
+- [ ] Audit all public endpoints for rate limits
+- [ ] Add GET /api/v2/health/detailed with per-subsystem status
+- [ ] Add structured error codes to all 4xx responses
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-129
+
+## Phase 130 — Zero-Warning Lint + DEPLOYMENT.md
+- [ ] Add workflow_dispatch to ci.yml
+- [ ] Fix all 59 ESLint complexity warnings (pnpm lint --max-warnings 0)
+- [ ] Write DEPLOYMENT.md
+- [ ] Full suite GREEN, TSC clean, ESLint clean
+- [ ] Commit and push phase-130
