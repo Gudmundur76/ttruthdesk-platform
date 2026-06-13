@@ -50,6 +50,8 @@ import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
 import { registerHostingerWebhookRoute } from "../hostingerWebhook";
 import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
+import { detailedHealthHandler } from "../detailedHealthRoute";
+import { ingestionAlertHandler } from "../ingestionAlertJob";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -1779,6 +1781,10 @@ async function startServer() {
   registerFindSimilarRoute(app);
   // Dream State manual trigger endpoint (Phase 127)
   app.use("/api/v2/dream", createDreamStartRouter());
+  // Detailed health endpoint (Phase 129)
+  app.get("/api/v2/health/detailed", detailedHealthHandler);
+  // Ingestion alert heartbeat (Phase 129)
+  app.post("/api/scheduled/ingestion-alerts", ingestionAlertHandler);
   registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);

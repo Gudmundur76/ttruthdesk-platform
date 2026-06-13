@@ -1615,3 +1615,11 @@
 - [x] Implement knowledgeGapBridge.ts — bridges open knowledge_gaps to coordQueue for autonomous evidence pursuit
 - [x] Wire bridgeOpenGapsToCoordQueue into discoveryLoopJob.ts (called after main loop, result merged into response)
 - [x] TSC clean, 1639/1639 GREEN
+
+## Phase 129 — Production Hardening (complete)
+- [x] Implement structuredErrors.ts — ERR_ code constants (ERR_CLAIM_NOT_FOUND, ERR_RATE_LIMITED, ERR_DB_UNAVAILABLE, ERR_INVALID_INPUT, ERR_INGESTION_STALLED, ERR_VERDICT_FLIP, ERR_SOURCE_NOT_FOUND, ERR_UNAUTHORIZED, ERR_FORBIDDEN, ERR_INTERNAL) + makeError() helper
+- [x] Implement detailedHealthRoute.ts — GET /api/v2/health/detailed with per-subsystem checks (db, vectorStore, ingestion, mcp)
+- [x] Implement ingestionAlertJob.ts — push-based alerting: stall check (6h threshold) + failure-rate check (20% in 24h window) with 4h cooldown dedup
+- [x] Write 20 RED→GREEN tests covering all three modules (phase129.test.ts)
+- [x] Register GET /api/v2/health/detailed and POST /api/scheduled/ingestion-alerts in _core/index.ts
+- [x] TSC clean, 1659/1659 GREEN
