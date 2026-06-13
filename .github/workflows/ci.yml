@@ -123,8 +123,14 @@ jobs:
 
     steps:
       - name: Check manus-persistent-drive freshness
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          git clone --depth=1 https://github.com/Gudmundur76/manus-persistent-drive.git /tmp/drive
+          # manus-persistent-drive is a private repo — authenticate with PAT.
+          # GH_PAT must be a repo-scoped PAT stored as a repository secret.
+          # If the secret is absent the clone will fail gracefully (continue-on-error: true).
+          CLONE_URL="https://x-access-token:${GH_PAT}@github.com/Gudmundur76/manus-persistent-drive.git"
+          git clone --depth=1 "$CLONE_URL" /tmp/drive
           LAST_COMMIT_TS=$(cd /tmp/drive && git log -1 --format="%ct")
           NOW_TS=$(date +%s)
           AGE_HOURS=$(( (NOW_TS - LAST_COMMIT_TS) / 3600 ))
