@@ -27,6 +27,7 @@ import { registerAnswerRoute } from "../answerRoute";
 import { registerStreamVerifyRoute } from "../streamVerifyRoute";
 import { registerProvenanceRoute } from "../epistemicProvenance";
 import { registerFindSimilarRoute } from "../findSimilarRoute";
+import { createDreamStartRouter } from "../dream/dreamStartRoute";
 import { registerMcpServer } from "../mcpServer";
 import { registerSubmitClaimRoute } from "../submitClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
@@ -1776,6 +1777,8 @@ async function startServer() {
   registerProvenanceRoute(app);
   // Semantic similarity endpoint (Phase 124b)
   registerFindSimilarRoute(app);
+  // Dream State manual trigger endpoint (Phase 127)
+  app.use("/api/v2/dream", createDreamStartRouter());
   registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);

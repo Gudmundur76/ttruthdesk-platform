@@ -1602,3 +1602,10 @@
 - [x] Implement coordRoundTrip.ts (enqueue → dequeue → complete → status cycle)
 - [x] Write 10 tests for coordStatusRoute (5 for GET /:taskId, 5 for RoundTripResult)
 - [x] TSC clean, 1618/1618 GREEN
+
+## Phase 127 — Dream → Ingest Pipeline Bridge (complete)
+- [x] Write RED tests for dreamIngestBridge + POST /api/v2/dream/start guardrails
+- [x] Implement dreamIngestBridge.ts — picks up pending dream claims, enqueues to coordQueue
+- [x] Implement dreamStartRoute.ts — POST /api/v2/dream/start with kill switch, rate limit, health threshold, audit log
+- [x] Register /api/v2/dream router in _core/index.ts
+- [x] TSC clean, 1630/1630 GREEN
