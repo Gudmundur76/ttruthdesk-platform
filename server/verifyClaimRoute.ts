@@ -230,6 +230,7 @@ setInterval(
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line complexity
 async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -390,12 +391,15 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       pdbId: primaryPdbId,
       proteinName: primaryProteinName,
       signalDensity,
+      claimText,
       pubmedResults: allPubMedResults.slice(0, 5).map(p => ({
         pmid: p.pmid,
         title: p.title,
+        abstractSnippet: p.abstractSnippet ?? "",
         journal: p.journal ?? null,
         year: p.year ?? null,
         url: p.citationUrl,
+        citationUrl: p.citationUrl,
       })),
       translatedClaims,
       processedAt,

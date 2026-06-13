@@ -37,6 +37,7 @@ import {
   getSourceVersion,
 } from "./db";
 import { processQuestion } from "./questionRouter";
+import { buildEvidenceWithExcerpts } from "./pubmedAbstractFetcher";
 
 const log = logger("mcpServer");
 
@@ -177,17 +178,19 @@ function buildVerifyResult(
     };
   }
   const pubmedResults = (data["pubmedResults"] as Array<Record<string, unknown>>) ?? [];
+  const claimText = (data["claimText"] as string | undefined) ?? "";
+  const mappedResults = pubmedResults.map(p => ({
+    pmid: String(p["pmid"] ?? ""),
+    title: p["title"] as string | undefined,
+    abstractSnippet: p["abstractSnippet"] as string | undefined,
+    citationUrl: (p["url"] ?? p["citationUrl"]) as string | undefined,
+    year: p["year"] as number | undefined,
+  }));
   return {
     verdict: data["verdict"] ?? "inconclusive",
     confidence,
     summary: data["rationale"] ?? "",
-    evidence: pubmedResults.map(p => ({
-      sourceId: `pmid:${p["pmid"]}`,
-      sourceUrl: p["url"] ?? `https://pubmed.ncbi.nlm.nih.gov/${p["pmid"]}/`,
-      excerpt: null,
-      confidenceScore: confidence,
-      database: "pubmed",
-    })),
+    evidence: buildEvidenceWithExcerpts(claimText, mappedResults, confidence),
     claimId: null,
     processedAt: data["processedAt"] ?? new Date().toISOString(),
     loopTriggered: false,
