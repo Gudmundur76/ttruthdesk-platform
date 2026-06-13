@@ -65,6 +65,19 @@ export interface CompositeTruthInput {
   chainDistortionScore: number | null | undefined;
   /** Number of citing papers analysed in the chain. 0 or null = no chain data. */
   chainHopCount?: number | null;
+  /**
+   * Stage 3.5 — OpenCitations citation authority score [0, 1].
+   * Derived from citation count, ORCID-verified authorship, and publication type.
+   * Null when no DOI is present in the claim or the OC lookup failed.
+   * Score ≥ 0.80 → +0.05 composite bonus (highly cited, ORCID-verified).
+   * Score ≤ 0.30 → −0.15 composite penalty (retraction notice or very low authority).
+   */
+  citationAuthorityScore?: number | null;
+  /**
+   * True when the OpenCitations lookup returned a retraction-notice flag.
+   * When true, applies a −0.15 penalty regardless of citationAuthorityScore.
+   */
+  isRetracted?: boolean | null;
 }
 
 export interface CompositeTruthResult {
@@ -125,6 +138,7 @@ const LABEL_DESCRIPTIONS: Record<CompositeTruthLabel, string> = {
  * It can be called from the pipeline, from the autonomous re-evaluation loop,
  * and from tests without any mocking required.
  */
+// eslint-disable-next-line complexity
 export function computeCompositeTruth(
   input: CompositeTruthInput
 ): CompositeTruthResult {
@@ -133,6 +147,8 @@ export function computeCompositeTruth(
     provenanceScore,
     chainDistortionScore,
     chainHopCount,
+    citationAuthorityScore,
+    isRetracted,
   } = input;
 
   // Normalise nullish values
@@ -202,8 +218,21 @@ export function computeCompositeTruth(
   const provenanceBonus =
     provenance !== null && provenance >= 0.8 ? (provenance - 0.8) * 0.1 : 0;
 
+  // ── Stage 3.5: OpenCitations citation authority adjustment ─────────────
+  // High citation authority (≥ 0.80) adds a small confidence boost.
+  // Low authority (≤ 0.30) or a retraction flag applies a penalty.
+  const ocAuthority = citationAuthorityScore ?? null;
+  const ocBonus =
+    ocAuthority !== null && ocAuthority >= 0.80 ? 0.05 : 0;
+  const ocPenalty =
+    isRetracted === true
+      ? 0.15
+      : ocAuthority !== null && ocAuthority <= 0.30
+        ? 0.10
+        : 0;
+
   const rawScore =
-    baseScore - chainPenalty - provenancePenalty + provenanceBonus;
+    baseScore - chainPenalty - provenancePenalty + provenanceBonus + ocBonus - ocPenalty;
   const score = Math.max(0, Math.min(1, rawScore));
 
   // ── Step 3: Build rationale ───────────────────────────────────────────────
@@ -223,6 +252,26 @@ export function computeCompositeTruth(
 
   if (provenance !== null) {
     parts.push(`Provenance score: ${Math.round(provenance * 100)}%.`);
+  }
+
+  if (isRetracted === true) {
+    parts.push(
+      "⚠ OpenCitations: this work has a retraction notice — composite score penalised (−0.15)."
+    );
+  } else if (ocAuthority !== null) {
+    if (ocAuthority >= 0.80) {
+      parts.push(
+        `OpenCitations: high citation authority (${Math.round(ocAuthority * 100)}%) — composite score boosted (+0.05).`
+      );
+    } else if (ocAuthority <= 0.30) {
+      parts.push(
+        `OpenCitations: low citation authority (${Math.round(ocAuthority * 100)}%) — composite score penalised (−0.10).`
+      );
+    } else {
+      parts.push(
+        `OpenCitations: citation authority ${Math.round(ocAuthority * 100)}% (no adjustment).`
+      );
+    }
   }
 
   const rationale = parts.join(" ");

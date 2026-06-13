@@ -59,6 +59,7 @@ import { runSelfPromptCycle } from "./selfPrompt/engine";
 import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
 import { analyzeCitationChain } from "./citationChainAnalyzer";
 import { computeCompositeTruth } from "./compositeTruthEngine";
+import { openCitationsEnrichClaim } from "./openCitationsEnricher";
 import { logger, errData } from "./logger";
 const log = logger("analysisPipeline");
 
@@ -653,6 +654,28 @@ export async function runAnalysisPipeline(
         for (const claim of compositeClaims) {
           if (!claim.verdict) continue; // Skip unvalidated claims
 
+          // ── Stage 3.5: OpenCitations DOI enrichment (non-fatal) ────────────
+          // If the claim text or extractedValue contains a DOI, look it up in
+          // OpenCitations to get citation authority score and retraction flag.
+          // This enriches the composite truth signal without blocking the pipeline.
+          let ocCitationScore: number | null = null;
+          let ocIsRetracted: boolean | null = null;
+          try {
+            const ocResult = await openCitationsEnrichClaim(
+              claim.claimText,
+              (claim as Record<string, unknown>).extractedValue as string | null
+            );
+            if (ocResult) {
+              ocCitationScore = ocResult.citationAuthorityScore;
+              ocIsRetracted = ocResult.isRetracted;
+            }
+          } catch (ocErr) {
+            log.warn(
+              `[Stage3.5/OC] OpenCitations enrichment failed for claim ${claim.id} (non-fatal):`,
+              errData(ocErr)
+            );
+          }
+
           const result = computeCompositeTruth({
             upstreamVerdict:
               claim.verdict as import("./compositeTruthEngine").UpstreamVerdict,
@@ -668,6 +691,8 @@ export async function runAnalysisPipeline(
               chainStats.totalCitingPapers > 0
                 ? chainStats.totalCitingPapers
                 : null,
+            citationAuthorityScore: ocCitationScore,
+            isRetracted: ocIsRetracted,
           });
 
           await updateClaimVerdict(claim.id, {
