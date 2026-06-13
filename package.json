@@ -37,7 +37,8 @@
     "meta:start": "node scripts/meta-agent.mjs --mode=start",
     "meta:end": "node scripts/meta-agent.mjs --mode=end",
     "drive:sync": "node scripts/meta-agent.mjs --mode=end --force",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:integration": "NODE_ENV=test tsx tests/integration/harness.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.68",

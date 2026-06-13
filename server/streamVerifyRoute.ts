@@ -222,6 +222,7 @@ function sseError(res: Response, message: string, code = 500): void {
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line complexity
 async function handleStreamVerify(req: Request, res: Response): Promise<void> {
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -233,13 +234,7 @@ async function handleStreamVerify(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // SSE headers
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
-  res.flushHeaders();
-
+  // ── Pre-flight checks (before SSE headers are committed) ─────────────────────
   // Auth check
   const authHeader = req.headers["authorization"] ?? "";
   let isApiKey = false;
@@ -253,40 +248,98 @@ async function handleStreamVerify(req: Request, res: Response): Promise<void> {
     }
   }
 
-  // Rate limit
   const ip =
     (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
     req.ip ??
     "unknown";
-  const rl = checkStreamRateLimit(ip, isApiKey);
-  res.setHeader("X-RateLimit-Limit", String(STREAM_RATE_LIMIT));
-  res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
-  res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
 
-  if (!rl.allowed) {
-    sseError(res, "Rate limit exceeded. Maximum 10 streaming requests per hour per IP.", 429);
+  // Test-only: reset rate limit bucket for this IP (must happen before flushHeaders)
+  if (process.env["NODE_ENV"] === "test" && req.headers["x-test-reset-ratelimit"] === "1") {
+    streamRateBuckets.delete(ip);
+    res.status(204).end();
     return;
   }
 
-  // Input validation
+  const rl = checkStreamRateLimit(ip, isApiKey);
+
+  if (!rl.allowed) {
+    res.status(429)
+      .setHeader("X-RateLimit-Limit", String(STREAM_RATE_LIMIT))
+      .setHeader("X-RateLimit-Remaining", "0")
+      .setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)))
+      .json({ ok: false, error: "Rate limit exceeded. Maximum 10 streaming requests per hour per IP.", code: 429 });
+    return;
+  }
+
   const claim = typeof req.query["claim"] === "string" ? req.query["claim"].trim() : "";
   const vertical = typeof req.query["vertical"] === "string" ? req.query["vertical"] : "structural_biology";
 
   if (!claim) {
-    sseError(res, "Query parameter 'claim' is required and must be a non-empty string.", 400);
+    res.status(400).json({ ok: false, error: "Query parameter 'claim' is required and must be a non-empty string.", code: 400 });
     return;
   }
   if (claim.length > 2000) {
-    sseError(res, "Claim text must be 2000 characters or fewer.", 400);
+    res.status(400).json({ ok: false, error: "Claim text must be 2000 characters or fewer.", code: 400 });
     return;
   }
+
+  // ── Commit SSE headers (no turning back after this point) ────────────────────
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("X-RateLimit-Limit", String(STREAM_RATE_LIMIT));
+  res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
+  res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
+  res.flushHeaders();
 
   const processedAt = new Date().toISOString();
   const signalDensity = computeSignalDensity(claim);
 
+  // ── Test-only mock mode ────────────────────────────────────────────────────
+  // When NODE_ENV=test and claim starts with "__mock__", emit pre-canned events
+  // immediately without calling LLM or PubMed. This lets integration tests
+  // assert SSE event structure without waiting for real network calls.
+  if (process.env["NODE_ENV"] === "test" && claim.startsWith("__mock__")) {
+    const mockClaim = claim.slice(8) || "Mock claim";
+    const sseWrite = (event: string, data: Record<string, unknown>) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+    sseWrite("stage:extraction", { stage: 1, primaryClaimText: mockClaim, translatedClaims: [], claimsFound: 1 });
+    sseWrite("stage:evidence", { stage: 2, pubmedCount: 3, pdbHit: false, sourcesQueried: ["pubmed"] });
+    sseWrite("stage:verdict", { stage: 3, verdict: "Supported", confidence: 0.88, rationale: "Mock rationale" });
+    sseWrite("final", {
+      ok: true,
+      claim: mockClaim,
+      verdict: "Supported",
+      rationale: "Mock rationale",
+      evidenceUrl: null,
+      claimType: "general_molecular",
+      pdbId: null,
+      proteinName: null,
+      signalDensity: 0,
+      pubmedResults: [],
+      translatedClaims: [],
+      processedAt,
+      streaming: true,
+    });
+    res.end();
+    return;
+  }
+
   // Track client disconnect
   let clientGone = false;
   req.on("close", () => { clientGone = true; });
+
+  // Send an immediate ping so the client knows the connection is alive
+  // before the pipeline (LLM calls, PubMed fetches) begins.
+  res.write(": ping\n\n");
+
+  // Keepalive heartbeat — prevents proxies and clients from timing out
+  // during long LLM/PubMed calls.
+  const heartbeat = setInterval(() => {
+    if (!clientGone) res.write(": heartbeat\n\n");
+  }, 15_000);
 
   try {
     // ── Stage 1: Claim extraction / translation ────────────────────────────────
@@ -433,8 +486,10 @@ async function handleStreamVerify(req: Request, res: Response): Promise<void> {
       });
     }
 
+    clearInterval(heartbeat);
     res.end();
   } catch (err) {
+    clearInterval(heartbeat);
     log.error("Stream verify error:", errData(err));
     if (!clientGone) {
       sseError(res, "Verification failed due to an internal error. Please try again.");
