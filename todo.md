@@ -1589,3 +1589,10 @@
 - [x] \_core/index.ts — registerFindSimilarRoute wired
 - [x] mcpServer.test.ts — tool count 11→12, fingerprint updated
 - [x] tests/integration/fixtures.ts — FIND_SIMILAR added
+
+## Phase 125 — Semantic Clustering in Wiki Compiler
+- [x] Write RED tests for wikiClustering.ts (clusterEntitiesBySimilarity, buildClusterCrossLinks, UnionFind)
+- [x] Implement wikiClustering.ts with UnionFind-based semantic clustering
+- [x] Wire clusterEntitiesBySimilarity into compileDocumentToWiki
+- [x] Wire buildClusterCrossLinks to append Related Entities section to each wiki page
+- [x] TSC clean, 1608/1608 GREEN

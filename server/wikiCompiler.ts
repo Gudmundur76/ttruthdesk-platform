@@ -27,6 +27,11 @@ import {
 } from "./db";
 import type { GraphEntity } from "../drizzle/schema";
 import { logger, errData } from "./logger";
+import {
+  clusterEntitiesBySimilarity,
+  buildClusterCrossLinks,
+  type WikiEntity,
+} from "./wikiClustering";
 const log = logger("wikiCompiler");
 
 
@@ -193,6 +198,30 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
       metadata: { documentId, title: doc.title },
     });
 
+    // Build semantic clusters so related entities can cross-link each other
+    const wikiEntities: WikiEntity[] = entities.map((e) => ({
+      entityType: e.entityType,
+      canonicalName: e.canonicalName,
+      claimIds: claims
+        .filter((c) => {
+          if (e.entityType === "pdb_id") return c.pdbId === e.canonicalName;
+          if (e.entityType === "protein") return c.proteinName === e.canonicalName;
+          if (e.entityType === "method") return c.experimentalMethod === e.canonicalName;
+          if (e.entityType === "organism") return c.organism === e.canonicalName;
+          if (e.entityType === "ligand") return c.ligand === e.canonicalName;
+          return false;
+        })
+        .map((c) => c.id),
+      relationType: e.relationType,
+    }));
+    const clusters = await clusterEntitiesBySimilarity(wikiEntities);
+    // Build a lookup: canonicalName → cluster
+    const entityToCluster = new Map(
+      clusters.flatMap((cluster) =>
+        cluster.entities.map((e) => [e.canonicalName, cluster])
+      )
+    );
+
     for (const entity of entities) {
       const s3Key = wikiKey(entity.entityType, entity.canonicalName);
 
@@ -200,7 +229,7 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
       const existingPage = await fetchWikiPage(s3Key);
 
       // 2. Compile updated page via LLM
-      const updatedPage = await compileWikiPage(
+      let updatedPage = await compileWikiPage(
         entity.entityType,
         entity.canonicalName,
         existingPage,
@@ -208,6 +237,15 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
         documentId,
         doc.title
       );
+
+      // 2b. Append semantic cross-links from the cluster
+      const cluster = entityToCluster.get(entity.canonicalName);
+      if (cluster) {
+        const crossLinks = buildClusterCrossLinks(cluster, entity.canonicalName);
+        if (crossLinks) {
+          updatedPage = `${updatedPage}\n\n${crossLinks}`;
+        }
+      }
 
       // 3. Write back to S3
       await storagePut(s3Key, Buffer.from(updatedPage, "utf-8"), "text/markdown");
