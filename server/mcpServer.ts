@@ -40,6 +40,13 @@ import { processQuestion } from "./questionRouter";
 import { buildEvidenceWithExcerpts } from "./pubmedAbstractFetcher";
 import { verdictAtDate, buildTemporalWindow, TOOLS_MANIFEST as TEMPORAL_TOOLS, type TemporalClaim } from "./temporalVersioning";
 import { validateBatchInput, batchVerifyClaims, buildBatchResult, BATCH_TOOLS_MANIFEST } from "./batchVerify";
+import {
+  validateSubmitClaim,
+  validateFlagStale,
+  validateReportContradiction,
+  buildFeedbackAck,
+  FEEDBACK_TOOLS_MANIFEST,
+} from "./agentFeedback";
 
 const log = logger("mcpServer");
 
@@ -411,6 +418,60 @@ async function toolVerifyClaimsBatch(
   return buildBatchResult(results, startMs);
 }
 
+// ─── Tool: submit_claim ─────────────────────────────────────────────────────
+async function toolSubmitClaim(params: Record<string, unknown>): Promise<unknown> {
+  const input = {
+    claimText: typeof params["claimText"] === "string" ? params["claimText"] : "",
+    domain: typeof params["domain"] === "string" ? params["domain"] : undefined,
+    sourceUrl: typeof params["sourceUrl"] === "string" ? params["sourceUrl"] : undefined,
+    agentId: typeof params["agentId"] === "string" ? params["agentId"] : undefined,
+  };
+  const v = validateSubmitClaim(input);
+  if (!v.valid) {
+    throw { code: MCP_ERRORS.INVALID_PARAMS, message: v.error };
+  }
+  const { createHash: sha256 } = await import("crypto");
+  const hash = sha256("sha256").update(input.claimText.toLowerCase().trim()).digest("hex").slice(0, 16);
+  const ack = buildFeedbackAck("submit_claim", hash);
+  log.info("agent feedback: submit_claim queued", { hash, agentId: input.agentId });
+  return ack;
+}
+
+// ─── Tool: flag_stale ────────────────────────────────────────────────────────
+async function toolFlagStale(params: Record<string, unknown>): Promise<unknown> {
+  const input = {
+    claimHash: typeof params["claimHash"] === "string" ? params["claimHash"] : "",
+    reason: typeof params["reason"] === "string" ? params["reason"] : "",
+    agentId: typeof params["agentId"] === "string" ? params["agentId"] : undefined,
+    newSourceUrl: typeof params["newSourceUrl"] === "string" ? params["newSourceUrl"] : undefined,
+  };
+  const v = validateFlagStale(input);
+  if (!v.valid) {
+    throw { code: MCP_ERRORS.INVALID_PARAMS, message: v.error };
+  }
+  const ack = buildFeedbackAck("flag_stale", input.claimHash);
+  log.info("agent feedback: flag_stale queued", { claimHash: input.claimHash, agentId: input.agentId });
+  return ack;
+}
+
+// ─── Tool: report_contradiction ──────────────────────────────────────────────
+async function toolReportContradiction(params: Record<string, unknown>): Promise<unknown> {
+  const input = {
+    claimHashA: typeof params["claimHashA"] === "string" ? params["claimHashA"] : "",
+    claimHashB: typeof params["claimHashB"] === "string" ? params["claimHashB"] : "",
+    explanation: typeof params["explanation"] === "string" ? params["explanation"] : "",
+    agentId: typeof params["agentId"] === "string" ? params["agentId"] : undefined,
+  };
+  const v = validateReportContradiction(input);
+  if (!v.valid) {
+    throw { code: MCP_ERRORS.INVALID_PARAMS, message: v.error };
+  }
+  const referenceId = `${input.claimHashA}:${input.claimHashB}`;
+  const ack = buildFeedbackAck("report_contradiction", referenceId);
+  log.info("agent feedback: report_contradiction queued", { referenceId, agentId: input.agentId });
+  return ack;
+}
+
 // ─── Tool: ask_question ───────────────────────────────────────────────────────
 async function toolAskQuestion(params: Record<string, unknown>): Promise<unknown> {
   const question = typeof params["question"] === "string" ? params["question"].trim() : "";
@@ -514,6 +575,21 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
     description: BATCH_TOOLS_MANIFEST[0].description,
     inputSchema: BATCH_TOOLS_MANIFEST[0].inputSchema as Record<string, unknown>,
     handler: async (params, req) => toolVerifyClaimsBatch(params, req),
+  },
+  submit_claim: {
+    description: FEEDBACK_TOOLS_MANIFEST[0].description,
+    inputSchema: FEEDBACK_TOOLS_MANIFEST[0].inputSchema as Record<string, unknown>,
+    handler: async (params) => toolSubmitClaim(params),
+  },
+  flag_stale: {
+    description: FEEDBACK_TOOLS_MANIFEST[1].description,
+    inputSchema: FEEDBACK_TOOLS_MANIFEST[1].inputSchema as Record<string, unknown>,
+    handler: async (params) => toolFlagStale(params),
+  },
+  report_contradiction: {
+    description: FEEDBACK_TOOLS_MANIFEST[2].description,
+    inputSchema: FEEDBACK_TOOLS_MANIFEST[2].inputSchema as Record<string, unknown>,
+    handler: async (params) => toolReportContradiction(params),
   },
   ask_question: {
     description:

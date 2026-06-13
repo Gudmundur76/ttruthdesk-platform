@@ -117,7 +117,7 @@ describe("buildCapabilities", () => {
     expect(Array.isArray(caps.tools)).toBe(true);
   });
 
-  it("includes all 5 tools in the capabilities response", () => {
+  it("includes all 10 tools in the capabilities response", () => {
     const caps = buildCapabilities();
     const names = caps.tools.map(t => t.name);
     expect(names).toContain("verify_claim");
@@ -125,7 +125,12 @@ describe("buildCapabilities", () => {
     expect(names).toContain("get_claim");
     expect(names).toContain("get_source_version");
     expect(names).toContain("ask_question");
-    expect(names).toHaveLength(5);
+    expect(names).toContain("verify_claim_at_date");
+    expect(names).toContain("verify_claims_batch");
+    expect(names).toContain("submit_claim");
+    expect(names).toContain("flag_stale");
+    expect(names).toContain("report_contradiction");
+    expect(names).toHaveLength(10);
   });
 
   it("every tool has a description and inputSchema", () => {
@@ -148,8 +153,8 @@ describe("buildCapabilities", () => {
 
 // ─── Tool Registry ────────────────────────────────────────────────────────────
 describe("TOOLS registry", () => {
-  it("contains exactly 5 tools", () => {
-    expect(Object.keys(TOOLS)).toHaveLength(5);
+  it("contains exactly 10 tools", () => {
+    expect(Object.keys(TOOLS)).toHaveLength(10);
   });
 
   it("every tool has a handler function", () => {
@@ -222,9 +227,9 @@ describe("mcpServerFingerprint", () => {
     // If we add/remove tools, the fingerprint must change
     const fp = mcpServerFingerprint();
     expect(fp).toBeTruthy();
-    // Verify it encodes the 5 known tools
+    // Verify it encodes the 10 known tools
     const expected = createHash("sha256")
-      .update(["ask_question", "get_claim", "get_source_version", "search_claims", "verify_claim"].join(","))
+      .update(["ask_question", "flag_stale", "get_claim", "get_source_version", "report_contradiction", "search_claims", "submit_claim", "verify_claim", "verify_claim_at_date", "verify_claims_batch"].join(","))
       .digest("hex")
       .slice(0, 16);
     expect(fp).toBe(expected);
