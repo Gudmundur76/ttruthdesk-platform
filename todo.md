@@ -1520,3 +1520,11 @@
 - [ ] Write DEPLOYMENT.md
 - [ ] Full suite GREEN, TSC clean, ESLint clean
 - [ ] Commit and push phase-130
+
+## Phase 123 — Vertical Adapter Coverage + compositeTruthEngine Tests
+
+- [x] Write compositeTruthEngine.test.ts — 35 tests covering pure scoring logic
+- [x] Write adapters.phase123.test.ts — 44 tests covering 15 vertical adapters + evidenceSynthesizer
+- [x] Fix vitest mockRejectedValue unhandled rejection issue (use HTTP 404 path instead)
+- [x] Raise coverage floor: lines 35%, functions 48%, branches 48%
+- [x] Full suite: 1570/1570 GREEN, 86 test files
