@@ -3462,6 +3462,35 @@ Respond in this exact structure:
           };
         }
       }),
+
+    /** Get usage stats (usageCount + lastUsedAt) for a specific key owned by the current user */
+    getUsage: protectedProcedure
+      .input(z.object({ keyId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const { getApiKeyUsage } = await import("./apiKeyService");
+        const usage = await getApiKeyUsage(input.keyId, ctx.user.id);
+        if (!usage)
+          throw new TRPCError({ code: "NOT_FOUND", message: "API key not found or not owned by you" });
+        return usage;
+      }),
+
+    /** Admin-only: list all API keys across all users with usage stats */
+    listAll: protectedProcedure.use(({ ctx, next }) => {
+      if (ctx.user.role !== "admin")
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+      return next({ ctx });
+    }).query(async () => {
+      const { getDb } = await import("./db");
+      const { apiKeys } = await import("../drizzle/schema");
+      const { isNull } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select()
+        .from(apiKeys)
+        .where(isNull(apiKeys.revokedAt))
+        .orderBy(apiKeys.createdAt);
+    }),
   }),
 
   // ─── Confidence Trend ───────────────────────────────────────────────────────────────────────

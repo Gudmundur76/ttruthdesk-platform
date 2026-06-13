@@ -21,7 +21,7 @@ import { createHash, randomBytes } from "crypto";
 import type { ResultSetHeader } from "mysql2";
 import { getDb } from "./db";
 import { apiKeys } from "../drizzle/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,8 @@ export interface ApiKeyRecord {
   scopes: ApiKeyScope[];
   keyPrefix: string;
   lastUsedAt: Date | null;
+  /** Cumulative count of successful authenticated calls */
+  usageCount: number;
   expiresAt: Date | null;
   createdAt: Date;
 }
@@ -211,6 +213,7 @@ export async function listApiKeys(userId: number): Promise<ApiKeyRecord[]> {
       scopes: apiKeys.scopes,
       keyPrefix: apiKeys.keyPrefix,
       lastUsedAt: apiKeys.lastUsedAt,
+      usageCount: apiKeys.usageCount,
       expiresAt: apiKeys.expiresAt,
       createdAt: apiKeys.createdAt,
     })
@@ -224,12 +227,13 @@ export async function listApiKeys(userId: number): Promise<ApiKeyRecord[]> {
     scopes: (r.scopes as ApiKeyScope[]) ?? [],
     keyPrefix: r.keyPrefix,
     lastUsedAt: r.lastUsedAt,
+    usageCount: r.usageCount,
     expiresAt: r.expiresAt,
     createdAt: r.createdAt,
   }));
 }
 
-// ─── Touch lastUsedAt (fire-and-forget) ──────────────────────────────────────
+// ─── Touch lastUsedAt and increment usageCount (fire-and-forget) ─────────────
 
 export async function touchLastUsed(keyId: number): Promise<void> {
   const db = await getDb();
@@ -237,6 +241,25 @@ export async function touchLastUsed(keyId: number): Promise<void> {
 
   await db
     .update(apiKeys)
-    .set({ lastUsedAt: new Date() })
+    .set({ lastUsedAt: new Date(), usageCount: sql`usageCount + 1` })
     .where(eq(apiKeys.id, keyId));
+}
+
+// ─── Get usage stats for a single key ────────────────────────────────────────
+
+export async function getApiKeyUsage(
+  keyId: number,
+  userId: number
+): Promise<{ usageCount: number; lastUsedAt: Date | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db
+    .select({ usageCount: apiKeys.usageCount, lastUsedAt: apiKeys.lastUsedAt })
+    .from(apiKeys)
+    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt)))
+    .limit(1);
+
+  if (rows.length === 0) return null;
+  return { usageCount: rows[0].usageCount, lastUsedAt: rows[0].lastUsedAt };
 }

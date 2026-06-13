@@ -922,6 +922,8 @@ export const apiKeys = mysqlTable(
     /** Prefix shown to user to identify the key (first 8 chars of raw key) */
     keyPrefix: varchar("keyPrefix", { length: 16 }).notNull(),
     lastUsedAt: timestamp("lastUsedAt"),
+    /** Cumulative count of successful authenticated calls made with this key */
+    usageCount: int("usageCount").notNull().default(0),
     revokedAt: timestamp("revokedAt"),
     expiresAt: timestamp("expiresAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -1422,3 +1422,35 @@
 - [x] Expose `POST /api/public/answer` as a public REST endpoint (rate-limited: 10/hour per IP, unlimited for API key holders)
 - [x] Write Vitest tests: question-to-claim conversion, low-confidence loop trigger, high-confidence no-trigger, rate limiting, answer schema validation
 - [x] Commit: `feat(engine): phase 110 — question-to-claim interface and demand-triggered loop`
+
+## Phase 113: API Key Usage Tracking
+- [ ] Add usageCount (int default 0) and lastUsedAt (int unix ts) columns to api_keys table in drizzle/schema.ts
+- [ ] Run pnpm drizzle-kit generate and apply migration via script
+- [ ] Add incrementApiKeyUsage(keyHash: string) DB helper to server/db.ts
+- [ ] Call incrementApiKeyUsage in mcpServer.ts after every successful authenticated tool call
+- [ ] Call incrementApiKeyUsage in apiKeyService.ts validateApiKey() on every successful validation
+- [ ] Add getUsage tRPC procedure to apiKeys router: returns usageCount + lastUsedAt per key
+- [ ] Update ApiKeys.tsx to display usageCount and lastUsedAt per key in the table
+- [ ] Add admin apiKeys.listAll procedure (adminProcedure) returning all keys across users with usage stats
+- [ ] Write Vitest tests: increment helper, MCP usage tracking, getUsage procedure
+- [ ] Gate: 0 TS, 0 ESLint, all tests pass, commit
+
+## Phase 114: Streaming Verification Endpoint
+- [ ] Add POST /api/mcp/stream Express route in server/mcpServer.ts — SSE response for tools/call only
+- [ ] SSE events: stage:N:name per pipeline stage, final:verdict with full result, error on failure
+- [ ] Add streaming: true capability flag to initialize response in handleProtocolMethod()
+- [ ] Add streamVerifyClaim() helper that calls runAnalysisPipeline with per-stage callbacks
+- [ ] Wire per-stage callbacks into analysisPipeline.ts via optional onStageComplete parameter
+- [ ] Auth and rate limiting identical to synchronous endpoint
+- [ ] Write Vitest tests: SSE event sequence, auth bypass, rate limit on stream, error event shape
+- [ ] Gate: 0 TS, 0 ESLint, all tests pass, commit
+
+## Phase 115: OpenCitations Stage 3.5 — Citation Graph in Verdict Pipeline
+- [ ] Add citationGraphScore field to the StageResult type in analysisPipeline.ts
+- [ ] Add Stage 3.5 to runAnalysisPipeline: extract DOI from claim evidence, call OpenCitations adapter
+- [ ] Update compositeTruthEngine.ts: retraction -0.30, citation count log10 boost clamped 0-0.25, self-citation -0.05
+- [ ] Add citationGraphEnriched boolean column to claims table; set true when Stage 3.5 runs
+- [ ] Run pnpm drizzle-kit generate and apply migration
+- [ ] Add setCitationGraphEnriched(claimId: number) DB helper
+- [ ] Write Vitest tests: DOI extraction, retraction penalty, citation count boost, self-citation penalty, no-DOI graceful skip
+- [ ] Gate: 0 TS, 0 ESLint, all tests pass, commit

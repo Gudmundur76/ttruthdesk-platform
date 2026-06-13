@@ -41,6 +41,14 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn((...args: unknown[]) => ({ args, op: "and" })),
   isNull: vi.fn((col: unknown) => ({ col, op: "isNull" })),
   gt: vi.fn((col: unknown, val: unknown) => ({ col, val, op: "gt" })),
+  sql: Object.assign(
+    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
+      sql: strings.join("?"),
+      values,
+      _isSql: true,
+    })),
+    { raw: vi.fn((s: string) => ({ sql: s, _isSql: true })) }
+  ),
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { registerAnswerRoute } from "../answerRoute";
+import { registerStreamVerifyRoute } from "../streamVerifyRoute";
 import { registerMcpServer } from "../mcpServer";
 import { registerSubmitClaimRoute } from "../submitClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
@@ -1758,6 +1759,8 @@ async function startServer() {
   registerVerifyClaimRoute(app);
   // Public question-to-claim answer endpoint (Phase 110)
   registerAnswerRoute(app);
+  // SSE streaming verification endpoint (Phase 114)
+  registerStreamVerifyRoute(app);
   registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);

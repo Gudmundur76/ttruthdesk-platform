@@ -445,6 +445,7 @@ function buildCapabilities() {
     },
     capabilities: {
       tools: { listChanged: false },
+      streaming: true,
     },
     tools: Object.entries(TOOLS).map(([name, t]) => ({
       name,

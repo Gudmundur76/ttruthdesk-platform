@@ -1,0 +1,1 @@
+ALTER TABLE `api_keys` ADD `usageCount` int DEFAULT 0 NOT NULL;

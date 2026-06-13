@@ -316,6 +316,13 @@
       "when": 1781356502460,
       "tag": "0044_yielding_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1781365198421,
+      "tag": "0045_bored_living_tribunal",
+      "breakpoints": true
     }
   ]
 }
