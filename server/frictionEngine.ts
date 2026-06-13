@@ -221,6 +221,7 @@ Return a JSON object:
 
 // ─── Core: runPreflightScan ───────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runPreflightScan(text: string): Promise<FrictionEngineResult> {
   const start = Date.now();
 

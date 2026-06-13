@@ -10,7 +10,7 @@
  *   - CI smoke tests
  */
 import { getDb } from "./db";
-import { coordQueue, coordTasks } from "../drizzle/schema";
+import { coordQueue } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { logger, errData } from "./logger";
 

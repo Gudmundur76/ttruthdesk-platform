@@ -22,6 +22,7 @@ export interface TruthLayerResult {
   verdicts: Array<{ claimId: number; verdict: string }>;
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runTruthLayer(event: LoopEvent): Promise<TruthLayerResult> {
   const actions: LoopAction[] = [];
   const verdicts: Array<{ claimId: number; verdict: string }> = [];

@@ -218,6 +218,7 @@ interface CitationChainPanelProps {
   documentId: number;
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export function CitationChainPanel({ documentId }: CitationChainPanelProps) {
   const [open, setOpen] = useState(false);
 

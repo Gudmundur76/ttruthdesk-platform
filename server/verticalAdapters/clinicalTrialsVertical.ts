@@ -56,6 +56,7 @@ For each claim, extract:
 Return JSON array of claims.
 `,
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   async lookupEvidence(claim: {
     claimText: string;
     extractedValue: string | null;

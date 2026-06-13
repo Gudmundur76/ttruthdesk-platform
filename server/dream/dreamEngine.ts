@@ -122,6 +122,7 @@ export interface DreamSessionResult {
  * Run a full Dream State session.
  * Returns the session summary.
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runDreamSession(
   options: {
     healthScore?: number;

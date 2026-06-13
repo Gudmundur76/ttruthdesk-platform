@@ -7,9 +7,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { logger, errData } from "./logger";
 
 describe("logger factory", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let stdoutSpy: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let stderrSpy: any;
 
   beforeEach(() => {

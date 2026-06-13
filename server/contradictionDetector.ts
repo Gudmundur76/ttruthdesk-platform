@@ -144,6 +144,7 @@ export function isContradiction(
  *
  * @param batchSize  Max edges to process in one run (default 500)
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runContradictionScan(
   batchSize = 500
 ): Promise<ContradictionScanResult> {

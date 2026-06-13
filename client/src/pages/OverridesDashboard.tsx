@@ -107,6 +107,7 @@ function HealthSparkline({ data }: { data: { healthScore: number; createdAt: Dat
   );
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function OverridesDashboard() {
   const { user } = useAuth();
   const [, navigate] = useLocation();

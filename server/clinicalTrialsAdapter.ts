@@ -90,6 +90,7 @@ export async function searchClinicalTrials(
 
 // ─── Parser ────────────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 function parseClinicalTrialEntry(data: Record<string, unknown>): ClinicalTrialEntry {
   const proto = (data?.protocolSection as Record<string, unknown>) ?? {};
   const id = (proto?.identificationModule as Record<string, unknown>) ?? {};

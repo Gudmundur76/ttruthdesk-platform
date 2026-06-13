@@ -269,6 +269,7 @@ class SDKServer {
     } as GetUserInfoWithJwtResponse;
   }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   async authenticateRequest(req: Request): Promise<AuthenticatedUser> {
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);

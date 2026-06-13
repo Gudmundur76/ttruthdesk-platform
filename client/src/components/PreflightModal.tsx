@@ -180,6 +180,7 @@ interface PreflightModalProps {
   onProceed: (result: FrictionEngineResult | null) => void;
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export function PreflightModal({ open, text, onClose, onProceed }: PreflightModalProps) {
   const [result, setResult] = useState<FrictionEngineResult | null>(null);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);

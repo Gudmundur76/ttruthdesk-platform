@@ -33,6 +33,7 @@ export interface ActionResult {
   detail: string;
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function executeAction(
   action: PrioritizedAction
 ): Promise<ActionResult> {

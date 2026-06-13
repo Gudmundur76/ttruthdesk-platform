@@ -8,6 +8,7 @@ export default tseslint.config(
     ignores: [
       "node_modules/**",
       "dist/**",
+      "coverage/**",
       "drizzle/migrations/**",
       "patches/**",
       "client/public/**", // Manus runtime assets — not our code

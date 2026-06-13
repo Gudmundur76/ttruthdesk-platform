@@ -34,6 +34,7 @@ async function emitSourceEvent(status: "down" | "up", detail: string) {
 }
 
 /** Fetch a single PDB entry by its 4-character ID */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function fetchPdbEntry(pdbId: string): Promise<PdbValidationResult> {
   const id = pdbId.trim().toUpperCase();
   try {
@@ -172,6 +173,7 @@ export interface VerdictResult {
 }
 
 /** Core verdict logic for a single claim */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function verdictForClaim(claim: {
   claimType: string;
   pdbId?: string | null;

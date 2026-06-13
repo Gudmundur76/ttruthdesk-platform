@@ -13,7 +13,7 @@
  *   open → pursued  (when a coordQueue item is created)
  */
 
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { knowledgeGaps, coordQueue } from "../drizzle/schema";
 import { getDb } from "./db";
 import { logger } from "./logger";

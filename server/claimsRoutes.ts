@@ -124,6 +124,7 @@ export function registerClaimsRoutes(app: Express): void {
   app.options("/api/public/claims", (_req, res) => {
     res.set(CORS_HEADERS).status(204).end();
   });
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   app.get("/api/public/claims", async (req: Request, res: Response) => {
     const pageParam = parseInt((req.query.page as string) ?? "1", 10);
     const pageSizeParam = parseInt((req.query.page_size as string) ?? "100", 10);

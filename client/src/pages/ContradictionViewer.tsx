@@ -127,6 +127,7 @@ const RESOLUTION_OPTIONS: { value: Resolution; label: string; description: strin
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function ContradictionViewer() {
   const [, params] = useRoute("/contradictions/:relationId");
   const relationId = parseInt(params?.relationId ?? "0", 10);

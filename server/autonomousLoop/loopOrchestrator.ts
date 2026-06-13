@@ -60,6 +60,7 @@ export interface LoopRunResult {
  * Process a single event through the autonomous loop.
  * Returns the loop run result.
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
   const startTime = Date.now();
   const layersExecuted: number[] = [];

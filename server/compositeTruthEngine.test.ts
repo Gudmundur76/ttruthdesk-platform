@@ -105,7 +105,7 @@ describe("computeCompositeTruth — label assignment", () => {
   });
 
   it("returns contested for unknown verdict string", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const result = computeCompositeTruth(base({ upstreamVerdict: "UNKNOWN_VERDICT" as any }));
     expect(result.label).toBe("contested");
   });
@@ -302,7 +302,7 @@ describe("COMPOSITE_LABEL_META", () => {
       "out_of_scope",
     ];
     for (const label of labels) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(COMPOSITE_LABEL_META[label as import("./compositeTruthEngine").CompositeTruthLabel]).toBeDefined();
     }
   });

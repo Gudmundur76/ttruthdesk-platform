@@ -62,6 +62,7 @@ export type LargeContextResponse = {
  * Invoke the large-context LLM.
  * Uses Kimi API when KIMI_API_KEY is set; falls back to built-in LLM otherwise.
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function invokeLargeContextLLM(
   messages: LargeContextMessage[],
   options: LargeContextOptions = {}

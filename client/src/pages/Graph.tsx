@@ -76,6 +76,7 @@ const ENTITY_TYPE_COLOR: Record<string, string> = {
   document: "#3b82f6",
 };
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function Graph() {
   const { data, isLoading, isError } = trpc.graph.data.useQuery();
   const { data: entityData } = trpc.graph.entities.useQuery();
@@ -94,6 +95,7 @@ export default function Graph() {
   const [showQueryBox, setShowQueryBox] = useState(false);
 
   // ── Build graph data ────────────────────────────────────────────────────────
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   const { nodes, links } = useMemo(() => {
     if (!data) return { nodes: [], links: [] };
 

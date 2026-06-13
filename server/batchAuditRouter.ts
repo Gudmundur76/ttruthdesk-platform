@@ -93,6 +93,7 @@ const BATCH_USER_ID = 1; // Owner / system user
 // ─── Router ───────────────────────────────────────────────────────────────────
 export const batchAuditRouter = Router();
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 batchAuditRouter.post("/", async (req: Request, res: Response) => {
   // ── Auth: accept COORD_API_KEY bearer (timing-safe) or session cookie ────────
   const authHeader = req.headers.authorization ?? "";

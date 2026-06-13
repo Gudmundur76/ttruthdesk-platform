@@ -101,7 +101,7 @@ describe("notifyIndexNow", () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 429 });
     // Production code now uses structured logger (writes JSON to stdout)
     const captured: string[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: any) => {
       captured.push(String(chunk));
       return true;

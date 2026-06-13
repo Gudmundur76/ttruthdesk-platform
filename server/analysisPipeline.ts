@@ -64,6 +64,7 @@ import { logger, errData } from "./logger";
 const log = logger("analysisPipeline");
 
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runAnalysisPipeline(
   documentId: number,
   rawText: string,
@@ -121,6 +122,7 @@ export async function runAnalysisPipeline(
     for (let i = 0; i < allClaims.length; i += CLAIM_CONCURRENCY) {
       const batch = allClaims.slice(i, i + CLAIM_CONCURRENCY);
       const results = await Promise.allSettled(
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
         batch.map(async claim => {
           let result: VerdictResult;
           let decision: VerdictDecision | null = null;

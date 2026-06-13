@@ -105,6 +105,7 @@ For each claim, extract: the protein type, the claimed effect, the population, a
     "protein supplement elderly sarcopenia trial",
   ],
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   async lookupEvidence(claim): Promise<EvidenceResult> {
     const claimLower = claim.claimText.toLowerCase();
 

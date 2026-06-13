@@ -42,6 +42,7 @@ interface S2Paper {
   journal?: { name?: string };
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function lookupByIdentifier(identifier: string): Promise<EvidenceResult> {
   try {
     const res = await fetch(

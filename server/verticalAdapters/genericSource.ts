@@ -41,6 +41,7 @@ interface PageMetadata {
   httpStatus: number;
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function fetchPageMetadata(url: string): Promise<PageMetadata> {
   const base: PageMetadata = {
     url,
@@ -239,6 +240,7 @@ For each claim, extract:
 - The domain or topic area
 `,
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   async lookupEvidence(claim) {
     // 1. Try DOI extraction from claim text or extractedValue
     const doiMatches = Array.from(claim.claimText.matchAll(DOI_RE));

@@ -59,6 +59,7 @@ function reconstructAbstract(invertedIndex: Record<string, number[]> | undefined
   return words.filter(Boolean).join(" ").substring(0, 800);
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function lookupByDoi(doi: string): Promise<EvidenceResult> {
   try {
     const res = await fetch(

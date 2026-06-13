@@ -24,6 +24,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   interaction:  "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
 };
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function DiscoveryPanel() {
   const [verticalKey, setVerticalKey] = useState("structural_biology");
   const [skipProbe, setSkipProbe] = useState(false);

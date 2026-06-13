@@ -58,6 +58,7 @@ export interface FeedbackCollectorResult {
  * @param result - The QualityPassResult from the quality-pass job
  * @param processedDocIds - Array of document IDs that were processed in this run
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function collectQualityPassFeedback(
   result: QualityPassResult,
   processedDocIds: number[]

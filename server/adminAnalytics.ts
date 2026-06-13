@@ -78,6 +78,7 @@ export interface RecentActivityItem {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Platform-wide overview stats. */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function getPlatformOverview(): Promise<PlatformOverview> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");

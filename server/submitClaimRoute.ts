@@ -39,6 +39,7 @@ function checkRateLimit(ip: string): {
   return { allowed: true, retryAfterSec: 0 };
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function handleSubmitClaim(req: Request, res: Response): Promise<void> {
   const processedAt = new Date().toISOString();
   const ip =

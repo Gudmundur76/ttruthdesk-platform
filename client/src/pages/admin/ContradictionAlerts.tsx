@@ -96,6 +96,7 @@ function labelPill(label: string | null): React.ReactNode {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function ContradictionAlerts() {
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("open_reviewed");

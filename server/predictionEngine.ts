@@ -227,6 +227,7 @@ export async function computeEntityContradictionRate(
  * Falls back to heuristic defaults [0.40, 0.25, 0.20, 0.15] when
  * fewer than 20 validated predictions are available.
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function computeClaimTrajectory(
   claimId: number,
   userId: number

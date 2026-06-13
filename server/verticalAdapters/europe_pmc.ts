@@ -8,6 +8,7 @@ const europePmcAdapter: VerticalAdapter = {
   displayName: 'Europe PMC',
   description: 'Adapter for Europe PMC, a repository for life sciences research articles.',
   claimExtractorPrompt: 'Extract any PubMed ID (PMID) or PubMed Central ID (PMCID) from the following text. If multiple are found, prioritize PMCID. If none are found, return null.',
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   async lookupEvidence(claim: { claimText: string; extractedValue: string | null }): Promise<EvidenceResult> {
     let query = '';
     let identifierType: 'PMID' | 'PMCID' | 'keyword' = 'keyword';

@@ -78,6 +78,7 @@ function TagInput({
 }
 
 // ── Main component ──────────────────────────────────────────────────────────────
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function AdminVerticals() {
   const { user } = useAuth();
   const utils = trpc.useUtils();

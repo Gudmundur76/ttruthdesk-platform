@@ -49,6 +49,7 @@ async function searchCollagenRCTs(
 
 // ─── Outcome classification ───────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 function classifyOutcome(claimText: string): string {
   const lower = claimText.toLowerCase();
   if (lower.includes("skin") || lower.includes("wrinkle") || lower.includes("elasticity") || lower.includes("hydration")) return "skin";
@@ -89,6 +90,7 @@ For each claim, extract: the collagen type, the outcome measure, the magnitude, 
     "collagen peptides muscle mass elderly RCT",
   ],
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   async lookupEvidence(claim): Promise<EvidenceResult> {
     const outcome = classifyOutcome(claim.claimText);
 

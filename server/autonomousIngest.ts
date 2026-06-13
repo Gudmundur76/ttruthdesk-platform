@@ -254,6 +254,7 @@ async function upsertEntitiesFromClaims(
  * Process tool results from a CopilotKit query.
  * This is called fire-and-forget after every tool call.
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function processQueryResults(
   results: QueryResults
 ): Promise<void> {

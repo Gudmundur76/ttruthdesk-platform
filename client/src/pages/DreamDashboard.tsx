@@ -178,6 +178,7 @@ function SessionRow({ sessionId }: { sessionId: number }) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function DreamDashboard() {
   const [healthScore] = useState(80);
   const [triggering, setTriggering] = useState(false);

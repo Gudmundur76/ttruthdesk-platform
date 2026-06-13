@@ -76,6 +76,7 @@ export interface SystemState {
 
 // ─── State Collector ──────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function collectSystemState(
   event: SelfPromptEvent
 ): Promise<SystemState> {

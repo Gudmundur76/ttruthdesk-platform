@@ -82,6 +82,7 @@ setInterval(
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function handleAnswer(req: Request, res: Response): Promise<void> {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -94,7 +95,7 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
   }
 
   // Test-only: clear the IP's rate limit bucket when X-Test-Reset-RateLimit header is present
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+   
   if (process.env.NODE_ENV === "test" && req.headers["x-test-reset-ratelimit"] === "1") {
     const resetIp =
       (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??

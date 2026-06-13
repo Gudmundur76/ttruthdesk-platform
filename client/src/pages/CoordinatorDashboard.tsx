@@ -173,6 +173,7 @@ function TaskRow({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function CoordinatorDashboard() {
   const { user } = useAuth();
   const [tab, setTab] = useState("tasks");

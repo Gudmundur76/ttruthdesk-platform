@@ -131,6 +131,7 @@ export async function getDocumentChain(
 
 // ─── Summarize the provenance chain for a claim ───────────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export function summarize(chain: ProvenanceChainEntry[]): ProvenanceSummary {
   if (chain.length === 0) {
     return {

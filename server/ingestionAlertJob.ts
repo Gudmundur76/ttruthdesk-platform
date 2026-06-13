@@ -15,7 +15,7 @@
 import type { Request, Response } from "express";
 import { getDb } from "./db";
 import { autoIngestedPapers } from "../drizzle/schema";
-import { desc, gte, sql } from "drizzle-orm";
+import { desc, gte } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
 import { logger } from "./logger";
 

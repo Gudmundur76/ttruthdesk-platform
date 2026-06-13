@@ -32,6 +32,7 @@ export interface HypothesisGenerationResult {
 /**
  * Generate hypotheses from detected patterns and queue them for evidence pursuit.
  */
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function generateTopologyHypotheses(
   patterns: DetectedPattern[]
 ): Promise<HypothesisGenerationResult> {

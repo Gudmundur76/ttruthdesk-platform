@@ -21,6 +21,7 @@ const eurLexAdapter: VerticalAdapter = {
     'European legislation',
   ],
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   async lookupEvidence(claim: { claimText: string; extractedValue: string | null }): Promise<EvidenceResult> {
     let query = claim.claimText;
     let celexNumber: string | null = null;

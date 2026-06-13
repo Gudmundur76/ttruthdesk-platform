@@ -175,6 +175,7 @@ function LastDreamWidget() {
   );
 }
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export default function AutonomousLoopDashboard() {
   const { user } = useAuth();
   const [, navigate] = useLocation();

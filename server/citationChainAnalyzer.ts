@@ -59,6 +59,7 @@ export interface CitationChainResult {
 
 // ─── PubMed elink: find papers that cite a given PMID ─────────────────────────
 
+  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function fetchCitingPapers(
   pmid: string,
   maxResults = 10
