@@ -23,6 +23,7 @@ import { registerClaimsRoutes } from "../claimsRoutes";
 import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
+import { registerAnswerRoute } from "../answerRoute";
 import { registerSubmitClaimRoute } from "../submitClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
 import { registerWikiPageRoute } from "../wikiPageRoute";
@@ -1691,6 +1692,35 @@ async function startServer() {
     }
   );
 
+  // ── Phase 109: Source Version Agent ─────────────────────────────────────────
+  //
+  // Triggered by heartbeat cron (daily at 03:30 UTC). Polls each approved source,
+  // computes a SHA-256 hash of the probe payload, and detects version changes.
+  // On change, writes a source_versions row and publishes source_version_changed
+  // to the autonomous loop event bus so affected claims get re-evaluated.
+  app.post(
+    "/api/scheduled/source-version-agent",
+    requireCronOrAdmin,
+    async (_req, res) => {
+      try {
+        const { runSourceVersionAgent } = await import("../sourceVersionAgent");
+        const result = await runSourceVersionAgent();
+        res.json({
+          ok: true,
+          sourcesChecked: result.sourcesChecked,
+          sourcesUpdated: result.sourcesUpdated,
+          sourcesUnchanged: result.sourcesUnchanged,
+          sourcesErrored: result.sourcesErrored,
+          sourcesSkipped: result.sourcesSkipped,
+          durationMs: result.durationMs,
+        });
+      } catch (err) {
+        console.error("[SourceVersionAgent] Scheduled run failed:", err);
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    }
+  );
+
   // Admin bulk seed: triggers a long-lookback PMC feed across all verticals
   // Admin re-process: re-runs the analysis pipeline on all failed documents
   app.post(
@@ -1769,6 +1799,8 @@ async function startServer() {
 
   // Agent-callable single-claim verification endpoint
   registerVerifyClaimRoute(app);
+  // Public question-to-claim answer endpoint (Phase 110)
+  registerAnswerRoute(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);
   registerClaimPageRoute(app);

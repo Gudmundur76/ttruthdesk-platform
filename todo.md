@@ -1397,3 +1397,28 @@
 - [x] Add CompositeTruthTimeline component to ClaimPage.tsx
 - [x] Write unit tests for score history, snapshot insertion, sparkline data logic, and label colour mapping (19 new tests)
 - [x] All 1119 tests passing, TypeScript: 0 errors
+
+## Phase 109: Source Version Tracking + Supersession Signal
+
+- [x] Add `source_versions` table to Drizzle schema: `id`, `sourceId`, `versionHash`, `versionLabel`, `detectedAt`, `changeType` (minor|major|retraction), `affectedClaimCount`
+- [x] Add `superseded_claims` table: `id`, `claimId`, `supersededBy` (claimId), `reason`, `supersededAt`
+- [x] Run `pnpm drizzle-kit generate` and apply migration
+- [x] Add `getSourceVersion`, `upsertSourceVersion`, `markClaimSuperseded`, `getSupersededClaims` DB helpers to `db.ts`
+- [x] Build `server/sourceVersionAgent.ts`: polls each approved source for version/update signals, computes hash of canonical metadata, detects changes, queues affected claims for re-evaluation
+- [x] Wire `sourceVersionAgent` into `server/heartbeatRegistrar.ts` as a daily cron (03:30 UTC)
+- [x] Update `reEvaluationEngine.ts`: when re-scoring a claim that has a newer superseding claim, mark it `superseded` rather than `contested`
+- [x] Add `superseded` as a valid `compositeLabel` variant in the verdict schema
+- [x] Write Vitest tests: version hash detection, change type classification, supersession marking, re-evaluation routing
+- [x] Commit: `feat(ingestion): phase 109 — source version tracking and supersession signal`
+
+## Phase 110: Question-to-Claim Interface + Demand-Triggered Loop
+
+- [ ] Build `server/questionRouter.ts`: `answerQuestion` procedure — converts natural language question to a verifiable claim via LLM, runs it through the full analysis pipeline, returns structured answer with verdict + confidence + primary source citations
+- [ ] Add `questions` table to Drizzle schema: `id`, `questionText`, `derivedClaim`, `verdict`, `confidence`, `sources` (JSON), `loopTriggered` (boolean), `askedAt`
+- [x] Run `pnpm drizzle-kit generate` and apply migration
+- [ ] Add `insertQuestion`, `getQuestion` DB helpers to `db.ts`
+- [ ] Wire demand-triggered loop: if `confidence < 0.6` or `verdict === insufficient_evidence`, emit a `coverage_gap` event to the autonomous loop event bus so the frontier engine pursues the gap
+- [ ] Register `questionRouter` in `server/routers.ts`
+- [ ] Expose `POST /api/public/answer` as a public REST endpoint (rate-limited: 10/hour per IP, unlimited for API key holders)
+- [ ] Write Vitest tests: question-to-claim conversion, low-confidence loop trigger, high-confidence no-trigger, rate limiting, answer schema validation
+- [ ] Commit: `feat(engine): phase 110 — question-to-claim interface and demand-triggered loop`

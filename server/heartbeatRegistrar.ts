@@ -125,6 +125,17 @@ export const REGISTERED_CRON_JOBS: RegisteredCronJob[] = [
     registeredAt: "2026-06-06T22:09:46Z",
   },
 
+  // ── Phase 109: Source Version Agent (daily 03:30 UTC) ───────────────
+  {
+    name: "source-version-agent",
+    taskUid: "J7qa6QT6eCCfEXeMXeHXac",
+    cron: "0 30 3 * * *",
+    path: "/api/scheduled/source-version-agent",
+    description:
+      "Daily source version tracking (Phase 109): polls approved sources, computes hash, detects changes, queues affected claims for re-evaluation. Runs at 03:30 UTC.",
+    registeredAt: "2026-06-13T13:06:00Z",
+  },
+
   // ── Weekly ─────────────────────────────────────────────────────────────────
   {
     name: "pubmed-decode-weekly",

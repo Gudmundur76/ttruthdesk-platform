@@ -302,6 +302,20 @@
       "when": 1781199620477,
       "tag": "0042_lucky_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1781355508386,
+      "tag": "0043_unknown_starbolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1781356502460,
+      "tag": "0044_yielding_landau",
+      "breakpoints": true
     }
   ]
 }

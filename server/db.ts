@@ -1739,3 +1739,137 @@ export async function getCitationsByDocumentId(
     .where(eq(citations.documentId, documentId))
     .orderBy(asc(citations.claimId), asc(citations.createdAt));
 }
+
+// ─── Source Version DB Helpers (Phase 109) ────────────────────────────────────
+import {
+  sourceVersions,
+  supersededClaims,
+  questions,
+} from "../drizzle/schema";
+import type {
+  SourceVersion,
+  InsertSourceVersion,
+  SupersededClaim,
+  InsertSupersededClaim,
+  Question,
+  InsertQuestion,
+} from "../drizzle/schema";
+
+/**
+ * Get the most recent version record for a given sourceId.
+ * Returns null if no version has been recorded yet.
+ */
+export async function getSourceVersion(
+  sourceId: string
+): Promise<SourceVersion | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(sourceVersions)
+    .where(eq(sourceVersions.sourceId, sourceId))
+    .orderBy(desc(sourceVersions.detectedAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Insert a new source version record.
+ * The unique index on (sourceId, versionHash) prevents duplicate entries.
+ * Returns the inserted id, or null if DB is unavailable.
+ */
+export async function upsertSourceVersion(
+  data: InsertSourceVersion
+): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db
+      .insert(sourceVersions)
+      .values(data)
+      .onDuplicateKeyUpdate({
+        set: {
+          versionLabel: data.versionLabel,
+          detectedAt: data.detectedAt,
+          changeType: data.changeType,
+          affectedClaimCount: data.affectedClaimCount,
+        },
+      });
+    const header = result as unknown as [{ insertId: number }];
+    return header[0]?.insertId ?? null;
+  } catch (err) {
+    console.error("[DB] upsertSourceVersion failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Mark a claim as superseded.
+ * Inserts a superseded_claims row. Non-fatal: returns null on failure.
+ */
+export async function markClaimSuperseded(
+  data: InsertSupersededClaim
+): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(supersededClaims).values(data);
+    const header = result as unknown as [{ insertId: number }];
+    return header[0]?.insertId ?? null;
+  } catch (err) {
+    console.error("[DB] markClaimSuperseded failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Get all superseded claim records for a given claimId.
+ * Returns [] if DB is unavailable.
+ */
+export async function getSupersededClaims(
+  claimId: number
+): Promise<SupersededClaim[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(supersededClaims)
+    .where(eq(supersededClaims.claimId, claimId))
+    .orderBy(desc(supersededClaims.supersededAt));
+}
+
+// ─── Question DB Helpers (Phase 110) ─────────────────────────────────────────
+
+/**
+ * Insert a new question record.
+ * Returns the inserted id, or null if DB is unavailable.
+ */
+export async function insertQuestion(
+  data: InsertQuestion
+): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.insert(questions).values(data);
+    const header = result as unknown as [{ insertId: number }];
+    return header[0]?.insertId ?? null;
+  } catch (err) {
+    console.error("[DB] insertQuestion failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Get a question record by id.
+ * Returns null if not found or DB is unavailable.
+ */
+export async function getQuestion(id: number): Promise<Question | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(questions)
+    .where(eq(questions.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}

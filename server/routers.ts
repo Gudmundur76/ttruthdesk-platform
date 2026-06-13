@@ -6,6 +6,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { siaHarnessRouter } from "./siaHarnessRouter";
+import { questionRouter } from "./questionRouter";
 import {
   getCitationChainByDocument,
   getCitationChainStats,
@@ -4953,5 +4954,7 @@ Respond in this exact structure:
 
   // ─── SIA Harness Improvement Loop ────────────────────────────────────────────
   sia: siaHarnessRouter,
+  // ─── Question-to-Claim Interface (Phase 110) ─────────────────────────────────
+  questions: questionRouter,
 });
 export type AppRouter = typeof appRouter;

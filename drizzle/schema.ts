@@ -1571,6 +1571,8 @@ export const eventQueue = mysqlTable(
       "dream_pattern_detected",
       "confidence_review_needed",
       "dream_session_complete",
+      "source_version_changed",
+      "coverage_gap",
     ]).notNull(),
     payload: json("payload").$type<Record<string, unknown>>().notNull(),
     status: mysqlEnum("status", [
@@ -2307,3 +2309,76 @@ export const qualityPassFeedback = mysqlTable(
 
 export type QualityPassFeedback = typeof qualityPassFeedback.$inferSelect;
 export type InsertQualityPassFeedback = typeof qualityPassFeedback.$inferInsert;
+
+// ─── Source Version Tracking (Phase 109) ─────────────────────────────────────
+// Records the canonical metadata hash for each approved source.
+// When the hash changes, the changeType signals how severe the update is.
+// affectedClaimCount is updated by the sourceVersionAgent after it queues
+// claims for re-evaluation.
+export const sourceVersions = mysqlTable(
+  "source_versions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    sourceId: varchar("sourceId", { length: 64 }).notNull(),
+    versionHash: varchar("versionHash", { length: 64 }).notNull(),
+    versionLabel: varchar("versionLabel", { length: 128 }),
+    detectedAt: int("detectedAt").notNull(),
+    changeType: mysqlEnum("changeType", ["minor", "major", "retraction"]).notNull().default("minor"),
+    affectedClaimCount: int("affectedClaimCount").notNull().default(0),
+  },
+  t => ({
+    sourceIdIdx: index("sv_source_id_idx").on(t.sourceId),
+    detectedAtIdx: index("sv_detected_at_idx").on(t.detectedAt),
+    sourceHashUniq: uniqueIndex("sv_source_hash_uniq").on(t.sourceId, t.versionHash),
+  })
+);
+export type SourceVersion = typeof sourceVersions.$inferSelect;
+export type InsertSourceVersion = typeof sourceVersions.$inferInsert;
+
+// ─── Superseded Claims (Phase 109) ────────────────────────────────────────────
+// When a newer claim supersedes an older one (e.g., a retracted paper's claim
+// is replaced by a corrected version), we record the supersession here.
+// The superseded claim is then labelled "superseded" by the reEvaluationEngine
+// rather than "contested".
+export const supersededClaims = mysqlTable(
+  "superseded_claims",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    claimId: int("claimId").notNull(),
+    supersededBy: int("supersededBy"),
+    reason: text("reason").notNull(),
+    supersededAt: int("supersededAt").notNull(),
+  },
+  t => ({
+    claimIdIdx: index("sc_claim_id_idx").on(t.claimId),
+    supersededByIdx: index("sc_superseded_by_idx").on(t.supersededBy),
+  })
+);
+export type SupersededClaim = typeof supersededClaims.$inferSelect;
+export type InsertSupersededClaim = typeof supersededClaims.$inferInsert;
+
+// ─── Questions (Phase 110) ────────────────────────────────────────────────────
+// Natural language questions submitted via the question-to-claim interface.
+// The engine converts each question to a verifiable claim, runs it through
+// the full analysis pipeline, and stores the result here.
+// loopTriggered = true when confidence < 0.6 or verdict === insufficient_evidence,
+// meaning the frontier engine was asked to pursue the coverage gap.
+export const questions = mysqlTable(
+  "questions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    questionText: text("questionText").notNull(),
+    derivedClaim: text("derivedClaim"),
+    verdict: varchar("verdict", { length: 64 }),
+    confidence: float("confidence"),
+    sources: json("sources"),
+    loopTriggered: boolean("loopTriggered").notNull().default(false),
+    askedAt: int("askedAt").notNull(),
+  },
+  t => ({
+    askedAtIdx: index("q_asked_at_idx").on(t.askedAt),
+    verdictIdx: index("q_verdict_idx").on(t.verdict),
+  })
+);
+export type Question = typeof questions.$inferSelect;
+export type InsertQuestion = typeof questions.$inferInsert;

@@ -111,6 +111,7 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
     if (event.entryLayer <= 1 && (
       event.eventType === "source_data_changed" ||
       event.eventType === "source_status_change" ||
+      event.eventType === "source_version_changed" ||
       event.eventType === "document_submitted" ||
       event.eventType === "paper_discovered"
     )) {
@@ -134,6 +135,7 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
       event.eventType === "verdict_complete" ||
       event.eventType === "contradiction_found" ||
       event.eventType === "gap_closed" ||
+      event.eventType === "coverage_gap" ||
       event.eventType === "hypothesis_resolved" ||
       event.eventType === "loop_action_complete" ||
       event.eventType === "scheduled_tick" ||
