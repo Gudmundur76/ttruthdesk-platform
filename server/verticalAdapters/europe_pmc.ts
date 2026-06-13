@@ -95,15 +95,16 @@ const europePmcAdapter: VerticalAdapter = {
         };
       }
     }
-    catch (error: any) {
-      console.error(`Error fetching from Europe PMC: ${error.message}`);
+    catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching from Europe PMC: ${msg}`);
       return {
         found: false,
         sourceId: null,
         sourceUrl: null,
         evidenceRaw: null,
         confidenceScore: 0.2,
-        confidenceFlags: ['network_error', error.message],
+        confidenceFlags: ['network_error', msg],
       };
     }
 
