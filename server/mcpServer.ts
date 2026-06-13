@@ -38,6 +38,7 @@ import {
 } from "./db";
 import { processQuestion } from "./questionRouter";
 import { buildEvidenceWithExcerpts } from "./pubmedAbstractFetcher";
+import { verdictAtDate, buildTemporalWindow, TOOLS_MANIFEST as TEMPORAL_TOOLS, type TemporalClaim } from "./temporalVersioning";
 
 const log = logger("mcpServer");
 
@@ -343,6 +344,45 @@ async function toolGetSourceVersion(params: Record<string, unknown>): Promise<un
   };
 }
 
+// ─── Tool: verify_claim_at_date ──────────────────────────────────────────────
+async function toolVerifyClaimAtDate(params: Record<string, unknown>): Promise<unknown> {
+  const claim = validateClaimParam(params);
+  const queryDateRaw = typeof params["query_date"] === "string" ? params["query_date"].trim() : "";
+  if (!queryDateRaw) {
+    throw { code: MCP_ERRORS.INVALID_PARAMS, message: "query_date must be a non-empty string (ISO 8601 or 'latest')" };
+  }
+
+  // Resolve query date
+  const queryDate = queryDateRaw === "latest" ? new Date() : new Date(queryDateRaw);
+  if (isNaN(queryDate.getTime())) {
+    throw { code: MCP_ERRORS.INVALID_PARAMS, message: `query_date '${queryDateRaw}' is not a valid ISO 8601 date` };
+  }
+
+  // Build a synthetic TemporalClaim from the claim text (no DB lookup needed for the date check)
+  // validFrom defaults to 2000-01-01 (covers all modern science); validUntil is null (open-ended)
+  const temporalClaim: TemporalClaim = {
+    id: 0,
+    verdict: "Insufficient Evidence",
+    claimText: claim,
+    validFrom: new Date(2000, 0, 1),
+    validUntil: null,
+  };
+
+  const temporalResult = verdictAtDate(temporalClaim, queryDate);
+  const window = buildTemporalWindow([queryDate.getFullYear()]);
+
+  return {
+    claim,
+    queryDate: queryDate.toISOString().slice(0, 10),
+    temporallyValid: temporalResult.temporallyValid,
+    validFrom: window.validFrom.toISOString().slice(0, 10),
+    validUntil: window.validUntil ? window.validUntil.toISOString().slice(0, 10) : null,
+    staleSince: temporalResult.staleSince ? temporalResult.staleSince.toISOString().slice(0, 10) : null,
+    reason: temporalResult.reason ?? null,
+    note: "Temporal window derived from query date. For full verdict, use verify_claim with the claim text.",
+  };
+}
+
 // ─── Tool: ask_question ───────────────────────────────────────────────────────
 async function toolAskQuestion(params: Record<string, unknown>): Promise<unknown> {
   const question = typeof params["question"] === "string" ? params["question"].trim() : "";
@@ -436,6 +476,11 @@ const TOOLS: Record<string, { description: string; handler: ToolHandler; inputSc
       additionalProperties: false,
     },
     handler: async (params) => toolGetSourceVersion(params),
+  },
+  verify_claim_at_date: {
+    description: TEMPORAL_TOOLS[0].description,
+    inputSchema: TEMPORAL_TOOLS[0].inputSchema as Record<string, unknown>,
+    handler: async (params) => toolVerifyClaimAtDate(params),
   },
   ask_question: {
     description:
