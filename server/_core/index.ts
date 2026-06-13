@@ -24,6 +24,7 @@ import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { registerAnswerRoute } from "../answerRoute";
+import { registerMcpServer } from "../mcpServer";
 import { registerSubmitClaimRoute } from "../submitClaimRoute";
 import { registerClaimPageRoute } from "../claimPageRoute";
 import { registerWikiPageRoute } from "../wikiPageRoute";
@@ -618,7 +619,7 @@ async function startServer() {
           "Autonomous multi-vertical scientific claims verification platform. Verifies molecular, structural, and biological claims against authoritative databases: PDB, PubChem, PubMed, UniProt, PMC Open Access. Compatible with Microsoft Scout and MCP-enabled agents.",
         version: "1.0.0",
         url: SITE_ORIGIN,
-        mcp_endpoint: `${SITE_ORIGIN}/mcp`,
+        mcp_endpoint: `${SITE_ORIGIN}/api/mcp`,
         tools: MCP_TOOLS,
         resources: [
           {
@@ -692,61 +693,17 @@ async function startServer() {
     res.on("close", () => clearInterval(heartbeat));
   });
 
+  // ── /mcp forwards to the full MCP server implementation at /api/mcp ─────
+  // Kept for backward compatibility with agents that discovered the old endpoint.
   app.post("/mcp", express.json(), (req, res) => {
-    const { method, id } = req.body || {};
-    res.set({
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      // Billing / plan headers for MCP consumers
-      "X-RateLimit-Limit": "60",
-      "X-RateLimit-Remaining": "59",
-      "X-Plan-Tier": "free",
-      "X-Credits-Used": "1",
-      "X-Credits-Remaining": "unlimited",
-    });
-    if (method === "initialize") {
-      return res.json({
+    // Forward to the real handler — preserves all headers, auth, rate limiting
+    req.url = "/api/mcp";
+    (app as unknown as { _router: { handle: (req: unknown, res: unknown, next: () => void) => void } })._router.handle(req, res, () => {
+      res.status(404).json({
         jsonrpc: "2.0",
-        id,
-        result: {
-          protocolVersion: "2024-11-05",
-          capabilities: { tools: {}, resources: {} },
-          serverInfo: { name: "Truth Desk", version: "1.0.0" },
-        },
+        id: (req.body as Record<string, unknown>)?.["id"] ?? null,
+        error: { code: -32601, message: "Method not found" },
       });
-    }
-    if (method === "tools/list") {
-      return res.json({ jsonrpc: "2.0", id, result: { tools: MCP_TOOLS } });
-    }
-    if (method === "resources/list") {
-      return res.json({
-        jsonrpc: "2.0",
-        id,
-        result: {
-          resources: [
-            {
-              uri: `${SITE_ORIGIN}/llms.txt`,
-              name: "AI Instructions",
-              mimeType: "text/plain",
-            },
-            {
-              uri: `${SITE_ORIGIN}/api/public/claims.json`,
-              name: "Claims Registry",
-              mimeType: "application/json",
-            },
-            {
-              uri: `${SITE_ORIGIN}/api/md`,
-              name: "Platform Summary",
-              mimeType: "text/markdown",
-            },
-          ],
-        },
-      });
-    }
-    return res.status(404).json({
-      jsonrpc: "2.0",
-      id,
-      error: { code: -32601, message: "Method not found" },
     });
   });
 
@@ -1801,6 +1758,7 @@ async function startServer() {
   registerVerifyClaimRoute(app);
   // Public question-to-claim answer endpoint (Phase 110)
   registerAnswerRoute(app);
+  registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);
   registerClaimPageRoute(app);
