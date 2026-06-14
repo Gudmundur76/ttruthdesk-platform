@@ -1,0 +1,74 @@
+/**
+ * proteinSupplement.test.ts
+ * Unit tests for server/verticalAdapters/proteinSupplement.ts
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  mockFetch: vi.fn(),
+  mockSynthesise: vi.fn(),
+  mockApplySynthesis: vi.fn(),
+}));
+
+vi.stubGlobal("fetch", mocks.mockFetch);
+vi.mock("./evidenceSynthesizer", () => ({
+  synthesiseEvidence: mocks.mockSynthesise,
+  applySynthesis: mocks.mockApplySynthesis,
+}));
+
+describe("proteinSupplementAdapter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    mocks.mockSynthesise.mockResolvedValue({
+      found: true, confidenceScore: 0.80, confidenceFlags: ["LLM_SYNTHESIS"], summary: "Evidence found",
+    });
+    mocks.mockApplySynthesis.mockImplementation((_b: unknown, s: { found: boolean; confidenceScore: number; confidenceFlags: string[] }) => ({
+      found: s.found, sourceId: null, sourceUrl: null, evidenceRaw: null,
+      confidenceScore: s.confidenceScore, confidenceFlags: s.confidenceFlags,
+    }));
+    mocks.mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ esearchresult: { count: "9", idlist: ["1", "2", "3"] } }),
+    });
+  });
+
+  it("is registered with domainKey 'protein_supplement'", async () => {
+    const { registry } = await import("./types");
+    await import("./proteinSupplement");
+    const adapter = registry.get("protein_supplement");
+    expect(adapter).toBeDefined();
+    expect(adapter?.domainKey).toBe("protein_supplement");
+  });
+
+  it("returns found=true when evidence is synthesised", async () => {
+    const { registry } = await import("./types");
+    await import("./proteinSupplement");
+    const adapter = registry.get("protein_supplement");
+    if (!adapter) throw new Error("Adapter not registered");
+    const result = await adapter.lookupEvidence({
+      claimText: "Whey protein supplementation increases muscle mass",
+      extractedValue: "whey protein",
+    });
+    expect(result.found).toBe(true);
+  });
+
+  it("returns found=false when synthesis says not found", async () => {
+    mocks.mockSynthesise.mockResolvedValueOnce({
+      found: false, confidenceScore: 0.1, confidenceFlags: ["NO_EVIDENCE"], summary: "No evidence",
+    });
+    mocks.mockApplySynthesis.mockImplementationOnce((_b: unknown, s: { found: boolean; confidenceScore: number; confidenceFlags: string[] }) => ({
+      found: s.found, sourceId: null, sourceUrl: null, evidenceRaw: null,
+      confidenceScore: s.confidenceScore, confidenceFlags: s.confidenceFlags,
+    }));
+    const { registry } = await import("./types");
+    await import("./proteinSupplement");
+    const adapter = registry.get("protein_supplement");
+    if (!adapter) throw new Error("Adapter not registered");
+    const result = await adapter.lookupEvidence({
+      claimText: "Unknown supplement XYZ builds muscle instantly",
+      extractedValue: null,
+    });
+    expect(result.found).toBe(false);
+  });
+});
