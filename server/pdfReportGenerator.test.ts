@@ -1,9 +1,12 @@
 /**
  * pdfReportGenerator.test.ts
  * Unit tests for server/pdfReportGenerator.ts
- * NOTE: PDF generation uses puppeteer/chromium which can be slow in CI — 15s timeout.
+ *
+ * puppeteer-core is mocked so no real Chromium is needed — tests are fast and CI-safe.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const FAKE_PDF = Buffer.from("%PDF-1.4 fake pdf content for testing");
 
 const mocks = vi.hoisted(() => ({
   mockGetDocumentById: vi.fn(),
@@ -11,11 +14,26 @@ const mocks = vi.hoisted(() => ({
   mockGetAuditReportByDocument: vi.fn(),
 }));
 
+// Mock the DB helpers
 vi.mock("./db", () => ({
   getDocumentById: mocks.mockGetDocumentById,
   getClaimsByDocument: mocks.mockGetClaimsByDocument,
   getAuditReportByDocument: mocks.mockGetAuditReportByDocument,
 }));
+
+// Mock puppeteer-core so no real Chromium is launched in CI
+vi.mock("puppeteer-core", () => ({
+  default: {
+    launch: vi.fn().mockResolvedValue({
+      newPage: vi.fn().mockResolvedValue({
+        setContent: vi.fn().mockResolvedValue(undefined),
+        pdf: vi.fn().mockResolvedValue(FAKE_PDF),
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    }),
+  },
+}));
+
 vi.mock("./logger", () => ({
   logger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   errData: vi.fn((e: unknown) => ({ err: String(e) })),
@@ -35,8 +53,7 @@ describe("generatePdfReport()", () => {
     await expect(generatePdfReport(999)).rejects.toThrow();
   });
 
-  // PDF generation uses a real PDF library which can be slow in CI — give it 15s
-  it("returns a Buffer when document exists", { timeout: 15000 }, async () => {
+  it("returns a Buffer when document exists", async () => {
     mocks.mockGetDocumentById.mockResolvedValue({
       id: 1,
       title: "Test Paper",
