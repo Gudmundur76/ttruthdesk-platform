@@ -7,6 +7,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { siaHarnessRouter } from "./siaHarnessRouter";
 import { questionRouter } from "./questionRouter";
+import { billingRouter } from "./billingRouter";
 import {
   getCitationChainByDocument,
   getCitationChainStats,
@@ -5005,5 +5006,7 @@ Respond in this exact structure:
   sia: siaHarnessRouter,
   // ─── Question-to-Claim Interface (Phase 110) ─────────────────────────────────
   questions: questionRouter,
+  // --- Pricing / Billing (Phase 133) ---
+  billing: billingRouter,
 });
 export type AppRouter = typeof appRouter;

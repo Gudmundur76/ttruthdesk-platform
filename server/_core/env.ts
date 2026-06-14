@@ -64,4 +64,8 @@ export const ENV = {
   // TRAINING_CORPUS_PATH: absolute path to the JSONL corpus file on the training host.
   trainingCorpusEnabled: process.env.TRAINING_CORPUS_ENABLED === "true",
   trainingCorpusPath: process.env.TRAINING_CORPUS_PATH ?? "/data/training/claims_corpus.jsonl",
+  // Pricing lead notifications
+  // Set ADMIN_NOTIFY_EMAIL to receive new pricing access request notifications via Forge.
+  // Falls back to Telegram channel notification if not set.
+  adminNotifyEmail: process.env.ADMIN_NOTIFY_EMAIL ?? "",
 };

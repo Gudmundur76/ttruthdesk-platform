@@ -88,6 +88,7 @@ const Trust = lazy(() => import("@/pages/Trust"));
 const ApiDocs = lazy(() => import("@/pages/ApiDocs"));
 const SavedResearch = lazy(() => import("@/pages/SavedResearch"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
+const Pricing = lazy(() => import("@/pages/Pricing"));
 
 function Router() {
   return (
@@ -151,6 +152,7 @@ function Router() {
         <Route path="/docs/api" component={ApiDocs} />
         <Route path="/saved-research" component={SavedResearch} />
         <Route path="/chat" component={ChatPage} />
+        <Route path="/pricing" component={Pricing} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

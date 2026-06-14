@@ -2480,3 +2480,33 @@ export const claimEmbeddings = mysqlTable(
 );
 export type ClaimEmbedding = typeof claimEmbeddings.$inferSelect;
 export type InsertClaimEmbedding = typeof claimEmbeddings.$inferInsert;
+
+// ─── Pricing Leads (Phase 133) ────────────────────────────────────────────────
+// Stores "Request Access" form submissions from the /pricing page.
+// Each row represents one inbound lead with their chosen tier and contact info.
+// Notifications are dispatched via Telegram (if configured) or Forge email.
+export const pricingLeads = mysqlTable(
+  "pricing_leads",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull(),
+    organisation: varchar("organisation", { length: 255 }).notNull(),
+    tier: mysqlEnum("tier", ["starter", "diligence", "platform_pilot"]).notNull(),
+    useCase: text("useCase"),
+    status: mysqlEnum("status", ["new", "contacted", "converted", "declined"])
+      .default("new")
+      .notNull(),
+    notifiedAt: int("notifiedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull().onUpdateNow(),
+  },
+  t => ({
+    tierIdx: index("pl_tier_idx").on(t.tier),
+    statusIdx: index("pl_status_idx").on(t.status),
+    createdAtIdx: index("pl_created_at_idx").on(t.createdAt),
+  })
+);
+export type PricingLead = typeof pricingLeads.$inferSelect;
+export type InsertPricingLead = typeof pricingLeads.$inferInsert;
+
