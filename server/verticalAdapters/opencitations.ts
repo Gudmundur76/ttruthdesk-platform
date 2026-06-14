@@ -365,6 +365,8 @@ async function lookupByDoi(doi: string): Promise<EvidenceResult> {
       publicationType,
       publisher: meta.publisher || null,
       citationCount,
+      // Phase 116: fraction of incoming citations that are self-citations
+      selfCitationFraction: citations.length > 0 ? selfCiteCount / citations.length : null,
       citationSample: citations.map(c => ({
         oci:      c.oci,
         citing:   c.citing,

@@ -19,6 +19,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import { checkRateLimit as checkDbRateLimit } from "./_core/rateLimit";
+import { scanLocalContradictions } from "./contradictionDetector";
 import { getDb } from "./db";
 import {
   claims,
@@ -530,6 +531,19 @@ export function createApiV2Router(): Router {
 
     if (entityRows.length === 0) return apiError(res, 404, "Entity not found");
     return apiOk(res, { entity: entityRows[0], relations: relationsRows });
+  });
+
+  // ── GET /api/v2/claims/:id/contradictions (Phase 117) ───────────────────────
+
+  router.get("/claims/:id/contradictions", async (req, res) => {
+    const claimId = parseInt(req.params.id, 10);
+    if (isNaN(claimId)) return apiError(res, 400, "Invalid claim ID");
+    try {
+      const result = await scanLocalContradictions(claimId);
+      return apiOk(res, result);
+    } catch {
+      return apiError(res, 503, "Contradiction scan failed");
+    }
   });
 
   // ── GET /api/v2/audit/:documentId ─────────────────────────────────────────

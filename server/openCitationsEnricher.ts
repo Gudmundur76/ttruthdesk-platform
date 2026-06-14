@@ -7,8 +7,8 @@
  * once per claim that has a DOI in its text or extractedValue.
  *
  * Returns:
- *   { citationAuthorityScore: number, isRetracted: boolean } when a DOI is
- *   found and the OC lookup succeeds.
+ *   { citationAuthorityScore, isRetracted, citationCount, selfCitationFraction }
+ *   when a DOI is found and the OC lookup succeeds.
  *
  *   null when no DOI is present (claim is not a citation claim) or the lookup
  *   returns found:false.
@@ -36,6 +36,12 @@ export interface OcEnrichmentResult {
   citationCount: number;
   /** DOI that was looked up */
   doi: string;
+  /**
+   * Fraction of incoming citations that are self-citations [0, 1].
+   * Computed as selfCiteCount / citationSample.length.
+   * null when the adapter did not return citation sample data.
+   */
+  selfCitationFraction: number | null;
 }
 
 /**
@@ -87,16 +93,25 @@ export async function openCitationsEnrichClaim(
       f.toLowerCase().includes("retraction")
     );
 
-    // Extract citation count from evidenceRaw if available
+    // Extract citation count and self-citation fraction from evidenceRaw if available
     const raw = evidence.evidenceRaw as Record<string, unknown> | null;
     const citationCount =
       typeof raw?.citationCount === "number" ? raw.citationCount : 0;
+
+    // Phase 116: extract selfCitationFraction from evidenceRaw
+    // The opencitations adapter computes this as selfCiteCount / citationSample.length
+    // and stores it in evidenceRaw.selfCitationFraction
+    const selfCitationFraction =
+      typeof raw?.selfCitationFraction === "number"
+        ? raw.selfCitationFraction
+        : null;
 
     return {
       citationAuthorityScore: evidence.confidenceScore,
       isRetracted,
       citationCount,
       doi,
+      selfCitationFraction,
     };
   } catch (err) {
     log.warn("[Stage3.5/OC] Enrichment lookup error (non-fatal):", errData(err));
