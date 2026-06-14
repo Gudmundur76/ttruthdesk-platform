@@ -36,6 +36,8 @@ import { registerBadgeRoute } from "../badgeRoute";
 import { registerEmbedWidgetRoutes } from "../embedWidgetRoute";
 import { registerEmbedRoutes } from "../embedRoutes";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
+import { registerDreamStagingRoute } from "../dreamStagingRoute";
+import { registerBackfillEmbeddingsRoute } from "../backfillEmbeddingsRoute";
 import { createCoordRouter } from "../coordApi/index";
 import { createApiV2Router } from "../apiV2Router";
 import { createExportRouter } from "../exportRouter";
@@ -1806,6 +1808,8 @@ async function startServer() {
   // Public translate-and-search REST API — natural language → cited evidence
   registerTranslateAndSearchApi(app);
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
+  registerDreamStagingRoute(app, requireOwnerOrAdmin);
+  registerBackfillEmbeddingsRoute(app, requireOwnerOrAdmin);
 
   // PDF report export endpoint (authenticated)
   app.get("/api/reports/:documentId/pdf", async (req, res) => {

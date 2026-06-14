@@ -30,13 +30,13 @@
  */
 
 import { getDb, updateClaimVerdict } from "./db";
+import { dispatchVerdictChanged } from "./verdictChangeDispatcher";
 import { claimScoreHistory } from "../drizzle/schema";
 import { computeCompositeTruth } from "./compositeTruthEngine";
 import { getCitationChainStats } from "./citationChainAnalyzer";
 import { sql } from "drizzle-orm";
 import { logger, errData } from "./logger";
 const log = logger("reEvaluationEngine");
-
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ export async function getAffectedDocumentIds(
       ORDER BY sourceDocId
     `);
 
-    const result = (rows as unknown) as Array<Record<string, unknown>>;
+    const result = rows as unknown as Array<Record<string, unknown>>;
     return result.map(r => Number(r.sourceDocId)).filter(id => !isNaN(id));
   } catch (err) {
     log.error("[ReEval] getAffectedDocumentIds failed:", errData(err));
@@ -136,7 +136,7 @@ export async function getEligibleClaimsForDocument(
       ORDER BY c.id
     `);
 
-    const result = (rows as unknown) as Array<Record<string, unknown>>;
+    const result = rows as unknown as Array<Record<string, unknown>>;
     return result.map(r => ({
       claimId: Number(r.claimId),
       documentId: Number(r.documentId),
@@ -178,9 +178,7 @@ export async function reScoreClaim(
       >[0]["upstreamVerdict"],
       provenanceScore: claim.provenanceScore,
       chainDistortionScore:
-        chainStats.totalCitingPapers > 0
-          ? chainStats.maxDistortionScore
-          : null,
+        chainStats.totalCitingPapers > 0 ? chainStats.maxDistortionScore : null,
       chainHopCount: chainStats.totalCitingPapers,
     });
 
@@ -206,6 +204,17 @@ export async function reScoreClaim(
     await updateClaimVerdict(claim.claimId, {
       compositeTruthScore: result.score,
       compositeTruthLabel: result.label,
+    });
+    // Sprint 0 Fix 2: fire webhook fan-out + loop event on verdict change (non-fatal)
+    dispatchVerdictChanged({
+      claimId: claim.claimId,
+      documentId: claim.documentId,
+      previousLabel: claim.compositeTruthLabel,
+      newLabel: result.label,
+      previousScore: claim.compositeTruthScore,
+      newScore: result.score,
+    }).catch(() => {
+      /* non-fatal */
     });
 
     // Persist score snapshot for the Claim Confidence Timeline (non-fatal)
@@ -269,11 +278,13 @@ export async function reScoreClaim(
  * @param opts.documentIds    Optional explicit list of document IDs to re-evaluate
  *                            (overrides the lookback-based discovery)
  */
-export async function runReEvaluationLoop(opts: {
-  lookbackHours?: number;
-  batchSize?: number;
-  documentIds?: number[];
-} = {}): Promise<ReEvalRunResult> {
+export async function runReEvaluationLoop(
+  opts: {
+    lookbackHours?: number;
+    batchSize?: number;
+    documentIds?: number[];
+  } = {}
+): Promise<ReEvalRunResult> {
   const t0 = Date.now();
   const lookbackHours = opts.lookbackHours ?? 24;
   const batchSize = Math.min(opts.batchSize ?? 500, 2000);

@@ -20,11 +20,21 @@ const mocks = vi.hoisted(() => ({
   mockGetDb: vi.fn(),
 }));
 
-vi.mock("./layers/frictionLayer", () => ({ runFrictionGate: mocks.mockRunFrictionGate }));
-vi.mock("./safeModeController", () => ({ getSafeModeStatus: mocks.mockGetSafeModeStatus }));
-vi.mock("./layers/truthLayer", () => ({ runTruthLayer: mocks.mockRunTruthLayer }));
-vi.mock("./layers/selfPromptLayer", () => ({ runSelfPromptLayer: mocks.mockRunSelfPromptLayer }));
-vi.mock("./layers/frontierLayer", () => ({ runFrontierLayer: mocks.mockRunFrontierLayer }));
+vi.mock("./layers/frictionLayer", () => ({
+  runFrictionGate: mocks.mockRunFrictionGate,
+}));
+vi.mock("./safeModeController", () => ({
+  getSafeModeStatus: mocks.mockGetSafeModeStatus,
+}));
+vi.mock("./layers/truthLayer", () => ({
+  runTruthLayer: mocks.mockRunTruthLayer,
+}));
+vi.mock("./layers/selfPromptLayer", () => ({
+  runSelfPromptLayer: mocks.mockRunSelfPromptLayer,
+}));
+vi.mock("./layers/frontierLayer", () => ({
+  runFrontierLayer: mocks.mockRunFrontierLayer,
+}));
 vi.mock("./layers/metaLayer", () => ({ runMetaLayer: mocks.mockRunMetaLayer }));
 vi.mock("./eventBus", () => ({
   markEventSkipped: mocks.mockMarkEventSkipped,
@@ -72,8 +82,15 @@ describe("loopOrchestrator — processEvent()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.mockGetDb.mockResolvedValue(makeDb());
-    mocks.mockRunFrictionGate.mockResolvedValue({ shouldProcess: true, actions: [], reason: null });
-    mocks.mockGetSafeModeStatus.mockResolvedValue({ active: false, reason: null });
+    mocks.mockRunFrictionGate.mockResolvedValue({
+      shouldProcess: true,
+      actions: [],
+      reason: null,
+    });
+    mocks.mockGetSafeModeStatus.mockResolvedValue({
+      active: false,
+      reason: null,
+    });
     mocks.mockRunTruthLayer.mockResolvedValue({ actions: [], verdicts: [] });
     mocks.mockRunSelfPromptLayer.mockResolvedValue({ actions: [] });
     mocks.mockRunFrontierLayer.mockResolvedValue({ ran: false, actions: [] });
@@ -103,22 +120,37 @@ describe("loopOrchestrator — processEvent()", () => {
       reason: "no_verifiable_payload",
     });
     const result = await processEvent(baseEvent);
-    expect(mocks.mockMarkEventSkipped).toHaveBeenCalledWith(1, "no_verifiable_payload");
+    expect(mocks.mockMarkEventSkipped).toHaveBeenCalledWith(
+      1,
+      "no_verifiable_payload"
+    );
     expect(result.converged).toBe(true);
     expect(result.convergenceReason).toBe("no_verifiable_payload");
   });
 
   it("skips non-document events in safe mode", async () => {
-    mocks.mockGetSafeModeStatus.mockResolvedValue({ active: true, reason: "high_error_rate" });
-    const scheduledEvent: LoopEvent = { ...baseEvent, eventType: "scheduled_tick" };
+    mocks.mockGetSafeModeStatus.mockResolvedValue({
+      active: true,
+      reason: "high_error_rate",
+    });
+    const scheduledEvent: LoopEvent = {
+      ...baseEvent,
+      eventType: "scheduled_tick",
+    };
     const result = await processEvent(scheduledEvent);
-    expect(mocks.mockMarkEventSkipped).toHaveBeenCalledWith(1, "safe_mode: high_error_rate");
+    expect(mocks.mockMarkEventSkipped).toHaveBeenCalledWith(
+      1,
+      "safe_mode: high_error_rate"
+    );
     expect(result.safeModeTriggered).toBe(true);
     expect(result.converged).toBe(true);
   });
 
   it("allows document_submitted events through safe mode and runs truth layer", async () => {
-    mocks.mockGetSafeModeStatus.mockResolvedValue({ active: true, reason: "high_error_rate" });
+    mocks.mockGetSafeModeStatus.mockResolvedValue({
+      active: true,
+      reason: "high_error_rate",
+    });
     await processEvent(baseEvent);
     expect(mocks.mockMarkEventSkipped).not.toHaveBeenCalled();
     expect(mocks.mockRunTruthLayer).toHaveBeenCalledOnce();
@@ -134,11 +166,17 @@ describe("loopOrchestrator — processEvent()", () => {
     });
     await processEvent(baseEvent);
     expect(mocks.mockPublishEvent).toHaveBeenCalledTimes(2);
-    expect(mocks.mockPublishEvent).toHaveBeenCalledWith("verdict_complete", expect.objectContaining({ claimId: 10 }));
+    expect(mocks.mockPublishEvent).toHaveBeenCalledWith(
+      "verdict_complete",
+      expect.objectContaining({ claimId: 10 })
+    );
   });
 
   it("does not run frontier layer in safe mode", async () => {
-    mocks.mockGetSafeModeStatus.mockResolvedValue({ active: true, reason: "high_error_rate" });
+    mocks.mockGetSafeModeStatus.mockResolvedValue({
+      active: true,
+      reason: "high_error_rate",
+    });
     await processEvent(baseEvent);
     expect(mocks.mockRunFrontierLayer).not.toHaveBeenCalled();
   });
@@ -182,5 +220,81 @@ describe("loopOrchestrator — getLoopConfig()", () => {
     mocks.mockGetDb.mockResolvedValue(null);
     const config = await getLoopConfig();
     expect(config).toBeNull();
+  });
+});
+
+// ─── Fix 3: Dream Safety Gate ─────────────────────────────────────────────────
+describe("loopOrchestrator — dream_session_complete safety gate", () => {
+  const dreamEvent: LoopEvent = {
+    ...baseEvent,
+    id: 99,
+    eventType: "dream_session_complete",
+    entryLayer: 0,
+    payload: {
+      hypotheses: [
+        { gapId: 10, confidence: 0.9 }, // above threshold → auto-promote
+        { gapId: 20, confidence: 0.5 }, // below threshold → stage
+        { gapId: 30, confidence: 0.75 }, // exactly at threshold → auto-promote
+      ],
+    },
+  };
+
+  it("auto-promotes hypotheses at or above 0.75 and publishes gap_closed", async () => {
+    const db = makeDb();
+    mocks.mockGetDb.mockResolvedValue(db);
+    await processEvent(dreamEvent);
+
+    // 2 hypotheses are auto-promoted (confidence 0.9 and 0.75)
+    const insertCalls = db.insert.mock.calls;
+    const autoCalls = insertCalls.filter((_: unknown, i: number) => {
+      const valuesCalls = db.values.mock.calls;
+      return valuesCalls[i]?.[0]?.status === "auto_promoted";
+    });
+    // publishEvent should be called with gap_closed for gapId 10 and 30
+    const gapClosedCalls = mocks.mockPublishEvent.mock.calls.filter(
+      (c: unknown[]) => c[0] === "gap_closed"
+    );
+    expect(gapClosedCalls.length).toBe(2);
+    expect(
+      gapClosedCalls
+        .map((c: unknown[]) => (c[1] as { gapId: number }).gapId)
+        .sort()
+    ).toEqual([10, 30]);
+  });
+
+  it("stages hypotheses below 0.75 without publishing gap_closed", async () => {
+    const db = makeDb();
+    mocks.mockGetDb.mockResolvedValue(db);
+    await processEvent(dreamEvent);
+
+    // publishEvent should NOT be called with gap_closed for gapId 20
+    const gapClosedCalls = mocks.mockPublishEvent.mock.calls.filter(
+      (c: unknown[]) => c[0] === "gap_closed"
+    );
+    const gapIds = gapClosedCalls.map(
+      (c: unknown[]) => (c[1] as { gapId: number }).gapId
+    );
+    expect(gapIds).not.toContain(20);
+  });
+
+  it("includes dream_wake action in result with auto-promoted/staged counts", async () => {
+    const db = makeDb();
+    mocks.mockGetDb.mockResolvedValue(db);
+    const result = await processEvent(dreamEvent);
+    const wakeAction = result.actionsExecuted.find(
+      a => a.type === "dream_wake"
+    );
+    expect(wakeAction).toBeDefined();
+    expect(wakeAction!.description).toContain("2 auto-promoted");
+    expect(wakeAction!.description).toContain("1 staged");
+  });
+
+  it("skips DB insert gracefully when DB is unavailable", async () => {
+    mocks.mockGetDb.mockResolvedValue(null);
+    // Should not throw even with no DB
+    const result = await processEvent(dreamEvent);
+    expect(
+      result.actionsExecuted.find(a => a.type === "dream_wake")
+    ).toBeDefined();
   });
 });

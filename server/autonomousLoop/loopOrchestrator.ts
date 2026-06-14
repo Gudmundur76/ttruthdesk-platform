@@ -13,7 +13,7 @@
  */
 
 import { getDb } from "../db";
-import { loopRun, loopConfig } from "../../drizzle/schema";
+import { loopRun, loopConfig, dreamStagingQueue } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import {
   type LoopEvent,
@@ -30,6 +30,10 @@ import { runFrontierLayer } from "./layers/frontierLayer";
 import { runMetaLayer } from "./layers/metaLayer";
 import { shouldConverge, type ConvergenceInput } from "./convergenceGate";
 import { getSafeModeStatus } from "./safeModeController";
+
+// ─── Dream Safety Gate ────────────────────────────────────────────────────────
+/** Hypotheses at or above this confidence are auto-promoted and ingested immediately. */
+export const AUTO_PROMOTE_THRESHOLD = 0.75;
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,7 +64,7 @@ export interface LoopRunResult {
  * Process a single event through the autonomous loop.
  * Returns the loop run result.
  */
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
   const startTime = Date.now();
   const layersExecuted: number[] = [];
@@ -78,13 +82,21 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
 
       if (!frictionResult.shouldProcess) {
         // Event has no verifiable payload or is redundant → CONVERGE
-        await markEventSkipped(event.id, frictionResult.reason ?? "friction_gate_rejected");
+        await markEventSkipped(
+          event.id,
+          frictionResult.reason ?? "friction_gate_rejected"
+        );
         converged = true;
         convergenceReason = frictionResult.reason ?? "friction_gate_rejected";
         return await persistLoopRun({
-          event, layersExecuted, actionsExecuted,
-          converged, convergenceReason, healthScore,
-          safeModeTriggered, startTime,
+          event,
+          layersExecuted,
+          actionsExecuted,
+          converged,
+          convergenceReason,
+          healthScore,
+          safeModeTriggered,
+          startTime,
         });
       }
 
@@ -95,27 +107,36 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
     const safeMode = await getSafeModeStatus();
     if (safeMode.active) {
       // In safe mode: only user-submitted claims, no frontier generation
-      if (event.eventType !== "document_submitted" && event.eventType !== "manual_review_complete") {
+      if (
+        event.eventType !== "document_submitted" &&
+        event.eventType !== "manual_review_complete"
+      ) {
         await markEventSkipped(event.id, `safe_mode: ${safeMode.reason}`);
         converged = true;
         convergenceReason = `safe_mode_active: ${safeMode.reason}`;
         safeModeTriggered = true;
         return await persistLoopRun({
-          event, layersExecuted, actionsExecuted,
-          converged, convergenceReason, healthScore,
-          safeModeTriggered, startTime,
+          event,
+          layersExecuted,
+          actionsExecuted,
+          converged,
+          convergenceReason,
+          healthScore,
+          safeModeTriggered,
+          startTime,
         });
       }
     }
 
     // ── L1: Truth Layer ──────────────────────────────────────────────────────
-    if (event.entryLayer <= 1 && (
-      event.eventType === "source_data_changed" ||
-      event.eventType === "source_status_change" ||
-      event.eventType === "source_version_changed" ||
-      event.eventType === "document_submitted" ||
-      event.eventType === "paper_discovered"
-    )) {
+    if (
+      event.entryLayer <= 1 &&
+      (event.eventType === "source_data_changed" ||
+        event.eventType === "source_status_change" ||
+        event.eventType === "source_version_changed" ||
+        event.eventType === "document_submitted" ||
+        event.eventType === "paper_discovered")
+    ) {
       const truthResult = await runTruthLayer(event);
       layersExecuted.push(1);
       actionsExecuted.push(...truthResult.actions);
@@ -132,16 +153,17 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
     }
 
     // ── L2: Self-Prompt Layer ────────────────────────────────────────────────
-    if (event.entryLayer <= 2 && (
-      event.eventType === "verdict_complete" ||
-      event.eventType === "contradiction_found" ||
-      event.eventType === "gap_closed" ||
-      event.eventType === "coverage_gap" ||
-      event.eventType === "hypothesis_resolved" ||
-      event.eventType === "loop_action_complete" ||
-      event.eventType === "scheduled_tick" ||
-      event.eventType === "confidence_review_needed"
-    )) {
+    if (
+      event.entryLayer <= 2 &&
+      (event.eventType === "verdict_complete" ||
+        event.eventType === "contradiction_found" ||
+        event.eventType === "gap_closed" ||
+        event.eventType === "coverage_gap" ||
+        event.eventType === "hypothesis_resolved" ||
+        event.eventType === "loop_action_complete" ||
+        event.eventType === "scheduled_tick" ||
+        event.eventType === "confidence_review_needed")
+    ) {
       const selfPromptResult = await runSelfPromptLayer(event);
       layersExecuted.push(2);
       actionsExecuted.push(...selfPromptResult.actions);
@@ -170,19 +192,58 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
     // dream_pattern_detected → route to meta-agent for health check (already L4)
     // dream_session_complete → publish paper_discovered for each new hypothesis
     if (event.eventType === "dream_session_complete") {
-      const hypotheses = (event.payload.hypotheses as Array<{ entityId?: number; gapId?: number }>) ?? [];
+      const hypotheses =
+        (event.payload.hypotheses as Array<{
+          entityId?: number;
+          gapId?: number;
+          confidence?: number;
+          [key: string]: unknown;
+        }>) ?? [];
+      const db = await getDb();
+      let autoPromoted = 0;
+      let staged = 0;
       for (const h of hypotheses.slice(0, 5)) {
-        if (h.gapId) {
-          await publishEvent("gap_closed", {
-            gapId: h.gapId,
-            triggeredBy: event.id,
-            source: "dream_session",
+        const confidence = typeof h.confidence === "number" ? h.confidence : 0;
+        if (confidence >= AUTO_PROMOTE_THRESHOLD) {
+          // Auto-promote: insert as auto_promoted and publish gap_closed
+          if (db) {
+            await db.insert(dreamStagingQueue).values({
+              sessionEventId: event.id,
+              hypothesis: h,
+              confidence,
+              status: "auto_promoted",
+              createdAt: Date.now(),
+            });
+          }
+          if (h.gapId) {
+            await publishEvent("gap_closed", {
+              gapId: h.gapId,
+              triggeredBy: event.id,
+              source: "dream_session",
+            });
+          }
+          autoPromoted++;
+        } else {
+          // Stage for human review: insert as pending, do NOT ingest
+          if (db) {
+            await db.insert(dreamStagingQueue).values({
+              sessionEventId: event.id,
+              hypothesis: h,
+              confidence,
+              status: "pending",
+              createdAt: Date.now(),
+            });
+          }
+          await publishEvent("dream_hypothesis_staged" as never, {
+            sessionEventId: event.id,
+            confidence,
           });
+          staged++;
         }
       }
       actionsExecuted.push({
         type: "dream_wake",
-        description: `Dream session complete: ${hypotheses.length} hypotheses published back to loop`,
+        description: `Dream session complete: ${autoPromoted} auto-promoted, ${staged} staged for review`,
         priority: 60,
         result: "success",
       });
@@ -202,14 +263,18 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
     }
 
     const loopRunId = await persistLoopRun({
-      event, layersExecuted, actionsExecuted,
-      converged, convergenceReason, healthScore,
-      safeModeTriggered, startTime,
+      event,
+      layersExecuted,
+      actionsExecuted,
+      converged,
+      convergenceReason,
+      healthScore,
+      safeModeTriggered,
+      startTime,
     });
 
     await markEventProcessed(event.id, loopRunId.loopRunId);
     return loopRunId;
-
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     await markEventFailed(event.id, errorMessage);
@@ -233,7 +298,10 @@ async function persistLoopRun(params: {
   const durationMs = Date.now() - params.startTime;
 
   // Encode layers as bitmask
-  const layersBitmask = params.layersExecuted.reduce((acc, l) => acc | (1 << l), 0);
+  const layersBitmask = params.layersExecuted.reduce(
+    (acc, l) => acc | (1 << l),
+    0
+  );
 
   let loopRunId = 0;
   if (db) {
@@ -270,6 +338,9 @@ async function persistLoopRun(params: {
 export async function getLoopConfig() {
   const db = await getDb();
   if (!db) return null;
-  const [config] = await db.select().from(loopConfig).where(eq(loopConfig.id, 1));
+  const [config] = await db
+    .select()
+    .from(loopConfig)
+    .where(eq(loopConfig.id, 1));
   return config ?? null;
 }

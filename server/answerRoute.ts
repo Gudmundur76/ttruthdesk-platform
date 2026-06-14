@@ -34,9 +34,9 @@ import type { Request, Response, Express } from "express";
 import { processQuestion } from "./questionRouter";
 import { insertQuestion } from "./db";
 import { validateApiKey } from "./apiKeyService";
+import { checkRateLimit } from "./_core/rateLimit";
 import { logger, errData } from "./logger";
 const log = logger("answerRoute");
-
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 
@@ -82,12 +82,15 @@ setInterval(
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function handleAnswer(req: Request, res: Response): Promise<void> {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Test-Reset-RateLimit");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Test-Reset-RateLimit"
+  );
 
   if (req.method === "OPTIONS") {
     res.status(204).end();
@@ -95,8 +98,11 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
   }
 
   // Test-only: clear the IP's rate limit bucket when X-Test-Reset-RateLimit header is present
-   
-  if (process.env.NODE_ENV === "test" && req.headers["x-test-reset-ratelimit"] === "1") {
+
+  if (
+    process.env.NODE_ENV === "test" &&
+    req.headers["x-test-reset-ratelimit"] === "1"
+  ) {
     const resetIp =
       (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
       req.ip ??
@@ -124,15 +130,24 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
   }
 
   // Apply rate limiting for anonymous callers only
-  let rl = { allowed: true, remaining: 999, resetAt: Date.now() + ANON_WINDOW_MS };
+  let rl = {
+    allowed: true,
+    remaining: 999,
+    resetAt: Date.now() + ANON_WINDOW_MS,
+  };
   if (!isApiKeyHolder) {
     rl = checkAnonRateLimit(ip);
+    // DB-backed persistent check (fail-open)
+    const dbRl = await checkRateLimit(
+      ip,
+      "anon",
+      ANON_RATE_LIMIT,
+      ANON_WINDOW_MS
+    );
+    if (!dbRl.allowed) rl = { ...rl, allowed: false, remaining: 0 };
     res.setHeader("X-RateLimit-Limit", String(ANON_RATE_LIMIT));
     res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
-    res.setHeader(
-      "X-RateLimit-Reset",
-      String(Math.ceil(rl.resetAt / 1000))
-    );
+    res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
   } else {
     res.setHeader("X-RateLimit-Limit", "unlimited");
     res.setHeader("X-RateLimit-Remaining", "unlimited");
@@ -201,7 +216,10 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
           })
         )
         .catch(err =>
-          log.warn("[AnswerRoute] coverage_gap event publish failed:", errData(err))
+          log.warn(
+            "[AnswerRoute] coverage_gap event publish failed:",
+            errData(err)
+          )
         );
     }
 
@@ -233,7 +251,10 @@ export function registerAnswerRoute(app: Express): void {
   app.options("/api/public/answer", (_req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization"
+    );
     res.status(204).end();
   });
   app.post("/api/public/answer", handleAnswer);

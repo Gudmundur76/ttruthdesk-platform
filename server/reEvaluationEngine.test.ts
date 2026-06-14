@@ -33,8 +33,12 @@ vi.mock("./citationChainAnalyzer", () => ({
 
 // ─── Mock drizzle-orm sql tag ─────────────────────────────────────────────────
 
+vi.mock("./verdictChangeDispatcher", () => ({
+  dispatchVerdictChanged: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("drizzle-orm", async () => {
-  const actual = await vi.importActual<typeof import("drizzle-orm")>("drizzle-orm");
+  const actual =
+    await vi.importActual<typeof import("drizzle-orm")>("drizzle-orm");
   return {
     ...actual,
     sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
@@ -53,6 +57,7 @@ import {
   type ReEvalClaimInput,
 } from "./reEvaluationEngine";
 import { getDb, updateClaimVerdict } from "./db";
+import { dispatchVerdictChanged } from "./verdictChangeDispatcher";
 import { getCitationChainStats } from "./citationChainAnalyzer";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,7 +68,9 @@ function makeDb(executeResult: unknown[] = []) {
   };
 }
 
-function makeClaim(overrides: Partial<ReEvalClaimInput> = {}): ReEvalClaimInput {
+function makeClaim(
+  overrides: Partial<ReEvalClaimInput> = {}
+): ReEvalClaimInput {
   return {
     claimId: 1,
     documentId: 10,
@@ -402,9 +409,30 @@ describe("runReEvaluationLoop", () => {
   it("respects batchSize limit and stops early", async () => {
     // Return 3 claims per document, but batchSize = 2
     const db = makeDb([
-      { claimId: 1, documentId: 10, upstreamVerdict: "Supported", provenanceScore: 0.8, compositeTruthScore: null, compositeTruthLabel: null },
-      { claimId: 2, documentId: 10, upstreamVerdict: "Supported", provenanceScore: 0.7, compositeTruthScore: null, compositeTruthLabel: null },
-      { claimId: 3, documentId: 10, upstreamVerdict: "Supported", provenanceScore: 0.6, compositeTruthScore: null, compositeTruthLabel: null },
+      {
+        claimId: 1,
+        documentId: 10,
+        upstreamVerdict: "Supported",
+        provenanceScore: 0.8,
+        compositeTruthScore: null,
+        compositeTruthLabel: null,
+      },
+      {
+        claimId: 2,
+        documentId: 10,
+        upstreamVerdict: "Supported",
+        provenanceScore: 0.7,
+        compositeTruthScore: null,
+        compositeTruthLabel: null,
+      },
+      {
+        claimId: 3,
+        documentId: 10,
+        upstreamVerdict: "Supported",
+        provenanceScore: 0.6,
+        compositeTruthScore: null,
+        compositeTruthLabel: null,
+      },
     ]);
     vi.mocked(getDb).mockResolvedValue(db as never);
     vi.mocked(getCitationChainStats).mockResolvedValue({
@@ -424,8 +452,22 @@ describe("runReEvaluationLoop", () => {
 
   it("isolates per-claim errors — other claims still process", async () => {
     const db = makeDb([
-      { claimId: 1, documentId: 10, upstreamVerdict: "Supported", provenanceScore: 0.8, compositeTruthScore: null, compositeTruthLabel: null },
-      { claimId: 2, documentId: 10, upstreamVerdict: "Contradicted", provenanceScore: 0.5, compositeTruthScore: null, compositeTruthLabel: null },
+      {
+        claimId: 1,
+        documentId: 10,
+        upstreamVerdict: "Supported",
+        provenanceScore: 0.8,
+        compositeTruthScore: null,
+        compositeTruthLabel: null,
+      },
+      {
+        claimId: 2,
+        documentId: 10,
+        upstreamVerdict: "Contradicted",
+        provenanceScore: 0.5,
+        compositeTruthScore: null,
+        compositeTruthLabel: null,
+      },
     ]);
     vi.mocked(getDb).mockResolvedValue(db as never);
     vi.mocked(getCitationChainStats).mockResolvedValue({
@@ -444,12 +486,21 @@ describe("runReEvaluationLoop", () => {
     expect(result.claimsExamined).toBe(2);
     expect(result.claimsErrored).toBe(1);
     // Second claim should still have been processed
-    expect(result.claimsUpdated + result.claimsUnchanged + result.claimsErrored).toBe(2);
+    expect(
+      result.claimsUpdated + result.claimsUnchanged + result.claimsErrored
+    ).toBe(2);
   });
 
   it("handles getCitationChainStats failure gracefully (uses zero chain stats)", async () => {
     const db = makeDb([
-      { claimId: 5, documentId: 20, upstreamVerdict: "Supported", provenanceScore: 0.9, compositeTruthScore: null, compositeTruthLabel: null },
+      {
+        claimId: 5,
+        documentId: 20,
+        upstreamVerdict: "Supported",
+        provenanceScore: 0.9,
+        compositeTruthScore: null,
+        compositeTruthLabel: null,
+      },
     ]);
     vi.mocked(getDb).mockResolvedValue(db as never);
     vi.mocked(getCitationChainStats).mockRejectedValue(
@@ -480,9 +531,23 @@ describe("runReEvaluationLoop", () => {
 
     const db = makeDb([
       // Claim 1: will be updated (no prior label)
-      { claimId: 1, documentId: 30, upstreamVerdict: "Supported", provenanceScore: 0.8, compositeTruthScore: null, compositeTruthLabel: null },
+      {
+        claimId: 1,
+        documentId: 30,
+        upstreamVerdict: "Supported",
+        provenanceScore: 0.8,
+        compositeTruthScore: null,
+        compositeTruthLabel: null,
+      },
       // Claim 2: already has the correct label → unchanged
-      { claimId: 2, documentId: 30, upstreamVerdict: "Supported", provenanceScore: 0.8, compositeTruthScore: alreadyComputed.score, compositeTruthLabel: alreadyComputed.label },
+      {
+        claimId: 2,
+        documentId: 30,
+        upstreamVerdict: "Supported",
+        provenanceScore: 0.8,
+        compositeTruthScore: alreadyComputed.score,
+        compositeTruthLabel: alreadyComputed.label,
+      },
     ]);
     vi.mocked(getDb).mockResolvedValue(db as never);
     vi.mocked(getCitationChainStats).mockResolvedValue({
@@ -506,5 +571,96 @@ describe("runReEvaluationLoop", () => {
 
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(typeof result.durationMs).toBe("number");
+  });
+});
+
+describe("reScoreClaim — Fix 2: verdict flip dispatches events", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls dispatchVerdictChanged when verdict label changes", async () => {
+    const db = {
+      execute: vi.fn().mockResolvedValue([]),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onDuplicateKeyUpdate: vi.fn().mockResolvedValue(undefined),
+        }),
+      }),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+    vi.mocked(updateClaimVerdict).mockResolvedValue(undefined);
+
+    const claim = makeClaim({
+      claimId: 99,
+      documentId: 77,
+      compositeTruthLabel: "Supported",
+      compositeTruthScore: 0.9,
+      upstreamVerdict: "Contradicted",
+    });
+    const chainStats = { totalCitingPapers: 1, maxDistortionScore: 0.8 };
+
+    const result = await reScoreClaim(claim, chainStats);
+    // Give the fire-and-forget .catch() a tick to settle
+    await new Promise(r => setImmediate(r));
+
+    expect(result.status).toBe("updated");
+    expect(vi.mocked(dispatchVerdictChanged)).toHaveBeenCalledOnce();
+    const call = vi.mocked(dispatchVerdictChanged).mock.calls[0][0];
+    expect(call.claimId).toBe(99);
+    expect(call.documentId).toBe(77);
+    expect(call.previousLabel).toBe("Supported");
+  });
+
+  it("does NOT call dispatchVerdictChanged when verdict is unchanged", async () => {
+    vi.mocked(getDb).mockResolvedValue({
+      execute: vi.fn().mockResolvedValue([]),
+    } as never);
+    vi.mocked(updateClaimVerdict).mockResolvedValue(undefined);
+
+    // Make a claim where score and label will be identical to current
+    // computeCompositeTruth with Supported + high provenance → Supported ~0.8
+    // We set the stored values to match so idempotency fires
+    const claim = makeClaim({
+      claimId: 100,
+      documentId: 78,
+      compositeTruthLabel: null,
+      compositeTruthScore: null,
+    });
+    // With null stored values, idempotency won't fire → it will update
+    // But we want the unchanged path — set matching values
+    // The easiest way: mock getCitationChainStats to return 0 papers so score is deterministic
+    vi.mocked(getCitationChainStats).mockResolvedValueOnce({
+      totalCitingPapers: 0,
+      maxDistortionScore: 0,
+      dominantType: "faithful",
+    });
+    // Run once to get the actual computed label/score
+    const first = await reScoreClaim(claim, {
+      totalCitingPapers: 0,
+      maxDistortionScore: 0,
+    });
+    vi.mocked(dispatchVerdictChanged).mockClear();
+
+    // Now run again with the stored values matching the computed ones
+    const claimMatched = makeClaim({
+      claimId: 100,
+      documentId: 78,
+      compositeTruthLabel: first.newLabel,
+      compositeTruthScore: first.newScore,
+    });
+    vi.mocked(getCitationChainStats).mockResolvedValueOnce({
+      totalCitingPapers: 0,
+      maxDistortionScore: 0,
+      dominantType: "faithful",
+    });
+    const result = await reScoreClaim(claimMatched, {
+      totalCitingPapers: 0,
+      maxDistortionScore: 0,
+    });
+    await new Promise(r => setImmediate(r));
+
+    expect(result.status).toBe("unchanged");
+    expect(vi.mocked(dispatchVerdictChanged)).not.toHaveBeenCalled();
   });
 });

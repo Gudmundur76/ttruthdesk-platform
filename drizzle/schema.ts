@@ -1,5 +1,6 @@
 import {
   int,
+  bigint,
   mysqlEnum,
   mysqlTable,
   text,
@@ -10,7 +11,22 @@ import {
   json,
   index,
   uniqueIndex,
+  customType,
 } from "drizzle-orm/mysql-core";
+
+// ─── Custom vector type (TiDB VECTOR) ────────────────────────────────────────
+const vector = customType<{ data: number[]; driverData: string }>({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dataType(config: any) {
+    return config?.dimensions ? `VECTOR(${config.dimensions})` : "VECTOR";
+  },
+  toDriver(value: number[]): string {
+    return JSON.stringify(value);
+  },
+  fromDriver(value: string): number[] {
+    return JSON.parse(value);
+  },
+});
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
@@ -2325,13 +2341,18 @@ export const sourceVersions = mysqlTable(
     versionHash: varchar("versionHash", { length: 64 }).notNull(),
     versionLabel: varchar("versionLabel", { length: 128 }),
     detectedAt: int("detectedAt").notNull(),
-    changeType: mysqlEnum("changeType", ["minor", "major", "retraction"]).notNull().default("minor"),
+    changeType: mysqlEnum("changeType", ["minor", "major", "retraction"])
+      .notNull()
+      .default("minor"),
     affectedClaimCount: int("affectedClaimCount").notNull().default(0),
   },
   t => ({
     sourceIdIdx: index("sv_source_id_idx").on(t.sourceId),
     detectedAtIdx: index("sv_detected_at_idx").on(t.detectedAt),
-    sourceHashUniq: uniqueIndex("sv_source_hash_uniq").on(t.sourceId, t.versionHash),
+    sourceHashUniq: uniqueIndex("sv_source_hash_uniq").on(
+      t.sourceId,
+      t.versionHash
+    ),
   })
 );
 export type SourceVersion = typeof sourceVersions.$inferSelect;
@@ -2384,3 +2405,75 @@ export const questions = mysqlTable(
 );
 export type Question = typeof questions.$inferSelect;
 export type InsertQuestion = typeof questions.$inferInsert;
+
+// ─── Rate Limit Buckets (Sprint 0 Fix 1) ─────────────────────────────────────
+// Persistent per-IP/key rate limit state — survives process restarts.
+export const rateLimitBuckets = mysqlTable(
+  "rate_limit_buckets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    key: varchar("key", { length: 255 }).notNull(),
+    tier: varchar("tier", { length: 32 }).notNull(),
+    count: int("count").notNull().default(0),
+    resetAt: bigint("reset_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  },
+  t => ({
+    keyTierIdx: uniqueIndex("rl_key_tier_idx").on(t.key, t.tier),
+    resetAtIdx: index("rl_reset_at_idx").on(t.resetAt),
+  })
+);
+export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
+export type InsertRateLimitBucket = typeof rateLimitBuckets.$inferInsert;
+
+// ─── Dream Staging Queue (Sprint 0 Fix 3) ────────────────────────────────────
+// Hypotheses from the dream layer that require admin review before ingestion.
+export const dreamStagingQueue = mysqlTable(
+  "dream_staging_queue",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    sessionEventId: int("session_event_id").notNull(),
+    hypothesis: json("hypothesis").notNull(),
+    confidence: float("confidence").notNull(),
+    status: mysqlEnum("status", [
+      "pending",
+      "approved",
+      "rejected",
+      "auto_promoted",
+    ])
+      .notNull()
+      .default("pending"),
+    reviewedBy: varchar("reviewed_by", { length: 64 }),
+    reviewNote: text("review_note"),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    reviewedAt: bigint("reviewed_at", { mode: "number" }),
+  },
+  t => ({
+    statusIdx: index("dsq_status_idx").on(t.status),
+    sessionIdx: index("dsq_session_idx").on(t.sessionEventId),
+    createdAtIdx: index("dsq_created_at_idx").on(t.createdAt),
+  })
+);
+export type DreamStagingItem = typeof dreamStagingQueue.$inferSelect;
+export type InsertDreamStagingItem = typeof dreamStagingQueue.$inferInsert;
+
+// ─── Claim Embeddings (Sprint 0 Fix 4) ───────────────────────────────────────
+// 1536-dimensional text-embedding-3-small vectors for semantic search.
+export const claimEmbeddings = mysqlTable(
+  "claim_embeddings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    claimId: int("claim_id").notNull().unique(),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    model: varchar("model", { length: 64 })
+      .notNull()
+      .default("text-embedding-3-small"),
+    indexedAt: bigint("indexed_at", { mode: "number" }).notNull(),
+  },
+  t => ({
+    claimIdIdx: uniqueIndex("ce_claim_id_idx").on(t.claimId),
+    indexedAtIdx: index("ce_indexed_at_idx").on(t.indexedAt),
+  })
+);
+export type ClaimEmbedding = typeof claimEmbeddings.$inferSelect;
+export type InsertClaimEmbedding = typeof claimEmbeddings.$inferInsert;

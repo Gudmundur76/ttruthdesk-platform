@@ -22,6 +22,7 @@ import type { ResultSetHeader } from "mysql2";
 import { getDb } from "./db";
 import { apiKeys } from "../drizzle/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
+import { checkRateLimit as checkDbRateLimit } from "./_core/rateLimit";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,8 +37,8 @@ export interface GenerateApiKeyOpts {
 
 export interface GenerateApiKeyResult {
   id: number;
-  rawKey: string;       // shown ONCE — user must copy it
-  keyPrefix: string;    // first 8 chars, safe to show later
+  rawKey: string; // shown ONCE — user must copy it
+  keyPrefix: string; // first 8 chars, safe to show later
   label: string;
   scopes: ApiKeyScope[];
   createdAt: Date;
@@ -76,7 +77,9 @@ function generateRawKey(): string {
 
 // ─── Generate a new API key ───────────────────────────────────────────────────
 
-export async function generateApiKey(opts: GenerateApiKeyOpts): Promise<GenerateApiKeyResult | null> {
+export async function generateApiKey(
+  opts: GenerateApiKeyOpts
+): Promise<GenerateApiKeyResult | null> {
   const db = await getDb();
   if (!db) return null;
 
@@ -121,7 +124,9 @@ const _rateLimitMap = new Map<string, number[]>();
 export function checkApiKeyRateLimit(identifier: string): boolean {
   const now = Date.now();
   const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const attempts = (_rateLimitMap.get(identifier) ?? []).filter((t) => t > windowStart);
+  const attempts = (_rateLimitMap.get(identifier) ?? []).filter(
+    t => t > windowStart
+  );
   if (attempts.length >= RATE_LIMIT_MAX_ATTEMPTS) {
     return false; // rate limited
   }
@@ -129,19 +134,35 @@ export function checkApiKeyRateLimit(identifier: string): boolean {
   _rateLimitMap.set(identifier, attempts);
   // Periodically prune stale entries to prevent unbounded memory growth
   if (_rateLimitMap.size > 10_000) {
-    Array.from(_rateLimitMap.entries()).forEach(([k, ts]: [string, number[]]) => {
-      if (ts.every((t: number) => t <= windowStart)) _rateLimitMap.delete(k);
-    });
+    Array.from(_rateLimitMap.entries()).forEach(
+      ([k, ts]: [string, number[]]) => {
+        if (ts.every((t: number) => t <= windowStart)) _rateLimitMap.delete(k);
+      }
+    );
   }
   return true; // allowed
 }
 
 // ─── Validate an API key ──────────────────────────────────────────────────────
 
-export async function validateApiKey(rawKey: string, callerIp?: string): Promise<ValidateApiKeyResult> {
-  // Rate-limit by caller IP if provided
+export async function validateApiKey(
+  rawKey: string,
+  callerIp?: string
+): Promise<ValidateApiKeyResult> {
+  // Rate-limit by caller IP if provided (in-memory fast path + DB-backed persistent)
   if (callerIp && !checkApiKeyRateLimit(callerIp)) {
     return { valid: false, reason: "rate_limited" };
+  }
+  if (callerIp) {
+    const dbRl = await checkDbRateLimit(
+      callerIp,
+      "api",
+      RATE_LIMIT_MAX_ATTEMPTS,
+      RATE_LIMIT_WINDOW_MS
+    );
+    if (!dbRl.allowed) {
+      return { valid: false, reason: "rate_limited" };
+    }
   }
 
   if (!rawKey || rawKey.length !== 64) {
@@ -187,7 +208,10 @@ export async function validateApiKey(rawKey: string, callerIp?: string): Promise
 
 // ─── Revoke an API key ────────────────────────────────────────────────────────
 
-export async function revokeApiKey(keyId: number, userId: number): Promise<boolean> {
+export async function revokeApiKey(
+  keyId: number,
+  userId: number
+): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
 
@@ -220,7 +244,7 @@ export async function listApiKeys(userId: number): Promise<ApiKeyRecord[]> {
     .from(apiKeys)
     .where(and(eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt)));
 
-  return rows.map((r) => ({
+  return rows.map(r => ({
     id: r.id,
     userId: r.userId,
     label: r.label,
@@ -257,7 +281,13 @@ export async function getApiKeyUsage(
   const rows = await db
     .select({ usageCount: apiKeys.usageCount, lastUsedAt: apiKeys.lastUsedAt })
     .from(apiKeys)
-    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt)))
+    .where(
+      and(
+        eq(apiKeys.id, keyId),
+        eq(apiKeys.userId, userId),
+        isNull(apiKeys.revokedAt)
+      )
+    )
     .limit(1);
 
   if (rows.length === 0) return null;

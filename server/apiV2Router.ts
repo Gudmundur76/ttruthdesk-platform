@@ -18,8 +18,15 @@
  *   GET /api/v2/health              — API health check
  */
 import { Router, type Request, type Response } from "express";
+import { checkRateLimit as checkDbRateLimit } from "./_core/rateLimit";
 import { getDb } from "./db";
-import { claims, documents, graphEntities, graphRelations, auditReports } from "../drizzle/schema";
+import {
+  claims,
+  documents,
+  graphEntities,
+  graphRelations,
+  auditReports,
+} from "../drizzle/schema";
 import { eq, and, isNotNull, desc, asc, sql, or, like } from "drizzle-orm";
 
 // ─── CORS headers ─────────────────────────────────────────────────────────────
@@ -33,9 +40,19 @@ const CORS_HEADERS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function parsePagination(req: Request): { page: number; limit: number; offset: number } {
-  const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) ?? "20", 10) || 20));
+function parsePagination(req: Request): {
+  page: number;
+  limit: number;
+  offset: number;
+} {
+  const page = Math.max(
+    1,
+    parseInt((req.query.page as string) ?? "1", 10) || 1
+  );
+  const limit = Math.min(
+    100,
+    Math.max(1, parseInt((req.query.limit as string) ?? "20", 10) || 20)
+  );
   return { page, limit, offset: (page - 1) * limit };
 }
 
@@ -48,12 +65,15 @@ function apiError(res: Response, status: number, message: string) {
 }
 
 function apiOk<T>(res: Response, data: T, meta?: Record<string, unknown>) {
-  return res.set(CORS_HEADERS).status(200).json({
-    ok: true,
-    timestamp: new Date().toISOString(),
-    ...meta,
-    data,
-  });
+  return res
+    .set(CORS_HEADERS)
+    .status(200)
+    .json({
+      ok: true,
+      timestamp: new Date().toISOString(),
+      ...meta,
+      data,
+    });
 }
 
 // ─── Rate limiter (simple in-memory, per IP) ──────────────────────────────────
@@ -63,7 +83,10 @@ const RATE_LIMIT = 60;
 const RATE_WINDOW_MS = 60_000;
 
 function checkRateLimit(req: Request): boolean {
-  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
+    req.ip ??
+    "unknown";
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
   if (!entry || entry.resetAt < now) {
@@ -85,14 +108,33 @@ export function createApiV2Router(): Router {
     res.set(CORS_HEADERS).status(204).end();
   });
 
-  // Rate limit middleware
-  router.use((req, res, next) => {
+  // Rate limit middleware (in-memory fast path + DB-backed persistent)
+  router.use(async (req, res, next) => {
     if (!checkRateLimit(req)) {
-      res.set({ ...CORS_HEADERS, "Retry-After": "60" }).status(429).json({
-        ok: false,
-        error: "Rate limit exceeded. Max 60 requests per minute.",
-        timestamp: new Date().toISOString(),
-      });
+      res
+        .set({ ...CORS_HEADERS, "Retry-After": "60" })
+        .status(429)
+        .json({
+          ok: false,
+          error: "Rate limit exceeded. Max 60 requests per minute.",
+          timestamp: new Date().toISOString(),
+        });
+      return;
+    }
+    const ip =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
+      req.ip ??
+      "unknown";
+    const dbRl = await checkDbRateLimit(ip, "v2", RATE_LIMIT, RATE_WINDOW_MS);
+    if (!dbRl.allowed) {
+      res
+        .set({ ...CORS_HEADERS, "Retry-After": "60" })
+        .status(429)
+        .json({
+          ok: false,
+          error: "Rate limit exceeded. Max 60 requests per minute.",
+          timestamp: new Date().toISOString(),
+        });
       return;
     }
     next();
@@ -103,12 +145,15 @@ export function createApiV2Router(): Router {
   router.get("/health", async (_req, res) => {
     const db = await getDb();
     const dbOk = !!db;
-    res.set(CORS_HEADERS).status(dbOk ? 200 : 503).json({
-      ok: dbOk,
-      version: "2.0",
-      timestamp: new Date().toISOString(),
-      services: { database: dbOk ? "ok" : "unavailable" },
-    });
+    res
+      .set(CORS_HEADERS)
+      .status(dbOk ? 200 : 503)
+      .json({
+        ok: dbOk,
+        version: "2.0",
+        timestamp: new Date().toISOString(),
+        services: { database: dbOk ? "ok" : "unavailable" },
+      });
   });
 
   // ── GET /api/v2/claims ────────────────────────────────────────────────────
@@ -132,9 +177,23 @@ export function createApiV2Router(): Router {
 
     // Build WHERE conditions
     const conditions = [];
-    if (verdict) conditions.push(eq(claims.verdict, verdict as "Supported" | "Contradicted" | "Partially Supported" | "Ambiguous" | "Insufficient Evidence" | "Out of Scope" | "Needs Expert Review"));
+    if (verdict)
+      conditions.push(
+        eq(
+          claims.verdict,
+          verdict as
+            | "Supported"
+            | "Contradicted"
+            | "Partially Supported"
+            | "Ambiguous"
+            | "Insufficient Evidence"
+            | "Out of Scope"
+            | "Needs Expert Review"
+        )
+      );
     if (vertical) conditions.push(eq(documents.verticalDomain, vertical));
-    if (minScore > 0) conditions.push(sql`${claims.confidenceScore} >= ${minScore}`);
+    if (minScore > 0)
+      conditions.push(sql`${claims.confidenceScore} >= ${minScore}`);
     if (q && q.length >= 3) conditions.push(like(claims.claimText, `%${q}%`));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -247,7 +306,12 @@ export function createApiV2Router(): Router {
         .from(claims)
         .where(eq(claims.documentId, docId)),
       db
-        .select({ id: documents.id, title: documents.title, verticalDomain: documents.verticalDomain, status: documents.status })
+        .select({
+          id: documents.id,
+          title: documents.title,
+          verticalDomain: documents.verticalDomain,
+          status: documents.status,
+        })
         .from(documents)
         .where(eq(documents.id, docId))
         .limit(1),
@@ -258,7 +322,14 @@ export function createApiV2Router(): Router {
     const total = Number(countRows[0]?.count ?? 0);
     return apiOk(res, rows, {
       document: docRows[0],
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasNext: offset + limit < total, hasPrev: page > 1 },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1,
+      },
     });
   });
 
@@ -288,10 +359,16 @@ export function createApiV2Router(): Router {
       .innerJoin(documents, eq(claims.documentId, documents.id))
       .groupBy(documents.verticalDomain);
 
-    const claimMap = Object.fromEntries(claimStats.map((r) => [r.verticalDomain, r]));
+    const claimMap = Object.fromEntries(
+      claimStats.map(r => [r.verticalDomain, r])
+    );
 
-    const data = docStats.map((d) => {
-      const c = claimMap[d.verticalDomain ?? ""] ?? { totalClaims: 0, supportedClaims: 0, avgScore: null };
+    const data = docStats.map(d => {
+      const c = claimMap[d.verticalDomain ?? ""] ?? {
+        totalClaims: 0,
+        supportedClaims: 0,
+        avgScore: null,
+      };
       const totalClaims = Number(c.totalClaims);
       const supportedClaims = Number(c.supportedClaims);
       return {
@@ -300,8 +377,13 @@ export function createApiV2Router(): Router {
         completedDocs: Number(d.completedDocs),
         totalClaims,
         supportedClaims,
-        supportRate: totalClaims > 0 ? Math.round((supportedClaims / totalClaims) * 1000) / 1000 : 0,
-        avgConfidenceScore: c.avgScore ? Math.round(Number(c.avgScore) * 1000) / 1000 : null,
+        supportRate:
+          totalClaims > 0
+            ? Math.round((supportedClaims / totalClaims) * 1000) / 1000
+            : 0,
+        avgConfidenceScore: c.avgScore
+          ? Math.round(Number(c.avgScore) * 1000) / 1000
+          : null,
       };
     });
 
@@ -329,7 +411,12 @@ export function createApiV2Router(): Router {
         .select({ verdict: claims.verdict, count: sql<number>`COUNT(*)` })
         .from(claims)
         .innerJoin(documents, eq(claims.documentId, documents.id))
-        .where(and(eq(documents.verticalDomain, domainKey), sql`${claims.verdict} IS NOT NULL`))
+        .where(
+          and(
+            eq(documents.verticalDomain, domainKey),
+            sql`${claims.verdict} IS NOT NULL`
+          )
+        )
         .groupBy(sql`${claims.verdict}`),
       db
         .select({
@@ -342,12 +429,18 @@ export function createApiV2Router(): Router {
         })
         .from(claims)
         .innerJoin(documents, eq(claims.documentId, documents.id))
-        .where(and(eq(documents.verticalDomain, domainKey), isNotNull(claims.confidenceScore)))
+        .where(
+          and(
+            eq(documents.verticalDomain, domainKey),
+            isNotNull(claims.confidenceScore)
+          )
+        )
         .orderBy(desc(claims.confidenceScore))
         .limit(Math.min(limit, 20)),
     ]);
 
-    if (Number(docStats[0]?.total ?? 0) === 0) return apiError(res, 404, "Vertical not found or has no documents");
+    if (Number(docStats[0]?.total ?? 0) === 0)
+      return apiError(res, 404, "Vertical not found or has no documents");
 
     const verdictCounts: Record<string, number> = {};
     let totalClaims = 0;
@@ -379,8 +472,23 @@ export function createApiV2Router(): Router {
     const q = req.query.q as string | undefined;
 
     const conditions = [];
-    if (entityType) conditions.push(eq(graphEntities.entityType, entityType as "protein" | "pdb_id" | "method" | "organism" | "ligand" | "author" | "concept" | "document"));
-    if (q && q.length >= 2) conditions.push(like(graphEntities.canonicalName, `%${q}%`));
+    if (entityType)
+      conditions.push(
+        eq(
+          graphEntities.entityType,
+          entityType as
+            | "protein"
+            | "pdb_id"
+            | "method"
+            | "organism"
+            | "ligand"
+            | "author"
+            | "concept"
+            | "document"
+        )
+      );
+    if (q && q.length >= 2)
+      conditions.push(like(graphEntities.canonicalName, `%${q}%`));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [rows, countRows] = await Promise.all([
@@ -398,12 +506,22 @@ export function createApiV2Router(): Router {
         .orderBy(desc(graphEntities.id))
         .limit(limit)
         .offset(offset),
-      db.select({ count: sql<number>`COUNT(*)` }).from(graphEntities).where(whereClause),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(graphEntities)
+        .where(whereClause),
     ]);
 
     const total = Number(countRows[0]?.count ?? 0);
     return apiOk(res, rows, {
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasNext: offset + limit < total, hasPrev: page > 1 },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1,
+      },
     });
   });
 
@@ -428,7 +546,12 @@ export function createApiV2Router(): Router {
           evidenceDocumentId: graphRelations.evidenceDocumentId,
         })
         .from(graphRelations)
-        .where(or(eq(graphRelations.sourceEntityId, id), eq(graphRelations.targetEntityId, id)))
+        .where(
+          or(
+            eq(graphRelations.sourceEntityId, id),
+            eq(graphRelations.targetEntityId, id)
+          )
+        )
         .limit(50),
     ]);
 
@@ -447,11 +570,20 @@ export function createApiV2Router(): Router {
 
     const [docRows, reportRows, claimRows] = await Promise.all([
       db
-        .select({ id: documents.id, title: documents.title, verticalDomain: documents.verticalDomain, status: documents.status })
+        .select({
+          id: documents.id,
+          title: documents.title,
+          verticalDomain: documents.verticalDomain,
+          status: documents.status,
+        })
         .from(documents)
         .where(eq(documents.id, docId))
         .limit(1),
-      db.select().from(auditReports).where(eq(auditReports.documentId, docId)).limit(1),
+      db
+        .select()
+        .from(auditReports)
+        .where(eq(auditReports.documentId, docId))
+        .limit(1),
       db
         .select({
           id: claims.id,
