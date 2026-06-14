@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   mockGetDb: vi.fn(),
   mockEvaluateHealth: vi.fn(),
   mockPublishEvent: vi.fn(),
+  mockSpawnDevTask: vi.fn(),
 }));
 
 vi.mock("../../db", () => ({ getDb: mocks.mockGetDb }));
@@ -17,16 +18,21 @@ vi.mock("../safeModeController", () => ({
 vi.mock("../eventBus", () => ({
   publishEvent: mocks.mockPublishEvent,
 }));
+vi.mock("../../manusOrchestrator", () => ({
+  spawnDevTask: mocks.mockSpawnDevTask,
+}));
 
 const makeDb = () => {
   const db = {
     select: vi.fn(),
     from: vi.fn(),
+    where: vi.fn(),
     orderBy: vi.fn(),
     limit: vi.fn(),
   };
   db.select.mockReturnValue(db);
   db.from.mockReturnValue(db);
+  db.where.mockReturnValue(db);
   db.orderBy.mockReturnValue(db);
   db.limit.mockResolvedValue([]);
   return db;
@@ -117,5 +123,76 @@ describe("runMetaLayer()", () => {
     );
     const types = result.actions.map((a) => a.type);
     expect(types).toContain("meta_health_change_logged");
+  });
+
+  // ── Regression: fix(unknown): autonomous repair [sprint-1] ──────────────────
+  // Root cause: when healthScore ≤ 30 and getLatestCriticalCheck() returns null
+  // (because the DB mock was missing the .where() chain method), adapterName
+  // fell back to "unknown" and spawnDevTask was called with adapterName="unknown",
+  // producing a misleading repair prompt targeting a non-existent adapter file.
+  // Fix: guard spawnDevTask so it is only called when adapterName !== "unknown".
+
+  it("regression: does NOT call spawnDevTask when no critical check row exists (adapterName would be 'unknown')", async () => {
+    // Simulate: health is critical (severity=critical → score=30) but
+    // getLatestCriticalCheck returns null (no matching row in the where-filtered query).
+    const db = makeDb();
+    // getLatestHealthScore call → returns critical severity
+    db.limit
+      .mockResolvedValueOnce([{ severity: "critical" }]) // first limit() call: health score query
+      .mockResolvedValueOnce([]); // second limit() call: critical check query (no row)
+    mocks.mockGetDb.mockResolvedValue(db);
+    mocks.mockEvaluateHealth.mockResolvedValue(true);
+    mocks.mockPublishEvent.mockResolvedValue(undefined);
+    mocks.mockSpawnDevTask.mockResolvedValue(null);
+
+    const { runMetaLayer } = await import("./metaLayer");
+    const result = await runMetaLayer(
+      { eventType: "scheduled_tick", payload: {} } as never,
+      []
+    );
+
+    // spawnDevTask must NOT be called when adapterName is "unknown"
+    expect(mocks.mockSpawnDevTask).not.toHaveBeenCalled();
+
+    // system_capability_required event IS still published (with adapterName="unknown")
+    expect(mocks.mockPublishEvent).toHaveBeenCalledWith(
+      "system_capability_required",
+      expect.objectContaining({ adapterName: "unknown" })
+    );
+
+    // meta_dev_repair_spawned action is still pushed (event published, task skipped)
+    const types = result.actions.map((a) => a.type);
+    expect(types).toContain("meta_dev_repair_spawned");
+    const repairAction = result.actions.find(
+      (a) => a.type === "meta_dev_repair_spawned"
+    );
+    expect(repairAction?.description).toContain("unknown");
+  });
+
+  it("regression: DOES call spawnDevTask when a critical check row with a real checkType exists", async () => {
+    const db = makeDb();
+    // getLatestHealthScore → critical
+    db.limit
+      .mockResolvedValueOnce([{ severity: "critical" }])
+      // getLatestCriticalCheck → returns a real adapter name
+      .mockResolvedValueOnce([
+        { checkType: "openAlex", finding: { error: "timeout" } },
+      ]);
+    mocks.mockGetDb.mockResolvedValue(db);
+    mocks.mockEvaluateHealth.mockResolvedValue(true);
+    mocks.mockPublishEvent.mockResolvedValue(undefined);
+    mocks.mockSpawnDevTask.mockResolvedValue({ ok: true, manusTaskId: "m-001" });
+
+    const { runMetaLayer } = await import("./metaLayer");
+    await runMetaLayer(
+      { eventType: "scheduled_tick", payload: {} } as never,
+      []
+    );
+
+    // spawnDevTask MUST be called with the real adapter name
+    expect(mocks.mockSpawnDevTask).toHaveBeenCalledOnce();
+    expect(mocks.mockSpawnDevTask).toHaveBeenCalledWith(
+      expect.objectContaining({ adapterName: "openAlex" })
+    );
   });
 });

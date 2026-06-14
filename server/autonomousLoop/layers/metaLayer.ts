@@ -95,19 +95,29 @@ export async function runMetaLayer(
   if (healthScore <= 30) {
     try {
       const criticalCheck = await getLatestCriticalCheck();
+      const adapterName = criticalCheck?.checkType ?? "unknown";
+
       await publishEvent("system_capability_required", {
         healthScore,
-        adapterName: criticalCheck?.checkType ?? "unknown",
+        adapterName,
         errorLog: criticalCheck?.finding ?? {},
       });
-      await spawnDevTask({
-        adapterName: criticalCheck?.checkType ?? "unknown",
-        errorLog: JSON.stringify(criticalCheck?.finding ?? {}),
-        healthScore,
-      });
+
+      // Only spawn a repair task when we have an actionable adapter name.
+      // If criticalCheck is null (no DB row found), adapterName falls back to
+      // "unknown" — spawning a repair task for an unknown adapter is a no-op
+      // that wastes resources and produces a misleading repair prompt.
+      if (adapterName !== "unknown") {
+        await spawnDevTask({
+          adapterName,
+          errorLog: JSON.stringify(criticalCheck?.finding ?? {}),
+          healthScore,
+        });
+      }
+
       actions.push({
         type: "meta_dev_repair_spawned",
-        description: `system_capability_required fired — spawnDevTask called for: ${criticalCheck?.checkType ?? "unknown"}`,
+        description: `system_capability_required fired — spawnDevTask called for: ${adapterName}`,
         priority: 90,
         result: "success",
       });
