@@ -1591,6 +1591,7 @@
 - [x] tests/integration/fixtures.ts — FIND_SIMILAR added
 
 ## Phase 125 — Semantic Clustering in Wiki Compiler
+
 - [x] Write RED tests for wikiClustering.ts (clusterEntitiesBySimilarity, buildClusterCrossLinks, UnionFind)
 - [x] Implement wikiClustering.ts with UnionFind-based semantic clustering
 - [x] Wire clusterEntitiesBySimilarity into compileDocumentToWiki
@@ -1598,33 +1599,38 @@
 - [x] TSC clean, 1608/1608 GREEN
 
 ## Phase 126 — coordLayer Round-Trip + GET /tasks/:taskId
+
 - [x] Add GET /tasks/:taskId single-task status lookup to tasksRouter.ts
 - [x] Implement coordRoundTrip.ts (enqueue → dequeue → complete → status cycle)
 - [x] Write 10 tests for coordStatusRoute (5 for GET /:taskId, 5 for RoundTripResult)
 - [x] TSC clean, 1618/1618 GREEN
 
 ## Phase 127 — Dream → Ingest Pipeline Bridge (complete)
+
 - [x] Write RED tests for dreamIngestBridge + POST /api/v2/dream/start guardrails
 - [x] Implement dreamIngestBridge.ts — picks up pending dream claims, enqueues to coordQueue
 - [x] Implement dreamStartRoute.ts — POST /api/v2/dream/start with kill switch, rate limit, health threshold, audit log
-- [x] Register /api/v2/dream router in _core/index.ts
+- [x] Register /api/v2/dream router in \_core/index.ts
 - [x] TSC clean, 1630/1630 GREEN
 
 ## Phase 128 — Knowledge Gap Bridge (complete)
+
 - [x] Write RED tests for knowledgeGapBridge.ts (bridgeOpenGapsToCoordQueue + getGapBridgeStats)
 - [x] Implement knowledgeGapBridge.ts — bridges open knowledge_gaps to coordQueue for autonomous evidence pursuit
 - [x] Wire bridgeOpenGapsToCoordQueue into discoveryLoopJob.ts (called after main loop, result merged into response)
 - [x] TSC clean, 1639/1639 GREEN
 
 ## Phase 129 — Production Hardening (complete)
-- [x] Implement structuredErrors.ts — ERR_ code constants (ERR_CLAIM_NOT_FOUND, ERR_RATE_LIMITED, ERR_DB_UNAVAILABLE, ERR_INVALID_INPUT, ERR_INGESTION_STALLED, ERR_VERDICT_FLIP, ERR_SOURCE_NOT_FOUND, ERR_UNAUTHORIZED, ERR_FORBIDDEN, ERR_INTERNAL) + makeError() helper
+
+- [x] Implement structuredErrors.ts — ERR\_ code constants (ERR_CLAIM_NOT_FOUND, ERR_RATE_LIMITED, ERR_DB_UNAVAILABLE, ERR_INVALID_INPUT, ERR_INGESTION_STALLED, ERR_VERDICT_FLIP, ERR_SOURCE_NOT_FOUND, ERR_UNAUTHORIZED, ERR_FORBIDDEN, ERR_INTERNAL) + makeError() helper
 - [x] Implement detailedHealthRoute.ts — GET /api/v2/health/detailed with per-subsystem checks (db, vectorStore, ingestion, mcp)
 - [x] Implement ingestionAlertJob.ts — push-based alerting: stall check (6h threshold) + failure-rate check (20% in 24h window) with 4h cooldown dedup
 - [x] Write 20 RED→GREEN tests covering all three modules (phase129.test.ts)
-- [x] Register GET /api/v2/health/detailed and POST /api/scheduled/ingestion-alerts in _core/index.ts
+- [x] Register GET /api/v2/health/detailed and POST /api/scheduled/ingestion-alerts in \_core/index.ts
 - [x] TSC clean, 1659/1659 GREEN
 
 ## Phase 130 — Zero-Warning Lint, workflow_dispatch, DEPLOYMENT.md (complete)
+
 - [x] Add workflow_dispatch trigger (with optional reason input) to .github/workflows/ci.yml
 - [x] Fix 3 ESLint errors: remove unused coordTasks (coordRoundTrip.ts), sql (ingestionAlertJob.ts), and (knowledgeGapBridge.ts)
 - [x] Add eslint-disable-next-line complexity comments to 44 high-complexity functions across server/ and client/ (all complexity >= 21)
@@ -1633,3 +1639,22 @@
 - [x] pnpm lint exits 0 (zero errors, zero warnings)
 - [x] Write DEPLOYMENT.md — prerequisites, env vars, DB setup, build/start, CI, health checks, scheduled jobs, rollback, secrets rotation
 - [x] TSC clean, 1659/1659 GREEN
+
+## Third-Pass Audit Fixes (2026-06-14)
+
+### Failing Endpoints
+
+- [ ] Fix /api/external/public/claims/{id} — timeout
+- [ ] Fix /api/external/public/stats — internal error
+- [ ] Fix /api/external/public/verticals — internal error
+- [ ] Fix /api/external/public/leaderboard — internal error
+- [ ] Fix /api/external/public/contradictions — internal error
+- [ ] Fix /mcp endpoint — timeout
+- [ ] Fix /api/public/claims.json — timeout
+
+### Data Quality Fixes
+
+- [ ] Fix RSS <link> and <guid> to point to citation.is not ttruthdesk.claims
+- [ ] Clean leaked prompt text from claim 300023 rationale
+- [ ] Route organism lookups to NCBI Taxonomy instead of PubChem
+- [ ] Update OpenAPI + landing page docs to list all 6 verdicts (Supported, Contradicted, Ambiguous, Insufficient Evidence, Out of Scope, Needs Expert Review)

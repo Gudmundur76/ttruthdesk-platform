@@ -214,7 +214,16 @@ async function startServer() {
         properties: {
           verdict: {
             type: "string",
-            enum: ["supported", "refuted", "inconclusive"],
+            enum: [
+              "Supported",
+              "Contradicted",
+              "Ambiguous",
+              "Insufficient Evidence",
+              "Out of Scope",
+              "Needs Expert Review",
+            ],
+            description:
+              "Supported: claim verified against authoritative source. Contradicted: claim contradicts source data. Ambiguous: evidence is mixed. Insufficient Evidence: not enough data. Out of Scope: claim type cannot be auto-verified. Needs Expert Review: requires domain specialist.",
           },
           confidenceScore: { type: "number", description: "0.0–1.0" },
           evidenceSource: {
@@ -251,7 +260,14 @@ async function startServer() {
             claimText: { type: "string" },
             verdict: {
               type: "string",
-              enum: ["supported", "refuted", "inconclusive"],
+              enum: [
+                "Supported",
+                "Contradicted",
+                "Ambiguous",
+                "Insufficient Evidence",
+                "Out of Scope",
+                "Needs Expert Review",
+              ],
             },
             confidenceScore: { type: "number" },
             verticalDomain: { type: "string" },
@@ -1848,7 +1864,10 @@ async function startServer() {
   app.get("/api/public/leaderboard", async (req, res) => {
     try {
       const { getAllGraphEntities } = await import("../db");
-      const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10), 100);
+      const limit = Math.min(
+        parseInt((req.query.limit as string) ?? "20", 10),
+        100
+      );
       const entities = await getAllGraphEntities(limit);
       res.json({ entities });
     } catch (err) {
@@ -1860,7 +1879,10 @@ async function startServer() {
   app.get("/api/public/contradictions", async (req, res) => {
     try {
       const { getContradictionRelations } = await import("../db");
-      const limit = Math.min(parseInt((req.query.limit as string) ?? "50", 10), 200);
+      const limit = Math.min(
+        parseInt((req.query.limit as string) ?? "50", 10),
+        200
+      );
       const contradictions = await getContradictionRelations(limit);
       res.json({ contradictions });
     } catch (err) {

@@ -13,24 +13,136 @@
  * Hallgrímur Steinsson's biotech initiative.
  */
 
-import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import {
+  registerVertical,
+  type VerticalAdapter,
+  type EvidenceResult,
+} from "./types";
 
 // ─── Known salmon-derived bioactive compounds with PubChem CIDs ───────────────
 
-const KNOWN_COMPOUNDS: Record<string, { cid: number; name: string; category: string }> = {
-  astaxanthin:      { cid: 5281224, name: "Astaxanthin",                    category: "carotenoid" },
-  "omega-3":        { cid: 5280934, name: "Eicosapentaenoic acid (EPA)",    category: "fatty_acid" },
-  epa:              { cid: 5280934, name: "Eicosapentaenoic acid (EPA)",    category: "fatty_acid" },
-  dha:              { cid: 445580,  name: "Docosahexaenoic acid (DHA)",     category: "fatty_acid" },
-  "fish oil":       { cid: 5280934, name: "Fish oil (EPA reference)",       category: "fatty_acid" },
-  "marine peptide": { cid: 0,       name: "Marine bioactive peptide",       category: "peptide" },
-  collagen:         { cid: 73995,   name: "Collagen peptide (type I ref)",  category: "protein" },
-  "collagen peptide": { cid: 73995, name: "Collagen peptide (type I ref)", category: "protein" },
-  hydroxyproline:   { cid: 5810,   name: "Hydroxyproline",                  category: "amino_acid" },
-  taurine:          { cid: 1123,   name: "Taurine",                         category: "amino_acid" },
-  carnosine:        { cid: 439224, name: "Carnosine",                       category: "dipeptide" },
-  squalene:         { cid: 638072, name: "Squalene",                        category: "triterpene" },
+const KNOWN_COMPOUNDS: Record<
+  string,
+  { cid: number; name: string; category: string }
+> = {
+  astaxanthin: { cid: 5281224, name: "Astaxanthin", category: "carotenoid" },
+  "omega-3": {
+    cid: 5280934,
+    name: "Eicosapentaenoic acid (EPA)",
+    category: "fatty_acid",
+  },
+  epa: {
+    cid: 5280934,
+    name: "Eicosapentaenoic acid (EPA)",
+    category: "fatty_acid",
+  },
+  dha: {
+    cid: 445580,
+    name: "Docosahexaenoic acid (DHA)",
+    category: "fatty_acid",
+  },
+  "fish oil": {
+    cid: 5280934,
+    name: "Fish oil (EPA reference)",
+    category: "fatty_acid",
+  },
+  "marine peptide": {
+    cid: 0,
+    name: "Marine bioactive peptide",
+    category: "peptide",
+  },
+  collagen: {
+    cid: 73995,
+    name: "Collagen peptide (type I ref)",
+    category: "protein",
+  },
+  "collagen peptide": {
+    cid: 73995,
+    name: "Collagen peptide (type I ref)",
+    category: "protein",
+  },
+  hydroxyproline: { cid: 5810, name: "Hydroxyproline", category: "amino_acid" },
+  taurine: { cid: 1123, name: "Taurine", category: "amino_acid" },
+  carnosine: { cid: 439224, name: "Carnosine", category: "dipeptide" },
+  squalene: { cid: 638072, name: "Squalene", category: "triterpene" },
 };
+
+// ─── Organism name patterns (Latin binomials and common fish names) ─────────
+
+const ORGANISM_PATTERNS = [
+  /^[A-Z][a-z]+ [a-z]+$/, // Latin binomial e.g. "Oncorhynchus keta"
+  /\b(salmon|trout|salmo|oncorhynchus|salvelinus|thymallus|coregonus)\b/i,
+];
+
+function looksLikeOrganism(name: string): boolean {
+  return ORGANISM_PATTERNS.some(p => p.test(name.trim()));
+}
+
+// ─── NCBI Taxonomy lookup for organism names ─────────────────────────────────
+
+async function lookupNcbiTaxonomy(
+  organismName: string
+): Promise<EvidenceResult> {
+  try {
+    const encoded = encodeURIComponent(organismName);
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term=${encoded}&retmode=json`;
+    const searchRes = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!searchRes.ok) throw new Error(`NCBI search HTTP ${searchRes.status}`);
+    const searchData = (await searchRes.json()) as {
+      esearchresult?: { idlist?: string[] };
+    };
+    const taxIds = searchData?.esearchresult?.idlist ?? [];
+    if (taxIds.length === 0) {
+      return {
+        found: false,
+        sourceId: null,
+        sourceUrl: null,
+        evidenceRaw: null,
+        confidenceScore: 0.35,
+        confidenceFlags: [
+          `Organism '${organismName}' not found in NCBI Taxonomy`,
+          "Check spelling or use the full Latin binomial",
+        ],
+      };
+    }
+    const taxId = taxIds[0];
+    const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=taxonomy&id=${taxId}&retmode=json`;
+    const summaryRes = await fetch(summaryUrl, {
+      signal: AbortSignal.timeout(8000),
+    });
+    const summaryData = (await summaryRes.json()) as {
+      result?: Record<
+        string,
+        { scientificname?: string; commonname?: string; rank?: string }
+      >;
+    };
+    const taxon = summaryData?.result?.[taxId];
+    return {
+      found: true,
+      sourceId: `NCBI:${taxId}`,
+      sourceUrl: `https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=${taxId}`,
+      evidenceRaw: {
+        taxId,
+        scientificName: taxon?.scientificname ?? organismName,
+        commonName: taxon?.commonname ?? null,
+        rank: taxon?.rank ?? null,
+      },
+      confidenceScore: 0.9,
+      confidenceFlags: [],
+    };
+  } catch (err) {
+    return {
+      found: false,
+      sourceId: null,
+      sourceUrl: null,
+      evidenceRaw: null,
+      confidenceScore: 0.3,
+      confidenceFlags: [`NCBI Taxonomy lookup failed: ${String(err)}`],
+    };
+  }
+}
 
 // ─── PubChem property fetcher ─────────────────────────────────────────────────
 
@@ -42,12 +154,16 @@ interface PubChemProperties {
   InChIKey?: string;
 }
 
-async function fetchPubChemProperties(cid: number): Promise<PubChemProperties | null> {
+async function fetchPubChemProperties(
+  cid: number
+): Promise<PubChemProperties | null> {
   try {
     const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName,IsomericSMILES,InChIKey/JSON`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
-    const data = await res.json() as { PropertyTable?: { Properties?: PubChemProperties[] } };
+    const data = (await res.json()) as {
+      PropertyTable?: { Properties?: PubChemProperties[] };
+    };
     return data?.PropertyTable?.Properties?.[0] ?? null;
   } catch {
     return null;
@@ -59,7 +175,9 @@ async function fetchPubChemSynonyms(cid: number): Promise<string[]> {
     const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/synonyms/JSON`;
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!res.ok) return [];
-    const data = await res.json() as { InformationList?: { Information?: { Synonym?: string[] }[] } };
+    const data = (await res.json()) as {
+      InformationList?: { Information?: { Synonym?: string[] }[] };
+    };
     return data?.InformationList?.Information?.[0]?.Synonym?.slice(0, 10) ?? [];
   } catch {
     return [];
@@ -72,7 +190,7 @@ async function searchPubChemByName(name: string): Promise<number | null> {
     const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encoded}/cids/JSON`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
-    const data = await res.json() as { IdentifierList?: { CID?: number[] } };
+    const data = (await res.json()) as { IdentifierList?: { CID?: number[] } };
     return data?.IdentifierList?.CID?.[0] ?? null;
   } catch {
     return null;
@@ -127,12 +245,16 @@ async function lookupPubChem(compoundName: string): Promise<EvidenceResult> {
   let confidenceScore = 0.85;
 
   if (known.category === "peptide") {
-    confidenceFlags.push("Marine peptide claims require sequence-level verification");
+    confidenceFlags.push(
+      "Marine peptide claims require sequence-level verification"
+    );
     confidenceScore = 0.65;
   }
   if (known.category === "protein") {
-    confidenceFlags.push("Collagen claims should be cross-referenced with PDB structural data");
-    confidenceScore = 0.70;
+    confidenceFlags.push(
+      "Collagen claims should be cross-referenced with PDB structural data"
+    );
+    confidenceScore = 0.7;
   }
 
   return {
@@ -185,6 +307,10 @@ For each claim, extract the compound name, the claimed property, and any cited e
       }
     }
     const compoundName = claim.extractedValue ?? matchedCompound ?? "unknown";
+    // Route organism names to NCBI Taxonomy instead of PubChem
+    if (looksLikeOrganism(compoundName)) {
+      return lookupNcbiTaxonomy(compoundName);
+    }
     return lookupPubChem(compoundName);
   },
 
