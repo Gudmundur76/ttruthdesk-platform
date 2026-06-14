@@ -28,6 +28,7 @@ import { runTruthLayer } from "./layers/truthLayer";
 import { runSelfPromptLayer } from "./layers/selfPromptLayer";
 import { runFrontierLayer } from "./layers/frontierLayer";
 import { runMetaLayer } from "./layers/metaLayer";
+import { notifyTrainingCorpus } from "../trainingCorpusListener";
 import { shouldConverge, type ConvergenceInput } from "./convergenceGate";
 import { getSafeModeStatus } from "./safeModeController";
 
@@ -149,6 +150,8 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
           documentId: event.payload.documentId,
           triggeredBy: event.id,
         });
+        // Training flywheel — fire-and-forget, never blocks the loop
+        notifyTrainingCorpus(verdict.claimId, verdict.verdict).catch(() => {});
       }
     }
 

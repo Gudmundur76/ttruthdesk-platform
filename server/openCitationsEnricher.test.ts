@@ -213,7 +213,7 @@ describe("computeCompositeTruth — Stage 3.5 citationAuthorityScore", () => {
     expect(withLow.score).toBeCloseTo(withoutOc.score - 0.10, 4);
   });
 
-  it("retraction flag: applies −0.15 penalty; bonus still applies if authority ≥ 0.80", () => {
+  it("retraction flag: applies −0.30 penalty (Phase 115); bonus still applies if authority ≥ 0.80", () => {
     const retracted = computeCompositeTruth({
       upstreamVerdict: "Supported",
       provenanceScore: null,
@@ -226,8 +226,8 @@ describe("computeCompositeTruth — Stage 3.5 citationAuthorityScore", () => {
       provenanceScore: null,
       chainDistortionScore: null,
     });
-    // isRetracted penalty = −0.15; ocBonus still fires (+0.05) → net −0.10
-    expect(retracted.score).toBeCloseTo(withoutOc.score - 0.10, 4);
+    // Phase 115: isRetracted penalty = −0.30; ocBonus still fires (+0.05) → net −0.25
+    expect(retracted.score).toBeCloseTo(withoutOc.score - 0.25, 4);
   });
 
   it("mid-range OC authority (0.31–0.79): no adjustment", () => {

@@ -2,13 +2,15 @@
  * compositeTruthEngine.ts
  *
  * Phase 103 — Stage 7: Composite Truth Signal
+ * Phase 115 — Stage 3.5 extension: Citation Graph in Verdict Pipeline
  *
- * Combines three independent signals into a single authoritative truth label
+ * Combines four independent signals into a single authoritative truth label
  * and numeric score for each claim:
  *
- *   1. upstream_verdict   — primary source validation result (Stages 1–2)
- *   2. provenance_score   — determinism / traceability of evidence (Stage 4)
- *   3. chain_distortion   — downstream citation distortion (Stage 6)
+ *   1. upstream_verdict       — primary source validation result (Stages 1–2)
+ *   2. provenance_score       — determinism / traceability of evidence (Stage 4)
+ *   3. chain_distortion       — downstream citation distortion (Stage 6)
+ *   4. citation_graph         — OC citation count, self-citation fraction, retraction (Stage 3.5)
  *
  * The scoring function is DETERMINISTIC and RULE-BASED. No LLM calls are made
  * here. The LLM is used upstream (claim extraction, misrepresentation
@@ -30,6 +32,11 @@
  *   Represents the overall "truth confidence" of the claim as it exists in the
  *   literature. 1.0 = fully verified and faithfully propagated. 0.0 = actively
  *   contradicted and being amplified downstream.
+ *
+ * Phase 115 scoring additions:
+ *   - citationCount log10 boost: min(log10(count) / 8, 0.25) — clamped at +0.25
+ *   - selfCitationFraction penalty: fraction × 0.05 — max −0.05
+ *   - isRetracted penalty: updated from −0.15 to −0.30
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -70,14 +77,27 @@ export interface CompositeTruthInput {
    * Derived from citation count, ORCID-verified authorship, and publication type.
    * Null when no DOI is present in the claim or the OC lookup failed.
    * Score ≥ 0.80 → +0.05 composite bonus (highly cited, ORCID-verified).
-   * Score ≤ 0.30 → −0.15 composite penalty (retraction notice or very low authority).
+   * Score ≤ 0.30 → −0.10 composite penalty (very low authority).
    */
   citationAuthorityScore?: number | null;
   /**
    * True when the OpenCitations lookup returned a retraction-notice flag.
-   * When true, applies a −0.15 penalty regardless of citationAuthorityScore.
+   * When true, applies a −0.30 penalty regardless of citationAuthorityScore.
+   * (Phase 115: updated from −0.15 to −0.30)
    */
   isRetracted?: boolean | null;
+  /**
+   * Phase 115 — Raw citation count from OpenCitations.
+   * Used to compute a log10 boost: min(log10(count) / 8, 0.25).
+   * Null when no DOI or OC lookup failed.
+   */
+  citationCount?: number | null;
+  /**
+   * Phase 115 — Fraction of citations that are self-citations (0.0–1.0).
+   * Applies a proportional penalty: fraction × 0.05 (max −0.05).
+   * Null when no OC data available.
+   */
+  selfCitationFraction?: number | null;
 }
 
 export interface CompositeTruthResult {
@@ -107,6 +127,18 @@ const VERDICT_BASE_SCORE: Record<string, number> = {
   "Needs Expert Review": 0.3,
   Contradicted: 0.05,
 };
+
+/** Phase 115: Retraction penalty — updated from −0.15 to −0.30. */
+const RETRACTION_PENALTY = 0.30;
+
+/** Phase 115: Maximum log10 citation count boost (clamped). */
+const CITATION_COUNT_BOOST_MAX = 0.25;
+
+/** Phase 115: Divisor for log10 boost — log10(count) / 8, clamped at 0.25. */
+const CITATION_COUNT_LOG10_DIVISOR = 8;
+
+/** Phase 115: Maximum self-citation penalty. */
+const SELF_CITATION_PENALTY_MAX = 0.05;
 
 // ─── Label descriptions (used in rationale strings) ──────────────────────────
 
@@ -149,6 +181,8 @@ export function computeCompositeTruth(
     chainHopCount,
     citationAuthorityScore,
     isRetracted,
+    citationCount,
+    selfCitationFraction,
   } = input;
 
   // Normalise nullish values
@@ -220,19 +254,44 @@ export function computeCompositeTruth(
 
   // ── Stage 3.5: OpenCitations citation authority adjustment ─────────────
   // High citation authority (≥ 0.80) adds a small confidence boost.
-  // Low authority (≤ 0.30) or a retraction flag applies a penalty.
+  // Low authority (≤ 0.30) applies a penalty.
   const ocAuthority = citationAuthorityScore ?? null;
   const ocBonus =
     ocAuthority !== null && ocAuthority >= 0.80 ? 0.05 : 0;
-  const ocPenalty =
-    isRetracted === true
-      ? 0.15
-      : ocAuthority !== null && ocAuthority <= 0.30
-        ? 0.10
-        : 0;
+  const ocLowPenalty =
+    !isRetracted && ocAuthority !== null && ocAuthority <= 0.30 ? 0.10 : 0;
+
+  // Phase 115: Retraction penalty updated from −0.15 to −0.30
+  const retractionPenalty = isRetracted === true ? RETRACTION_PENALTY : 0;
+
+  // Phase 115: log10 citation count boost — min(log10(count) / 8, 0.25)
+  const count = citationCount ?? null;
+  const citationCountBoost =
+    count !== null && count > 0
+      ? Math.min(
+          Math.log10(count) / CITATION_COUNT_LOG10_DIVISOR,
+          CITATION_COUNT_BOOST_MAX
+        )
+      : 0;
+
+  // Phase 115: self-citation penalty — fraction × 0.05 (max −0.05)
+  const selfCiteFraction = selfCitationFraction ?? null;
+  const selfCitePenalty =
+    selfCiteFraction !== null && selfCiteFraction > 0
+      ? selfCiteFraction * SELF_CITATION_PENALTY_MAX
+      : 0;
 
   const rawScore =
-    baseScore - chainPenalty - provenancePenalty + provenanceBonus + ocBonus - ocPenalty;
+    baseScore
+    - chainPenalty
+    - provenancePenalty
+    + provenanceBonus
+    + ocBonus
+    - ocLowPenalty
+    - retractionPenalty
+    + citationCountBoost
+    - selfCitePenalty;
+
   const score = Math.max(0, Math.min(1, rawScore));
 
   // ── Step 3: Build rationale ───────────────────────────────────────────────
@@ -256,7 +315,7 @@ export function computeCompositeTruth(
 
   if (isRetracted === true) {
     parts.push(
-      "⚠ OpenCitations: this work has a retraction notice — composite score penalised (−0.15)."
+      "⚠ OpenCitations: this work has a retraction notice — composite score penalised (−0.30)."
     );
   } else if (ocAuthority !== null) {
     if (ocAuthority >= 0.80) {
@@ -272,6 +331,22 @@ export function computeCompositeTruth(
         `OpenCitations: citation authority ${Math.round(ocAuthority * 100)}% (no adjustment).`
       );
     }
+  }
+
+  // Phase 115: citation count rationale
+  if (count !== null && count > 0) {
+    const boostPct = Math.round(citationCountBoost * 100);
+    parts.push(
+      `Citation count: cited ${count} times — composite score boosted (+${boostPct}%).`
+    );
+  }
+
+  // Phase 115: self-citation rationale
+  if (selfCiteFraction !== null && selfCiteFraction > 0) {
+    const penaltyPct = Math.round(selfCitePenalty * 100);
+    parts.push(
+      `Self-citation fraction: ${Math.round(selfCiteFraction * 100)}% — composite score penalised (−${penaltyPct}%).`
+    );
   }
 
   const rationale = parts.join(" ");

@@ -58,5 +58,10 @@ export const ENV = {
   // RSA-2048 private key (PKCS#8 PEM) for signing JWTs. Corresponds to the public key
   // served at /.well-known/jwks.json (kid: b5e30ba415a3dcd7).
   // Stored as JWKS_PRIVATE_KEY secret. The \n-escaped form is accepted (common in env vars).
-  jwksPrivateKey: (process.env.JWKS_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
+  jwksPrivateKey: (process.env.JWKS_PRIVATE_KEY ?? "").replace(/\n/g, "\n"),
+  // Training corpus integration (cognitive-loop-framework flywheel)
+  // Set TRAINING_CORPUS_ENABLED=true to activate the ClaimsCorpusGenerator listener.
+  // TRAINING_CORPUS_PATH: absolute path to the JSONL corpus file on the training host.
+  trainingCorpusEnabled: process.env.TRAINING_CORPUS_ENABLED === "true",
+  trainingCorpusPath: process.env.TRAINING_CORPUS_PATH ?? "/data/training/claims_corpus.jsonl",
 };

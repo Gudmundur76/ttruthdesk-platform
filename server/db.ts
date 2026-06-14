@@ -1876,3 +1876,17 @@ export async function getQuestion(id: number): Promise<Question | null> {
     .limit(1);
   return rows[0] ?? null;
 }
+
+/**
+ * Phase 115 — Mark a claim as having been enriched by the OpenCitations
+ * citation graph (Stage 3.5). Sets citationGraphEnriched = true.
+ * No-op if the DB is unavailable (fail-open).
+ */
+export async function setCitationGraphEnriched(claimId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(claims)
+    .set({ citationGraphEnriched: true })
+    .where(eq(claims.id, claimId));
+}

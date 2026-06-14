@@ -60,6 +60,7 @@ import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
 import { analyzeCitationChain } from "./citationChainAnalyzer";
 import { computeCompositeTruth } from "./compositeTruthEngine";
 import { openCitationsEnrichClaim } from "./openCitationsEnricher";
+import { setCitationGraphEnriched } from "./db";
 import { logger, errData } from "./logger";
 const log = logger("analysisPipeline");
 
@@ -684,6 +685,8 @@ export async function runAnalysisPipeline(
           // This enriches the composite truth signal without blocking the pipeline.
           let ocCitationScore: number | null = null;
           let ocIsRetracted: boolean | null = null;
+          let ocCitationCount: number | null = null;
+          let ocSelfCitationFraction: number | null = null;
           try {
             const ocResult = await openCitationsEnrichClaim(
               claim.claimText,
@@ -692,6 +695,10 @@ export async function runAnalysisPipeline(
             if (ocResult) {
               ocCitationScore = ocResult.citationAuthorityScore;
               ocIsRetracted = ocResult.isRetracted;
+              ocCitationCount = ocResult.citationCount ?? null;
+              ocSelfCitationFraction = (ocResult as { selfCitationFraction?: number | null }).selfCitationFraction ?? null;
+              // Phase 115: mark claim as citation-graph-enriched
+              await setCitationGraphEnriched(claim.id);
             }
           } catch (ocErr) {
             log.warn(
@@ -717,6 +724,8 @@ export async function runAnalysisPipeline(
                 : null,
             citationAuthorityScore: ocCitationScore,
             isRetracted: ocIsRetracted,
+            citationCount: ocCitationCount,
+            selfCitationFraction: ocSelfCitationFraction,
           });
 
           await updateClaimVerdict(claim.id, {

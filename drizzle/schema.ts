@@ -175,6 +175,8 @@ export const claims = mysqlTable(
       "out_of_scope", // Out of Scope or Needs Expert Review
     ]),
 
+    // Phase 115: Citation graph enrichment flag — set to true when Stage 3.5 OC enrichment ran successfully
+    citationGraphEnriched: boolean("citationGraphEnriched").notNull().default(false),
     // Review
     reviewedBy: int("reviewedBy"),
     reviewedAt: timestamp("reviewedAt"),
