@@ -322,7 +322,10 @@ export function registerClaimsRoutes(app: Express): void {
     res.set(CORS_HEADERS).status(204).end();
   });
   app.get("/api/public/claims/:id", async (req: Request, res: Response) => {
-    const claimId = parseInt(req.params.id ?? "", 10);
+    // Accept both numeric IDs (300002) and composite IDs (ptd-270001-300002)
+    const raw = req.params.id ?? "";
+    const numericPart = raw.startsWith("ptd-") ? raw.split("-").pop() ?? "" : raw;
+    const claimId = parseInt(numericPart, 10);
     if (isNaN(claimId)) {
       return res.set(CORS_HEADERS).status(400).json({ error: "Invalid claim ID" });
     }

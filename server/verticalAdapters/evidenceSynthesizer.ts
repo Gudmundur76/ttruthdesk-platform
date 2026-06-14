@@ -136,10 +136,20 @@ export async function synthesiseEvidence(raw: RawEvidence): Promise<SynthesisRes
     const flags = Array.isArray(parsed.confidenceFlags)
       ? parsed.confidenceFlags.slice(0, 6)
       : raw.baseFlags;
-    const rationale =
+    // Strip any leaked prompt engineering instructions from the rationale
+    const sanitiseRationale = (text: string): string =>
+      text
+        .replace(/\[Audit note:[^\]]*\]/gi, "")
+        .replace(/\[INST\][\s\S]*?\[\/INST\]/gi, "")
+        .replace(/<\|system\|>[\s\S]*?<\|end\|>/gi, "")
+        .replace(/^(System:|Human:|Assistant:|User:)\s*/gim, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    const rawRationale =
       typeof parsed.verdictRationale === "string" && parsed.verdictRationale.length > 0
         ? parsed.verdictRationale
         : "Evidence synthesis unavailable.";
+    const rationale = sanitiseRationale(rawRationale) || "Evidence synthesis unavailable.";
 
     return {
       confidenceScore: score,

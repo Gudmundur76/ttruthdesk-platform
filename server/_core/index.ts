@@ -1833,6 +1833,42 @@ async function startServer() {
     }
   });
 
+  // ── Public analytics endpoints ─────────────────────────────────────────────
+  app.get("/api/public/verticals", async (_req, res) => {
+    try {
+      const { getVerticalStats } = await import("../db");
+      const stats = await getVerticalStats();
+      res.json({ verticals: stats });
+    } catch (err) {
+      console.error("[/api/public/verticals] error:", err);
+      res.status(500).json({ error: "verticals_unavailable" });
+    }
+  });
+
+  app.get("/api/public/leaderboard", async (req, res) => {
+    try {
+      const { getAllGraphEntities } = await import("../db");
+      const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10), 100);
+      const entities = await getAllGraphEntities(limit);
+      res.json({ entities });
+    } catch (err) {
+      console.error("[/api/public/leaderboard] error:", err);
+      res.status(500).json({ error: "leaderboard_unavailable" });
+    }
+  });
+
+  app.get("/api/public/contradictions", async (req, res) => {
+    try {
+      const { getContradictionRelations } = await import("../db");
+      const limit = Math.min(parseInt((req.query.limit as string) ?? "50", 10), 200);
+      const contradictions = await getContradictionRelations(limit);
+      res.json({ contradictions });
+    } catch (err) {
+      console.error("[/api/public/contradictions] error:", err);
+      res.status(500).json({ error: "contradictions_unavailable" });
+    }
+  });
+
   // PDF report export endpoint (authenticated)
   app.get("/api/reports/:documentId/pdf", async (req, res) => {
     try {
