@@ -40,7 +40,7 @@ vi.mock("./eventBus", () => ({
 vi.mock("../db", () => ({ getDb: mocks.mockGetDb }));
 
 import { processEvent, getLoopConfig } from "./loopOrchestrator";
-import type { LoopEvent } from "./loopOrchestrator";
+import type { LoopEvent } from "./eventBus";
 
 /** Minimal DB mock for insert (persistLoopRun) and select (getLoopConfig) */
 function makeDb() {
