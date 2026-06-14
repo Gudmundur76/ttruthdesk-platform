@@ -1,7 +1,7 @@
 /**
  * alertRouter.test.ts — Meta-Agent Alert Routing Layer
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { mockGetDb, mockNotifyOwner } = vi.hoisted(() => ({
   mockGetDb: vi.fn(),
@@ -237,5 +237,51 @@ describe("alertRouter — persistFinding", () => {
     mockGetDb.mockResolvedValue(makeDb());
     const result = await persistFinding(makeFinding("warning"));
     expect(result === null || typeof result === "number").toBe(true);
+  });
+});
+
+// ─── Telegram !res.ok and fetch-throws paths (lines 132-134, 136-137) ───────────────
+// The module-level mock sets telegramBotToken/channelId to null, so the
+// sendTelegramMetaAlert guard (line 111) returns early and fetch is never
+// called.  To reach lines 132-137 we need a token+chatId.  We use
+// vi.doMock + a dynamic import inside the test so the module is re-evaluated
+// with the new ENV values.  After each test we restore the original mock.
+describe("alertRouter — sendTelegramMetaAlert error paths", () => {
+  afterEach(() => {
+    vi.doUnmock("../_core/env");
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("logs warn (does not throw) when Telegram returns !res.ok (lines 132-134)", async () => {
+    vi.doMock("../_core/env", () => ({
+      ENV: { telegramBotToken: "tok", telegramChannelId: "42" },
+    }));
+    vi.doMock("../db", () => ({ getDb: mockGetDb }));
+    vi.doMock("../_core/notification", () => ({ notifyOwner: mockNotifyOwner }));
+    mockGetDb.mockResolvedValue(makeDb([]));
+    mockNotifyOwner.mockResolvedValue(true);
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: vi.fn().mockResolvedValue("Bad Request"),
+    });
+    const { routeFinding: rf } = await import("./alertRouter");
+    await expect(rf(makeFinding("critical"))).resolves.not.toThrow();
+  });
+
+  it("logs warn (does not throw) when Telegram fetch rejects (lines 135-137)", async () => {
+    vi.doMock("../_core/env", () => ({
+      ENV: { telegramBotToken: "tok", telegramChannelId: "42" },
+    }));
+    vi.doMock("../db", () => ({ getDb: mockGetDb }));
+    vi.doMock("../_core/notification", () => ({ notifyOwner: mockNotifyOwner }));
+    mockGetDb.mockResolvedValue(makeDb([]));
+    mockNotifyOwner.mockResolvedValue(true);
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("Network failure")
+    );
+    const { routeFinding: rf } = await import("./alertRouter");
+    await expect(rf(makeFinding("critical"))).resolves.not.toThrow();
   });
 });

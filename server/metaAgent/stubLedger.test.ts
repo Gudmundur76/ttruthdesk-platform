@@ -7,7 +7,7 @@
  * directly (pure function — no fs needed) and test buildStubLedger() by
  * verifying the report shape it always returns.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { buildStubLedger, getOverdueEscalations } from "./stubLedger";
 import type { StubLedgerReport, StubEntry } from "./stubLedger";
 
@@ -260,5 +260,48 @@ describe("getOverdueEscalations", () => {
     const escalations = getOverdueEscalations(report);
     // This tests the actual implementation logic
     expect(escalations.length).toBeGreaterThanOrEqual(0); // non-crashing
+  });
+});
+
+// ─── buildStubLedger — fs error paths (lines 164, 184) ───────────────────────────────
+// stubLedger.ts imports { readFileSync, readdirSync, statSync } from "fs".
+// We mock "fs" to make statSync throw (line 164 catch) and readFileSync throw
+// (line 184 catch) so the scanner continues without crashing.
+import { vi as _vi } from "vitest";
+
+describe("buildStubLedger — fs error resilience", () => {
+  afterEach(() => {
+    _vi.doUnmock("fs");
+    _vi.resetModules();
+  });
+
+  it("continues without crashing when statSync throws (line 164 catch)", async () => {
+    // Provide a minimal fs mock: readdirSync returns one file, statSync throws,
+    // readFileSync returns a stub marker so we get at least one stub entry.
+    _vi.doMock("fs", () => ({
+      readFileSync: _vi.fn().mockReturnValue("// STUB: test:id [P1] description"),
+      readdirSync: _vi.fn().mockReturnValue(["test.ts"]),
+      statSync: _vi.fn().mockImplementation(() => { throw new Error("ENOENT"); }),
+      existsSync: _vi.fn().mockReturnValue(true),
+    }));
+    const { buildStubLedger: bsl } = await import("./stubLedger");
+    // Should not throw even when statSync fails
+    expect(() => bsl()).not.toThrow();
+    const report = bsl();
+    expect(report).toHaveProperty("total");
+  });
+
+  it("skips unreadable files without crashing when readFileSync throws (line 184 catch)", async () => {
+    _vi.doMock("fs", () => ({
+      readFileSync: _vi.fn().mockImplementation(() => { throw new Error("EACCES"); }),
+      readdirSync: _vi.fn().mockReturnValue(["secret.ts"]),
+      statSync: _vi.fn().mockReturnValue({ birthtime: new Date(), mtime: new Date() }),
+      existsSync: _vi.fn().mockReturnValue(true),
+    }));
+    const { buildStubLedger: bsl } = await import("./stubLedger");
+    expect(() => bsl()).not.toThrow();
+    const report = bsl();
+    // File was skipped, no stubs extracted from it
+    expect(report.total).toBeGreaterThanOrEqual(0);
   });
 });

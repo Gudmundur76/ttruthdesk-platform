@@ -12,7 +12,7 @@
  * CRITICAL: the db object itself must NOT be thenable (no .then property),
  * otherwise `mockGetDb.mockResolvedValue(db)` will unwrap it.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { mockGetDb } = vi.hoisted(() => ({ mockGetDb: vi.fn() }));
 vi.mock("../db", () => ({ getDb: mockGetDb }));
@@ -176,5 +176,127 @@ describe("pipelineGuardian — stuck documents", () => {
     const stuck = r.invariants.find(i => i.name === "stuckDocuments");
     expect(stuck).toBeDefined();
     expect(["warn", "fail"]).toContain(stuck!.status);
+  });
+});
+
+// ─── wikiStaleness DB error path (lines 249-250, 257) ────────────────────────────
+// All 7 invariants run in parallel (Promise.all), so we cannot rely on
+// call order or table-reference tricks (the module is already imported).
+// The simplest reliable approach: make ALL db.select() chains reject.
+// Every invariant that uses select() will hit its own catch path, which
+// means wikiStaleness (lines 248-250, 252-257) will definitely be covered.
+describe("pipelineGuardian — wikiStaleness DB error path", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reports wikiStaleness as warn with dbError when select throws (lines 249-250, 257)", async () => {
+    // checkWikiStaleness is the ONLY invariant that calls:
+    //   db.select({ id: wikiPages.id, updatedAt: wikiPages.updatedAt }).from(wikiPages)
+    // It is also the only select() call whose column spec includes an 'updatedAt' key.
+    // We detect this by inspecting the columns argument and return a throwing chain for it.
+    // All other select() calls get a normal resolving chain.
+    function makeChain(resolveWith: unknown[]) {
+      const p = Promise.resolve(resolveWith);
+      const c: Record<string, unknown> = {};
+      c.from = vi.fn().mockReturnValue(c);
+      c.where = vi.fn().mockReturnValue(c);
+      c.leftJoin = vi.fn().mockReturnValue(c);
+      c.limit = vi.fn().mockResolvedValue(resolveWith);
+      c.then = (onfulfilled: unknown, onrejected: unknown) =>
+        p.then(
+          onfulfilled as Parameters<typeof p.then>[0],
+          onrejected as Parameters<typeof p.then>[1]
+        );
+      c.catch = p.catch.bind(p);
+      c.finally = p.finally.bind(p);
+      return c;
+    }
+    function makeThrowingChain() {
+      const p = Promise.reject(new Error("wiki DB error"));
+      const c: Record<string, unknown> = {};
+      c.from = vi.fn().mockReturnValue(c);
+      c.where = vi.fn().mockReturnValue(c);
+      c.leftJoin = vi.fn().mockReturnValue(c);
+      c.limit = vi.fn().mockRejectedValue(new Error("wiki DB error"));
+      c.then = (onfulfilled: unknown, onrejected: unknown) =>
+        p.then(
+          onfulfilled as Parameters<typeof p.then>[0],
+          onrejected as Parameters<typeof p.then>[1]
+        );
+      c.catch = p.catch.bind(p);
+      c.finally = p.finally.bind(p);
+      return c;
+    }
+    const db = {
+      // Detect the wikiStaleness select by the presence of 'updatedAt' in the columns spec
+      select: vi.fn().mockImplementation((cols: unknown) => {
+        const isWikiSelect =
+          cols !== null &&
+          typeof cols === "object" &&
+          "updatedAt" in (cols as Record<string, unknown>);
+        return isWikiSelect ? makeThrowingChain() : makeChain([]);
+      }),
+      execute: vi.fn().mockResolvedValue([]),
+    };
+    mockGetDb.mockResolvedValue(db);
+    const r = await runPipelineGuardian();
+    const wiki = r.invariants.find(i => i.name === "wikiStaleness");
+    expect(wiki).toBeDefined();
+    // DB error → warn with dbError in details
+    expect(wiki!.status).toBe("warn");
+    expect(wiki!.details).toHaveProperty("dbError");
+  });
+});
+
+// ─── lowConfidenceClaims lowCount > 100 warn path (line 345-346) ────────────────────
+describe("pipelineGuardian — lowConfidenceClaims lowCount > 100", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("warns when lowCount > 100 even if ratio is below threshold (line 345-346)", async () => {
+    // lowCount = 101, totalScored = 10000 → ratio = 0.0101 (below 0.2 threshold)
+    // but lowCount > 100 → warn
+    let callCount = 0;
+    function makeChain(resolveWith: unknown[]) {
+      const p = Promise.resolve(resolveWith);
+      const c: Record<string, unknown> = {};
+      c.from = vi.fn().mockReturnValue(c);
+      c.where = vi.fn().mockReturnValue(c);
+      c.leftJoin = vi.fn().mockReturnValue(c);
+      c.limit = vi.fn().mockResolvedValue(resolveWith);
+      c.then = (onfulfilled: unknown, onrejected: unknown) =>
+        p.then(
+          onfulfilled as Parameters<typeof p.then>[0],
+          onrejected as Parameters<typeof p.then>[1]
+        );
+      c.catch = p.catch.bind(p);
+      c.finally = p.finally.bind(p);
+      return c;
+    }
+    // runPipelineGuardian calls invariants in order:
+    // 1. stuckDocuments (select+leftJoin+where+limit)
+    // 2. wikiStaleness (select+from → direct await)
+    // 3. claimOrphans (execute)
+    // 4. zeroClaimCompletions (select+from+where+limit)
+    // 5. stalePdbEvidence (Promise.all of 2 select+from+where chains)
+    // 6. lowConfidenceClaims (Promise.all of 2 select+from+where chains)
+    // 7. modelValidationRate (select+from+where)
+    // We need calls 6 and 7 (lowConfidenceClaims first select) to return cnt=101 and 10000
+    const db = {
+      select: vi.fn().mockImplementation(() => {
+        callCount++;
+        // Calls 1 (stuckDocuments), 2 (wikiStaleness), 4 (zeroClaimCompletions),
+        // 5+6 (stalePdbEvidence), 8 (modelValidationRate) → return []
+        // Calls 7 (lowConf first) → return [{ cnt: 101 }]
+        // Call 8 (lowConf second / total) → return [{ cnt: 10000 }]
+        if (callCount === 7) return makeChain([{ cnt: 101 }]);
+        if (callCount === 8) return makeChain([{ cnt: 10000 }]);
+        return makeChain([]);
+      }),
+      execute: vi.fn().mockResolvedValue([]),
+    };
+    mockGetDb.mockResolvedValue(db);
+    const r = await runPipelineGuardian();
+    const lowConf = r.invariants.find(i => i.name === "lowConfidenceClaims");
+    expect(lowConf).toBeDefined();
+    expect(lowConf!.status).toBe("warn");
   });
 });

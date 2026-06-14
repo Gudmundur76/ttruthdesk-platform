@@ -258,3 +258,90 @@ describe("codeDriftService — detectCodeDrift()", () => {
     expect(["info", "warning"]).toContain(report.overallSeverity);
   });
 });
+
+// ─── detectDisciplineDrift — DB error path and >100 expired tokens path ─────────────
+// detectDisciplineDrift is exported and can be tested directly.
+import { detectDisciplineDrift } from "./codeDriftService";
+
+describe("codeDriftService — detectDisciplineDrift()", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns warning with confidence 0.3 when DB throws (line 373-374)", async () => {
+    mockGetDb.mockResolvedValue({
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockRejectedValue(new Error("DB connection refused")),
+    });
+    const result = await detectDisciplineDrift();
+    expect(result.severity).toBe("warning");
+    expect(result.confidence).toBe(0.3);
+    expect(result.details.dbError).toBeTruthy();
+    expect(result.summary).toContain("DB error");
+  });
+
+  it("returns warning when expiredUnusedCount > 100 (line 375-376)", async () => {
+    // Return 101 expired tokens for the first select, 0 for the second
+    let callCount = 0;
+    const makeChain = (rows: unknown[]) => {
+      const p = Promise.resolve(rows);
+      const c: Record<string, unknown> = {};
+      c.from = vi.fn().mockReturnValue(c);
+      c.where = vi.fn().mockReturnValue(c);
+      c.then = (res: Parameters<typeof p.then>[0], rej: Parameters<typeof p.then>[1]) => p.then(res, rej);
+      c.catch = p.catch.bind(p);
+      c.finally = p.finally.bind(p);
+      return c;
+    };
+    const db = {
+      select: vi.fn().mockImplementation(() => {
+        callCount++;
+        // First call: expired tokens (>100)
+        if (callCount === 1) return makeChain(Array.from({ length: 101 }, (_, i) => ({ id: i })));
+        // Second call: stale tokens
+        return makeChain([]);
+      }),
+    };
+    mockGetDb.mockResolvedValue(db);
+    const result = await detectDisciplineDrift();
+    expect(result.severity).toBe("warning");
+    expect(result.confidence).toBe(0.95);
+    expect(result.details.expiredUnusedTokens).toBe(101);
+  });
+
+  it("returns info when counts are low (happy path)", async () => {
+    const makeChain = (rows: unknown[]) => {
+      const p = Promise.resolve(rows);
+      const c: Record<string, unknown> = {};
+      c.from = vi.fn().mockReturnValue(c);
+      c.where = vi.fn().mockReturnValue(c);
+      c.then = (res: Parameters<typeof p.then>[0], rej: Parameters<typeof p.then>[1]) => p.then(res, rej);
+      c.catch = p.catch.bind(p);
+      c.finally = p.finally.bind(p);
+      return c;
+    };
+    const db = { select: vi.fn().mockImplementation(() => makeChain([])) };
+    mockGetDb.mockResolvedValue(db);
+    const result = await detectDisciplineDrift();
+    expect(result.severity).toBe("info");
+    expect(result.details.dbError).toBeNull();
+  });
+});
+
+// ─── detectDependencyDrift — patchCount path (line 268) ─────────────────────────
+import { detectDependencyDrift } from "./codeDriftService";
+
+describe("codeDriftService — detectDependencyDrift() patch-only path", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns info (not warning) when only patch updates are available (line 268)", () => {
+    // execSync with encoding:utf-8 returns a string, so mock must return a string (not Buffer)
+    const outdated = {
+      "some-pkg": { current: "1.0.0", latest: "1.0.1" },
+    };
+    mockExecSync.mockReturnValue(JSON.stringify(outdated));
+    const result = detectDependencyDrift();
+    // patchCount > 0 but majorCount = 0, minorCount = 0 → severity is info
+    expect(result.severity).toBe("info");
+    expect(result.details.patchCount).toBeGreaterThan(0);
+  });
+});
