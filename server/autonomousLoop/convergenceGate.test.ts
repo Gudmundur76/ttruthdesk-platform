@@ -14,11 +14,16 @@ import {
 import type { LoopAction } from "./loopOrchestrator";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function makeAction(priority: number, result: LoopAction["result"] = "success"): LoopAction {
-  return { id: `act-${priority}`, priority, result } as LoopAction;
+function makeAction(
+  priority: number,
+  result: LoopAction["result"] = "success"
+): LoopAction {
+  return { id: `act-${priority}`, priority, result } as unknown as LoopAction;
 }
 
-function makeInput(overrides: Partial<ConvergenceInput> = {}): ConvergenceInput {
+function makeInput(
+  overrides: Partial<ConvergenceInput> = {}
+): ConvergenceInput {
   return {
     pendingActions: [],
     metaHealthScore: HEALTHY_THRESHOLD,
@@ -60,15 +65,21 @@ describe("convergenceGate — shouldConverge()", () => {
   });
 
   it("returns converge:false when health score is below HEALTHY_THRESHOLD", () => {
-    const result = shouldConverge(makeInput({ metaHealthScore: HEALTHY_THRESHOLD - 1 }));
+    const result = shouldConverge(
+      makeInput({ metaHealthScore: HEALTHY_THRESHOLD - 1 })
+    );
 
     expect(result.converge).toBe(false);
     expect(result.conditions.systemHealthy).toBe(false);
-    expect(result.reason).toContain(`health_score_${HEALTHY_THRESHOLD - 1}_below_${HEALTHY_THRESHOLD}`);
+    expect(result.reason).toContain(
+      `health_score_${HEALTHY_THRESHOLD - 1}_below_${HEALTHY_THRESHOLD}`
+    );
   });
 
   it("returns converge:true when health score equals HEALTHY_THRESHOLD exactly", () => {
-    const result = shouldConverge(makeInput({ metaHealthScore: HEALTHY_THRESHOLD }));
+    const result = shouldConverge(
+      makeInput({ metaHealthScore: HEALTHY_THRESHOLD })
+    );
 
     expect(result.conditions.systemHealthy).toBe(true);
   });

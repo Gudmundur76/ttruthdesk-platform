@@ -22,12 +22,18 @@ import {
 
 // ─── Snapshot & restore helpers ───────────────────────────────────────────────
 // We need to restore the in-memory whitelist after each test that mutates it.
-let originalStates: Map<string, { approved: boolean; approvedAt: string | null }>;
+let originalStates: Map<
+  string,
+  { approved: boolean; approvedAt: string | null }
+>;
 
 beforeEach(() => {
   // Snapshot current approved/approvedAt state for all entries
   originalStates = new Map(
-    SOURCE_WHITELIST.map((s) => [s.id, { approved: s.approved, approvedAt: s.approvedAt ?? null }])
+    SOURCE_WHITELIST.map(s => [
+      s.id,
+      { approved: s.approved, approvedAt: s.approvedAt ?? null },
+    ])
   );
 });
 
@@ -37,7 +43,7 @@ afterEach(() => {
     const original = originalStates.get(source.id);
     if (original) {
       source.approved = original.approved;
-      source.approvedAt = original.approvedAt ?? undefined;
+      source.approvedAt = original.approvedAt ?? null;
     }
   }
 });
@@ -48,7 +54,7 @@ describe("sourceRegistry — getApprovedSources()", () => {
     const approved = getApprovedSources();
 
     expect(Array.isArray(approved)).toBe(true);
-    expect(approved.every((s) => s.approved === true)).toBe(true);
+    expect(approved.every(s => s.approved === true)).toBe(true);
   });
 
   it("returns a non-empty list (at least one source is approved in the whitelist)", () => {
@@ -75,7 +81,7 @@ describe("sourceRegistry — getPendingSources()", () => {
     const pending = getPendingSources();
 
     expect(Array.isArray(pending)).toBe(true);
-    expect(pending.every((s) => s.approved === false)).toBe(true);
+    expect(pending.every(s => s.approved === false)).toBe(true);
   });
 
   it("approved + pending = total whitelist length", () => {
@@ -223,7 +229,7 @@ describe("sourceRegistry — runHealthCheck()", () => {
       expect(mockHealthFn).toHaveBeenCalledOnce();
     } finally {
       // Remove mock source
-      const idx = SOURCE_WHITELIST.findIndex((s) => s.id === "__test_source__");
+      const idx = SOURCE_WHITELIST.findIndex(s => s.id === "__test_source__");
       if (idx !== -1) SOURCE_WHITELIST.splice(idx, 1);
     }
   });
@@ -233,9 +239,11 @@ describe("sourceRegistry — runHealthCheck()", () => {
 describe("sourceRegistry — runAllHealthChecks()", () => {
   it("returns a record keyed by source id", async () => {
     // Mock all healthCheckFns to avoid real network calls
-    const origFns = SOURCE_WHITELIST.map((s) => s.healthCheckFn);
-    SOURCE_WHITELIST.forEach((s) => {
-      s.healthCheckFn = vi.fn().mockResolvedValue({ healthy: true, latencyMs: 10 });
+    const origFns = SOURCE_WHITELIST.map(s => s.healthCheckFn);
+    SOURCE_WHITELIST.forEach(s => {
+      s.healthCheckFn = vi
+        .fn()
+        .mockResolvedValue({ healthy: true, latencyMs: 10 });
     });
 
     try {
@@ -255,8 +263,8 @@ describe("sourceRegistry — runAllHealthChecks()", () => {
   });
 
   it("records error for sources whose healthCheckFn throws", async () => {
-    const origFns = SOURCE_WHITELIST.map((s) => s.healthCheckFn);
-    SOURCE_WHITELIST.forEach((s) => {
+    const origFns = SOURCE_WHITELIST.map(s => s.healthCheckFn);
+    SOURCE_WHITELIST.forEach(s => {
       s.healthCheckFn = vi.fn().mockRejectedValue(new Error("network error"));
     });
 
@@ -277,12 +285,18 @@ describe("sourceRegistry — runAllHealthChecks()", () => {
   it("resolves even when some sources fail and others succeed", async () => {
     if (SOURCE_WHITELIST.length < 2) return;
 
-    const origFns = SOURCE_WHITELIST.map((s) => s.healthCheckFn);
-    SOURCE_WHITELIST[0].healthCheckFn = vi.fn().mockResolvedValue({ healthy: true, latencyMs: 5 });
-    SOURCE_WHITELIST[1].healthCheckFn = vi.fn().mockRejectedValue(new Error("timeout"));
+    const origFns = SOURCE_WHITELIST.map(s => s.healthCheckFn);
+    SOURCE_WHITELIST[0].healthCheckFn = vi
+      .fn()
+      .mockResolvedValue({ healthy: true, latencyMs: 5 });
+    SOURCE_WHITELIST[1].healthCheckFn = vi
+      .fn()
+      .mockRejectedValue(new Error("timeout"));
     // Rest succeed
-    SOURCE_WHITELIST.slice(2).forEach((s) => {
-      s.healthCheckFn = vi.fn().mockResolvedValue({ healthy: true, latencyMs: 5 });
+    SOURCE_WHITELIST.slice(2).forEach(s => {
+      s.healthCheckFn = vi
+        .fn()
+        .mockResolvedValue({ healthy: true, latencyMs: 5 });
     });
 
     try {
