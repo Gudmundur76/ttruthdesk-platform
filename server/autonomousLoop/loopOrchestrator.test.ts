@@ -59,7 +59,13 @@ const baseEvent: LoopEvent = {
   eventType: "document_submitted",
   entryLayer: 0,
   payload: { documentId: 42 },
+  status: "pending",
+  loopRunId: null,
+  skipReason: null,
+  attempts: 0,
+  errorMessage: null,
   createdAt: new Date(),
+  processedAt: null,
 };
 
 describe("loopOrchestrator — processEvent()", () => {
