@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("./db", () => ({
   createDocument: vi.fn().mockResolvedValue(42),
   insertClaims: vi.fn().mockResolvedValue(undefined),
+  getExistingClaimTexts: vi.fn().mockResolvedValue(new Set()),
   updateDocumentStatus: vi.fn().mockResolvedValue(undefined),
   updateClaimVerdict: vi.fn().mockResolvedValue(undefined),
   getClaimsByDocument: vi.fn().mockResolvedValue([

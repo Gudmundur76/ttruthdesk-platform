@@ -80,7 +80,7 @@ function looksLikeOrganism(name: string): boolean {
 
 // ─── NCBI Taxonomy lookup for organism names ─────────────────────────────────
 
-async function lookupNcbiTaxonomy(
+export async function lookupNcbiTaxonomy(
   organismName: string
 ): Promise<EvidenceResult> {
   try {

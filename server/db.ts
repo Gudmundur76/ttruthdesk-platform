@@ -371,6 +371,20 @@ export async function insertClaims(claimList: InsertClaim[]) {
   await db.insert(claims).values(claimList);
 }
 
+/**
+ * Returns a Set of normalised claim texts already stored for a given document.
+ * Used by the ingest pipeline to deduplicate claims before inserting.
+ */
+export async function getExistingClaimTexts(documentId: number): Promise<Set<string>> {
+  const db = await getDb();
+  if (!db) return new Set();
+  const rows = await db
+    .select({ claimText: claims.claimText })
+    .from(claims)
+    .where(eq(claims.documentId, documentId));
+  return new Set(rows.map(r => r.claimText.trim().toLowerCase()));
+}
+
 export async function getClaimsByDocument(documentId: number) {
   const db = await getDb();
   if (!db) return [];

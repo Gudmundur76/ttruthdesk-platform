@@ -688,10 +688,12 @@ async function startServer() {
   app.get("/mcp", (_req, res) => {
     res.set({
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
       "Access-Control-Allow-Origin": "*",
+      "X-Accel-Buffering": "no",
     });
+    res.flushHeaders();
     // Send MCP initialize response
     const initEvent = {
       jsonrpc: "2.0",

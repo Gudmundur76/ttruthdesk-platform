@@ -4,6 +4,8 @@
  * using the public Search API and Data API (no auth required).
  */
 
+import { lookupNcbiTaxonomy } from "./verticalAdapters/salmonBiotech";
+
 export interface PdbEntry {
   pdbId: string;
   title: string;
@@ -287,7 +289,19 @@ export async function verdictForClaim(claim: {
     };
   }
 
-  // ── Organism claims ────────────────────────────────────────────────────────
+  // ── Organism claims (no PDB ID) — route to NCBI Taxonomy ─────────────────
+  if (claim.claimType === "organism" && !claim.pdbId && claim.organism) {
+    const ncbiResult = await lookupNcbiTaxonomy(claim.organism);
+    return {
+      verdict: ncbiResult.found ? "Supported" : "Insufficient Evidence",
+      rationale: ncbiResult.found
+        ? `Organism "${claim.organism}" verified via NCBI Taxonomy (${ncbiResult.sourceId}).`
+        : `Organism "${claim.organism}" not found in NCBI Taxonomy. ${ncbiResult.confidenceFlags.join(" ")}.`,
+      evidenceUrl: ncbiResult.sourceUrl,
+      evidenceRaw: ncbiResult.evidenceRaw as PdbEntry | null,
+    };
+  }
+  // ── Organism claims (with PDB ID) — verify against PDB record ─────────────
   if (claim.claimType === "organism" && claim.pdbId && claim.organism) {
     const result = await fetchPdbEntry(claim.pdbId);
     if (!result.found) {

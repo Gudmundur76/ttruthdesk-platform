@@ -27,6 +27,7 @@ import { invokeLLM } from "./_core/llm";
 import {
   createDocument,
   insertClaims,
+  getExistingClaimTexts,
   updateDocumentStatus,
   updateClaimVerdict,
   getClaimsByDocument,
@@ -360,8 +361,26 @@ export async function processQueryResults(
     } satisfies import("../drizzle/schema").InsertClaim;
   });
 
+  // Deduplicate: skip claims whose normalised text already exists for this document
+  let deduplicatedInserts = claimInserts;
   try {
-    await insertClaims(claimInserts);
+    const existing = await getExistingClaimTexts(documentId);
+    if (existing.size > 0) {
+      const before = claimInserts.length;
+      deduplicatedInserts = claimInserts.filter(
+        c => !existing.has(c.claimText.trim().toLowerCase())
+      );
+      const skipped = before - deduplicatedInserts.length;
+      if (skipped > 0) {
+        log.info(`[autonomousIngest] Deduplication: skipped ${skipped} duplicate claim(s) for document ${documentId}`);
+      }
+    }
+  } catch (dedupErr) {
+    // Non-fatal: proceed with all claims if dedup query fails
+    log.warn(`[autonomousIngest] Dedup check failed, inserting all claims: ${String(dedupErr)}`);
+  }
+  try {
+    await insertClaims(deduplicatedInserts);
   } catch (err) {
     log.error("[autonomousIngest] Failed to insert claims:", errData(err));
     await updateDocumentStatus(documentId, "failed", {
