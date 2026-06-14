@@ -1,6 +1,7 @@
 /**
  * pdfReportGenerator.test.ts
  * Unit tests for server/pdfReportGenerator.ts
+ * NOTE: PDF generation uses puppeteer/chromium which can be slow in CI — 15s timeout.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -34,7 +35,8 @@ describe("generatePdfReport()", () => {
     await expect(generatePdfReport(999)).rejects.toThrow();
   });
 
-  it("returns a Buffer when document exists", async () => {
+  // PDF generation uses a real PDF library which can be slow in CI — give it 15s
+  it("returns a Buffer when document exists", { timeout: 15000 }, async () => {
     mocks.mockGetDocumentById.mockResolvedValue({
       id: 1,
       title: "Test Paper",
