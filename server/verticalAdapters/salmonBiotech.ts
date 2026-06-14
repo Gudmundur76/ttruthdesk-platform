@@ -67,11 +67,17 @@ const KNOWN_COMPOUNDS: Record<
   squalene: { cid: 638072, name: "Squalene", category: "triterpene" },
 };
 
-// ─── Organism name patterns (Latin binomials and common fish names) ─────────
+// ─── Organism name patterns (Latin binomials, common fish names, marine invertebrates) ───
+// Covers: Latin binomials/trinomials, common fish names, marine invertebrates,
+// aquaculture species, and taxonomy keywords.
 
 const ORGANISM_PATTERNS = [
-  /^[A-Z][a-z]+ [a-z]+$/, // Latin binomial e.g. "Oncorhynchus keta"
+  /^[A-Z][a-z]+ [a-z]+(\s+[a-z]+)?$/, // Latin binomial/trinomial e.g. "Oncorhynchus keta"
   /\b(salmon|trout|salmo|oncorhynchus|salvelinus|thymallus|coregonus)\b/i,
+  /\b(halibut|cod|herring|mackerel|tuna|sardine|anchovy|tilapia|catfish|carp|bass|perch|pike|eel|flounder|sole|turbot|haddock|pollock|sablefish|rockfish|capelin|stickleback|zebrafish|medaka)\b/i,
+  /\b(shrimp|prawn|crab|lobster|oyster|mussel|clam|scallop|abalone|squid|octopus|cuttlefish|krill|copepod|amphipod)\b/i,
+  /\b(penaeus|litopenaeus|artemia|mytilus|crassostrea|pecten|homarus|cancer|portunus|gadus|clupea|engraulis|thunnus|oreochromis|danio|oryzias)\b/i,
+  /\b(organism|species|genus|family|order|class|phylum|kingdom|taxon|taxonomy|binomial|subspecies)\b/i,
 ];
 
 function looksLikeOrganism(name: string): boolean {

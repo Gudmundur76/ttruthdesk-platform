@@ -393,10 +393,10 @@ function generateFeedXml(v: VerticalConfig, domain: string): string {
     <atom:link href="https://${esc(domain)}/feed.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Live verdicts available via API</title>
-      <link>https://truthdesk.claims/api/public/claims.json?vertical=${esc(v.id)}</link>
+      <link>https://citation.is/api/public/claims.json?vertical=${esc(v.id)}</link>
       <description>Real-time claim verdicts for ${esc(v.label)} are available via the Truth Desk public API.</description>
       <pubDate>${now}</pubDate>
-      <guid>https://truthdesk.claims/api/public/claims.json?vertical=${esc(v.id)}</guid>
+      <guid>https://citation.is/api/public/claims.json?vertical=${esc(v.id)}</guid>
     </item>
   </channel>
 </rss>

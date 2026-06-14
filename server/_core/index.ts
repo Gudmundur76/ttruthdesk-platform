@@ -46,6 +46,7 @@ import { agentIngestionHandler } from "../agentIngestionEndpoint";
 import { registerClaimHistoryRoute } from "../claimHistoryRoute";
 import { registerClaimProvenanceRoute } from "../claimProvenanceRoute";
 import { registerBatchVerifyRoute } from "../batchVerifyRoute";
+import { registerExternalPublicRoutes } from "../externalPublicRouter";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
@@ -1209,7 +1210,21 @@ async function startServer() {
             claimText: { type: "string" },
             verdict: {
               type: "string",
-              enum: ["supported", "refuted", "inconclusive"],
+              enum: [
+                "Supported",
+                "Contradicted",
+                "Ambiguous",
+                "Insufficient Evidence",
+                "Out of Scope",
+                "Needs Expert Review",
+              ],
+              description:
+                "Supported: claim verified against authoritative source. " +
+                "Contradicted: claim contradicts source data. " +
+                "Ambiguous: evidence is mixed. " +
+                "Insufficient Evidence: not enough data. " +
+                "Out of Scope: claim type cannot be auto-verified. " +
+                "Needs Expert Review: requires domain specialist.",
             },
             confidenceScore: { type: "number", minimum: 0, maximum: 1 },
             verticalDomain: { type: "string" },
@@ -1248,7 +1263,14 @@ async function startServer() {
           properties: {
             verdict: {
               type: "string",
-              enum: ["supported", "refuted", "inconclusive"],
+              enum: [
+                "Supported",
+                "Contradicted",
+                "Ambiguous",
+                "Insufficient Evidence",
+                "Out of Scope",
+                "Needs Expert Review",
+              ],
             },
             confidenceScore: { type: "number" },
             evidenceSource: { type: "string" },
@@ -1833,6 +1855,8 @@ async function startServer() {
   registerClaimHistoryRoute(app);
   registerClaimProvenanceRoute(app);
   registerBatchVerifyRoute(app);
+  // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
+  registerExternalPublicRoutes(app);
 
   // ─── Public stats endpoint — used by citation.is /status page ───────────────
   // Returns aggregate corpus stats without exposing internal pipeline details.

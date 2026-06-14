@@ -98,23 +98,26 @@ export function registerClaimsRoutes(app: Express): void {
   });
 
   app.get("/api/public/claims.json", async (req: Request, res: Response) => {
-    const limitParam = parseInt((req.query.limit as string) ?? "200", 10);
-    const limit = isNaN(limitParam) ? 200 : Math.min(limitParam, 500);
-
-    const rows = await getRecentVerifiedClaims(limit);
-    const base = originBase(req);
-    const registry = buildGlobalRegistry(
-      rows.map((r) => ({ claim: r.claim, documentId: r.documentId })),
-      base
-    );
-
-    res
-      .set({
-        ...CORS_HEADERS,
-        Link: `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
-      })
-      .status(200)
-      .json(registry);
+    try {
+      const limitParam = parseInt((req.query.limit as string) ?? "200", 10);
+      const limit = isNaN(limitParam) ? 200 : Math.min(limitParam, 500);
+      const rows = await getRecentVerifiedClaims(limit);
+      const base = originBase(req);
+      const registry = buildGlobalRegistry(
+        rows.map((r) => ({ claim: r.claim, documentId: r.documentId })),
+        base
+      );
+      res
+        .set({
+          ...CORS_HEADERS,
+          Link: `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
+        })
+        .status(200)
+        .json(registry);
+    } catch (err) {
+      console.error("[/api/public/claims.json] error:", err);
+      res.set(CORS_HEADERS).status(503).json({ error: "claims_registry_unavailable" });
+    }
   });
 
   // ── Paginated public claims: GET /api/public/claims?page=N ─────────────────

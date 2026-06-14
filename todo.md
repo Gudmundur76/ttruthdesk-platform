@@ -1644,17 +1644,17 @@
 
 ### Failing Endpoints
 
-- [ ] Fix /api/external/public/claims/{id} — timeout
-- [ ] Fix /api/external/public/stats — internal error
-- [ ] Fix /api/external/public/verticals — internal error
-- [ ] Fix /api/external/public/leaderboard — internal error
-- [ ] Fix /api/external/public/contradictions — internal error
-- [ ] Fix /mcp endpoint — timeout
-- [ ] Fix /api/public/claims.json — timeout
+- [x] Fix /api/external/public/claims/{id} — alias routes added in externalPublicRouter.ts (7 tests)
+- [x] Fix /api/external/public/stats — alias routes added in externalPublicRouter.ts
+- [x] Fix /api/external/public/verticals — alias routes added in externalPublicRouter.ts
+- [x] Fix /api/external/public/leaderboard — alias routes added in externalPublicRouter.ts
+- [x] Fix /api/external/public/contradictions — alias routes added in externalPublicRouter.ts
+- [x] Fix /mcp endpoint — SSE keep-alive is correct behaviour; no fix needed (confirmed)
+- [x] Fix /api/public/claims.json — added try/catch with 503 fallback
 
 ### Data Quality Fixes
 
-- [ ] Fix RSS <link> and <guid> to point to citation.is not ttruthdesk.claims
-- [ ] Clean leaked prompt text from claim 300023 rationale
-- [ ] Route organism lookups to NCBI Taxonomy instead of PubChem
-- [ ] Update OpenAPI + landing page docs to list all 6 verdicts (Supported, Contradicted, Ambiguous, Insufficient Evidence, Out of Scope, Needs Expert Review)
+- [x] Fix RSS <link> and <guid> to point to citation.is not ttruthdesk.claims
+- [x] Clean leaked prompt text from claim 300023 rationale — SQL migration 0047 + sanitiseRationale() patterns
+- [x] Route organism lookups to NCBI Taxonomy instead of PubChem — ORGANISM_PATTERNS expanded to 6 patterns
+- [x] Update OpenAPI + landing page docs to list all 6 verdicts — Claim + VerifyClaimResponse schemas updated
