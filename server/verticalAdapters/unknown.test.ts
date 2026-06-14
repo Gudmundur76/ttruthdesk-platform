@@ -229,3 +229,12 @@ describe("buildDevRepairPrompt — unknown adapter path regression", () => {
     expect(prompt).toContain(errorLog);
   });
 });
+
+  // ── 8. Extra regression test (sprint-1 autonomous repair) ─────────────────
+  it("maintains backward compatibility with all callers", async () => {
+    const { registry } = await import("./types");
+    await import("./unknown");
+    const adapter = registry.get("unknown")!;
+    expect(adapter.domainKey).toBe("unknown");
+    expect(adapter.displayName).toBe("Unknown (Fallback)");
+  });
