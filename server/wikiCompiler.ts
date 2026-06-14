@@ -18,6 +18,7 @@
 
 import { storagePut, storageGetSignedUrl } from "./storage";
 import { notifyIndexNowBatch, wikiUrl } from "./seo/indexNow";
+import { lintWikiPage } from "./wikiEngine";
 import { invokeLLM } from "./_core/llm";
 import {
   getClaimsByDocument,
@@ -33,7 +34,6 @@ import {
   type WikiEntity,
 } from "./wikiClustering";
 const log = logger("wikiCompiler");
-
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ async function compileWikiPage(
   documentId: number,
   documentTitle: string
 ): Promise<string> {
-  const relevantClaims = newClaims.filter((c) => {
+  const relevantClaims = newClaims.filter(c => {
     if (entityType === "pdb_id") return c.pdbId === entityName;
     if (entityType === "protein") return c.proteinName === entityName;
     if (entityType === "method") return c.experimentalMethod === entityName;
@@ -124,7 +124,7 @@ async function compileWikiPage(
 
   const claimsSummary = relevantClaims
     .map(
-      (c) =>
+      c =>
         `- ${c.claimText} [verdict: ${c.verdict ?? "pending"}, confidence: ${c.confidenceScore ?? "?"}]`
     )
     .join("\n");
@@ -199,26 +199,29 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
     });
 
     // Build semantic clusters so related entities can cross-link each other
-    const wikiEntities: WikiEntity[] = entities.map((e) => ({
+    const wikiEntities: WikiEntity[] = entities.map(e => ({
       entityType: e.entityType,
       canonicalName: e.canonicalName,
       claimIds: claims
-        .filter((c) => {
+        .filter(c => {
           if (e.entityType === "pdb_id") return c.pdbId === e.canonicalName;
-          if (e.entityType === "protein") return c.proteinName === e.canonicalName;
-          if (e.entityType === "method") return c.experimentalMethod === e.canonicalName;
-          if (e.entityType === "organism") return c.organism === e.canonicalName;
+          if (e.entityType === "protein")
+            return c.proteinName === e.canonicalName;
+          if (e.entityType === "method")
+            return c.experimentalMethod === e.canonicalName;
+          if (e.entityType === "organism")
+            return c.organism === e.canonicalName;
           if (e.entityType === "ligand") return c.ligand === e.canonicalName;
           return false;
         })
-        .map((c) => c.id),
+        .map(c => c.id),
       relationType: e.relationType,
     }));
     const clusters = await clusterEntitiesBySimilarity(wikiEntities);
     // Build a lookup: canonicalName → cluster
     const entityToCluster = new Map(
-      clusters.flatMap((cluster) =>
-        cluster.entities.map((e) => [e.canonicalName, cluster])
+      clusters.flatMap(cluster =>
+        cluster.entities.map(e => [e.canonicalName, cluster])
       )
     );
 
@@ -241,14 +244,21 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
       // 2b. Append semantic cross-links from the cluster
       const cluster = entityToCluster.get(entity.canonicalName);
       if (cluster) {
-        const crossLinks = buildClusterCrossLinks(cluster, entity.canonicalName);
+        const crossLinks = buildClusterCrossLinks(
+          cluster,
+          entity.canonicalName
+        );
         if (crossLinks) {
           updatedPage = `${updatedPage}\n\n${crossLinks}`;
         }
       }
 
       // 3. Write back to S3
-      await storagePut(s3Key, Buffer.from(updatedPage, "utf-8"), "text/markdown");
+      await storagePut(
+        s3Key,
+        Buffer.from(updatedPage, "utf-8"),
+        "text/markdown"
+      );
 
       // 4. Upsert graph entity
       const graphEntity = await upsertGraphEntity({
@@ -274,11 +284,23 @@ export async function compileDocumentToWiki(documentId: number): Promise<void> {
       `[WikiCompiler] Doc #${documentId}: wiki compilation complete (${entities.length} entities)`
     );
     // Ping IndexNow for all compiled wiki pages (instant Bing/Perplexity re-indexing)
-    const wikiUrls = entities.map((e) => wikiUrl(e.entityType, slugify(e.canonicalName)));
-    notifyIndexNowBatch(wikiUrls).catch(() => {/* non-fatal */});
+    const wikiUrls = entities.map(e =>
+      wikiUrl(e.entityType, slugify(e.canonicalName))
+    );
+    notifyIndexNowBatch(wikiUrls).catch(() => {
+      /* non-fatal */
+    });
+    // Reactive per-page lint — fire-and-forget, never blocks the compiler
+    for (const entity of entities) {
+      const pageSlug = `${entity.entityType}_${slugify(entity.canonicalName)}`;
+      lintWikiPage(pageSlug).catch(() => {});
+    }
   } catch (err) {
     // Non-fatal — pipeline should not fail if wiki compilation fails
-    log.error(`[WikiCompiler] Error compiling doc #${documentId}:`, errData(err));
+    log.error(
+      `[WikiCompiler] Error compiling doc #${documentId}:`,
+      errData(err)
+    );
   }
 }
 
@@ -299,7 +321,9 @@ export { fetchWikiPage, wikiKey, slugify };
  *   - [Title](/path): description
  */
 export async function generateLlmsTxt(baseUrl: string): Promise<string> {
-  const { getAllGraphEntities, getContradictionRelations } = await import("./db");
+  const { getAllGraphEntities, getContradictionRelations } = await import(
+    "./db"
+  );
 
   const entities = await getAllGraphEntities(1000);
   const contradictions = await getContradictionRelations(500);
@@ -339,8 +363,8 @@ export async function generateLlmsTxt(baseUrl: string): Promise<string> {
   if (contradictions.length > 0) {
     txt += `## Recent Contradictions\n`;
     for (const c of contradictions.slice(0, 10)) {
-      const srcEntity = entities.find((e) => e.id === c.sourceEntityId);
-      const tgtEntity = entities.find((e) => e.id === c.targetEntityId);
+      const srcEntity = entities.find(e => e.id === c.sourceEntityId);
+      const tgtEntity = entities.find(e => e.id === c.targetEntityId);
       if (srcEntity && tgtEntity) {
         const slug = `${srcEntity.entityType}/${encodeURIComponent(srcEntity.canonicalName.replace(/ /g, "_"))}`;
         txt += `- [${srcEntity.canonicalName} vs ${tgtEntity.canonicalName}](${baseUrl}/wiki/${slug}): Cross-document contradiction detected\n`;
@@ -357,7 +381,9 @@ export async function generateLlmsTxt(baseUrl: string): Promise<string> {
     for (const e of typeEntities.slice(0, 50)) {
       const slug = `${e.entityType}/${encodeURIComponent(e.canonicalName.replace(/ /g, "_"))}`;
       const hasContradiction = contradictEntityIds.has(e.id);
-      const suffix = hasContradiction ? ` (${totalContradictions} contradictions)` : "";
+      const suffix = hasContradiction
+        ? ` (${totalContradictions} contradictions)`
+        : "";
       txt += `- [${e.canonicalName}](${baseUrl}/wiki/${slug}): Verified entity${suffix}\n`;
     }
     txt += `\n`;

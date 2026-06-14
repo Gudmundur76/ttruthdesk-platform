@@ -26,12 +26,15 @@
  */
 
 import { getDb } from "./db";
-import { graphClaimEdges, claims, contradictionAlerts } from "../drizzle/schema";
+import {
+  graphClaimEdges,
+  claims,
+  contradictionAlerts,
+} from "../drizzle/schema";
 import { eq, and, or, inArray, sql } from "drizzle-orm";
 import { logCronRun } from "./cronRunLogger";
 import { logger, errData } from "./logger";
 const log = logger("contradictionDetector");
-
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,15 +64,9 @@ export interface ContradictionScanResult {
 
 // ─── Label classification helpers ────────────────────────────────────────────
 
-const POSITIVE_LABELS = new Set([
-  "verified_faithful",
-  "partially_supported",
-]);
+const POSITIVE_LABELS = new Set(["verified_faithful", "partially_supported"]);
 
-const NEGATIVE_LABELS = new Set([
-  "contradicted",
-  "contradicted_amplified",
-]);
+const NEGATIVE_LABELS = new Set(["contradicted", "contradicted_amplified"]);
 
 function isPositive(label: string | null): boolean {
   return label !== null && POSITIVE_LABELS.has(label);
@@ -126,8 +123,10 @@ export function isContradiction(
   labelA: string | null,
   labelB: string | null
 ): boolean {
-  return (isPositive(labelA) && isNegative(labelB)) ||
-    (isNegative(labelA) && isPositive(labelB));
+  return (
+    (isPositive(labelA) && isNegative(labelB)) ||
+    (isNegative(labelA) && isPositive(labelB))
+  );
 }
 
 // ─── Core scan function ───────────────────────────────────────────────────────
@@ -144,7 +143,7 @@ export function isContradiction(
  *
  * @param batchSize  Max edges to process in one run (default 500)
  */
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runContradictionScan(
   batchSize = 500
 ): Promise<ContradictionScanResult> {
@@ -158,8 +157,20 @@ export async function runContradictionScan(
   try {
     const db = await getDb();
     if (!db) {
-      await logCronRun("contradiction-scan", "error", Date.now() - startMs, "DB unavailable");
-      return { pairsScanned, newAlerts, updatedAlerts, skippedResolved, errors: 1, durationMs: Date.now() - startMs };
+      await logCronRun(
+        "contradiction-scan",
+        "error",
+        Date.now() - startMs,
+        "DB unavailable"
+      );
+      return {
+        pairsScanned,
+        newAlerts,
+        updatedAlerts,
+        skippedResolved,
+        errors: 1,
+        durationMs: Date.now() - startMs,
+      };
     }
 
     // ── Step 1: Fetch semantic_similar edges ──────────────────────────────────
@@ -174,8 +185,20 @@ export async function runContradictionScan(
       .limit(batchSize);
 
     if (edges.length === 0) {
-      await logCronRun("contradiction-scan", "skipped", Date.now() - startMs, "No semantic_similar edges found — graph not yet populated");
-      return { pairsScanned: 0, newAlerts: 0, updatedAlerts: 0, skippedResolved: 0, errors: 0, durationMs: Date.now() - startMs };
+      await logCronRun(
+        "contradiction-scan",
+        "skipped",
+        Date.now() - startMs,
+        "No semantic_similar edges found — graph not yet populated"
+      );
+      return {
+        pairsScanned: 0,
+        newAlerts: 0,
+        updatedAlerts: 0,
+        skippedResolved: 0,
+        errors: 0,
+        durationMs: Date.now() - startMs,
+      };
     }
 
     // ── Step 2: Collect unique claim IDs ──────────────────────────────────────
@@ -246,7 +269,10 @@ export async function runContradictionScan(
       try {
         // Check if this pair already exists
         const existing = await db
-          .select({ id: contradictionAlerts.id, status: contradictionAlerts.status })
+          .select({
+            id: contradictionAlerts.id,
+            status: contradictionAlerts.status,
+          })
           .from(contradictionAlerts)
           .where(
             and(
@@ -298,8 +324,14 @@ export async function runContradictionScan(
       } catch (pairErr) {
         // Duplicate key on race condition — safe to ignore
         const msg = String(pairErr);
-        if (!msg.includes("Duplicate entry") && !msg.includes("unique constraint")) {
-          log.warn("[ContradictionDetector] Pair upsert error:", errData(pairErr));
+        if (
+          !msg.includes("Duplicate entry") &&
+          !msg.includes("unique constraint")
+        ) {
+          log.warn(
+            "[ContradictionDetector] Pair upsert error:",
+            errData(pairErr)
+          );
           errors++;
         }
       }
@@ -310,16 +342,40 @@ export async function runContradictionScan(
       `Scanned ${pairsScanned} edges → ${contradictions.length} contradiction pairs: ` +
       `${newAlerts} new, ${updatedAlerts} updated, ${skippedResolved} skipped (resolved/dismissed), ${errors} errors`;
 
-    await logCronRun("contradiction-scan", errors > 0 ? "error" : "ok", durationMs, summary);
+    await logCronRun(
+      "contradiction-scan",
+      errors > 0 ? "error" : "ok",
+      durationMs,
+      summary
+    );
 
     log.info(`[ContradictionDetector] ${summary}`);
-    return { pairsScanned, newAlerts, updatedAlerts, skippedResolved, errors, durationMs };
+    return {
+      pairsScanned,
+      newAlerts,
+      updatedAlerts,
+      skippedResolved,
+      errors,
+      durationMs,
+    };
   } catch (err) {
     const durationMs = Date.now() - startMs;
     const errMsg = String(err).substring(0, 300);
     log.error("[ContradictionDetector] Fatal error:", errData(err));
-    await logCronRun("contradiction-scan", "error", durationMs, `Fatal: ${errMsg}`);
-    return { pairsScanned, newAlerts, updatedAlerts, skippedResolved, errors: errors + 1, durationMs };
+    await logCronRun(
+      "contradiction-scan",
+      "error",
+      durationMs,
+      `Fatal: ${errMsg}`
+    );
+    return {
+      pairsScanned,
+      newAlerts,
+      updatedAlerts,
+      skippedResolved,
+      errors: errors + 1,
+      durationMs,
+    };
   }
 }
 
@@ -405,4 +461,125 @@ export async function updateContradictionAlertStatus(
       resolutionNotes: resolutionNotes ?? null,
     })
     .where(eq(contradictionAlerts.id, alertId));
+}
+
+// ─── Reactive Local Scan (Sprint 1 — Cron Migration) ─────────────────────────
+
+export interface LocalScanResult {
+  claimId: number;
+  pairsScanned: number;
+  newAlerts: number;
+  durationMs: number;
+}
+
+/**
+ * Scans only the semantic_similar edges adjacent to a specific claim.
+ * Called reactively from selfPromptLayer on every verdict_complete event.
+ * Much faster than the weekly full-graph scan — typically < 50ms.
+ */
+export async function scanLocalContradictions(
+  claimId: number
+): Promise<LocalScanResult> {
+  const startMs = Date.now();
+  let pairsScanned = 0;
+  let newAlerts = 0;
+
+  try {
+    const db = await getDb();
+    if (!db)
+      return {
+        claimId,
+        pairsScanned: 0,
+        newAlerts: 0,
+        durationMs: Date.now() - startMs,
+      };
+
+    // Fetch all semantic_similar edges where this claim is source or target
+    const edges = await db
+      .select({
+        sourceClaimId: graphClaimEdges.sourceClaimId,
+        targetClaimId: graphClaimEdges.targetClaimId,
+        weight: graphClaimEdges.weight,
+      })
+      .from(graphClaimEdges)
+      .where(
+        and(
+          eq(graphClaimEdges.relationType, "semantic_similar"),
+          or(
+            eq(graphClaimEdges.sourceClaimId, claimId),
+            eq(graphClaimEdges.targetClaimId, claimId)
+          )
+        )
+      )
+      .limit(50);
+
+    if (edges.length === 0) {
+      return {
+        claimId,
+        pairsScanned: 0,
+        newAlerts: 0,
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    // Collect all claim IDs in the local neighbourhood
+    const claimIdSet = new Set<number>([claimId]);
+    for (const e of edges) {
+      claimIdSet.add(e.sourceClaimId);
+      claimIdSet.add(e.targetClaimId);
+    }
+    const claimIds = Array.from(claimIdSet);
+
+    // Fetch claim labels for the neighbourhood
+    const claimRows = await db
+      .select({
+        id: claims.id,
+        verdict: claims.verdict,
+        compositeTruthLabel: claims.compositeTruthLabel,
+        compositeTruthScore: claims.compositeTruthScore,
+      })
+      .from(claims)
+      .where(inArray(claims.id, claimIds));
+
+    const claimMap = new Map(claimRows.map(c => [c.id, c]));
+
+    // Check each edge for contradictions
+    for (const edge of edges) {
+      const claimA = claimMap.get(edge.sourceClaimId);
+      const claimB = claimMap.get(edge.targetClaimId);
+      if (!claimA || !claimB) continue;
+
+      pairsScanned++;
+      const labelA = claimA.compositeTruthLabel ?? claimA.verdict ?? "";
+      const labelB = claimB.compositeTruthLabel ?? claimB.verdict ?? "";
+
+      if (!isContradiction(labelA, labelB)) continue;
+
+      const severity = classifySeverity(labelA, labelB);
+      const [aId, bId] =
+        edge.sourceClaimId < edge.targetClaimId
+          ? [edge.sourceClaimId, edge.targetClaimId]
+          : [edge.targetClaimId, edge.sourceClaimId];
+
+      try {
+        await db
+          .insert(contradictionAlerts)
+          .values({
+            claimAId: aId,
+            claimBId: bId,
+            severity,
+            status: "open",
+            detectedAt: new Date(),
+          })
+          .onDuplicateKeyUpdate({ set: { severity, status: "open" } });
+        newAlerts++;
+      } catch {
+        // Ignore duplicate key errors — alert already exists
+      }
+    }
+  } catch (err) {
+    log.warn("scanLocalContradictions failed (non-fatal)", { claimId, err });
+  }
+
+  return { claimId, pairsScanned, newAlerts, durationMs: Date.now() - startMs };
 }

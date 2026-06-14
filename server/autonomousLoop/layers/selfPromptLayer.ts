@@ -18,6 +18,7 @@ import type { LoopAction } from "../loopOrchestrator";
 import { runSelfPromptCycle } from "../../selfPrompt/engine";
 import type { SelfPromptEvent } from "../../selfPrompt/stateCollector";
 import { publishEvent } from "../eventBus";
+import { scanLocalContradictions } from "../../contradictionDetector";
 
 export interface SelfPromptLayerResult {
   actions: LoopAction[];
@@ -27,7 +28,10 @@ export interface SelfPromptLayerResult {
 
 async function handleSupportedVerdict(event: LoopEvent): Promise<LoopAction[]> {
   const actions: LoopAction[] = [];
-  const { documentId, claimId } = event.payload as { documentId?: number; claimId?: number };
+  const { documentId, claimId } = event.payload as {
+    documentId?: number;
+    claimId?: number;
+  };
 
   // 1. Update graph — log to wiki audit trail
   try {
@@ -101,7 +105,8 @@ async function handleSupportedVerdict(event: LoopEvent): Promise<LoopAction[]> {
   try {
     if (documentId) {
       const { notifyIndexNow } = await import("../../seo/indexNow");
-      const baseUrl = process.env.VITE_FRONTEND_FORGE_API_URL ?? "https://localhost:3000";
+      const baseUrl =
+        process.env.VITE_FRONTEND_FORGE_API_URL ?? "https://localhost:3000";
       await notifyIndexNow(`${baseUrl}/report/${documentId}`);
       actions.push({
         type: "reindex",
@@ -117,9 +122,14 @@ async function handleSupportedVerdict(event: LoopEvent): Promise<LoopAction[]> {
   return actions;
 }
 
-async function handleContradictedVerdict(event: LoopEvent): Promise<LoopAction[]> {
+async function handleContradictedVerdict(
+  event: LoopEvent
+): Promise<LoopAction[]> {
   const actions: LoopAction[] = [];
-  const { documentId, claimId } = event.payload as { documentId?: number; claimId?: number };
+  const { documentId, claimId } = event.payload as {
+    documentId?: number;
+    claimId?: number;
+  };
 
   // 1. Alert subscribers — contradiction is high-priority
   try {
@@ -194,14 +204,21 @@ async function handleContradictedVerdict(event: LoopEvent): Promise<LoopAction[]
   return actions;
 }
 
-async function handleInsufficientEvidence(event: LoopEvent): Promise<LoopAction[]> {
+async function handleInsufficientEvidence(
+  event: LoopEvent
+): Promise<LoopAction[]> {
   const actions: LoopAction[] = [];
-  const { documentId, claimId } = event.payload as { documentId?: number; claimId?: number };
+  const { documentId, claimId } = event.payload as {
+    documentId?: number;
+    claimId?: number;
+  };
 
   // 1. Create gap record — run Frontier Engine to detect and persist the gap
   try {
     if (documentId && claimId) {
-      const { runFrontierEngine } = await import("../../frontier/frontierEngine");
+      const { runFrontierEngine } = await import(
+        "../../frontier/frontierEngine"
+      );
       const frontierResult = await runFrontierEngine();
       actions.push({
         type: "gap_record_created",
@@ -239,7 +256,9 @@ async function handleInsufficientEvidence(event: LoopEvent): Promise<LoopAction[
 
   // 3. Expand search — run Inverse Prompt Engine to generate new questions
   try {
-    const { runInversePromptEngine } = await import("../../inversePrompt/inversePromptEngine");
+    const { runInversePromptEngine } = await import(
+      "../../inversePrompt/inversePromptEngine"
+    );
     const inverseResult = await runInversePromptEngine();
     actions.push({
       type: "expand_search",
@@ -273,9 +292,14 @@ async function handleInsufficientEvidence(event: LoopEvent): Promise<LoopAction[
   return actions;
 }
 
-async function handlePartiallySupported(event: LoopEvent): Promise<LoopAction[]> {
+async function handlePartiallySupported(
+  event: LoopEvent
+): Promise<LoopAction[]> {
   const actions: LoopAction[] = [];
-  const { documentId, claimId } = event.payload as { documentId?: number; claimId?: number };
+  const { documentId, claimId } = event.payload as {
+    documentId?: number;
+    claimId?: number;
+  };
 
   // 1. Update graph (partial) — wiki audit log with partial confidence
   try {
@@ -351,7 +375,9 @@ async function handlePartiallySupported(event: LoopEvent): Promise<LoopAction[]>
 
 // ─── Main Layer Entry Point ────────────────────────────────────────────────────
 
-export async function runSelfPromptLayer(event: LoopEvent): Promise<SelfPromptLayerResult> {
+export async function runSelfPromptLayer(
+  event: LoopEvent
+): Promise<SelfPromptLayerResult> {
   const actions: LoopAction[] = [];
 
   try {
@@ -387,7 +413,12 @@ export async function runSelfPromptLayer(event: LoopEvent): Promise<SelfPromptLa
       }
 
       actions.push(...verdictActions);
-
+      // Reactive local contradiction scan — fire-and-forget, never blocks the layer
+      if (event.payload.claimId) {
+        scanLocalContradictions(event.payload.claimId as number).catch(
+          () => {}
+        );
+      }
     } else {
       // Non-verdict events: contradiction_found, gap_closed, hypothesis_resolved,
       // manual_review_complete, scheduled_tick — use generic self-prompt cycle
@@ -398,8 +429,9 @@ export async function runSelfPromptLayer(event: LoopEvent): Promise<SelfPromptLa
             ? "gap_closed"
             : event.eventType === "document_submitted"
               ? "user_submitted"
-              : event.eventType === "scheduled_tick" || event.eventType === "confidence_review_needed"
-                ? "scheduled_tick"  // confidence review uses scheduled_tick semantics
+              : event.eventType === "scheduled_tick" ||
+                  event.eventType === "confidence_review_needed"
+                ? "scheduled_tick" // confidence review uses scheduled_tick semantics
                 : "verdict_assigned";
 
       const selfPromptEvent: SelfPromptEvent = {
@@ -417,7 +449,6 @@ export async function runSelfPromptLayer(event: LoopEvent): Promise<SelfPromptLa
         result: "success",
       });
     }
-
   } catch (err) {
     actions.push({
       type: "self_prompt_cycle",

@@ -28,7 +28,6 @@ import { eq, and, lt, sql } from "drizzle-orm";
 import { logger, errData } from "../logger";
 const log = logger("autonomousLoop/eventBus");
 
-
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export type LoopEventType =
@@ -48,27 +47,29 @@ export type LoopEventType =
   | "confidence_review_needed"
   | "dream_session_complete"
   | "source_version_changed"
-  | "coverage_gap";
+  | "coverage_gap"
+  | "system_capability_required";
 
 /** Entry layer for each event type (per the spec) */
 export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
-  document_submitted: 0,       // L0: Friction
-  paper_discovered: 0,         // L0: Friction
-  source_data_changed: 1,      // L1: Truth (re-verify affected claims)
-  verdict_complete: 2,         // L2: Self-Prompt
-  contradiction_found: 2,      // L2: Self-Prompt + Frontier
-  gap_closed: 2,               // L2: Self-Prompt
-  source_status_change: 1,     // L1: Truth (halt/resume)
-  system_health_change: 4,     // L4: Meta-Agent
-  hypothesis_resolved: 2,      // L2: Self-Prompt
-  manual_review_complete: 0,   // L0: Friction (re-evaluation)
-  scheduled_tick: 0,           // L0: Friction
-  loop_action_complete: 0,     // L0: Friction (state change → new event)
-  dream_pattern_detected: 4,   // L5: Dream → Meta-Agent for health check
+  document_submitted: 0, // L0: Friction
+  paper_discovered: 0, // L0: Friction
+  source_data_changed: 1, // L1: Truth (re-verify affected claims)
+  verdict_complete: 2, // L2: Self-Prompt
+  contradiction_found: 2, // L2: Self-Prompt + Frontier
+  gap_closed: 2, // L2: Self-Prompt
+  source_status_change: 1, // L1: Truth (halt/resume)
+  system_health_change: 4, // L4: Meta-Agent
+  hypothesis_resolved: 2, // L2: Self-Prompt
+  manual_review_complete: 0, // L0: Friction (re-evaluation)
+  scheduled_tick: 0, // L0: Friction
+  loop_action_complete: 0, // L0: Friction (state change → new event)
+  dream_pattern_detected: 4, // L5: Dream → Meta-Agent for health check
   confidence_review_needed: 2, // L5: Dream → Self-Prompt for recalibration
-  dream_session_complete: 0,   // L5: Dream → Friction (new knowledge available)
-  source_version_changed: 1,   // L1: Truth (re-verify claims from changed source)
-  coverage_gap: 2,             // L2: Self-Prompt → Frontier (pursue missing evidence)
+  dream_session_complete: 0, // L5: Dream → Friction (new knowledge available)
+  source_version_changed: 1, // L1: Truth (re-verify claims from changed source)
+  coverage_gap: 2, // L2: Self-Prompt → Frontier (pursue missing evidence)
+  system_capability_required: 4, // L4: Meta-Agent → Manus spawnDevTask for autonomous repair
 };
 
 export interface LoopEvent {
@@ -101,7 +102,7 @@ let _draining = false;
  * setImmediate() so it never blocks the HTTP response that triggered it.
  */
 async function _drainPass(): Promise<void> {
-  if (_draining) return;   // another pass is already running
+  if (_draining) return; // another pass is already running
   _draining = true;
 
   let processed = 0;
@@ -184,14 +185,11 @@ export async function claimNextEvent(): Promise<LoopEvent | null> {
   if (!db) return null;
 
   // Use a transaction to atomically claim one event
-  return db.transaction(async (tx) => {
+  return db.transaction(async tx => {
     const [row] = await tx
       .select()
       .from(eventQueue)
-      .where(and(
-        eq(eventQueue.status, "pending"),
-        lt(eventQueue.attempts, 3)
-      ))
+      .where(and(eq(eventQueue.status, "pending"), lt(eventQueue.attempts, 3)))
       .orderBy(eventQueue.createdAt)
       .limit(1)
       .for("update");

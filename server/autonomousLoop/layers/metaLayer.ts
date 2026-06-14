@@ -10,9 +10,10 @@ import type { LoopEvent } from "../eventBus";
 import type { LoopAction } from "../loopOrchestrator";
 import { evaluateHealthAndTriggerSafeMode } from "../safeModeController";
 import { publishEvent } from "../eventBus";
+import { spawnDevTask } from "../../manusOrchestrator";
 import { getDb } from "../../db";
 import { metaAgentChecks } from "../../../drizzle/schema";
-import { sql } from "drizzle-orm";
+import { sql, desc } from "drizzle-orm";
 
 // Track last known health score to detect changes
 let _lastPublishedHealthScore: number | null = null;
@@ -90,7 +91,58 @@ export async function runMetaLayer(
     });
   }
 
+  // When health is critical (≤30), fire system_capability_required and spawn a dev repair task
+  if (healthScore <= 30) {
+    try {
+      const criticalCheck = await getLatestCriticalCheck();
+      await publishEvent("system_capability_required", {
+        healthScore,
+        adapterName: criticalCheck?.checkType ?? "unknown",
+        errorLog: criticalCheck?.finding ?? {},
+      });
+      await spawnDevTask({
+        adapterName: criticalCheck?.checkType ?? "unknown",
+        errorLog: JSON.stringify(criticalCheck?.finding ?? {}),
+        healthScore,
+      });
+      actions.push({
+        type: "meta_dev_repair_spawned",
+        description: `system_capability_required fired — spawnDevTask called for: ${criticalCheck?.checkType ?? "unknown"}`,
+        priority: 90,
+        result: "success",
+      });
+    } catch {
+      // Non-fatal — don't block the meta layer
+    }
+  }
+
   return { actions, healthScore, safeModeTriggered };
+}
+
+async function getLatestCriticalCheck(): Promise<{
+  checkType: string;
+  finding: Record<string, unknown>;
+} | null> {
+  try {
+    const db = await getDb();
+    if (!db) return null;
+    const [row] = await db
+      .select({
+        checkType: metaAgentChecks.checkType,
+        finding: metaAgentChecks.finding,
+      })
+      .from(metaAgentChecks)
+      .where(sql`${metaAgentChecks.severity} = 'critical'`)
+      .orderBy(desc(metaAgentChecks.createdAt))
+      .limit(1);
+    if (!row) return null;
+    return {
+      checkType: row.checkType,
+      finding: (row.finding as Record<string, unknown>) ?? {},
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function getLatestHealthScore(): Promise<number> {

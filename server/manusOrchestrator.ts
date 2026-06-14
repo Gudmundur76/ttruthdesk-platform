@@ -39,7 +39,6 @@ import { ENV } from "./_core/env";
 import { logger } from "./logger";
 const log = logger("manusOrchestrator");
 
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MANUS_API_BASE = "https://api.manus.ai";
@@ -159,9 +158,7 @@ export async function spawnVerticalTask(
 ): Promise<SpawnTaskResult> {
   const { taskId, vertical, prompt, projectId, title, hideInTaskList } = opts;
 
-  log.info(
-    `[Orchestrator] Spawning task ${taskId} for vertical "${vertical}"`
-  );
+  log.info(`[Orchestrator] Spawning task ${taskId} for vertical "${vertical}"`);
 
   // Build the task.create payload
   const payload: Record<string, unknown> = {
@@ -180,9 +177,7 @@ export async function spawnVerticalTask(
   }>("/v2/task.create", "POST", payload);
 
   if (!result.ok) {
-    log.error(
-      `[Orchestrator] Failed to spawn task ${taskId}: ${result.error}`
-    );
+    log.error(`[Orchestrator] Failed to spawn task ${taskId}: ${result.error}`);
     return { ok: false, error: result.error };
   }
 
@@ -228,11 +223,9 @@ export async function getManusTaskStatus(
  * Stop a running Manus task.
  */
 export async function stopManusTask(manusTaskId: string): Promise<boolean> {
-  const result = await manusApiCall<{ ok: boolean }>(
-    "/v2/task.stop",
-    "POST",
-    { task_id: manusTaskId }
-  );
+  const result = await manusApiCall<{ ok: boolean }>("/v2/task.stop", "POST", {
+    task_id: manusTaskId,
+  });
   return result.ok;
 }
 
@@ -255,7 +248,13 @@ export async function runOrchestratorTick(): Promise<{
   retried: number;
   errors: string[];
 }> {
-  const summary = { checked: 0, stalled: 0, synced: 0, retried: 0, errors: [] as string[] };
+  const summary = {
+    checked: 0,
+    stalled: 0,
+    synced: 0,
+    retried: 0,
+    errors: [] as string[],
+  };
 
   const tasksResp = await coordCall("/tasks", "GET");
   if (!tasksResp.ok) {
@@ -432,4 +431,66 @@ Auth header on ALL requests: X-Coord-Key: ${coordApiKey}
 - Always send a final heartbeat before stopping.
 
 Start now. Register yourself and begin processing.`;
+}
+
+// ─── Dev Repair Task (Sprint 1 — Self-Building Loop) ─────────────────────────
+
+export interface DevRepairOptions {
+  adapterName: string;
+  errorLog: string;
+  healthScore: number;
+}
+
+/**
+ * Spawns a Manus vertical task to autonomously repair a broken adapter.
+ * Called by metaLayer when system health drops to critical (≤30).
+ * Fire-and-forget from the meta layer — this function may take time.
+ */
+export async function spawnDevTask(
+  opts: DevRepairOptions
+): Promise<SpawnTaskResult | null> {
+  try {
+    const prompt = buildDevRepairPrompt(opts);
+    return await spawnVerticalTask({
+      taskId: `dev-repair-${opts.adapterName}-${Date.now()}`,
+      vertical: "dev_repair",
+      prompt,
+      title: `Autonomous Repair: ${opts.adapterName} (health=${opts.healthScore})`,
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Builds the repair prompt for a broken adapter.
+ * Provides the Manus agent with full context to diagnose and fix the issue.
+ */
+export function buildDevRepairPrompt(opts: DevRepairOptions): string {
+  return `# Autonomous Adapter Repair Task
+
+## Context
+The ttruthdesk.claims autonomous loop has detected a critical failure in the **${opts.adapterName}** adapter.
+System health score: ${opts.healthScore}/100 (critical threshold: 30).
+
+## Error Log
+\`\`\`json
+${opts.errorLog}
+\`\`\`
+
+## Your Task
+1. Inspect the adapter implementation at \`server/verticalAdapters/${opts.adapterName}.ts\`
+2. Identify the root cause of the failure from the error log
+3. Write a fix that passes all existing tests
+4. Add a regression test that covers the failure case
+5. Commit with message: \`fix(${opts.adapterName}): autonomous repair [sprint-1]\`
+6. Push to origin/main
+
+## Constraints
+- Do NOT modify the adapter interface or event payload shape
+- Do NOT disable or skip existing tests
+- The fix must be backward-compatible with all callers
+- Run \`pnpm test\` before committing — all tests must pass
+
+Start now.`;
 }

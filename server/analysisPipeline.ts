@@ -63,8 +63,7 @@ import { openCitationsEnrichClaim } from "./openCitationsEnricher";
 import { logger, errData } from "./logger";
 const log = logger("analysisPipeline");
 
-
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runAnalysisPipeline(
   documentId: number,
   rawText: string,
@@ -122,7 +121,7 @@ export async function runAnalysisPipeline(
     for (let i = 0; i < allClaims.length; i += CLAIM_CONCURRENCY) {
       const batch = allClaims.slice(i, i + CLAIM_CONCURRENCY);
       const results = await Promise.allSettled(
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+        // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
         batch.map(async claim => {
           let result: VerdictResult;
           let decision: VerdictDecision | null = null;
@@ -259,9 +258,17 @@ export async function runAnalysisPipeline(
                   // CONTESTED → Contradicted/Ambiguous
                   // BEYOND_EVIDENCE → Insufficient Evidence
                   // IMPLIED → everything else (general molecular claims)
-                  const verdictToCitationType = (v: string): "VERIFIED" | "CONTESTED" | "IMPLIED" | "BEYOND_EVIDENCE" => {
-                    if (v === "Supported" || v === "Partially Supported") return "VERIFIED";
-                    if (v === "Contradicted" || v === "Ambiguous") return "CONTESTED";
+                  const verdictToCitationType = (
+                    v: string
+                  ):
+                    | "VERIFIED"
+                    | "CONTESTED"
+                    | "IMPLIED"
+                    | "BEYOND_EVIDENCE" => {
+                    if (v === "Supported" || v === "Partially Supported")
+                      return "VERIFIED";
+                    if (v === "Contradicted" || v === "Ambiguous")
+                      return "CONTESTED";
                     if (v === "Insufficient Evidence") return "BEYOND_EVIDENCE";
                     return "IMPLIED";
                   };
@@ -274,7 +281,10 @@ export async function runAnalysisPipeline(
                     citationConfidence: passage.passageConfidence,
                     evidenceBoundary: null,
                   }).catch(e =>
-                    log.warn(`[Citations] Failed to insert citation for claim ${claim.id} (non-fatal):`, errData(e))
+                    log.warn(
+                      `[Citations] Failed to insert citation for claim ${claim.id} (non-fatal):`,
+                      errData(e)
+                    )
                   );
                   // ── Phase 101: Misrepresentation classification ───────────
                   // Fires only for Contradicted / Partially Supported verdicts
@@ -375,7 +385,10 @@ export async function runAnalysisPipeline(
       pdfStorageKey = pdfKey;
       pdfStorageUrl = pdfUrl;
     } catch (pdfErr) {
-      log.error("[Pipeline] PDF generation failed (non-fatal):", errData(pdfErr));
+      log.error(
+        "[Pipeline] PDF generation failed (non-fatal):",
+        errData(pdfErr)
+      );
     }
     // 7. Upsert audit report record (with PDF if available)
     await upsertAuditReport({
@@ -456,10 +469,7 @@ export async function runAnalysisPipeline(
       documentId,
       verdict: contradictedCount2 > 0 ? "Contradicted" : "Supported",
     }).catch(e =>
-      log.warn(
-        "[SelfPromptEngine] Post-pipeline cycle error (non-fatal):",
-        e
-      )
+      log.warn("[SelfPromptEngine] Post-pipeline cycle error (non-fatal):", e)
     );
     // ── Autonomous Loop: publish events to the event bus ─────────────────────
     import("./autonomousLoop/eventBus")
@@ -518,7 +528,10 @@ export async function runAnalysisPipeline(
             }
           }
         } catch (e) {
-          log.warn("[InversePrompt] Entity lookup error (non-fatal):", errData(e));
+          log.warn(
+            "[InversePrompt] Entity lookup error (non-fatal):",
+            errData(e)
+          );
         }
       })();
     }
@@ -553,7 +566,10 @@ export async function runAnalysisPipeline(
               confidenceScore: claim.confidenceScore ?? null,
               reportUrl: reportUrl(documentId),
             }).catch(e =>
-              log.warn("[Pipeline] Alert dispatch error (non-fatal):", errData(e))
+              log.warn(
+                "[Pipeline] Alert dispatch error (non-fatal):",
+                errData(e)
+              )
             );
           }
         }
@@ -567,7 +583,10 @@ export async function runAnalysisPipeline(
         );
       }
     })().catch(predErr =>
-      log.warn("[Pipeline] Prediction IIFE error (non-fatal):", errData(predErr))
+      log.warn(
+        "[Pipeline] Prediction IIFE error (non-fatal):",
+        errData(predErr)
+      )
     );
     // ── TurboVec: auto-index all verified/supported claims into FAISS sidecar ──
     // Non-fatal fire-and-forget. If the Python sidecar is unavailable the
@@ -590,7 +609,10 @@ export async function runAnalysisPipeline(
           );
         }
       } catch (vecErr) {
-        log.warn("[TurboVec] Auto-indexing error (non-fatal):", errData(vecErr));
+        log.warn(
+          "[TurboVec] Auto-indexing error (non-fatal):",
+          errData(vecErr)
+        );
       }
     })().catch(vecErr =>
       log.warn("[TurboVec] Auto-index IIFE error (non-fatal):", errData(vecErr))
@@ -708,7 +730,10 @@ export async function runAnalysisPipeline(
         );
         void compositeDoc; // suppress unused warning
       } catch (compErr) {
-        log.warn("[CompositeTruth] Stage 7 error (non-fatal):", errData(compErr));
+        log.warn(
+          "[CompositeTruth] Stage 7 error (non-fatal):",
+          errData(compErr)
+        );
       }
     })().catch(compErr =>
       log.warn("[CompositeTruth] Stage 7 IIFE error (non-fatal):", compErr)
@@ -731,10 +756,10 @@ export async function runAnalysisPipeline(
           if (!claim.claimText || !claim.verdict) continue;
 
           // Find existing claims with similar text (top 3, excluding self)
-          const similar = await findClaimsByTextSimilarity(
-            claim.claimText,
-            { limit: 3, minScore: 0.6 }
-          );
+          const similar = await findClaimsByTextSimilarity(claim.claimText, {
+            limit: 3,
+            minScore: 0.6,
+          });
 
           for (const match of similar) {
             if (match.claimId === claim.id) continue;
@@ -752,6 +777,16 @@ export async function runAnalysisPipeline(
           log.info(
             `[GraphEdges] Stage 8 complete for doc ${documentId}: ${edgesCreated} semantic_similar edge(s) created`
           );
+          // Reactive cascade — fire source_data_changed so the contradiction detector
+          // re-evaluates the new edges without waiting for the weekly cron.
+          import("./autonomousLoop/eventBus")
+            .then(({ publishEvent }) =>
+              publishEvent("source_data_changed", {
+                documentId,
+                edgesCreated,
+              }).catch(() => {})
+            )
+            .catch(() => {});
         }
       } catch (graphErr) {
         log.warn("[GraphEdges] Stage 8 error (non-fatal):", errData(graphErr));

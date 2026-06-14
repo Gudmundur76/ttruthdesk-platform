@@ -89,15 +89,18 @@ export interface WikiLintResult {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function extractOutboundLinks(content: string): string[] {
-  const matches = Array.from(content.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g));
-  return Array.from(new Set(matches.map((m) => m[1].trim())));
+  const matches = Array.from(
+    content.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)
+  );
+  return Array.from(new Set(matches.map(m => m[1].trim())));
 }
 
 function extractLLMText(content: string | unknown[]): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     const first = content[0] as { type?: string; text?: string };
-    if (first?.type === "text" && typeof first.text === "string") return first.text;
+    if (first?.type === "text" && typeof first.text === "string")
+      return first.text;
   }
   return "";
 }
@@ -174,7 +177,7 @@ export async function updateEntityPage(
     const prevOutbound = (prev.outboundLinks as string[]) ?? [];
 
     // Remove stale inbound links from pages no longer referenced
-    const removed = prevOutbound.filter((s) => !outboundLinks.includes(s));
+    const removed = prevOutbound.filter(s => !outboundLinks.includes(s));
     for (const targetSlug of removed) {
       const target = await db
         .select()
@@ -182,9 +185,9 @@ export async function updateEntityPage(
         .where(eq(wikiPages.slug, targetSlug))
         .limit(1);
       if (target.length > 0) {
-        const updated = ((target[0] as WikiPage).inboundLinks as string[] ?? []).filter(
-          (s) => s !== slug
-        );
+        const updated = (
+          ((target[0] as WikiPage).inboundLinks as string[]) ?? []
+        ).filter(s => s !== slug);
         await db
           .update(wikiPages)
           .set({ inboundLinks: updated })
@@ -193,7 +196,7 @@ export async function updateEntityPage(
     }
 
     // Add new inbound links
-    const added = outboundLinks.filter((s) => !prevOutbound.includes(s));
+    const added = outboundLinks.filter(s => !prevOutbound.includes(s));
     for (const targetSlug of added) {
       await db
         .update(wikiPages)
@@ -313,7 +316,9 @@ export async function ingestSourceToWiki(
   let pagePlan: PagePlanItem[] = [];
 
   try {
-    const raw = extractLLMText(planResponse.choices[0]?.message?.content ?? "{}");
+    const raw = extractLLMText(
+      planResponse.choices[0]?.message?.content ?? "{}"
+    );
     const parsed = JSON.parse(raw) as { pages: PagePlanItem[] };
     pagePlan = parsed.pages ?? [];
   } catch {
@@ -322,7 +327,7 @@ export async function ingestSourceToWiki(
 
   // Always add a source_summary page for the document itself
   const sourceSummarySlug = `source-${document.id}`;
-  if (!pagePlan.find((p) => p.slug === sourceSummarySlug)) {
+  if (!pagePlan.find(p => p.slug === sourceSummarySlug)) {
     pagePlan.push({
       slug: sourceSummarySlug,
       title: `Source: ${document.title}`,
@@ -339,7 +344,7 @@ export async function ingestSourceToWiki(
   for (const page of pagePlan) {
     const relevantClaims = claims
       .filter(
-        (c) =>
+        c =>
           c.claimText.toLowerCase().includes(page.title.toLowerCase()) ||
           page.category === "source_summary"
       )
@@ -347,7 +352,7 @@ export async function ingestSourceToWiki(
 
     const relevantClaimText = relevantClaims
       .map(
-        (c) =>
+        c =>
           `- [${c.verdict ?? "unverified"}] ${c.claimText} (confidence: ${((c.confidenceScore ?? 0) * 100).toFixed(0)}%)`
       )
       .join("\n");
@@ -365,9 +370,11 @@ export async function ingestSourceToWiki(
       ],
     });
 
-    const content = extractLLMText(
-      contentResponse.choices[0]?.message?.content ?? `# ${page.title}\n\n*No content generated.*`
-    ) || `# ${page.title}\n\n*No content generated.*`;
+    const content =
+      extractLLMText(
+        contentResponse.choices[0]?.message?.content ??
+          `# ${page.title}\n\n*No content generated.*`
+      ) || `# ${page.title}\n\n*No content generated.*`;
 
     // Compute average confidence for claims on this page
     const avgConf =
@@ -503,20 +510,20 @@ export async function lintWiki(): Promise<WikiLintResult> {
   // Orphan detection: pages with no inbound links (excluding source_summary)
   const orphanSlugs = pages
     .filter(
-      (p) =>
+      p =>
         p.category !== "source_summary" &&
         ((p.inboundLinks as string[]) ?? []).length === 0
     )
-    .map((p) => p.slug);
+    .map(p => p.slug);
 
   // Stale detection: pages not updated in 30+ days
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const stalePageSlugs = pages
-    .filter((p) => p.updatedAt < thirtyDaysAgo)
-    .map((p) => p.slug);
+    .filter(p => p.updatedAt < thirtyDaysAgo)
+    .map(p => p.slug);
 
   // Missing cross-refs: outbound links pointing to non-existent slugs
-  const allSlugs = new Set(pages.map((p) => p.slug));
+  const allSlugs = new Set(pages.map(p => p.slug));
   const missingCrossRefs: string[] = [];
   for (const page of pages) {
     const outbound = (page.outboundLinks as string[]) ?? [];
@@ -530,7 +537,7 @@ export async function lintWiki(): Promise<WikiLintResult> {
   // Contradiction detection via LLM (sample up to 20 pages)
   const samplePages = pages.slice(0, 20);
   const pageSnippets = samplePages
-    .map((p) => `### ${p.title} (${p.slug})\n${p.content.slice(0, 400)}`)
+    .map(p => `### ${p.title} (${p.slug})\n${p.content.slice(0, 400)}`)
     .join("\n\n");
 
   const lintResponse = await invokeLLM({
@@ -566,7 +573,9 @@ export async function lintWiki(): Promise<WikiLintResult> {
 
   let contradictions: string[] = [];
   try {
-    const raw = extractLLMText(lintResponse.choices[0]?.message?.content ?? "{}");
+    const raw = extractLLMText(
+      lintResponse.choices[0]?.message?.content ?? "{}"
+    );
     const parsed = JSON.parse(raw) as { contradictions: string[] };
     contradictions = parsed.contradictions ?? [];
   } catch {
@@ -584,7 +593,9 @@ export async function lintWiki(): Promise<WikiLintResult> {
     contradictions.length > 0
       ? `${contradictions.length} contradiction(s) found.`
       : "No contradictions.",
-    orphanSlugs.length > 0 ? `${orphanSlugs.length} orphan page(s).` : "No orphans.",
+    orphanSlugs.length > 0
+      ? `${orphanSlugs.length} orphan page(s).`
+      : "No orphans.",
     stalePageSlugs.length > 0
       ? `${stalePageSlugs.length} stale page(s).`
       : "No stale pages.",
@@ -611,7 +622,9 @@ export async function lintWiki(): Promise<WikiLintResult> {
 export async function searchWiki(
   query: string,
   limit = 10
-): Promise<Array<{ slug: string; title: string; category: string; snippet: string }>> {
+): Promise<
+  Array<{ slug: string; title: string; category: string; snippet: string }>
+> {
   const db = await getDb();
   if (!db) return [];
 
@@ -627,12 +640,78 @@ export async function searchWiki(
     .where(
       sql`LOWER(${wikiPages.title}) LIKE LOWER(${pattern}) OR LOWER(${wikiPages.content}) LIKE LOWER(${pattern})`
     )
-    .limit(limit)) as Array<{ slug: string; title: string; category: string; content: string }>;
+    .limit(limit)) as Array<{
+    slug: string;
+    title: string;
+    category: string;
+    content: string;
+  }>;
 
-  return results.map((r) => ({
+  return results.map(r => ({
     slug: r.slug,
     title: r.title,
     category: r.category,
     snippet: r.content.slice(0, 200).replace(/\n/g, " ").trim() + "…",
   }));
+}
+
+// ─── Reactive Per-Page Lint (Sprint 1 — Cron Migration) ──────────────────────
+
+export interface WikiPageLintResult {
+  slug: string;
+  isOrphan: boolean;
+  isStale: boolean;
+  missingOutboundLinks: string[];
+  linted: boolean;
+}
+
+/**
+ * Lints a single wiki page by slug.
+ * Called reactively from wikiCompiler.ts after every compileDocumentToWiki().
+ * Much faster than the weekly full-wiki lint — only checks the one page.
+ */
+export async function lintWikiPage(
+  slug: string
+): Promise<WikiPageLintResult | null> {
+  try {
+    const db = await getDb();
+    if (!db) return null;
+
+    const [page] = await db
+      .select()
+      .from(wikiPages)
+      .where(eq(wikiPages.slug, slug))
+      .limit(1);
+
+    if (!page) return null;
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const isOrphan =
+      page.category !== "source_summary" &&
+      ((page.inboundLinks as string[]) ?? []).length === 0;
+    const isStale = page.updatedAt < thirtyDaysAgo;
+
+    // Check outbound links for missing targets
+    const allSlugs = await db.select({ slug: wikiPages.slug }).from(wikiPages);
+    const slugSet = new Set(allSlugs.map(r => r.slug));
+    const outbound = (page.outboundLinks as string[]) ?? [];
+    const missingOutboundLinks = outbound.filter(t => !slugSet.has(t));
+
+    const summary =
+      [
+        isOrphan ? "orphan" : null,
+        isStale ? "stale" : null,
+        missingOutboundLinks.length > 0
+          ? `${missingOutboundLinks.length} broken link(s)`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(", ") || "ok";
+
+    await appendLog("lint", `Reactive lint for ${slug}: ${summary}`, 0, slug);
+
+    return { slug, isOrphan, isStale, missingOutboundLinks, linted: true };
+  } catch {
+    return null;
+  }
 }

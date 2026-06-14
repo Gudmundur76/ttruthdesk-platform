@@ -1591,6 +1591,7 @@ export const eventQueue = mysqlTable(
       "dream_session_complete",
       "source_version_changed",
       "coverage_gap",
+      "system_capability_required",
     ]).notNull(),
     payload: json("payload").$type<Record<string, unknown>>().notNull(),
     status: mysqlEnum("status", [
