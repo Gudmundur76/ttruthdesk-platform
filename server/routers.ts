@@ -4987,6 +4987,20 @@ Respond in this exact structure:
       }),
   }),
 
+  // ─── Public Citations Layer (Phase 96-F) ───────────────────────────────────
+  /**
+   * citations.forClaim — public procedure used by citation.is ClaimDetail page.
+   * Returns passage-level citations for a given claim ID.
+   * Gracefully returns [] when no citations have been recorded yet.
+   */
+  citations: router({
+    forClaim: publicProcedure
+      .input(z.object({ claimId: z.number() }))
+      .query(async ({ input }) => {
+        return getCitationsByClaimId(input.claimId);
+      }),
+  }),
+
   // ─── SIA Harness Improvement Loop ────────────────────────────────────────────
   sia: siaHarnessRouter,
   // ─── Question-to-Claim Interface (Phase 110) ─────────────────────────────────

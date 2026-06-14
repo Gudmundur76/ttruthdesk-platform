@@ -1811,6 +1811,28 @@ async function startServer() {
   registerDreamStagingRoute(app, requireOwnerOrAdmin);
   registerBackfillEmbeddingsRoute(app, requireCronOrAdmin);
 
+  // ─── Public stats endpoint — used by citation.is /status page ───────────────
+  // Returns aggregate corpus stats without exposing internal pipeline details.
+  app.get("/api/public/stats", async (_req, res) => {
+    try {
+      const { getGlobalPlatformStats } = await import("../db");
+      const stats = await getGlobalPlatformStats();
+      res.json({
+        totalClaims: stats.totalClaims,
+        verifiedClaims: stats.supportedVerdicts,
+        totalDocuments: stats.totalDocuments,
+        lastIngestAt: null,
+        lastQualityPassAt: null,
+        verticals: ["structural_biology", "salmon_biotech"],
+        siaGeneration: 1,
+        siaUpgradeRate: null,
+      });
+    } catch (err) {
+      console.error("[/api/public/stats] error:", err);
+      res.status(500).json({ error: "stats_unavailable" });
+    }
+  });
+
   // PDF report export endpoint (authenticated)
   app.get("/api/reports/:documentId/pdf", async (req, res) => {
     try {
