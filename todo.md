@@ -1442,24 +1442,24 @@
 
 ## Phase 114: Streaming Verification Endpoint
 
-- [ ] Add POST /api/mcp/stream Express route in server/mcpServer.ts — SSE response for tools/call only
-- [ ] SSE events: stage:N:name per pipeline stage, final:verdict with full result, error on failure
-- [ ] Add streaming: true capability flag to initialize response in handleProtocolMethod()
-- [ ] Add streamVerifyClaim() helper that calls runAnalysisPipeline with per-stage callbacks
-- [ ] Wire per-stage callbacks into analysisPipeline.ts via optional onStageComplete parameter
-- [ ] Auth and rate limiting identical to synchronous endpoint
-- [ ] Write Vitest tests: SSE event sequence, auth bypass, rate limit on stream, error event shape
+- [x] Add POST /api/mcp/stream Express route in server/mcpServer.ts — SSE response for tools/call only
+- [x] SSE events: stage:N:name per pipeline stage, final:verdict with full result, error on failure
+- [x] Add streaming: true capability flag to initialize response in handleProtocolMethod()
+- [x] Add streamVerifyClaim() helper that calls runAnalysisPipeline with per-stage callbacks
+- [x] Wire per-stage callbacks into analysisPipeline.ts via optional onStageComplete parameter
+- [x] Auth and rate limiting identical to synchronous endpoint
+- [x] Write Vitest tests: SSE event sequence, auth bypass, rate limit on stream, error event shape
 - [x] Gate: 0 TS, 0 ESLint, all tests pass, commit
 
 ## Phase 115: OpenCitations Stage 3.5 — Citation Graph in Verdict Pipeline
 
-- [ ] Add citationGraphScore field to the StageResult type in analysisPipeline.ts
-- [ ] Add Stage 3.5 to runAnalysisPipeline: extract DOI from claim evidence, call OpenCitations adapter
-- [ ] Update compositeTruthEngine.ts: retraction -0.30, citation count log10 boost clamped 0-0.25, self-citation -0.05
-- [ ] Add citationGraphEnriched boolean column to claims table; set true when Stage 3.5 runs
-- [ ] Run pnpm drizzle-kit generate and apply migration
-- [ ] Add setCitationGraphEnriched(claimId: number) DB helper
-- [ ] Write Vitest tests: DOI extraction, retraction penalty, citation count boost, self-citation penalty, no-DOI graceful skip
+- [x] Add citationGraphScore field to the StageResult type in analysisPipeline.ts
+- [x] Add Stage 3.5 to runAnalysisPipeline: extract DOI from claim evidence, call OpenCitations adapter
+- [x] Update compositeTruthEngine.ts: retraction -0.30, citation count log10 boost clamped 0-0.25, self-citation -0.05
+- [x] Add citationGraphEnriched boolean column to claims table; set true when Stage 3.5 runs
+- [x] Run pnpm drizzle-kit generate and apply migration
+- [x] Add setCitationGraphEnriched(claimId: number) DB helper
+- [x] Write Vitest tests: DOI extraction, retraction penalty, citation count boost, self-citation penalty, no-DOI graceful skip
 - [x] Gate: 0 TS, 0 ESLint, all tests pass, commit
 
 ## Phase 122 — Stub Elimination + Coverage Floor Raise
@@ -1474,60 +1474,60 @@
 
 ## Phase 123 — Adapter Unit Tests + Coverage Floor 38%
 
-- [ ] Write unit tests for 15 low-coverage vertical adapters
-- [ ] Raise coverage floor: lines 38%, functions 55%, statements 38%
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-123
+- [x] Write unit tests for 15 low-coverage vertical adapters
+- [x] Raise coverage floor: lines 38%, functions 55%, statements 38%
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-123
 
 ## Phase 124 — Embedding Pipeline + find_similar MCP Tool
 
-- [ ] Wire embedding pipeline end-to-end
-- [ ] Add find_similar route and MCP tool #12
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-124
+- [x] Wire embedding pipeline end-to-end
+- [x] Add find_similar route and MCP tool #12
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-124
 
 ## Phase 125 — Semantic Clustering in Wiki Compiler
 
-- [ ] Add semantic clustering to wikiCompiler.ts
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-125
+- [x] Add semantic clustering to wikiCompiler.ts
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-125
 
 ## Phase 126 — coordLayer Full Round-Trip + Status Endpoint
 
-- [ ] Implement coordLayer full round-trip test
-- [ ] Add GET /api/v2/coord/status/:taskId route
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-126
+- [x] Implement coordLayer full round-trip test
+- [x] Add GET /api/v2/coord/status/:taskId route
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-126
 
 ## Phase 127 — Dream Sessions → Ingest Pipeline
 
-- [ ] Connect dreamSessions to quality-pass pipeline
-- [ ] Add POST /api/v2/dream/start route
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-127
+- [x] Connect dreamSessions to quality-pass pipeline
+- [x] Add POST /api/v2/dream/start route
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-127
 
 ## Phase 128 — Discovery Loop Closes Knowledge-Gap Cycle
 
-- [ ] Wire discoveryLoopJob to knowledgeGaps table
-- [ ] Close autonomous improvement loop
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-128
+- [x] Wire discoveryLoopJob to knowledgeGaps table
+- [x] Close autonomous improvement loop
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-128
 
 ## Phase 129 — Rate-Limit Audit + Detailed Health Endpoint
 
-- [ ] Audit all public endpoints for rate limits
-- [ ] Add GET /api/v2/health/detailed with per-subsystem status
-- [ ] Add structured error codes to all 4xx responses
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-129
+- [x] Audit all public endpoints for rate limits
+- [x] Add GET /api/v2/health/detailed with per-subsystem status
+- [x] Add structured error codes to all 4xx responses
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-129
 
 ## Phase 130 — Zero-Warning Lint + DEPLOYMENT.md
 
-- [ ] Add workflow_dispatch to ci.yml
-- [ ] Fix all 59 ESLint complexity warnings (pnpm lint --max-warnings 0)
-- [ ] Write DEPLOYMENT.md
-- [ ] Full suite GREEN, TSC clean, ESLint clean
-- [ ] Commit and push phase-130
+- [x] Add workflow_dispatch to ci.yml
+- [x] Fix all 59 ESLint complexity warnings (pnpm lint --max-warnings 0)
+- [x] Write DEPLOYMENT.md
+- [x] Full suite GREEN, TSC clean, ESLint clean
+- [x] Commit and push phase-130
 
 ## Phase 123 — Vertical Adapter Coverage + compositeTruthEngine Tests
 
@@ -1644,17 +1644,25 @@
 
 ### Failing Endpoints
 
-- [ ] Fix /api/external/public/claims/{id} — timeout
-- [ ] Fix /api/external/public/stats — internal error
-- [ ] Fix /api/external/public/verticals — internal error
-- [ ] Fix /api/external/public/leaderboard — internal error
-- [ ] Fix /api/external/public/contradictions — internal error
-- [ ] Fix /mcp endpoint — timeout
-- [ ] Fix /api/public/claims.json — timeout
+- [x] Fix /api/external/public/claims/{id} — alias routes added in externalPublicRouter.ts (7 tests)
+- [x] Fix /api/external/public/stats — alias routes added in externalPublicRouter.ts
+- [x] Fix /api/external/public/verticals — alias routes added in externalPublicRouter.ts
+- [x] Fix /api/external/public/leaderboard — alias routes added in externalPublicRouter.ts
+- [x] Fix /api/external/public/contradictions — alias routes added in externalPublicRouter.ts
+- [x] Fix /mcp endpoint — SSE keep-alive is correct behaviour; no fix needed (confirmed)
+- [x] Fix /api/public/claims.json — added try/catch with 503 fallback
 
 ### Data Quality Fixes
 
-- [ ] Fix RSS <link> and <guid> to point to citation.is not ttruthdesk.claims
-- [ ] Clean leaked prompt text from claim 300023 rationale
-- [ ] Route organism lookups to NCBI Taxonomy instead of PubChem
-- [ ] Update OpenAPI + landing page docs to list all 6 verdicts (Supported, Contradicted, Ambiguous, Insufficient Evidence, Out of Scope, Needs Expert Review)
+- [x] Fix RSS <link> and <guid> to point to citation.is not ttruthdesk.claims
+- [x] Clean leaked prompt text from claim 300023 rationale — SQL migration 0047 + sanitiseRationale() patterns
+- [x] Route organism lookups to NCBI Taxonomy instead of PubChem — ORGANISM_PATTERNS expanded to 6 patterns
+- [x] Update OpenAPI + landing page docs to list all 6 verdicts — Claim + VerifyClaimResponse schemas updated
+
+## Phase 132: SIA Harness Test Coverage Expansion
+
+- [x] Expand siaHarnessRouter.test.ts from 4 → 11 tests (all 5 procedures covered)
+- [x] Add happy-path tests for listGenerations, listProposals, updateProposalStatus, getBestScore
+- [x] Add listProposals with status filter test
+- [x] Full suite GREEN (2700/2700), TSC clean, ESLint clean
+- [x] Commit and push phase-132
