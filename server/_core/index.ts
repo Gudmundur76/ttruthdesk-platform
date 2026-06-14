@@ -43,6 +43,9 @@ import { createApiV2Router } from "../apiV2Router";
 import { createExportRouter } from "../exportRouter";
 import { batchAuditRouter } from "../batchAuditRouter";
 import { agentIngestionHandler } from "../agentIngestionEndpoint";
+import { registerClaimHistoryRoute } from "../claimHistoryRoute";
+import { registerClaimProvenanceRoute } from "../claimProvenanceRoute";
+import { registerBatchVerifyRoute } from "../batchVerifyRoute";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
 import { sdk } from "./sdk";
@@ -1826,6 +1829,10 @@ async function startServer() {
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
   registerDreamStagingRoute(app, requireOwnerOrAdmin);
   registerBackfillEmbeddingsRoute(app, requireCronOrAdmin);
+  // Phase 118-120: claim history, provenance, and batch verify
+  registerClaimHistoryRoute(app);
+  registerClaimProvenanceRoute(app);
+  registerBatchVerifyRoute(app);
 
   // ─── Public stats endpoint — used by citation.is /status page ───────────────
   // Returns aggregate corpus stats without exposing internal pipeline details.
