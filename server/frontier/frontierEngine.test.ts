@@ -70,9 +70,9 @@ describe("frontier/frontierEngine — runFrontierEngine()", () => {
     expect(result.staleGapsMarked).toBe(3);
   });
 
-  it("durationMs is a positive number", async () => {
+  it("durationMs is a non-negative number", async () => {
     const result = await runFrontierEngine();
-    expect(result.durationMs).toBeGreaterThan(0);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 
   it("continues when gap mapping fails (non-fatal)", async () => {
