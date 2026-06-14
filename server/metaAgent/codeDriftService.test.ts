@@ -328,8 +328,6 @@ describe("codeDriftService — detectDisciplineDrift()", () => {
 });
 
 // ─── detectDependencyDrift — patchCount path (line 268) ─────────────────────────
-import { detectDependencyDrift } from "./codeDriftService";
-
 describe("codeDriftService — detectDependencyDrift() patch-only path", () => {
   beforeEach(() => vi.clearAllMocks());
 
