@@ -1,6 +1,6 @@
 /**
  * backfillEmbeddingsRoute.test.ts — Sprint 0 Fix 4
- * Tests for backfillMissingEmbeddings() and POST /api/admin/backfill-embeddings
+ * Tests for backfillMissingEmbeddings() and POST /api/scheduled/backfill-embeddings
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -228,9 +228,9 @@ describe("backfillMissingEmbeddings()", () => {
   });
 });
 
-// ─── POST /api/admin/backfill-embeddings ─────────────────────────────────────
+// ─── POST /api/scheduled/backfill-embeddings ─────────────────────────────────────
 
-describe("registerBackfillEmbeddingsRoute — POST /api/admin/backfill-embeddings", () => {
+describe("registerBackfillEmbeddingsRoute — POST /api/scheduled/backfill-embeddings", () => {
   function makeApp() {
     const app = express();
     app.use(express.json());
@@ -256,7 +256,7 @@ describe("registerBackfillEmbeddingsRoute — POST /api/admin/backfill-embedding
     mocks.mockGetDb.mockResolvedValue(null); // DB unavailable → zeros result
     const app = makeApp();
     const res = await request(app)
-      .post("/api/admin/backfill-embeddings")
+      .post("/api/scheduled/backfill-embeddings")
       .send({ limit: 50 });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -271,7 +271,7 @@ describe("registerBackfillEmbeddingsRoute — POST /api/admin/backfill-embedding
     mocks.mockGetDb.mockResolvedValue(null);
     const app = makeApp();
     const res = await request(app)
-      .post("/api/admin/backfill-embeddings")
+      .post("/api/scheduled/backfill-embeddings")
       .send({ limit: 200 });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -281,7 +281,7 @@ describe("registerBackfillEmbeddingsRoute — POST /api/admin/backfill-embedding
     mocks.mockGetDb.mockResolvedValue(null);
     const app = makeApp();
     const res = await request(app)
-      .post("/api/admin/backfill-embeddings")
+      .post("/api/scheduled/backfill-embeddings")
       .send({});
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);

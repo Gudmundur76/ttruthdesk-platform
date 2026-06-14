@@ -89,3 +89,17 @@ export async function checkRateLimit(
     return fallback;
   }
 }
+
+/**
+ * Delete all rate limit buckets for a given key (test/admin use only).
+ * Used by the X-Test-Reset-RateLimit handler to clear state between tests.
+ */
+export async function resetRateLimitBuckets(key: string): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.delete(rateLimitBuckets).where(eq(rateLimitBuckets.key, key));
+  } catch {
+    // Non-fatal
+  }
+}

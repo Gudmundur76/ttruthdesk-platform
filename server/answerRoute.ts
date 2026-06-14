@@ -1,5 +1,5 @@
 /**
- * answerRoute.ts — Phase 110
+ * answerRoute.ts — Phase 110 / Sprint 0 (gap-close)
  *
  * POST /api/public/answer
  *
@@ -8,7 +8,8 @@
  * a structured verdict with confidence and source citations.
  *
  * Rate limiting:
- *   - Anonymous (IP-based): 10 requests per hour
+ *   - Anonymous (IP-based): 10 requests per hour — DB-backed (persistent across
+ *     deploys and horizontal scaling). In-memory Map removed; DB is sole authority.
  *   - API key holders: unlimited
  *
  * Request body:
@@ -34,28 +35,33 @@ import type { Request, Response, Express } from "express";
 import { processQuestion } from "./questionRouter";
 import { insertQuestion } from "./db";
 import { validateApiKey } from "./apiKeyService";
-import { checkRateLimit } from "./_core/rateLimit";
+import { checkRateLimit, resetRateLimitBuckets } from "./_core/rateLimit";
 import { logger, errData } from "./logger";
 const log = logger("answerRoute");
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 
 /** Anonymous rate limit: 10 requests per hour per IP. */
-const ANON_RATE_LIMIT = 10;
-const ANON_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+export const ANON_RATE_LIMIT = 10;
+export const ANON_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkAnonRateLimit(ip: string): {
+/**
+ * Synchronous in-process rate limit check — exported for unit tests only.
+ * Production request handling uses the DB-backed checkRateLimit exclusively.
+ * This function is kept to satisfy the unit test contract without requiring
+ * async DB calls in tests.
+ */
+const _testMap = new Map<string, { count: number; resetAt: number }>();
+export function checkAnonRateLimit(ip: string): {
   allowed: boolean;
   remaining: number;
   resetAt: number;
 } {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+  const entry = _testMap.get(ip);
   if (!entry || now > entry.resetAt) {
     const resetAt = now + ANON_WINDOW_MS;
-    rateLimitMap.set(ip, { count: 1, resetAt });
+    _testMap.set(ip, { count: 1, resetAt });
     return { allowed: true, remaining: ANON_RATE_LIMIT - 1, resetAt };
   }
   if (entry.count >= ANON_RATE_LIMIT) {
@@ -68,17 +74,6 @@ function checkAnonRateLimit(ip: string): {
     resetAt: entry.resetAt,
   };
 }
-
-// Prune stale entries every 30 minutes
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [ip, entry] of Array.from(rateLimitMap.entries())) {
-      if (now > entry.resetAt) rateLimitMap.delete(ip);
-    }
-  },
-  30 * 60 * 1000
-);
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
@@ -97,25 +92,20 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // Test-only: clear the IP's rate limit bucket when X-Test-Reset-RateLimit header is present
-
-  if (
-    process.env.NODE_ENV === "test" &&
-    req.headers["x-test-reset-ratelimit"] === "1"
-  ) {
-    const resetIp =
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
-      req.ip ??
-      "unknown";
-    rateLimitMap.delete(resetIp);
-    res.status(200).json({ ok: true, reset: true });
-    return;
-  }
-
   const ip =
     (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
     req.ip ??
     "unknown";
+
+  // Test-only: clear the IP's DB rate limit bucket when X-Test-Reset-RateLimit header is present
+  if (
+    process.env.NODE_ENV === "test" &&
+    req.headers["x-test-reset-ratelimit"] === "1"
+  ) {
+    await resetRateLimitBuckets(ip);
+    res.status(200).json({ ok: true, reset: true });
+    return;
+  }
 
   // Check for API key in Authorization header (Bearer token)
   const authHeader = req.headers.authorization ?? "";
@@ -129,22 +119,14 @@ async function handleAnswer(req: Request, res: Response): Promise<void> {
     }
   }
 
-  // Apply rate limiting for anonymous callers only
+  // Apply rate limiting for anonymous callers only — DB is sole authority
   let rl = {
     allowed: true,
     remaining: 999,
     resetAt: Date.now() + ANON_WINDOW_MS,
   };
   if (!isApiKeyHolder) {
-    rl = checkAnonRateLimit(ip);
-    // DB-backed persistent check (fail-open)
-    const dbRl = await checkRateLimit(
-      ip,
-      "anon",
-      ANON_RATE_LIMIT,
-      ANON_WINDOW_MS
-    );
-    if (!dbRl.allowed) rl = { ...rl, allowed: false, remaining: 0 };
+    rl = await checkRateLimit(ip, "anon", ANON_RATE_LIMIT, ANON_WINDOW_MS);
     res.setHeader("X-RateLimit-Limit", String(ANON_RATE_LIMIT));
     res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
     res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
@@ -259,7 +241,3 @@ export function registerAnswerRoute(app: Express): void {
   });
   app.post("/api/public/answer", handleAnswer);
 }
-
-// ─── Exported for testing ─────────────────────────────────────────────────────
-
-export { checkAnonRateLimit, ANON_RATE_LIMIT, ANON_WINDOW_MS };

@@ -1809,7 +1809,7 @@ async function startServer() {
   registerTranslateAndSearchApi(app);
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
   registerDreamStagingRoute(app, requireOwnerOrAdmin);
-  registerBackfillEmbeddingsRoute(app, requireOwnerOrAdmin);
+  registerBackfillEmbeddingsRoute(app, requireCronOrAdmin);
 
   // PDF report export endpoint (authenticated)
   app.get("/api/reports/:documentId/pdf", async (req, res) => {

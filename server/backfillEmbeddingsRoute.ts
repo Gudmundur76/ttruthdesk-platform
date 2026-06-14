@@ -187,18 +187,20 @@ export async function backfillMissingEmbeddings(
 // ─── Express route registration ───────────────────────────────────────────────
 
 /**
- * POST /api/admin/backfill-embeddings
+ * POST /api/scheduled/backfill-embeddings
  * Synchronously runs the backfill and returns the result.
- * For large corpora, consider running in background; for typical Sprint 0 use
- * the synchronous response is fine (limit defaults to 100).
+ * Registered under /api/scheduled/ so it can be triggered by the heartbeat
+ * cron system (requireCronOrAdmin). For large corpora, consider running in
+ * background; for typical Sprint 0 use the synchronous response is fine
+ * (limit defaults to 100).
  */
 export function registerBackfillEmbeddingsRoute(
   app: Express,
-  requireOwnerOrAdmin: RequestHandler
+  requireCronOrAdmin: RequestHandler
 ): void {
   app.post(
-    "/api/admin/backfill-embeddings",
-    requireOwnerOrAdmin,
+    "/api/scheduled/backfill-embeddings",
+    requireCronOrAdmin,
     async (req: Request, res: Response) => {
       const limitRaw = req.body?.limit;
       const limit =

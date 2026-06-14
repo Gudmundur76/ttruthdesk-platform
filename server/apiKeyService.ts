@@ -113,35 +113,11 @@ export async function generateApiKey(
   };
 }
 
-// ─── In-memory rate limiter for validateApiKey ──────────────────────────────
-// Sliding window: max 20 attempts per IP per 60 seconds.
-// The key parameter is a string identifier (IP address or similar).
+// ─── Rate limit constants ───────────────────────────────────────────────────────────────────
+// In-memory Map removed (Sprint 0 gap-close). DB is sole rate limit authority.
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_ATTEMPTS = 20;
-const _rateLimitMap = new Map<string, number[]>();
-
-export function checkApiKeyRateLimit(identifier: string): boolean {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const attempts = (_rateLimitMap.get(identifier) ?? []).filter(
-    t => t > windowStart
-  );
-  if (attempts.length >= RATE_LIMIT_MAX_ATTEMPTS) {
-    return false; // rate limited
-  }
-  attempts.push(now);
-  _rateLimitMap.set(identifier, attempts);
-  // Periodically prune stale entries to prevent unbounded memory growth
-  if (_rateLimitMap.size > 10_000) {
-    Array.from(_rateLimitMap.entries()).forEach(
-      ([k, ts]: [string, number[]]) => {
-        if (ts.every((t: number) => t <= windowStart)) _rateLimitMap.delete(k);
-      }
-    );
-  }
-  return true; // allowed
-}
 
 // ─── Validate an API key ──────────────────────────────────────────────────────
 
@@ -149,10 +125,7 @@ export async function validateApiKey(
   rawKey: string,
   callerIp?: string
 ): Promise<ValidateApiKeyResult> {
-  // Rate-limit by caller IP if provided (in-memory fast path + DB-backed persistent)
-  if (callerIp && !checkApiKeyRateLimit(callerIp)) {
-    return { valid: false, reason: "rate_limited" };
-  }
+  // Rate-limit by caller IP if provided — DB-backed persistent (fail-open)
   if (callerIp) {
     const dbRl = await checkDbRateLimit(
       callerIp,

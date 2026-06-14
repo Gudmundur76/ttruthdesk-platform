@@ -76,27 +76,11 @@ function apiOk<T>(res: Response, data: T, meta?: Record<string, unknown>) {
     });
 }
 
-// ─── Rate limiter (simple in-memory, per IP) ──────────────────────────────────
+// ─── Rate limiter constants ──────────────────────────────────────────────────
+// In-memory Map removed (Sprint 0 gap-close). DB is sole rate limit authority.
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 60;
 const RATE_WINDOW_MS = 60_000;
-
-function checkRateLimit(req: Request): boolean {
-  const ip =
-    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
-    req.ip ??
-    "unknown";
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || entry.resetAt < now) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return true;
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT) return false;
-  return true;
-}
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -108,19 +92,8 @@ export function createApiV2Router(): Router {
     res.set(CORS_HEADERS).status(204).end();
   });
 
-  // Rate limit middleware (in-memory fast path + DB-backed persistent)
+  // Rate limit middleware — DB-backed persistent (fail-open if DB unavailable)
   router.use(async (req, res, next) => {
-    if (!checkRateLimit(req)) {
-      res
-        .set({ ...CORS_HEADERS, "Retry-After": "60" })
-        .status(429)
-        .json({
-          ok: false,
-          error: "Rate limit exceeded. Max 60 requests per minute.",
-          timestamp: new Date().toISOString(),
-        });
-      return;
-    }
     const ip =
       (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
       req.ip ??
