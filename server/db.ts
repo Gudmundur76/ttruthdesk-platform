@@ -1904,3 +1904,32 @@ export async function setCitationGraphEnriched(claimId: number): Promise<void> {
     .set({ citationGraphEnriched: true })
     .where(eq(claims.id, claimId));
 }
+
+/**
+ * Sprint 12 — Fast registry lookup by exact claim text.
+ * Used by verifyClaimRoute to surface a claimId in the MCP response when
+ * the claim already exists in the registry (registry hit path).
+ * Returns the most recently updated matching claim, or null if not found.
+ * Fail-open: returns null on DB unavailability.
+ */
+export async function findClaimByText(
+  claimText: string
+): Promise<{ id: number; verdict: string | null; confidenceScore: number | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = await db
+      .select({
+        id: claims.id,
+        verdict: claims.verdict,
+        confidenceScore: claims.confidenceScore,
+      })
+      .from(claims)
+      .where(eq(claims.claimText, claimText))
+      .orderBy(sql`${claims.updatedAt} DESC`)
+      .limit(1);
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}

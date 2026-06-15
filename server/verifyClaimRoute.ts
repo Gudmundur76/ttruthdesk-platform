@@ -53,6 +53,7 @@ import type { EvidenceResult } from "./verticalAdapters/types";
 import "./verticalAdapters"; // ensure all adapters are registered
 import { translateQueryToClaims } from "./_queryTranslator";
 import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
+import { findClaimByText } from "./db";
 import { logger, errData } from "./logger";
 const log = logger("verifyClaimRoute");
 
@@ -371,7 +372,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       }
     }
 
-    // ── Step 3: Fire autonomous ingest in background (grows knowledge graph) ──
+    // ── Step 3: Fast registry lookup — surface claimId if this claim is already known ──
+    const existingClaim = await findClaimByText(claimText).catch(() => null);
+    const registryClaimId = existingClaim?.id ?? null;
+    // ── Step 4: Fire autonomous ingest in background (grows knowledge graph) ──
     if (allPubMedResults.length > 0) {
       triggerAutonomousIngest({
         query: claimText,
@@ -392,6 +396,8 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       proteinName: primaryProteinName,
       signalDensity,
       claimText,
+      // Sprint 12: surface registry ID when claim is already known
+      claimId: registryClaimId,
       pubmedResults: allPubMedResults.slice(0, 5).map(p => ({
         pmid: p.pmid,
         title: p.title,

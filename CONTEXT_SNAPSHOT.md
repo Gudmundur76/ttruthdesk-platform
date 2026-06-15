@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-14T22:48:01.242Z
+> **Generated:** 2026-06-15T08:55:48.363Z
 > **Branch:** main
-> **Last commit:** db19e12 Merge remote-tracking branch 'github/main'
+> **Last commit:** [33m126946a[m Sprint 11: citation.is MCP branding + @citation-is/mcp-server package
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -10,7 +10,6 @@
 ## 🎯 What This Project Is
 
 **Protein Truth Desk** — a scientific claim verification platform that:
-
 - Ingests research papers (PubMed, PMC, bioRxiv, manual upload)
 - Extracts protein/structural biology claims using LLM
 - Verifies claims against PDB (Protein Data Bank) and other evidence sources
@@ -34,12 +33,12 @@ _No session audit result found. Run `pnpm session:audit` to check._
 
 ⚠️ **HANDOFF.md exists** — previous session was incomplete. Read HANDOFF.md first.
 
+
 ---
 
 ## 🗄️ Database Schema
 
-**Tables (63 total):**
-
+**Tables (64 total):**
 - `users`
 - `documents`
 - `claims`
@@ -103,6 +102,7 @@ _No session audit result found. Run `pnpm session:audit` to check._
 - `rateLimitBuckets`
 - `dreamStagingQueue`
 - `claimEmbeddings`
+- `pricingLeads`
 
 Schema file: `drizzle/schema.ts`
 Migrations: `drizzle/migrations/`
@@ -136,6 +136,7 @@ Router file: `server/routers.ts`
 - `server/batchAuditRouter.ts`
 - `server/batchVerify.ts`
 - `server/batchVerifyRoute.ts`
+- `server/billingRouter.ts`
 - `server/citationChainAnalyzer.ts`
 - `server/claimExtractor.ts`
 - `server/claimHistoryRoute.ts`
@@ -275,6 +276,7 @@ Router file: `server/routers.ts`
 - `client/src/pages/NotificationSettings.tsx`
 - `client/src/pages/OverridesDashboard.tsx`
 - `client/src/pages/PredictionCalibration.tsx`
+- `client/src/pages/Pricing.tsx`
 - `client/src/pages/PublicReport.tsx`
 - `client/src/pages/Registry.tsx`
 - `client/src/pages/SavedResearch.tsx`
@@ -298,20 +300,7 @@ Routes registered in: `client/src/App.tsx`
 ## ⏱️ Heartbeat Jobs (Scheduled)
 
 ```
-"name": "contradiction-scan",
-      "name": "re-evaluate-composite-truth",
-      "name": "self-prompt-2h",
-      "name": "meta-agent-daily",
-      "name": "inverse-prompt-daily",
-      "name": "quality-scorer-6h",
-      "name": "quality-pass-nightly",
-      "name": "pmc-feed-nightly",
-      "name": "autonomous-loop-tick",
-      "name": "frontier-engine",
-      "name": "swarm-tick-daily",
-      "name": "wiki-engine-lint-weekly",
-      "name": "discovery-loop-daily",
-      "name": "pubmed-decode-weekly",
+unknown
 ```
 
 Scheduled endpoints in: `server/_core/index.ts` (search for `/api/scheduled/`)
@@ -322,13 +311,13 @@ Scheduled endpoints in: `server/_core/index.ts` (search for `/api/scheduled/`)
 
 The platform has a 5-layer autonomous loop (`server/autonomousLoop/`):
 
-| Layer            | File                 | Purpose                                                                             |
-| ---------------- | -------------------- | ----------------------------------------------------------------------------------- |
-| L1 — Friction    | `frictionLayer.ts`   | Handles document_submitted, manual_review_complete                                  |
+| Layer | File | Purpose |
+|-------|------|---------|
+| L1 — Friction | `frictionLayer.ts` | Handles document_submitted, manual_review_complete |
 | L2 — Self-Prompt | `selfPromptLayer.ts` | LLM decides next action (drain_queue, reverify_stale, recalibrate_confidence, etc.) |
-| L3 — Frontier    | `frontierLayer.ts`   | Gap detection, hypothesis generation, evidence pursuit                              |
-| L3 — Truth       | `truthLayer.ts`      | PDB re-verification, source_data_changed, paper_discovered                          |
-| L4 — Meta        | `metaLayer.ts`       | Code guardian, pipeline guardian (7 invariants), alert routing                      |
+| L3 — Frontier | `frontierLayer.ts` | Gap detection, hypothesis generation, evidence pursuit |
+| L3 — Truth | `truthLayer.ts` | PDB re-verification, source_data_changed, paper_discovered |
+| L4 — Meta | `metaLayer.ts` | Code guardian, pipeline guardian (7 invariants), alert routing |
 
 Event bus: `server/autonomousLoop/eventBus.ts`
 Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
@@ -337,6 +326,8 @@ Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
 
 ## 🔧 Available Environment Variables
 
+
+
 Env config: `server/_core/env.ts`
 
 ---
@@ -344,27 +335,23 @@ Env config: `server/_core/env.ts`
 ## ✅ Quality Gates
 
 **TypeScript:**
-
 ```
 clean
 ```
 
 **Tests:**
-
 ```
-Start at  22:48:02
-   Duration  24.68s (transform 4.94s, setup 0ms, collect 26.35s, tests 39.54s, environment 52ms, prepare 18.14s)
+Start at  08:55:49
+   Duration  26.03s (transform 5.45s, setup 0ms, collect 30.23s, tests 35.49s, environment 55ms, prepare 20.20s)
 ```
 
 **Lint:**
-
 ```
-> protein-truth-desk@1.0.0 lint /home/ubuntu/protein-truth-desk
+> protein-truth-desk@1.0.0 lint /home/ubuntu/ttruthdesk-platform
 > eslint . --ext .ts,.tsx --max-warnings 0
 ```
 
 **Coverage thresholds:**
-
 ```
 lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
         branches: 48, // actual: 69.61% (branches well covered)
@@ -373,7 +360,6 @@ lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
 ```
 
 **Stubs:**
-
 ```
 unknown
 ```
@@ -383,23 +369,21 @@ unknown
 ## 📝 Recent Git History
 
 ```
-db19e12 Merge remote-tracking branch 'github/main'
-ddd7f15 fix(pdf-spec): MCP SSE flushHeaders, NCBI organism routing, claim deduplication, phase115 test
-d7fe599 docs: backend developer instructions for MCP SSE fix, organism routing fix, dedup
-fa71d9a sprint-7: Phase 132 — SIA harness test expansion + training module wiring + stale backlog cleanup
-637005f sprint-6: third-pass audit fixes — external routes, claims.json, RSS, NCBI, OpenAPI
-e15b394 fix(api): register Phase 118-120 routes — claimHistory, claimProvenance, batchVerify [sprint-5]
-924d340 sprint-5: Phase 121 verified complete; add migration runbook + OpenAIRE registration doc
-dc47e3f fix(audit): endpoint fixes, NCBI taxonomy routing, leaked prompt cleanup, verdict enum docs
-e0805c9 feat(api): Phase 118/119/120 — claim history, provenance, and batch verify endpoints [sprint-4]
-298ca9d fix: add public REST endpoints for verticals/leaderboard/contradictions, fix single-claim ID parsing, sanitise verdictRationale prompt leaks
+[33m126946a[m Sprint 11: citation.is MCP branding + @citation-is/mcp-server package
+[33mff43d0c[m fix(lint): remove unused eslint-disable directive in billingRouter.test.ts
+[33m54b8f9d[m feat(phase-133): pricing page + billing.requestAccess tRPC procedure
+[33mdb19e12[m Merge remote-tracking branch 'github/main'
+[33mddd7f15[m fix(pdf-spec): MCP SSE flushHeaders, NCBI organism routing, claim deduplication, phase115 test
+[33md7fe599[m docs: backend developer instructions for MCP SSE fix, organism routing fix, dedup
+[33mfa71d9a[m sprint-7: Phase 132 — SIA harness test expansion + training module wiring + stale backlog cleanup
+[33m637005f[m sprint-6: third-pass audit fixes — external routes, claims.json, RSS, NCBI, OpenAPI
+[33me15b394[m fix(api): register Phase 118-120 routes — claimHistory, claimProvenance, batchVerify [sprint-5]
+[33m924d340[m sprint-5: Phase 121 verified complete; add migration runbook + OpenAIRE registration doc
 ```
 
 **Uncommitted changes:**
-
 ```
-M  CONTEXT_SNAPSHOT.md
-M  feature_list.json
+[31mM[m CONTEXT_SNAPSHOT.md
 ```
 
 ---

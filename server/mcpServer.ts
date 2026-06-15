@@ -242,14 +242,26 @@ function buildVerifyResult(
     citationUrl: (p["url"] ?? p["citationUrl"]) as string | undefined,
     year: p["year"] as number | undefined,
   }));
+  // loopTriggered: true when the verify endpoint found PubMed evidence and
+  // fired triggerAutonomousIngest — meaning this query is now growing the
+  // knowledge graph regardless of whether it was a registry hit or miss.
+  const loopTriggered = pubmedResults.length > 0;
+  // claimId: surface the registry ID when the upstream route found or created
+  // a persisted claim record (present as data.claimId from the verify route).
+  const claimId =
+    typeof data["claimId"] === "number"
+      ? (data["claimId"] as number)
+      : typeof data["claimId"] === "string" && data["claimId"] !== ""
+        ? parseInt(data["claimId"] as string, 10) || null
+        : null;
   return {
     verdict: data["verdict"] ?? "inconclusive",
     confidence,
     summary: data["rationale"] ?? "",
     evidence: buildEvidenceWithExcerpts(claimText, mappedResults, confidence),
-    claimId: null,
+    claimId,
     processedAt: data["processedAt"] ?? new Date().toISOString(),
-    loopTriggered: false,
+    loopTriggered,
     domain: data["vertical"] ?? domain ?? null,
     claimType: data["claimType"] ?? null,
     proteinName: data["proteinName"] ?? null,

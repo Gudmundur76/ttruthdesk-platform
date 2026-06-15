@@ -601,3 +601,142 @@ describe("ask_question tool", () => {
     expect(result["derivedClaim"]).toContain("PAX7");
   });
 });
+// ─── Sprint 12: Live routing & loopTriggered / claimId surfacing ──────────────
+describe("verify_claim tool — live routing and loopTriggered flag", () => {
+  let originalFetch: typeof global.fetch;
+  // Minimal Express-compatible request mock for the verify_claim handler
+  const mockReq = {
+    headers: { "x-forwarded-for": "127.0.0.1" },
+    ip: "127.0.0.1",
+  } as never;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it("sets loopTriggered=true when upstream returns pubmedResults", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        verdict: "Supported",
+        rationale: "Confirmed by PubMed:12345",
+        confidenceScore: 0.88,
+        claimText: "BRCA1 mutations increase breast cancer risk",
+        pubmedResults: [
+          {
+            pmid: "12345",
+            title: "BRCA1 and breast cancer",
+            abstractSnippet: "BRCA1 mutations are associated with elevated risk",
+            url: "https://pubmed.ncbi.nlm.nih.gov/12345/",
+            citationUrl: "https://pubmed.ncbi.nlm.nih.gov/12345/",
+            year: 2020,
+          },
+        ],
+        processedAt: new Date().toISOString(),
+        apiVersion: "1.1",
+      }),
+    } as Response);
+
+    const handler = TOOLS["verify_claim"].handler;
+    const result = (await handler(
+      { claim: "BRCA1 mutations increase breast cancer risk" },
+      mockReq
+    )) as Record<string, unknown>;
+
+    expect(result["loopTriggered"]).toBe(true);
+    expect(result["verdict"]).toBe("Supported");
+  });
+
+  it("sets loopTriggered=false when upstream returns no pubmedResults", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        verdict: "Insufficient Evidence",
+        rationale: "No PubMed papers found",
+        confidenceScore: 0.2,
+        claimText: "Unicorn protein activates telomeres",
+        pubmedResults: [],
+        processedAt: new Date().toISOString(),
+        apiVersion: "1.1",
+      }),
+    } as Response);
+
+    const handler = TOOLS["verify_claim"].handler;
+    const result = (await handler(
+      { claim: "Unicorn protein activates telomeres" },
+      mockReq
+    )) as Record<string, unknown>;
+
+    expect(result["loopTriggered"]).toBe(false);
+  });
+
+  it("surfaces claimId from upstream response when registry hit", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        verdict: "Supported",
+        rationale: "Registry hit — claim already verified",
+        confidenceScore: 0.95,
+        claimText: "Insulin regulates blood glucose",
+        claimId: 7,
+        pubmedResults: [
+          {
+            pmid: "99999",
+            title: "Insulin and glucose",
+            abstractSnippet: "Insulin is the primary regulator of blood glucose",
+            url: "https://pubmed.ncbi.nlm.nih.gov/99999/",
+            citationUrl: "https://pubmed.ncbi.nlm.nih.gov/99999/",
+            year: 2019,
+          },
+        ],
+        processedAt: new Date().toISOString(),
+        apiVersion: "1.1",
+      }),
+    } as Response);
+
+    const handler = TOOLS["verify_claim"].handler;
+    const result = (await handler(
+      { claim: "Insulin regulates blood glucose" },
+      mockReq
+    )) as Record<string, unknown>;
+
+    expect(result["claimId"]).toBe(7);
+    expect(result["loopTriggered"]).toBe(true);
+  });
+
+  it("returns claimId=null when upstream does not include claimId", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        verdict: "Ambiguous",
+        rationale: "Mixed evidence",
+        confidenceScore: 0.5,
+        claimText: "Coffee prevents Alzheimer disease",
+        pubmedResults: [],
+        processedAt: new Date().toISOString(),
+        apiVersion: "1.1",
+      }),
+    } as Response);
+
+    const handler = TOOLS["verify_claim"].handler;
+    const result = (await handler(
+      { claim: "Coffee prevents Alzheimer disease" },
+      mockReq
+    )) as Record<string, unknown>;
+
+    expect(result["claimId"]).toBeNull();
+  });
+});
