@@ -214,6 +214,19 @@ async function callVerifyEndpoint(
   return data;
 }
 
+function mapSpoTriple(
+  raw: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  if (!raw) return null;
+  return {
+    subject: raw["subject"] ?? null,
+    predicate: raw["predicate"] ?? null,
+    object: raw["object"] ?? null,
+    confidence: raw["confidence"] ?? null,
+    method: raw["method"] ?? null,
+  };
+}
+
 function buildVerifyResult(
   data: Record<string, unknown>,
   confidence: number,
@@ -254,10 +267,16 @@ function buildVerifyResult(
       : typeof data["claimId"] === "string" && data["claimId"] !== ""
         ? parseInt(data["claimId"] as string, 10) || null
         : null;
+  // Sprint 21: surface SPO triple from verify route (Perplexity Doc 1 + Doc 3)
+  const spo = mapSpoTriple(
+    data["spo"] as Record<string, unknown> | null | undefined
+  );
   return {
     verdict: data["verdict"] ?? "inconclusive",
     confidence,
     summary: data["rationale"] ?? "",
+    // SPO triple — normalized subject–predicate–object for AI grounding
+    spo,
     evidence: buildEvidenceWithExcerpts(claimText, mappedResults, confidence),
     claimId,
     processedAt: data["processedAt"] ?? new Date().toISOString(),

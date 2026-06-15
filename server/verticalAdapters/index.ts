@@ -55,10 +55,13 @@ import "./owid"; // Our World in Data — long-run global trends
 import "./oecd"; // OECD iLibrary — economic statistics
 import "./eurostat"; // Eurostat — EU official statistics
 import "./ipcc"; // IPCC Assessment Reports — climate science
+import "./noaa"; // NOAA — climate observations, sea level, temperature records (Sprint 21)
+import "./fred"; // FRED — Federal Reserve economic data, 250K+ series (Sprint 21)
 // ── Standards & technical adapters ───────────────────────────────────────────
 import "./arxiv"; // arXiv — preprints across CS, physics, maths
 import "./wikidata"; // Wikidata — structured knowledge graph
 import "./nist"; // NIST — measurement standards
 import "./opencitations"; // OpenCitations — open citation graph + bibliographic metadata
+import "./crossrefRetraction"; // Crossref + Scite — DOI retraction detection (Sprint 21)
 import "./unknown"; // no-op fallback for unresolved adapter names (sprint-1 fix)
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)

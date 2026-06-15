@@ -39,8 +39,10 @@
  *     "signalDensity": number,
  *     "pubmedResults": PubMedResult[],
  *     "translatedClaims": string[],
+ *     "spo": { subject, predicate, object, confidence, method } | null,
+ *     "contradictions": ContradictionAlert[],
  *     "processedAt": string (ISO 8601),
- *     "apiVersion": "1.1"
+ *     "apiVersion": "1.2"
  *   }
  */
 
@@ -54,6 +56,7 @@ import "./verticalAdapters"; // ensure all adapters are registered
 import { translateQueryToClaims } from "./_queryTranslator";
 import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
 import { findClaimByText, getContradictionsForClaim } from "./db";
+import { extractSpoTriple } from "./spoExtractor";
 import { logger, errData } from "./logger";
 const log = logger("verifyClaimRoute");
 
@@ -380,6 +383,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         ? await getContradictionsForClaim(registryClaimId).catch(() => [])
         : [];
 
+    // ── Step 3c: Normalize claim into SPO triple (Sprint 21 — Perplexity Doc 1 + Doc 3) ──
+    // Runs concurrently with the ingest trigger for zero added latency.
+    const spoTriple = await extractSpoTriple(claimText).catch(() => null);
+
     // ── Step 4: Fire autonomous ingest in background (grows knowledge graph) ──
     if (allPubMedResults.length > 0) {
       triggerAutonomousIngest({
@@ -403,6 +410,16 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       claimText,
       // Sprint 12: surface registry ID when claim is already known
       claimId: registryClaimId,
+      // Sprint 21: SPO triple — normalized subject–predicate–object (Perplexity Doc 1 + Doc 3)
+      spo: spoTriple
+        ? {
+            subject: spoTriple.subject,
+            predicate: spoTriple.predicate,
+            object: spoTriple.object,
+            confidence: spoTriple.confidence,
+            method: spoTriple.method,
+          }
+        : null,
       // Sprint 20: contradictions from the knowledge graph (Perplexity spec)
       contradictions: contradictions.map(c => ({
         claimId: c.contradictingClaimId,
@@ -422,7 +439,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       })),
       translatedClaims,
       processedAt,
-      apiVersion: "1.1",
+      apiVersion: "1.2",
     });
   } catch (err) {
     log.error("[VerifyClaim] Error:", errData(err));

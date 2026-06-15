@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T14:38:26.004Z
+> **Generated:** 2026-06-15T14:55:55.660Z
 > **Branch:** main
-> **Last commit:** [33m2f23fb7[m feat(sprint20): fix verify_claim pipeline, search_claims, contradictions, corpus-growth
+> **Last commit:** [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -344,8 +344,8 @@ clean
 **Tests:**
 
 ```
-Start at  14:38:27
-   Duration  23.62s (transform 5.40s, setup 0ms, collect 27.12s, tests 33.11s, environment 57ms, prepare 18.57s)
+Start at  14:55:59
+   Duration  26.35s (transform 5.43s, setup 0ms, collect 30.17s, tests 36.12s, environment 57ms, prepare 20.67s)
 ```
 
 **Lint:**
@@ -375,6 +375,9 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
+[33m8864347[m feat(api): Sprint 20 File 3 — entity resolve endpoint + developer asks documentation
+[33m7c26356[m feat(pipeline): Sprint 20 File 2 — domain expansion signals for medicine, climate, economics, law
 [33m2f23fb7[m feat(sprint20): fix verify_claim pipeline, search_claims, contradictions, corpus-growth
 [33mbbd553b[m feat(api): add manually_reviewed filter to claims endpoint
 [33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
@@ -382,16 +385,12 @@ unknown
 [33m63c2fd2[m fix(ci): use runtime string for optional sibling module import
 [33mf20b633[m fix(ci): migrate pnpm config to pnpm-workspace.yaml
 [33m1532514[m chore(cron): register domain-ingest-6h in heartbeatRegistrar
-[33m307fc3a[m feat(pipeline): sprint-14 domain-ingest scheduler and status/domains endpoint
-[33m54159be[m feat(sprint-13): wire SLM distillation pipeline into autonomous ingest loop
-[33m67a4be1[m feat(aaif): add AGENTS.md and agentgateway proxy config
 ```
 
 **Uncommitted changes:**
 
 ```
-[32mM[m  CONTEXT_SNAPSHOT.md
-[32mM[m  server/discoveryLoopJob.ts
+[31mM[m CONTEXT_SNAPSHOT.md
 ```
 
 ---

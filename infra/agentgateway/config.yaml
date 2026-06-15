@@ -1,10 +1,6 @@
-# yaml-language-server: $schema=https://agentgateway.dev/schema/config
-# agentgateway v1.2.1 — citation.is MCP proxy config
-# https://agentgateway.dev/docs/standalone/
-#
-# Run: agentgateway -f infra/agentgateway/config.yaml
-# MCP endpoint: http://localhost:3000/mcp
-# Admin UI:     http://localhost:15000/ui/
+# agentgateway v1.2.1 — citation.is MCP proxy
+# SSE endpoint: https://ttruthdesk.claims/mcp (returns text/event-stream)
+# JSON-RPC endpoint: https://ttruthdesk.claims/api/mcp (returns application/json)
 binds:
 - port: 3000
   listeners:
@@ -14,12 +10,12 @@ binds:
           targets:
           - name: citation-is-mcp
             sse:
-              host: citation.is
+              host: ttruthdesk.claims
               port: 443
               path: /mcp
             policies:
               backendTLS:
-                hostname: citation.is
+                hostname: ttruthdesk.claims
       policies:
         cors:
           allowOrigins:
