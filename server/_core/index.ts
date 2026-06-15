@@ -1941,18 +1941,33 @@ async function startServer() {
         uniprot: "UniProt Protein Identity",
         clinical_trials: "Clinical Trials",
       };
-      const domains = stats.map(s => ({
-        domain: s.domain,
-        label: DOMAIN_LABELS[s.domain] ?? s.domain,
-        totalClaims: s.totalClaims,
-        supportedClaims: s.supportedClaims,
-        verificationRate:
-          s.totalClaims > 0
-            ? Math.round((s.supportedClaims / s.totalClaims) * 100)
-            : 0,
-        totalDocuments: s.totalDocs,
-        completedDocuments: s.completedDocs,
-      }));
+      const SLM_PAIR_THRESHOLD = 50;
+      const domains = stats.map(s => {
+        const pairsEstimate = Math.floor(s.totalClaims / 2);
+        const slmReady = pairsEstimate >= SLM_PAIR_THRESHOLD;
+        const pctToThreshold = Math.min(
+          100,
+          Math.round((pairsEstimate / SLM_PAIR_THRESHOLD) * 100)
+        );
+        return {
+          domain: s.domain,
+          label: DOMAIN_LABELS[s.domain] ?? s.domain,
+          totalClaims: s.totalClaims,
+          supportedClaims: s.supportedClaims,
+          verificationRate:
+            s.totalClaims > 0
+              ? Math.round((s.supportedClaims / s.totalClaims) * 100)
+              : 0,
+          totalDocuments: s.totalDocs,
+          completedDocuments: s.completedDocs,
+          slm: {
+            pairsEstimate,
+            slmReady,
+            pctToThreshold,
+            threshold: SLM_PAIR_THRESHOLD,
+          },
+        };
+      });
       const totals = domains.reduce(
         (acc, d) => ({
           totalClaims: acc.totalClaims + d.totalClaims,
