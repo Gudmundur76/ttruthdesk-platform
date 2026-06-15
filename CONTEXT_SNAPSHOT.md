@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-11T20:23:43.231Z
+> **Generated:** 2026-06-14T22:48:01.242Z
 > **Branch:** main
-> **Last commit:** [33m1450b58[m chore: restore ci.yml — GitHub Actions Drive Staleness workflow
+> **Last commit:** db19e12 Merge remote-tracking branch 'github/main'
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -24,19 +24,21 @@
 
 ## 📋 Current Work Status
 
-**Current phase:** Phase 108: Claim Confidence Timeline
-**Todo progress:** 1008 done / 0 remaining
+**Current phase:** Phase 132: SIA Harness Test Coverage Expansion
+**Todo progress:** 1181 done / 0 remaining
 
 **Uncompleted items:**
 _none_
 
 _No session audit result found. Run `pnpm session:audit` to check._
 
+⚠️ **HANDOFF.md exists** — previous session was incomplete. Read HANDOFF.md first.
+
 ---
 
 ## 🗄️ Database Schema
 
-**Tables (55 total):**
+**Tables (63 total):**
 
 - `users`
 - `documents`
@@ -93,6 +95,14 @@ _No session audit result found. Run `pnpm session:audit` to check._
 - `contradictionAlerts`
 - `claimScoreHistory`
 - `citations`
+- `promptHarness`
+- `qualityPassFeedback`
+- `sourceVersions`
+- `supersededClaims`
+- `questions`
+- `rateLimitBuckets`
+- `dreamStagingQueue`
+- `claimEmbeddings`
 
 Schema file: `drizzle/schema.ts`
 Migrations: `drizzle/migrations/`
@@ -100,9 +110,9 @@ DB helpers: `server/db.ts`
 
 ---
 
-## 🔌 tRPC Procedures (172 total)
+## 🔌 tRPC Procedures (175 total)
 
-`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `getScoreHistory`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `priorSignals`, `claimSubgraph`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats` ... and 132 more
+`me`, `logout`, `list`, `get`, `submitText`, `submitFile`, `fetchFromPubmed`, `preflightScan`, `byDocument`, `override`, `overrideLog`, `determinismMetrics`, `getScoreHistory`, `byDocument`, `regenerate`, `byDocument`, `all`, `submit`, `list`, `ingestMonitoring`, `uploadDocument`, `data`, `corpusGrowthStats`, `entities`, `relations`, `contradictions`, `contradictionDetail`, `resolveContradiction`, `query`, `priorSignals`, `claimSubgraph`, `getPage`, `getPageBySlug`, `listPages`, `search`, `getIndex`, `getLog`, `triggerLint`, `stats`, `globalStats` ... and 135 more
 
 Router file: `server/routers.ts`
 
@@ -112,18 +122,25 @@ Router file: `server/routers.ts`
 
 - `server/academicDomains.ts`
 - `server/adminAnalytics.ts`
+- `server/agentFeedback.ts`
 - `server/agentIngestionEndpoint.ts`
 - `server/alertDispatcher.ts`
 - `server/analysisPipeline.ts`
+- `server/answerRoute.ts`
 - `server/apiKeyService.ts`
 - `server/apiV2Router.ts`
 - `server/autonomousIngest.ts`
+- `server/backfillEmbeddingsRoute.ts`
 - `server/backfillWikiRoute.ts`
 - `server/badgeRoute.ts`
 - `server/batchAuditRouter.ts`
+- `server/batchVerify.ts`
+- `server/batchVerifyRoute.ts`
 - `server/citationChainAnalyzer.ts`
 - `server/claimExtractor.ts`
+- `server/claimHistoryRoute.ts`
 - `server/claimPageRoute.ts`
+- `server/claimProvenanceRoute.ts`
 - `server/claimProvenanceService.ts`
 - `server/claimQualityScorer.ts`
 - `server/claimSimilarityEngine.ts`
@@ -136,29 +153,42 @@ Router file: `server/routers.ts`
 - `server/contradictionDetector.ts`
 - `server/coordApi.ts`
 - `server/coordQueueDrainer.ts`
+- `server/coordRoundTrip.ts`
 - `server/cronRunLogger.ts`
 - `server/db.ts`
+- `server/detailedHealthRoute.ts`
 - `server/discoveryAgent.ts`
 - `server/discoveryEngine.ts`
 - `server/discoveryLoopJob.ts`
+- `server/dreamStagingRoute.ts`
 - `server/embedRoutes.ts`
 - `server/embedWidgetRoute.ts`
+- `server/embeddingBackfillJob.ts`
+- `server/embeddingCoverageAudit.ts`
 - `server/entityCooccurrenceService.ts`
+- `server/epistemicProvenance.ts`
 - `server/europePmcAdapter.ts`
 - `server/exportRouter.ts`
+- `server/externalPublicRouter.ts`
+- `server/findSimilarRoute.ts`
 - `server/frictionEngine.ts`
 - `server/graphTraversal.ts`
 - `server/heartbeatRegistrar.ts`
 - `server/hostingerWebhook.ts`
+- `server/ingestionAlertJob.ts`
 - `server/jwksKeys.ts`
 - `server/jwtSigner.ts`
+- `server/knowledgeGapBridge.ts`
 - `server/llmProviderQuality.ts`
 - `server/llmsRoute.ts`
+- `server/logger.ts`
 - `server/magicLink.ts`
 - `server/manusOrchestrator.ts`
+- `server/mcpServer.ts`
 - `server/micronDeploy.ts`
 - `server/misrepresentationClassifier.ts`
 - `server/monitoringJob.ts`
+- `server/openCitationsEnricher.ts`
 - `server/openfdaAdapter.ts`
 - `server/orchestratorTickJob.ts`
 - `server/passageExtractor.ts`
@@ -170,9 +200,11 @@ Router file: `server/routers.ts`
 - `server/predictionBackfillJob.ts`
 - `server/predictionEngine.ts`
 - `server/privateMode.ts`
+- `server/pubmedAbstractFetcher.ts`
 - `server/pubmedIngestJob.ts`
 - `server/qualityPassJob.ts`
 - `server/qualityScorerJob.ts`
+- `server/questionRouter.ts`
 - `server/reEvaluationEngine.ts`
 - `server/reportGenerator.ts`
 - `server/routers.ts`
@@ -181,13 +213,19 @@ Router file: `server/routers.ts`
 - `server/siaHarnessRouter.ts`
 - `server/sitemapRoute.ts`
 - `server/sourceRegistry.ts`
+- `server/sourceVersionAgent.ts`
 - `server/storage.ts`
+- `server/streamVerifyRoute.ts`
+- `server/structuredErrors.ts`
 - `server/submitClaimRoute.ts`
 - `server/swarmTickJob.ts`
 - `server/telegramBot.ts`
+- `server/temporalVersioning.ts`
+- `server/trainingCorpusListener.ts`
 - `server/translateAndSearchApi.ts`
 - `server/uniprotAdapter.ts`
 - `server/vectorStore.ts`
+- `server/verdictChangeDispatcher.ts`
 - `server/verdictEngine.ts`
 - `server/verifyClaimRoute.ts`
 - `server/verticalCopilotActions.ts`
@@ -195,6 +233,7 @@ Router file: `server/routers.ts`
 - `server/verticalFeedMerger.ts`
 - `server/verticalNotificationService.ts`
 - `server/webhookDeliveryService.ts`
+- `server/wikiClustering.ts`
 - `server/wikiCompiler.ts`
 - `server/wikiEngine.ts`
 - `server/wikiLintJob.ts`
@@ -259,8 +298,20 @@ Routes registered in: `client/src/App.tsx`
 ## ⏱️ Heartbeat Jobs (Scheduled)
 
 ```
-"name": "citation-is-warmup",
-      "name": "claim-digest-hourly",
+"name": "contradiction-scan",
+      "name": "re-evaluate-composite-truth",
+      "name": "self-prompt-2h",
+      "name": "meta-agent-daily",
+      "name": "inverse-prompt-daily",
+      "name": "quality-scorer-6h",
+      "name": "quality-pass-nightly",
+      "name": "pmc-feed-nightly",
+      "name": "autonomous-loop-tick",
+      "name": "frontier-engine",
+      "name": "swarm-tick-daily",
+      "name": "wiki-engine-lint-weekly",
+      "name": "discovery-loop-daily",
+      "name": "pubmed-decode-weekly",
 ```
 
 Scheduled endpoints in: `server/_core/index.ts` (search for `/api/scheduled/`)
@@ -301,24 +352,24 @@ clean
 **Tests:**
 
 ```
-Start at  20:23:44
-   Duration  9.47s (transform 2.65s, setup 0ms, collect 10.81s, tests 16.71s, environment 16ms, prepare 5.64s)
+Start at  22:48:02
+   Duration  24.68s (transform 4.94s, setup 0ms, collect 26.35s, tests 39.54s, environment 52ms, prepare 18.14s)
 ```
 
 **Lint:**
 
 ```
-✖ 49 problems (0 errors, 49 warnings)
-  0 errors and 1 warning potentially fixable with the `--fix` option.
+> protein-truth-desk@1.0.0 lint /home/ubuntu/protein-truth-desk
+> eslint . --ext .ts,.tsx --max-warnings 0
 ```
 
 **Coverage thresholds:**
 
 ```
-lines: 27, // actual: 27.51% (Phase 93 +1.1%) — target 35% Phase 94
-        branches: 48, // actual: 70%+ (branches well covered)
-        functions: 42, // actual: 42.62% (Phase 93 +6%) — target 50% Phase 94
-        statements: 27, // actual: 27.51% — target 35% Phase 94
+lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
+        branches: 48, // actual: 69.61% (branches well covered)
+        functions: 47, // Phase 124a: actual 47.98% — target 55% Phase 124b/125
+        statements: 35, // Phase 123: actual 35.01% — target 38% Phase 124
 ```
 
 **Stubs:**
@@ -332,24 +383,23 @@ unknown
 ## 📝 Recent Git History
 
 ```
-[33m1450b58[m chore: restore ci.yml — GitHub Actions Drive Staleness workflow
-[33m6b88c58[m chore: remove ci.yml for GitHub push (no workflows permission)
-[33meaed2be[m fix: remove unused drizzle-orm imports in graphTraversal.ts
-[33m4ea9087[m feat: Phase 105-108 — re-evaluation loop, contradiction detection, score history, heartbeat registration
-[33mb82351a[m feat: Phase 97 CopilotKit removal and native chat.query tRPC procedure
-[33m25d7be1[m chore: update context snapshot — force new publish checkpoint
-[33md0cfa08[m feat(ci): restore ci.yml with Drive Staleness job (Phase 94)
-[33mce1ef58[m temp: remove ci.yml for push
-[33m0d28b9c[m feat(meta-agent): session governance script + drive staleness CI check
-[33md6a07ba[m feat(coverage): Phase 93 - coverage tests +58, thresholds 27/42, feature:sync in pre-commit
+db19e12 Merge remote-tracking branch 'github/main'
+ddd7f15 fix(pdf-spec): MCP SSE flushHeaders, NCBI organism routing, claim deduplication, phase115 test
+d7fe599 docs: backend developer instructions for MCP SSE fix, organism routing fix, dedup
+fa71d9a sprint-7: Phase 132 — SIA harness test expansion + training module wiring + stale backlog cleanup
+637005f sprint-6: third-pass audit fixes — external routes, claims.json, RSS, NCBI, OpenAPI
+e15b394 fix(api): register Phase 118-120 routes — claimHistory, claimProvenance, batchVerify [sprint-5]
+924d340 sprint-5: Phase 121 verified complete; add migration runbook + OpenAIRE registration doc
+dc47e3f fix(audit): endpoint fixes, NCBI taxonomy routing, leaked prompt cleanup, verdict enum docs
+e0805c9 feat(api): Phase 118/119/120 — claim history, provenance, and batch verify endpoints [sprint-4]
+298ca9d fix: add public REST endpoints for verticals/leaderboard/contradictions, fix single-claim ID parsing, sanitise verdictRationale prompt leaks
 ```
 
 **Uncommitted changes:**
 
 ```
-[32mM[m  drizzle/schema.ts
-[32mM[m  server/db.ts
-[32mM[m  server/routers.ts
+M  CONTEXT_SNAPSHOT.md
+M  feature_list.json
 ```
 
 ---
@@ -384,5 +434,3 @@ pnpm stubs          # Run stub tracker
 ---
 
 _This file is auto-generated by `pnpm context:snapshot`. Regenerate after major changes._
-
-# Phase C1 sync — 2026-06-11T20:41:02Z

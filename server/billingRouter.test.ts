@@ -121,7 +121,6 @@ describe("billingRouter.requestAccess", () => {
   it("invalid tier: throws BAD_REQUEST", async () => {
     const caller = makeCaller();
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       caller.requestAccess({ ...VALID_INPUT, tier: "enterprise" as any })
     ).rejects.toBeInstanceOf(TRPCError);
   });
