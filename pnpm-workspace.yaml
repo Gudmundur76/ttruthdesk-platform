@@ -1,0 +1,10 @@
+packages:
+  - "."
+
+# pnpm v10+ reads patchedDependencies and overrides from pnpm-workspace.yaml,
+# not from the "pnpm" field in package.json (which is now ignored with a warning).
+patchedDependencies:
+  wouter@3.7.1: patches/wouter@3.7.1.patch
+
+overrides:
+  tailwindcss>nanoid: "3.3.7"
