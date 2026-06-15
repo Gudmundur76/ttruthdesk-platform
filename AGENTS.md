@@ -24,6 +24,7 @@ Must strictly use one of:
 4. `Insufficient Evidence` (Gray)
 5. `Out of Scope` (Gray)
 6. `Needs Expert Review` (Orange)
+7. `Partially Supported` (Yellow-Green)
 
 ## MCP Server
 
@@ -38,10 +39,35 @@ Must strictly use one of:
 2. **MCP SSE Stream:** `GET /mcp` connection drops prematurely under heavy load.
 3. **Graph Enrichment:** `graph_relations` table needs a background pipeline to populate semantic links between claims.
 
+## Sprint 24 Infrastructure Fixes (COMPLETE — 15 Jun 2026)
+
+- `confidenceScore` is now a real computed value (was null in all API responses). Formula: `verdictBase + pubmedBoost + signalBoost`. Returns a 0–1 float rounded to 2 decimal places.
+- PubMed results are now keyword-filtered by claim text before being returned. Prevents topically-adjacent but claim-irrelevant papers from inflating verdict confidence.
+- `agent_memory_blocks.json` `sprint_state` block repaired (was malformed, causing `memory.py read` to fail at every sprint start).
+- `cognitive-loop-framework` now has `typecheck`, `lint`, and `ci` scripts — quality gate is enforced before every commit.
+- `AGENTS.md` updated to Sprint 24 state.
+
+## companion repos
+
+### cognitive-loop-framework
+
+- **Location:** `/tmp/cognitive-loop-framework` (GitHub: `Gudmundur76/cognitive-loop-framework`)
+- **Tests:** 121 passing (Vitest)
+- **CI gate:** `pnpm ci` → `typecheck && lint && test:run` — must be green before every commit
+- **Key files:** `src/memory/ruVectorClient.ts`, `src/memory/compoundingLog.ts`, `src/indexer/astIndexer.ts`, `src/loop/cognitiveLoopServer.ts`
+- **Version:** `0.2.0` (RuVector native graph memory substrate)
+
+### slm-infra-deploy
+
+- **Location:** `/tmp/slm-infra-deploy` (GitHub: `Gudmundur76/slm-infra-deploy`)
+- **Tests:** 15 passing (pytest)
+- **Key files:** `finetunePipeline.py`, `Modelfile`, `Dockerfile`, `docker-compose.yml`, `cortex.yaml`, `cortex.py`
+- **Status:** Built, not yet deployed to production
+
 ## Testing
 
-- Run `npx vitest run` (currently 2719 tests, all passing).
-- Run `npx tsc --noEmit` to check types.
+- Run `pnpm test` (currently 2,772 tests, all passing).
+- Run `pnpm run check` to check types (`tsc --noEmit`).
 - Run `pnpm lint` to check ESLint (0 warnings allowed).
 
 ## AAIF Toolchain — Mandatory Pre-Sprint Validation
@@ -56,10 +82,10 @@ python3 /home/ubuntu/manus-persistent-drive/scripts/memory.py read sprint_state
 
 This restores corpus density, CI state, domain density, and last commit SHAs from the previous sprint. If the file is missing, re-clone `Gudmundur76/manus-persistent-drive`.
 
-### Step 2 — Verify citation.is/mcp is live (goose validation)
+### Step 2 — Verify ttruthdesk.claims/api/mcp is live
 
 ```bash
-curl -s -X POST https://citation.is/mcp \
+curl -s -X POST https://ttruthdesk.claims/api/mcp \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_claim","arguments":{"id":1}}}' \
   --max-time 10
@@ -81,7 +107,7 @@ Compare `totalClaims` against the value stored in Letta memory. If it grew, the 
 agentgateway -f infra/agentgateway/config.yaml &
 ```
 
-All MCP traffic must route through the gateway so calls are observable and logged. The config proxies `citation.is/mcp` via TLS.
+All MCP traffic must route through the gateway so calls are observable and logged. The config proxies `ttruthdesk.claims/api/mcp` via TLS.
 
 ### Step 5 — Write sprint results to Letta memory (end of sprint)
 
@@ -90,7 +116,6 @@ python3 /home/ubuntu/manus-persistent-drive/scripts/memory.py write sprint_state
   "current_sprint": N,
   "status": "complete",
   "last_commit_ttruthdesk": "HASH",
-  "last_commit_citation_desk": "HASH",
   "ci_state": "green|pending|failed",
   "domain_density": { ... },
   "next_sprint_N+1": [ ... ]

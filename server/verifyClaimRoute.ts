@@ -108,6 +108,125 @@ async function fetchPubMedResults(
   }
 }
 
+// ─── Keyword overlap relevance filter ────────────────────────────────────────
+// Filters PubMed results to papers that share at least one meaningful keyword
+// with the claim text. Prevents topically-adjacent but claim-irrelevant papers.
+
+function extractKeywords(text: string): Set<string> {
+  const stopWords = new Set([
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "shall",
+    "can",
+    "this",
+    "that",
+    "these",
+    "those",
+    "with",
+    "for",
+    "from",
+    "and",
+    "or",
+    "but",
+    "not",
+    "in",
+    "on",
+    "at",
+    "to",
+    "of",
+    "by",
+    "as",
+    "its",
+    "it",
+    "their",
+    "our",
+  ]);
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .split(/\s+/)
+      .filter(w => w.length >= 4 && !stopWords.has(w))
+  );
+}
+
+function relevanceScore(
+  claimKeywords: Set<string>,
+  paper: PubMedResult
+): number {
+  const paperText =
+    `${paper.title} ${paper.abstractSnippet ?? ""}`.toLowerCase();
+  let matches = 0;
+  Array.from(claimKeywords).forEach(kw => {
+    if (paperText.includes(kw)) matches++;
+  });
+  return claimKeywords.size > 0 ? matches / claimKeywords.size : 0;
+}
+
+function filterByRelevance(
+  papers: PubMedResult[],
+  claimText: string,
+  minScore = 0.08
+): PubMedResult[] {
+  const keywords = extractKeywords(claimText);
+  if (keywords.size === 0) return papers;
+  const scored = papers
+    .map(p => ({ paper: p, score: relevanceScore(keywords, p) }))
+    .filter(({ score }) => score >= minScore)
+    .sort((a, b) => b.score - a.score);
+  // Always return at least 1 paper if any exist (avoid empty result for short claims)
+  return scored.length > 0 ? scored.map(s => s.paper) : papers.slice(0, 1);
+}
+
+// ─── Compute a real confidence score from available signals ───────────────────
+// Combines: (1) pubmed hit count, (2) signal density, (3) verdict label weight
+// Returns a 0–1 float rounded to 2 decimal places.
+
+const VERDICT_CONFIDENCE: Record<string, number> = {
+  Supported: 0.9,
+  "Partially Supported": 0.65,
+  Ambiguous: 0.4,
+  "Needs Expert Review": 0.3,
+  "Insufficient Evidence": 0.1,
+  Contradicted: 0.05,
+  "Out of Scope": 0.05,
+};
+
+function computeConfidenceScore(
+  verdict: string,
+  pubmedCount: number,
+  signalDensity: number,
+  maxSignals = 60
+): number {
+  const verdictBase = VERDICT_CONFIDENCE[verdict] ?? 0.5;
+  // pubmed boost: each paper adds up to 0.04 (capped at 0.20 for 5+ papers)
+  const pubmedBoost = Math.min(pubmedCount * 0.04, 0.2);
+  // signal boost: proportion of matched signals, scaled to 0.10 max
+  const signalBoost = Math.min((signalDensity / maxSignals) * 0.1, 0.1);
+  const raw = verdictBase + pubmedBoost + signalBoost;
+  return Math.round(Math.min(raw, 0.99) * 100) / 100;
+}
+
 // ─── Derive verdict from PubMed paper count ───────────────────────────────────
 
 function verdictFromPubMed(
@@ -332,7 +451,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
 
       // Also search PubMed to enrich with literature evidence
       const pubmedResults = await fetchPubMedResults(primaryClaim.claimText, 5);
-      allPubMedResults = pubmedResults;
+      allPubMedResults = filterByRelevance(
+        pubmedResults,
+        primaryClaim.claimText
+      );
       const pubmedVerdict = verdictFromPubMed(
         pubmedResults,
         primaryClaim.claimText
@@ -348,7 +470,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       if (translated.length === 0) {
         // Absolute fallback: search PubMed with the raw text
         const fallbackResults = await fetchPubMedResults(claimText, 5);
-        allPubMedResults = fallbackResults;
+        allPubMedResults = filterByRelevance(fallbackResults, claimText);
         bestVerdictResult = verdictFromPubMed(fallbackResults, claimText);
         primaryProteinName = null;
       } else {
@@ -357,10 +479,13 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
           .slice(0, 3)
           .map(c => fetchPubMedResults(c.searchQuery, 4));
         const allResults = await Promise.all(searchPromises);
-        allPubMedResults = allResults
+        const rawResults = allResults
           .flat()
-          .filter((r, i, arr) => arr.findIndex(x => x.pmid === r.pmid) === i)
-          .slice(0, 10);
+          .filter((r, i, arr) => arr.findIndex(x => x.pmid === r.pmid) === i);
+        allPubMedResults = filterByRelevance(
+          rawResults,
+          translated[0].claimText
+        ).slice(0, 10);
 
         // Derive verdict from total unique papers found
         bestVerdictResult = verdictFromPubMed(
@@ -422,6 +547,12 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       })
     );
 
+    const confidenceScore = computeConfidenceScore(
+      bestVerdictResult!.verdict,
+      allPubMedResults.length,
+      signalDensity
+    );
+
     res.json({
       ok: true,
       claim: claimText,
@@ -433,6 +564,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       pdbId: primaryPdbId,
       proteinName: primaryProteinName,
       signalDensity,
+      confidenceScore,
       claimText,
       // Sprint 12: surface registry ID when claim is already known
       claimId: registryClaimId,

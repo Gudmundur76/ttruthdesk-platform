@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T18:28:38.636Z
+> **Generated:** 2026-06-15T19:11:39.803Z
 > **Branch:** main
-> **Last commit:** [33mfbc2d37[m feat(sprint22): rss feed, imf adapter, fix verticalDomain ts error
+> **Last commit:** [33mb6c3c40[m fix(ingest): replace journal filters with MeSH terms for 10x PubMed yield
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -232,6 +232,7 @@ Router file: `server/routers.ts`
 - `server/vectorStore.ts`
 - `server/verdictChangeDispatcher.ts`
 - `server/verdictEngine.ts`
+- `server/verdictWebhookRoute.ts`
 - `server/verifyClaimRoute.ts`
 - `server/verticalCopilotActions.ts`
 - `server/verticalFeedConfig.ts`
@@ -345,8 +346,8 @@ clean
 **Tests:**
 
 ```
-Start at  18:28:40
-   Duration  26.13s (transform 5.66s, setup 0ms, collect 30.07s, tests 35.39s, environment 59ms, prepare 20.60s)
+Start at  19:11:41
+   Duration  26.77s (transform 5.60s, setup 0ms, collect 30.75s, tests 36.07s, environment 59ms, prepare 21.08s)
 ```
 
 **Lint:**
@@ -376,6 +377,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33mb6c3c40[m fix(ingest): replace journal filters with MeSH terms for 10x PubMed yield
 [33mfbc2d37[m feat(sprint22): rss feed, imf adapter, fix verticalDomain ts error
 [33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
 [33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
@@ -385,15 +387,16 @@ unknown
 [33m2f23fb7[m feat(sprint20): fix verify_claim pipeline, search_claims, contradictions, corpus-growth
 [33mbbd553b[m feat(api): add manually_reviewed filter to claims endpoint
 [33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
-[33m03b7572[m feat(status): add SLM training progress to /api/public/status/domains
 ```
 
 **Uncommitted changes:**
 
 ```
 [32mM[m  CONTEXT_SNAPSHOT.md
-[32mA[m  run-ingest.ts
-[32mM[m  server/domainIngestScheduler.ts
+[32mM[m  server/_core/env.ts
+[32mA[m  server/verdictWebhookRoute.test.ts
+[32mA[m  server/verdictWebhookRoute.ts
+[32mM[m  server/verifyClaimRoute.ts
 ```
 
 ---
