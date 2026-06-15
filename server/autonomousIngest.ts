@@ -37,6 +37,7 @@ import {
 import { getVertical } from "./verticalAdapters";
 import { dispatchHighRiskAlert } from "./alertDispatcher";
 import { publishEvent } from "./autonomousLoop/eventBus";
+import { emitVerdictEvent, type IngestVerdictEvent } from "./trainingBridge";
 import { reportUrl } from "./seo/indexNow";
 import { logger, errData } from "./logger";
 const log = logger("autonomousIngest");
@@ -426,6 +427,17 @@ export async function processQueryResults(
             pdbEvidenceUrl: evidenceUrl ?? undefined,
             verdictMethod: "llm_ingest",
           });
+
+          // Emit to SLM training pipeline (fire-and-forget)
+          const trainingEvent: IngestVerdictEvent = {
+            claimText: claim.claimText,
+            verdict,
+            rationale,
+            sourceUrl: evidenceUrl ?? undefined,
+            domain: vertical,
+            entityName: claim.proteinName ?? claim.pdbId ?? undefined,
+          };
+          emitVerdictEvent(trainingEvent);
 
           // Auto-index supported claims into TurboVec (fire-and-forget)
           if (verdict === "Supported" || verdict === "Partially Supported") {
