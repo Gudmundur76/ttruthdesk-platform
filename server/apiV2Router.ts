@@ -14,6 +14,7 @@
  *   GET /api/v2/verticals/:domainKey — single vertical with top claims
  *   GET /api/v2/entities            — paginated graph entities
  *   GET /api/v2/entities/:id        — single entity with relations
+ *   GET /api/v2/entities/resolve    — resolve entity by name (Sprint 20 File 3)
  *   GET /api/v2/audit/:documentId   — audit report for a document
  *   GET /api/v2/health              — API health check
  */
@@ -544,6 +545,84 @@ export function createApiV2Router(): Router {
     } catch {
       return apiError(res, 503, "Contradiction scan failed");
     }
+  });
+
+  // ── GET /api/v2/entities/resolve — Sprint 20 File 3: Entity Resolution ──────
+  // Developer ask #3: resolve an entity by canonical name + optional type.
+  // Returns the canonical entity record + its top claims, enabling agents to
+  // ground a name string ("lysozyme", "GDP", "GDPR") to a verified entity ID.
+
+  router.get("/entities/resolve", async (req, res) => {
+    const db = await getDb();
+    if (!db) return apiError(res, 503, "Database unavailable");
+
+    const name = (req.query.name as string | undefined)?.trim();
+    const type = req.query.type as string | undefined;
+
+    if (!name || name.length < 2)
+      return apiError(res, 400, "Query param 'name' is required (min 2 chars)");
+
+    const conditions: ReturnType<typeof like>[] = [
+      like(graphEntities.canonicalName, `%${name}%`),
+    ];
+    if (type)
+      conditions.push(
+        eq(
+          graphEntities.entityType,
+          type as
+            | "protein"
+            | "pdb_id"
+            | "method"
+            | "organism"
+            | "ligand"
+            | "author"
+            | "concept"
+            | "document"
+        ) as unknown as ReturnType<typeof like>
+      );
+
+    const entityRows = await db
+      .select({
+        id: graphEntities.id,
+        entityType: graphEntities.entityType,
+        canonicalName: graphEntities.canonicalName,
+        wikiPagePath: graphEntities.wikiPagePath,
+        metadata: graphEntities.metadata,
+      })
+      .from(graphEntities)
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      .orderBy(asc(graphEntities.canonicalName))
+      .limit(10);
+
+    if (entityRows.length === 0)
+      return apiOk(res, { entities: [], topClaims: [] }, { resolvedCount: 0 });
+
+    // For the top match, fetch its top claims
+    const topEntityId = entityRows[0].id;
+    const topClaims = await db
+      .select({
+        id: claims.id,
+        claimText: claims.claimText,
+        verdict: claims.verdict,
+        confidenceScore: claims.confidenceScore,
+      })
+      .from(claims)
+      .innerJoin(documents, eq(claims.documentId, documents.id))
+      .where(
+        and(
+          isNotNull(claims.verdict),
+          isNotNull(claims.confidenceScore),
+          like(claims.claimText, `%${entityRows[0].canonicalName}%`)
+        )
+      )
+      .orderBy(desc(claims.confidenceScore))
+      .limit(5);
+
+    return apiOk(
+      res,
+      { entities: entityRows, topClaims },
+      { resolvedCount: entityRows.length, topEntityId }
+    );
   });
 
   // ── GET /api/v2/audit/:documentId ─────────────────────────────────────────
