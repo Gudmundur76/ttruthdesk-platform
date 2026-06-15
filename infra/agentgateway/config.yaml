@@ -1,0 +1,29 @@
+# agentgateway v1.2.1 — citation.is MCP proxy config
+# https://github.com/agentgateway/agentgateway
+#
+# Run: agentgateway --config infra/agentgateway/config.yaml
+# Then point any MCP client to: http://localhost:8080/mcp
+
+listeners:
+  - name: mcp-listener
+    protocol: MCP
+    address: "0.0.0.0:8080"
+
+targets:
+  - name: citation-is-mcp
+    protocol: MCP
+    url: https://citation.is/mcp
+    transport: streamable_http
+    description: "Verified scientific claim registry — 12 MCP tools"
+    timeout_ms: 10000
+    retry:
+      max_attempts: 3
+      backoff_ms: 500
+
+routing:
+  default: citation-is-mcp
+
+observability:
+  metrics: true
+  tracing: true
+  log_level: info
