@@ -58,6 +58,7 @@ import { registerHostingerWebhookRoute } from "../hostingerWebhook";
 import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 import { detailedHealthHandler } from "../detailedHealthRoute";
 import { ingestionAlertHandler } from "../ingestionAlertJob";
+import { domainIngestJobHandler } from "../domainIngestScheduler";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -1374,6 +1375,13 @@ async function startServer() {
     requireCronOrAdmin,
     pubmedIngestJobHandler
   );
+  // Domain-ingest: autonomous 5-domain (biology/medicine/chemistry/physics/climate) PubMed ingest
+  // Designed to run every 6 hours to grow the verified claim registry for enterprise AI clients
+  app.post(
+    "/api/scheduled/domain-ingest",
+    requireCronOrAdmin,
+    domainIngestJobHandler
+  );
   app.post(
     "/api/scheduled/discovery-loop",
     requireCronOrAdmin,
@@ -1909,6 +1917,61 @@ async function startServer() {
     }
   });
 
+  // Domain coverage status: per-domain claim counts, verification rates, last updated
+  // Used by citation-desk /status page and enterprise API clients to assess coverage
+  app.get("/api/public/status/domains", async (_req, res) => {
+    try {
+      const { getVerticalStats } = await import("../db");
+      const stats = await getVerticalStats();
+      // Map internal vertical stats to the 5 enterprise domains + any others
+      const DOMAIN_LABELS: Record<string, string> = {
+        biology: "Molecular Biology",
+        medicine: "Clinical Medicine",
+        chemistry: "Chemistry",
+        physics: "Physics & Materials",
+        climate: "Climate & Earth Science",
+        structural_biology: "Structural Biology",
+        salmon_biotech: "Salmon Biotech",
+        protein_supplement: "Protein Supplements",
+        creatine_ergogenics: "Creatine & Ergogenics",
+        gut_microbiome: "Gut Microbiome",
+        collagen_peptides: "Collagen & Peptides",
+        plant_based_protein: "Plant-Based Protein",
+        sports_nutrition_rct: "Sports Nutrition RCTs",
+        uniprot: "UniProt Protein Identity",
+        clinical_trials: "Clinical Trials",
+      };
+      const domains = stats.map(s => ({
+        domain: s.domain,
+        label: DOMAIN_LABELS[s.domain] ?? s.domain,
+        totalClaims: s.totalClaims,
+        supportedClaims: s.supportedClaims,
+        verificationRate:
+          s.totalClaims > 0
+            ? Math.round((s.supportedClaims / s.totalClaims) * 100)
+            : 0,
+        totalDocuments: s.totalDocs,
+        completedDocuments: s.completedDocs,
+      }));
+      const totals = domains.reduce(
+        (acc, d) => ({
+          totalClaims: acc.totalClaims + d.totalClaims,
+          supportedClaims: acc.supportedClaims + d.supportedClaims,
+          totalDocuments: acc.totalDocuments + d.totalDocuments,
+        }),
+        { totalClaims: 0, supportedClaims: 0, totalDocuments: 0 }
+      );
+      res.setHeader("Cache-Control", "public, max-age=300"); // 5-minute cache
+      res.json({
+        domains,
+        totals,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("[/api/public/status/domains] error:", err);
+      res.status(500).json({ error: "domains_unavailable" });
+    }
+  });
   app.get("/api/public/leaderboard", async (req, res) => {
     try {
       const { getAllGraphEntities } = await import("../db");

@@ -51,7 +51,7 @@ export interface IngestVerdictEvent {
   entityName?: string;
 }
 
-interface CorpusReadyStats {
+interface _CorpusReadyStats {
   newExamplesCount: number;
   totalExamples: number;
 }
@@ -66,9 +66,7 @@ const CORPUS_PATH =
   process.env["TRAINING_CORPUS_PATH"] ??
   path.join(process.cwd(), "data", "training", "claims_corpus.jsonl");
 
-const MIN_PAIRS_THRESHOLD = Number(
-  process.env["TRAINING_MIN_PAIRS"] ?? "50"
-);
+const MIN_PAIRS_THRESHOLD = Number(process.env["TRAINING_MIN_PAIRS"] ?? "50");
 
 /**
  * Lazily import and initialise the training pipeline.
@@ -121,7 +119,13 @@ export function emitVerdictEvent(event: IngestVerdictEvent): void {
         confidence: event.verdict === "Supported" ? 0.85 : 0.5,
         contextSentence: event.rationale.slice(0, 500),
         entities: event.entityName
-          ? [{ type: "protein", name: event.entityName, canonicalId: event.entityName }]
+          ? [
+              {
+                type: "protein",
+                name: event.entityName,
+                canonicalId: event.entityName,
+              },
+            ]
           : [],
         provenance: event.sourceUrl ?? `domain:${event.domain ?? "unknown"}`,
       };
