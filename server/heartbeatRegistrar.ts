@@ -77,6 +77,17 @@ export const REGISTERED_CRON_JOBS: RegisteredCronJob[] = [
       "Autonomous re-evaluation loop (Phase 105): discovers claims whose composite truth signals are stale due to new citation edges, re-scores them deterministically via compositeTruthEngine, writes updated labels back. Runs every 6 hours, idempotent.",
     registeredAt: "2026-06-11T17:06:00Z",
   },
+  {
+    name: "domain-ingest-6h",
+    taskUid: "PrRB8eBgFuH2XA4QowVNAY",
+    cron: "0 0 */6 * * *",
+    path: "/api/scheduled/domain-ingest",
+    description:
+      "Sprint 14 domain ingest: autonomous PubMed ingest for 5 scientific domains " +
+      "(biology, medicine, chemistry, physics, climate). 3 targeted queries per domain, " +
+      "400ms rate-limiting. Grows claim density toward 50-pair SLM training threshold.",
+    registeredAt: "2026-06-15T10:26:12Z",
+  },
   // ── Weekly ─────────────────────────────────────────────────────────────────
   {
     name: "contradiction-scan",
