@@ -46,6 +46,7 @@ const mockRow = {
   confidenceScore: 0.95,
   verdictMethod: "exact_match",
   pdbEvidenceUrl: "https://www.rcsb.org/structure/1ABC",
+  overriddenVerdict: null,
   createdAt: new Date("2024-01-15T10:00:00Z"),
   updatedAt: new Date("2024-01-15T10:00:00Z"),
   documentId: 42,
@@ -316,7 +317,9 @@ describe("GET /api/public/claims/:id", () => {
   });
 
   it("returns 200 with correct JSON shape for a valid claim", async () => {
-    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(mockClaimRow as any);
+    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(
+      mockClaimRow as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/1001")
@@ -327,7 +330,9 @@ describe("GET /api/public/claims/:id", () => {
     expect(res.body.claim_id).toBe(1001);
     expect(res.body.document_id).toBe(42);
     expect(res.body.document_title).toBe("Structural analysis of protein X");
-    expect(res.body.claim_text).toBe("The resolution of 2.1 Å was reported for PDB entry 1ABC");
+    expect(res.body.claim_text).toBe(
+      "The resolution of 2.1 Å was reported for PDB entry 1ABC"
+    );
     expect(res.body.verdict).toBe("Supported");
     expect(res.body.confidence_score).toBe(0.95);
     expect(res.body.pdb_id).toBe("1ABC");
@@ -358,7 +363,9 @@ describe("GET /api/public/claims/:id", () => {
   });
 
   it("returns CORS headers on single-claim response", async () => {
-    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(mockClaimRow as any);
+    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(
+      mockClaimRow as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/1001")
@@ -378,7 +385,9 @@ describe("GET /api/public/claims/:id", () => {
   });
 
   it("sets Last-Modified header from claim updatedAt", async () => {
-    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(mockClaimRow as any);
+    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(
+      mockClaimRow as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/1001")
@@ -391,7 +400,9 @@ describe("GET /api/public/claims/:id", () => {
   });
 
   it("includes collection, canonical, and describedby Link headers", async () => {
-    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(mockClaimRow as any);
+    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(
+      mockClaimRow as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/1001")
@@ -405,7 +416,9 @@ describe("GET /api/public/claims/:id", () => {
   });
 
   it("calls buildClaimReviewJsonLd with the correct claim and document", async () => {
-    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(mockClaimRow as any);
+    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(
+      mockClaimRow as any
+    );
 
     await request(app)
       .get("/api/public/claims/1001")
@@ -420,7 +433,9 @@ describe("GET /api/public/claims/:id", () => {
   });
 
   it("includes page_url and audit_url in response body", async () => {
-    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(mockClaimRow as any);
+    vi.mocked(db.getClaimWithDocument).mockResolvedValueOnce(
+      mockClaimRow as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/1001")
@@ -463,7 +478,9 @@ describe("GET /api/public/claims/index.json", () => {
   });
 
   it("returns 200 with correct JSON shape", async () => {
-    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(
+      mockIndexRows as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/index.json")
@@ -479,7 +496,9 @@ describe("GET /api/public/claims/index.json", () => {
   });
 
   it("each index entry has id, verdict, vertical, url, and api_url", async () => {
-    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(
+      mockIndexRows as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/index.json")
@@ -496,7 +515,9 @@ describe("GET /api/public/claims/index.json", () => {
   });
 
   it("returns CORS headers", async () => {
-    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(
+      mockIndexRows as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/index.json")
@@ -507,7 +528,9 @@ describe("GET /api/public/claims/index.json", () => {
   });
 
   it("returns X-Total-Count header", async () => {
-    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(
+      mockIndexRows as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/index.json")
@@ -527,7 +550,9 @@ describe("GET /api/public/claims/index.json", () => {
   });
 
   it("includes collection and describedby Link headers", async () => {
-    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(mockIndexRows as any);
+    vi.mocked(db.getAllClaimIndexRows).mockResolvedValueOnce(
+      mockIndexRows as any
+    );
 
     const res = await request(app)
       .get("/api/public/claims/index.json")

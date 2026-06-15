@@ -35,7 +35,8 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
-  "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
+  "Cache-Control":
+    "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
   "Content-Type": "application/json; charset=utf-8",
   "X-Content-Type-Options": "nosniff",
 };
@@ -61,7 +62,10 @@ export function registerClaimsRoutes(app: Express): void {
     async (req: Request, res: Response) => {
       const docId = parseInt(req.params.id, 10);
       if (isNaN(docId)) {
-        res.set(CORS_HEADERS).status(400).json({ error: "Invalid document id" });
+        res
+          .set(CORS_HEADERS)
+          .status(400)
+          .json({ error: "Invalid document id" });
         return;
       }
 
@@ -77,7 +81,12 @@ export function registerClaimsRoutes(app: Express): void {
       }
 
       const base = originBase(req);
-      const registry = buildDocumentRegistry(doc, claimRows, report ?? null, base);
+      const registry = buildDocumentRegistry(
+        doc,
+        claimRows,
+        report ?? null,
+        base
+      );
 
       res
         .set({
@@ -104,7 +113,7 @@ export function registerClaimsRoutes(app: Express): void {
       const rows = await getRecentVerifiedClaims(limit);
       const base = originBase(req);
       const registry = buildGlobalRegistry(
-        rows.map((r) => ({ claim: r.claim, documentId: r.documentId })),
+        rows.map(r => ({ claim: r.claim, documentId: r.documentId })),
         base
       );
       res
@@ -116,7 +125,10 @@ export function registerClaimsRoutes(app: Express): void {
         .json(registry);
     } catch (err) {
       console.error("[/api/public/claims.json] error:", err);
-      res.set(CORS_HEADERS).status(503).json({ error: "claims_registry_unavailable" });
+      res
+        .set(CORS_HEADERS)
+        .status(503)
+        .json({ error: "claims_registry_unavailable" });
     }
   });
 
@@ -130,20 +142,55 @@ export function registerClaimsRoutes(app: Express): void {
   // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
   app.get("/api/public/claims", async (req: Request, res: Response) => {
     const pageParam = parseInt((req.query.page as string) ?? "1", 10);
-    const pageSizeParam = parseInt((req.query.page_size as string) ?? "100", 10);
+    const pageSizeParam = parseInt(
+      (req.query.page_size as string) ?? "100",
+      10
+    );
     const page = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
-    const pageSize = isNaN(pageSizeParam) ? 100 : Math.min(Math.max(1, pageSizeParam), 500);
-    const verdict = typeof req.query.verdict === "string" ? req.query.verdict : undefined;
-    const vertical = typeof req.query.vertical === "string" ? req.query.vertical : undefined;
-    const claimType = typeof req.query.claim_type === "string" ? req.query.claim_type : undefined;
-    const updatedSinceStr = typeof req.query.updated_since === "string" ? req.query.updated_since : undefined;
-    const updatedSince = updatedSinceStr ? new Date(updatedSinceStr) : undefined;
+    const pageSize = isNaN(pageSizeParam)
+      ? 100
+      : Math.min(Math.max(1, pageSizeParam), 500);
+    const verdict =
+      typeof req.query.verdict === "string" ? req.query.verdict : undefined;
+    const vertical =
+      typeof req.query.vertical === "string" ? req.query.vertical : undefined;
+    const claimType =
+      typeof req.query.claim_type === "string"
+        ? req.query.claim_type
+        : undefined;
+    const updatedSinceStr =
+      typeof req.query.updated_since === "string"
+        ? req.query.updated_since
+        : undefined;
+    const updatedSince = updatedSinceStr
+      ? new Date(updatedSinceStr)
+      : undefined;
     if (updatedSince && isNaN(updatedSince.getTime())) {
-      return res.set(CORS_HEADERS).status(400).json({ error: "Invalid updated_since date" });
+      return res
+        .set(CORS_HEADERS)
+        .status(400)
+        .json({ error: "Invalid updated_since date" });
     }
-    const q = typeof req.query.q === "string" && req.query.q.trim() ? req.query.q.trim() : undefined;
+    const q =
+      typeof req.query.q === "string" && req.query.q.trim()
+        ? req.query.q.trim()
+        : undefined;
+    const manuallyReviewedParam = req.query.manually_reviewed;
+    const manuallyReviewed =
+      manuallyReviewedParam === "true"
+        ? true
+        : manuallyReviewedParam === "false"
+          ? false
+          : undefined;
     const { rows, total, totalPages } = await getPaginatedPublicClaims({
-      page, pageSize, verdict, vertical, claimType, updatedSince, q,
+      page,
+      pageSize,
+      verdict,
+      vertical,
+      claimType,
+      updatedSince,
+      q,
+      manuallyReviewed,
     });
     const base = originBase(req);
     // RFC 5988 Link headers for pagination
@@ -156,6 +203,8 @@ export function registerClaimsRoutes(app: Express): void {
       if (claimType) u.searchParams.set("claim_type", claimType);
       if (updatedSinceStr) u.searchParams.set("updated_since", updatedSinceStr);
       if (q) u.searchParams.set("q", q);
+      if (manuallyReviewed !== undefined)
+        u.searchParams.set("manually_reviewed", String(manuallyReviewed));
       return u.toString();
     };
     const linkParts = [
@@ -165,7 +214,7 @@ export function registerClaimsRoutes(app: Express): void {
       `<${buildUrl(totalPages || 1)}>; rel="last"`,
       `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
     ];
-    const claimItems = rows.map((r) => ({
+    const claimItems = rows.map(r => ({
       id: `ptd-${r.documentId}-${r.id}`,
       claim_id: r.id,
       document_id: r.documentId,
@@ -180,6 +229,7 @@ export function registerClaimsRoutes(app: Express): void {
       confidence_score: r.confidenceScore ?? null,
       verdict_method: r.verdictMethod ?? null,
       evidence_url: r.pdbEvidenceUrl ?? null,
+      manually_reviewed: r.overriddenVerdict !== null,
       page_url: `${base}/claim/${r.id}`,
       audit_url: `${base}/audit/${r.documentId}#claim-${r.id}`,
       created_at: r.createdAt.toISOString(),
@@ -208,6 +258,7 @@ export function registerClaimsRoutes(app: Express): void {
           claim_type: claimType ?? null,
           updated_since: updatedSinceStr ?? null,
           q: q ?? null,
+          manually_reviewed: manuallyReviewed ?? null,
         },
         claims: claimItems,
       });
@@ -221,37 +272,42 @@ export function registerClaimsRoutes(app: Express): void {
   app.options("/api/public/claims/index.json", (_req, res) => {
     res.set(CORS_HEADERS).status(204).end();
   });
-  app.get("/api/public/claims/index.json", async (req: Request, res: Response) => {
-    const rows = await getAllClaimIndexRows(10000);
-    const base = originBase(req);
-    const index = rows.map((r) => ({
-      id: r.id,
-      verdict: r.verdict,
-      vertical: r.verticalDomain ?? null,
-      document_id: r.documentId,
-      updated_at: r.updatedAt?.toISOString() ?? null,
-      url: `${base}/claim/${r.id}`,
-      api_url: `${base}/api/public/claims/${r.id}`,
-    }));
-    return res
-      .set({
-        ...CORS_HEADERS,
-        "Cache-Control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
-        "X-Total-Count": String(index.length),
-        Link: [
-          `<${base}/api/public/claims>; rel="collection"`,
-          `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
-        ].join(", "),
-      })
-      .status(200)
-      .json({
-        $schema: `${base}/api/public/schemas/claims.schema.json`,
-        generated_at: new Date().toISOString(),
-        count: index.length,
-        description: "Lightweight index of all verified claims. Use api_url to fetch full claim details.",
-        claims: index,
-      });
-  });
+  app.get(
+    "/api/public/claims/index.json",
+    async (req: Request, res: Response) => {
+      const rows = await getAllClaimIndexRows(10000);
+      const base = originBase(req);
+      const index = rows.map(r => ({
+        id: r.id,
+        verdict: r.verdict,
+        vertical: r.verticalDomain ?? null,
+        document_id: r.documentId,
+        updated_at: r.updatedAt?.toISOString() ?? null,
+        url: `${base}/claim/${r.id}`,
+        api_url: `${base}/api/public/claims/${r.id}`,
+      }));
+      return res
+        .set({
+          ...CORS_HEADERS,
+          "Cache-Control":
+            "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
+          "X-Total-Count": String(index.length),
+          Link: [
+            `<${base}/api/public/claims>; rel="collection"`,
+            `<${base}/api/public/schemas/claims.schema.json>; rel="describedby"; type="application/json"`,
+          ].join(", "),
+        })
+        .status(200)
+        .json({
+          $schema: `${base}/api/public/schemas/claims.schema.json`,
+          generated_at: new Date().toISOString(),
+          count: index.length,
+          description:
+            "Lightweight index of all verified claims. Use api_url to fetch full claim details.",
+          claims: index,
+        });
+    }
+  );
 
   // ── Text search endpoint: GET /api/public/claims/search?q=... ─────────────
   // Dedicated search endpoint for external integrations (MCP tools, AI agents).
@@ -261,7 +317,10 @@ export function registerClaimsRoutes(app: Express): void {
     res.set(CORS_HEADERS).status(204).end();
   });
   app.get("/api/public/claims/search", async (req: Request, res: Response) => {
-    const q = typeof req.query.q === "string" && req.query.q.trim() ? req.query.q.trim() : undefined;
+    const q =
+      typeof req.query.q === "string" && req.query.q.trim()
+        ? req.query.q.trim()
+        : undefined;
     if (!q) {
       return res.set(CORS_HEADERS).status(400).json({
         error: "Missing required parameter: q",
@@ -269,14 +328,22 @@ export function registerClaimsRoutes(app: Express): void {
       });
     }
     const limitParam = parseInt((req.query.limit as string) ?? "50", 10);
-    const limit = isNaN(limitParam) ? 50 : Math.min(Math.max(1, limitParam), 200);
-    const verdict = typeof req.query.verdict === "string" ? req.query.verdict : undefined;
-    const vertical = typeof req.query.vertical === "string" ? req.query.vertical : undefined;
+    const limit = isNaN(limitParam)
+      ? 50
+      : Math.min(Math.max(1, limitParam), 200);
+    const verdict =
+      typeof req.query.verdict === "string" ? req.query.verdict : undefined;
+    const vertical =
+      typeof req.query.vertical === "string" ? req.query.vertical : undefined;
     const { rows, total } = await getPaginatedPublicClaims({
-      page: 1, pageSize: limit, q, verdict, vertical,
+      page: 1,
+      pageSize: limit,
+      q,
+      verdict,
+      vertical,
     });
     const base = originBase(req);
-    const claimItems = rows.map((r) => ({
+    const claimItems = rows.map(r => ({
       id: `ptd-${r.documentId}-${r.id}`,
       claim_id: r.id,
       document_id: r.documentId,
@@ -327,18 +394,34 @@ export function registerClaimsRoutes(app: Express): void {
   app.get("/api/public/claims/:id", async (req: Request, res: Response) => {
     // Accept both numeric IDs (300002) and composite IDs (ptd-270001-300002)
     const raw = req.params.id ?? "";
-    const numericPart = raw.startsWith("ptd-") ? raw.split("-").pop() ?? "" : raw;
+    const numericPart = raw.startsWith("ptd-")
+      ? (raw.split("-").pop() ?? "")
+      : raw;
     const claimId = parseInt(numericPart, 10);
     if (isNaN(claimId)) {
-      return res.set(CORS_HEADERS).status(400).json({ error: "Invalid claim ID" });
+      return res
+        .set(CORS_HEADERS)
+        .status(400)
+        .json({ error: "Invalid claim ID" });
     }
     const row = await getClaimWithDocument(claimId);
     if (!row) {
-      return res.set(CORS_HEADERS).status(404).json({ error: "Claim not found" });
+      return res
+        .set(CORS_HEADERS)
+        .status(404)
+        .json({ error: "Claim not found" });
     }
     const base = originBase(req);
-    const { claimReview, faqPage } = buildClaimReviewJsonLd(row.claim, row.document, base);
-    const lastModified = (row.claim.updatedAt ?? row.claim.createdAt ?? new Date()).toUTCString();
+    const { claimReview, faqPage } = buildClaimReviewJsonLd(
+      row.claim,
+      row.document,
+      base
+    );
+    const lastModified = (
+      row.claim.updatedAt ??
+      row.claim.createdAt ??
+      new Date()
+    ).toUTCString();
     return res
       .set({
         ...CORS_HEADERS,
@@ -365,7 +448,8 @@ export function registerClaimsRoutes(app: Express): void {
         page_url: `${base}/claim/${row.claim.id}`,
         audit_url: `${base}/audit/${row.document.id}#claim-${row.claim.id}`,
         created_at: row.claim.createdAt?.toISOString() ?? null,
-        updated_at: (row.claim.updatedAt ?? row.claim.createdAt)?.toISOString() ?? null,
+        updated_at:
+          (row.claim.updatedAt ?? row.claim.createdAt)?.toISOString() ?? null,
         jsonld: [claimReview, faqPage],
       });
   });
@@ -374,85 +458,105 @@ export function registerClaimsRoutes(app: Express): void {
   app.get(
     "/api/public/schemas/claims.schema.json",
     (_req: Request, res: Response) => {
-      res.set(CORS_HEADERS).status(200).json({
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        $id: "https://protein-truth-desk.manus.space/api/public/schemas/claims.schema.json",
-        title: "Protein Truth Desk Verifiable Claims Registry",
-        description:
-          "Machine-readable registry of molecular claims extracted from scientific documents, each verified against the RCSB Protein Data Bank.",
-        type: "object",
-        required: ["$schema", "standard", "generated_at", "count", "claims"],
-        properties: {
-          $schema: { type: "string", format: "uri" },
-          standard: { type: "string" },
-          generated_at: { type: "string", format: "date-time" },
-          document_id: { type: "integer" },
-          document_title: { type: "string" },
-          report_url: { type: ["string", "null"], format: "uri" },
-          license: { type: "string", format: "uri" },
-          attribution: { type: "string" },
-          count: { type: "integer", minimum: 0 },
-          claims: {
-            type: "array",
-            items: {
-              type: "object",
-              required: ["id", "value", "label", "claim_type", "verdict", "date_observed"],
-              properties: {
-                id: { type: "string", description: "Stable claim identifier: ptd-<docId>-<claimId>" },
-                value: { type: "string", description: "Verbatim claim text from the document" },
-                label: { type: "string" },
-                claim_type: {
-                  type: "string",
-                  enum: [
-                    "pdb_id",
-                    "protein_name",
-                    "experimental_method",
-                    "resolution",
-                    "organism",
-                    "ligand",
-                    "general_molecular",
-                  ],
-                },
-                extracted_value: { type: ["string", "null"] },
-                verdict: {
-                  type: ["string", "null"],
-                  enum: [
-                    "Supported",
-                    "Contradicted",
-                    "Partially Supported",
-                    "Ambiguous",
-                    "Insufficient Evidence",
-                    "Out of Scope",
-                    "Needs Expert Review",
-                    null,
-                  ],
-                },
-                verdict_rationale: { type: ["string", "null"] },
-                manually_reviewed: { type: "boolean" },
-                evidence_checked_at: { type: ["string", "null"], format: "date-time" },
-                source_refs: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    required: ["database", "entry_id", "url"],
-                    properties: {
-                      database: { type: "string" },
-                      entry_id: { type: "string" },
-                      url: { type: "string", format: "uri" },
-                      description: { type: "string" },
+      res
+        .set(CORS_HEADERS)
+        .status(200)
+        .json({
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          $id: "https://protein-truth-desk.manus.space/api/public/schemas/claims.schema.json",
+          title: "Protein Truth Desk Verifiable Claims Registry",
+          description:
+            "Machine-readable registry of molecular claims extracted from scientific documents, each verified against the RCSB Protein Data Bank.",
+          type: "object",
+          required: ["$schema", "standard", "generated_at", "count", "claims"],
+          properties: {
+            $schema: { type: "string", format: "uri" },
+            standard: { type: "string" },
+            generated_at: { type: "string", format: "date-time" },
+            document_id: { type: "integer" },
+            document_title: { type: "string" },
+            report_url: { type: ["string", "null"], format: "uri" },
+            license: { type: "string", format: "uri" },
+            attribution: { type: "string" },
+            count: { type: "integer", minimum: 0 },
+            claims: {
+              type: "array",
+              items: {
+                type: "object",
+                required: [
+                  "id",
+                  "value",
+                  "label",
+                  "claim_type",
+                  "verdict",
+                  "date_observed",
+                ],
+                properties: {
+                  id: {
+                    type: "string",
+                    description:
+                      "Stable claim identifier: ptd-<docId>-<claimId>",
+                  },
+                  value: {
+                    type: "string",
+                    description: "Verbatim claim text from the document",
+                  },
+                  label: { type: "string" },
+                  claim_type: {
+                    type: "string",
+                    enum: [
+                      "pdb_id",
+                      "protein_name",
+                      "experimental_method",
+                      "resolution",
+                      "organism",
+                      "ligand",
+                      "general_molecular",
+                    ],
+                  },
+                  extracted_value: { type: ["string", "null"] },
+                  verdict: {
+                    type: ["string", "null"],
+                    enum: [
+                      "Supported",
+                      "Contradicted",
+                      "Partially Supported",
+                      "Ambiguous",
+                      "Insufficient Evidence",
+                      "Out of Scope",
+                      "Needs Expert Review",
+                      null,
+                    ],
+                  },
+                  verdict_rationale: { type: ["string", "null"] },
+                  manually_reviewed: { type: "boolean" },
+                  evidence_checked_at: {
+                    type: ["string", "null"],
+                    format: "date-time",
+                  },
+                  source_refs: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: ["database", "entry_id", "url"],
+                      properties: {
+                        database: { type: "string" },
+                        entry_id: { type: "string" },
+                        url: { type: "string", format: "uri" },
+                        description: { type: "string" },
+                      },
                     },
                   },
+                  page_anchors: {
+                    type: "array",
+                    items: { type: "string", format: "uri" },
+                  },
+                  date_observed: { type: "string", format: "date-time" },
                 },
-                page_anchors: {
-                  type: "array",
-                  items: { type: "string", format: "uri" },
-                },
-                date_observed: { type: "string", format: "date-time" },
               },
             },
           },
-        },
-      });
+        });
     }
   );
 }

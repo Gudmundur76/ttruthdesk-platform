@@ -375,7 +375,9 @@ export async function insertClaims(claimList: InsertClaim[]) {
  * Returns a Set of normalised claim texts already stored for a given document.
  * Used by the ingest pipeline to deduplicate claims before inserting.
  */
-export async function getExistingClaimTexts(documentId: number): Promise<Set<string>> {
+export async function getExistingClaimTexts(
+  documentId: number
+): Promise<Set<string>> {
   const db = await getDb();
   if (!db) return new Set();
   const rows = await db
@@ -762,12 +764,14 @@ export async function getRecentVerifiedClaims(limit = 200) {
     })
     .from(claims)
     .innerJoin(documents, eq(claims.documentId, documents.id))
-    .where(and(
-      isNotNull(claims.verdict),
-      eq(documents.status, "complete"),
-      // Exclude trivially short entity-only extractions (no real claim sentence)
-      sql`LENGTH(${claims.claimText}) >= 15`,
-    ))
+    .where(
+      and(
+        isNotNull(claims.verdict),
+        eq(documents.status, "complete"),
+        // Exclude trivially short entity-only extractions (no real claim sentence)
+        sql`LENGTH(${claims.claimText}) >= 15`
+      )
+    )
     .orderBy(desc(claims.createdAt))
     .limit(limit);
   return rows;
@@ -1540,6 +1544,7 @@ export type PublicClaimRow = {
   confidenceScore: number | null;
   verdictMethod: string | null;
   pdbEvidenceUrl: string | null;
+  overriddenVerdict: string | null;
   createdAt: Date;
   updatedAt: Date;
   documentId: number;
@@ -1555,6 +1560,7 @@ export async function getPaginatedPublicClaims(opts: {
   claimType?: string; // filter by claimType
   updatedSince?: Date; // cursor for incremental crawls
   q?: string; // full-text search across claim_text and verdict_rationale
+  manuallyReviewed?: boolean; // filter to human-reviewed claims only (overriddenVerdict IS NOT NULL)
 }): Promise<{ rows: PublicClaimRow[]; total: number; totalPages: number }> {
   const db = await getDb();
   if (!db) return { rows: [], total: 0, totalPages: 0 };
@@ -1577,6 +1583,10 @@ export async function getPaginatedPublicClaims(opts: {
     conditions.push(gte(claims.updatedAt, opts.updatedSince));
   if (opts.vertical)
     conditions.push(sql`${documents.verticalDomain} = ${opts.vertical}`);
+  if (opts.manuallyReviewed === true)
+    conditions.push(sql`${claims.overriddenVerdict} IS NOT NULL`);
+  if (opts.manuallyReviewed === false)
+    conditions.push(sql`${claims.overriddenVerdict} IS NULL`);
   if (opts.q) {
     const pattern = `%${opts.q}%`;
     conditions.push(
@@ -1620,6 +1630,7 @@ export async function getPaginatedPublicClaims(opts: {
       confidenceScore: claims.confidenceScore,
       verdictMethod: claims.verdictMethod,
       pdbEvidenceUrl: claims.pdbEvidenceUrl,
+      overriddenVerdict: claims.overriddenVerdict,
       createdAt: claims.createdAt,
       updatedAt: claims.updatedAt,
       documentId: documents.id,
@@ -1755,11 +1766,7 @@ export async function getCitationsByDocumentId(
 }
 
 // ─── Source Version DB Helpers (Phase 109) ────────────────────────────────────
-import {
-  sourceVersions,
-  supersededClaims,
-  questions,
-} from "../drizzle/schema";
+import { sourceVersions, supersededClaims, questions } from "../drizzle/schema";
 import type {
   SourceVersion,
   InsertSourceVersion,
@@ -1770,7 +1777,6 @@ import type {
 } from "../drizzle/schema";
 import { logger, errData } from "./logger";
 const log = logger("db");
-
 
 /**
  * Get the most recent version record for a given sourceId.
@@ -1912,9 +1918,11 @@ export async function setCitationGraphEnriched(claimId: number): Promise<void> {
  * Returns the most recently updated matching claim, or null if not found.
  * Fail-open: returns null on DB unavailability.
  */
-export async function findClaimByText(
-  claimText: string
-): Promise<{ id: number; verdict: string | null; confidenceScore: number | null } | null> {
+export async function findClaimByText(claimText: string): Promise<{
+  id: number;
+  verdict: string | null;
+  confidenceScore: number | null;
+} | null> {
   const db = await getDb();
   if (!db) return null;
   try {

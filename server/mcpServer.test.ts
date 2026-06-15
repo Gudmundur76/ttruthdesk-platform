@@ -495,6 +495,7 @@ describe("search_claims tool", () => {
           confidenceScore: 0.9,
           verdictMethod: "deterministic_source" as const,
           pdbEvidenceUrl: null,
+          overriddenVerdict: null,
           createdAt: new Date(),
           updatedAt: new Date(),
           documentId: 1,
@@ -533,6 +534,7 @@ describe("search_claims tool", () => {
           confidenceScore: 0.3,
           verdictMethod: null,
           pdbEvidenceUrl: null,
+          overriddenVerdict: null,
           createdAt: new Date(),
           updatedAt: new Date(),
           documentId: 1,
@@ -633,7 +635,8 @@ describe("verify_claim tool — live routing and loopTriggered flag", () => {
           {
             pmid: "12345",
             title: "BRCA1 and breast cancer",
-            abstractSnippet: "BRCA1 mutations are associated with elevated risk",
+            abstractSnippet:
+              "BRCA1 mutations are associated with elevated risk",
             url: "https://pubmed.ncbi.nlm.nih.gov/12345/",
             citationUrl: "https://pubmed.ncbi.nlm.nih.gov/12345/",
             year: 2020,
@@ -694,7 +697,8 @@ describe("verify_claim tool — live routing and loopTriggered flag", () => {
           {
             pmid: "99999",
             title: "Insulin and glucose",
-            abstractSnippet: "Insulin is the primary regulator of blood glucose",
+            abstractSnippet:
+              "Insulin is the primary regulator of blood glucose",
             url: "https://pubmed.ncbi.nlm.nih.gov/99999/",
             citationUrl: "https://pubmed.ncbi.nlm.nih.gov/99999/",
             year: 2019,
