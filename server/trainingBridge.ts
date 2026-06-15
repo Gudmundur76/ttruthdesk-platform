@@ -76,10 +76,12 @@ const MIN_PAIRS_THRESHOLD = Number(process.env["TRAINING_MIN_PAIRS"] ?? "50");
 async function ensurePipeline(): Promise<boolean> {
   if (pipelineReady) return true;
   try {
-    const { createTrainingPipeline } = await import(
-      "../../cognitive-loop-framework/src/training/index.js"
-    );
-    const pipeline = createTrainingPipeline({
+    // Use a runtime string so tsc cannot statically resolve the optional
+    // sibling package — it may not be present in CI or production.
+    const modulePath = "../../cognitive-loop-framework/src/training/index.js";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod = (await import(/* @vite-ignore */ modulePath)) as any;
+    const pipeline = mod.createTrainingPipeline({
       corpusPath: CORPUS_PATH,
       minPairsThreshold: MIN_PAIRS_THRESHOLD,
     });
