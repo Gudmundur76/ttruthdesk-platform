@@ -2009,6 +2009,80 @@ async function startServer() {
     }
   });
 
+  /**
+   * RSS 2.0 feed — real-time claim updates for Perplexity and other AI indexers.
+   * Served at both /rss.xml (canonical) and /api/public/rss (API path).
+   * Includes the 50 most recent verified claims with verdict, confidence, and source URL.
+   */
+  const rssHandler = async (_req: express.Request, res: express.Response) => {
+    try {
+      const { getRecentVerifiedClaims } = await import("../db");
+      const rows = await getRecentVerifiedClaims(50);
+      const SITE = SITE_ORIGIN;
+      const escXml = (s: string) =>
+        s.replace(
+          /[<>&"']/g,
+          (ch: string) =>
+            ({
+              "<": "&lt;",
+              ">": "&gt;",
+              "&": "&amp;",
+              '"': "&quot;",
+              "'": "&apos;",
+            })[ch] ?? ch
+        );
+      const items = rows
+        .map(r => {
+          const c = r.claim;
+          const pubDate = c.createdAt
+            ? new Date(c.createdAt).toUTCString()
+            : new Date().toUTCString();
+          const verdict = c.verdict ?? "Unverified";
+          const confidence =
+            c.confidenceScore != null
+              ? ` (confidence: ${(Number(c.confidenceScore) * 100).toFixed(0)}%)`
+              : "";
+          const claimText = escXml(c.claimText ?? "");
+          const link = `${SITE}/claims/${c.id}`;
+          return [
+            "    <item>",
+            `      <title>${escXml(verdict)}${escXml(confidence)}: ${claimText.slice(0, 120)}</title>`,
+            `      <link>${link}</link>`,
+            `      <guid isPermaLink="true">${link}</guid>`,
+            `      <pubDate>${pubDate}</pubDate>`,
+            `      <description>${claimText}</description>`,
+            `      <category>scientific-claim</category>`,
+            "    </item>",
+          ].join("\n");
+        })
+        .join("\n");
+      const xml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+        "  <channel>",
+        "    <title>citation.is \u2014 Verified Scientific Claims</title>",
+        `    <link>${SITE}</link>`,
+        "    <description>Real-time feed of verified scientific claims across medicine, climate, economics, law, and structural biology.</description>",
+        "    <language>en-us</language>",
+        `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>`,
+        `    <atom:link href="${SITE}/rss.xml" rel="self" type="application/rss+xml" />`,
+        items,
+        "  </channel>",
+        "</rss>",
+      ].join("\n");
+      res.setHeader("Content-Type", "application/rss+xml; charset=utf-8");
+      res.setHeader("Cache-Control", "public, max-age=300"); // 5-minute cache
+      res.send(xml);
+    } catch (err) {
+      console.error("[/rss.xml] error:", err);
+      res
+        .status(500)
+        .send('<?xml version="1.0"?><error>rss_unavailable</error>');
+    }
+  };
+  app.get("/rss.xml", rssHandler);
+  app.get("/api/public/rss", rssHandler);
+
   app.get("/api/public/leaderboard", async (req, res) => {
     try {
       const { getAllGraphEntities } = await import("../db");

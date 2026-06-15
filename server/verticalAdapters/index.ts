@@ -57,6 +57,7 @@ import "./eurostat"; // Eurostat — EU official statistics
 import "./ipcc"; // IPCC Assessment Reports — climate science
 import "./noaa"; // NOAA — climate observations, sea level, temperature records (Sprint 21)
 import "./fred"; // FRED — Federal Reserve economic data, 250K+ series (Sprint 21)
+import "./imf"; // IMF DataMapper — GDP, inflation, fiscal data for 190+ countries (Sprint 22)
 // ── Standards & technical adapters ───────────────────────────────────────────
 import "./arxiv"; // arXiv — preprints across CS, physics, maths
 import "./wikidata"; // Wikidata — structured knowledge graph

@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T15:47:54.135Z
+> **Generated:** 2026-06-15T15:58:28.636Z
 > **Branch:** main
-> **Last commit:** [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
+> **Last commit:** [33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -345,8 +345,8 @@ clean
 **Tests:**
 
 ```
-Start at  15:47:55
-   Duration  24.48s (transform 4.94s, setup 0ms, collect 27.58s, tests 33.53s, environment 60ms, prepare 19.37s)
+Start at  15:58:30
+   Duration  28.25s (transform 5.96s, setup 0ms, collect 32.38s, tests 37.93s, environment 59ms, prepare 22.37s)
 ```
 
 **Lint:**
@@ -376,6 +376,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
 [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
 [33m8864347[m feat(api): Sprint 20 File 3 — entity resolve endpoint + developer asks documentation
 [33m7c26356[m feat(pipeline): Sprint 20 File 2 — domain expansion signals for medicine, climate, economics, law
@@ -385,24 +386,15 @@ unknown
 [33m03b7572[m feat(status): add SLM training progress to /api/public/status/domains
 [33m63c2fd2[m fix(ci): use runtime string for optional sibling module import
 [33mf20b633[m fix(ci): migrate pnpm config to pnpm-workspace.yaml
-[33m1532514[m chore(cron): register domain-ingest-6h in heartbeatRegistrar
 ```
 
 **Uncommitted changes:**
 
 ```
-[32mM[m  CONTEXT_SNAPSHOT.md
-[32mM[m  infra/agentgateway/config.yaml
-[32mM[m  server/mcpServer.ts
-[32mA[m  server/spoExtractor.test.ts
-[32mA[m  server/spoExtractor.ts
-[32mM[m  server/verifyClaimRoute.ts
-[32mA[m  server/verticalAdapters/crossrefRetraction.test.ts
-[32mA[m  server/verticalAdapters/crossrefRetraction.ts
-[32mA[m  server/verticalAdapters/fred.ts
-[32mM[m  server/verticalAdapters/index.ts
-[32mA[m  server/verticalAdapters/noaa.ts
-[32mA[m  server/verticalAdapters/noaa_fred.test.ts
+[32mM[m[31mM[m CONTEXT_SNAPSHOT.md
+[32mA[m  docs/agentstack-integration.md
+[32mA[m  docs/perplexity-outreach-email.md
+[32mA[m  scripts/export-opencitations.ts
 ```
 
 ---
