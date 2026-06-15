@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T17:59:07.464Z
+> **Generated:** 2026-06-15T18:28:38.636Z
 > **Branch:** main
-> **Last commit:** [33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
+> **Last commit:** [33mfbc2d37[m feat(sprint22): rss feed, imf adapter, fix verticalDomain ts error
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -345,15 +345,15 @@ clean
 **Tests:**
 
 ```
-Start at  17:59:08
-   Duration  26.82s (transform 5.57s, setup 0ms, collect 30.91s, tests 36.36s, environment 57ms, prepare 21.03s)
+Start at  18:28:40
+   Duration  26.13s (transform 5.66s, setup 0ms, collect 30.07s, tests 35.39s, environment 59ms, prepare 20.60s)
 ```
 
 **Lint:**
 
 ```
-> protein-truth-desk@1.0.0 lint /home/ubuntu/ttruthdesk-platform
-> eslint . --ext .ts,.tsx --max-warnings 0
+ESLint found too many warnings (maximum: 0).
+ ELIFECYCLE  Command failed with exit code 1.
 ```
 
 **Coverage thresholds:**
@@ -376,6 +376,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33mfbc2d37[m feat(sprint22): rss feed, imf adapter, fix verticalDomain ts error
 [33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
 [33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
 [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
@@ -385,17 +386,14 @@ unknown
 [33mbbd553b[m feat(api): add manually_reviewed filter to claims endpoint
 [33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
 [33m03b7572[m feat(status): add SLM training progress to /api/public/status/domains
-[33m63c2fd2[m fix(ci): use runtime string for optional sibling module import
 ```
 
 **Uncommitted changes:**
 
 ```
 [32mM[m  CONTEXT_SNAPSHOT.md
-[32mM[m  server/_core/index.ts
-[32mA[m  server/verticalAdapters/imf.test.ts
-[32mA[m  server/verticalAdapters/imf.ts
-[32mM[m  server/verticalAdapters/index.ts
+[32mA[m  run-ingest.ts
+[32mM[m  server/domainIngestScheduler.ts
 ```
 
 ---

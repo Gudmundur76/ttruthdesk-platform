@@ -58,6 +58,7 @@ import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
 import { findClaimByText, getContradictionsForClaim } from "./db";
 import { extractSpoTriple } from "./spoExtractor";
 import { logger, errData } from "./logger";
+import { fireVerdictWebhook, buildVerdictPayload } from "./verdictWebhookRoute";
 const log = logger("verifyClaimRoute");
 
 // ─── EuropePMC search ─────────────────────────────────────────────────────────
@@ -395,6 +396,31 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         uniprotEntries: [],
       });
     }
+
+    // ── Step 4b: Feed the self-improving SLM flywheel (fire-and-forget) ──
+    // POST the verdict event to cognitive-loop-framework /cognitive/ingest.
+    // Non-blocking — if the cognitive loop is down, verification still succeeds.
+    fireVerdictWebhook(
+      buildVerdictPayload({
+        claimId: registryClaimId !== null ? String(registryClaimId) : null,
+        claimText,
+        verdict: bestVerdictResult!.verdict,
+        confidence:
+          (
+            {
+              Supported: 0.9,
+              "Partially Supported": 0.65,
+              Ambiguous: 0.4,
+              "Needs Expert Review": 0.3,
+              "Insufficient Evidence": 0.1,
+              Contradicted: 0.05,
+              "Out of Scope": 0.05,
+            } as Record<string, number>
+          )[bestVerdictResult!.verdict] ?? 0.5,
+        pubmedResults: allPubMedResults,
+        rationale: bestVerdictResult!.rationale,
+      })
+    );
 
     res.json({
       ok: true,

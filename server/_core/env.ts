@@ -3,7 +3,7 @@ const _jwtSecret = process.env.JWT_SECRET;
 if (!_jwtSecret) {
   throw new Error(
     "[env] JWT_SECRET is not set. Set this environment variable before starting the server. " +
-    "Without it, session cookies cannot be signed securely."
+      "Without it, session cookies cannot be signed securely."
   );
 }
 
@@ -22,7 +22,11 @@ export const ENV = {
   // Set LLM_PROVIDER=openrouter + OPENROUTER_API_KEY for free OpenRouter models.
   // Set LLM_PROVIDER=freellmapi + FREELM_API_URL for a self-hosted free LLM proxy.
   // Set LLM_PROVIDER=kimi + KIMI_API_KEY for the Kimi K2 quality re-pass.
-  llmProvider: (process.env.LLM_PROVIDER ?? "manus_builtin") as "manus_builtin" | "freellmapi" | "kimi" | "openrouter",
+  llmProvider: (process.env.LLM_PROVIDER ?? "manus_builtin") as
+    | "manus_builtin"
+    | "freellmapi"
+    | "kimi"
+    | "openrouter",
   freeLLMApiUrl: process.env.FREELM_API_URL ?? "http://localhost:3001/v1",
   freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
   kimiApiKey: process.env.KIMI_API_KEY ?? "",
@@ -63,7 +67,15 @@ export const ENV = {
   // Set TRAINING_CORPUS_ENABLED=true to activate the ClaimsCorpusGenerator listener.
   // TRAINING_CORPUS_PATH: absolute path to the JSONL corpus file on the training host.
   trainingCorpusEnabled: process.env.TRAINING_CORPUS_ENABLED === "true",
-  trainingCorpusPath: process.env.TRAINING_CORPUS_PATH ?? "/data/training/claims_corpus.jsonl",
+  trainingCorpusPath:
+    process.env.TRAINING_CORPUS_PATH ?? "/data/training/claims_corpus.jsonl",
+  // Cognitive loop webhook (self-improving data flywheel)
+  // Set COGNITIVE_LOOP_URL to the cognitive-loop-framework HTTP API base URL.
+  // After each claim verification, ttruthdesk POSTs the verdict event to
+  // {cognitiveLoopUrl}/cognitive/ingest so the SLM training corpus grows automatically.
+  // Leave empty to disable the flywheel webhook (safe default).
+  cognitiveLoopUrl: process.env.COGNITIVE_LOOP_URL ?? "",
+  cognitiveLoopWebhookSecret: process.env.COGNITIVE_LOOP_WEBHOOK_SECRET ?? "",
   // Pricing lead notifications
   // Set ADMIN_NOTIFY_EMAIL to receive new pricing access request notifications via Forge.
   // Falls back to Telegram channel notification if not set.
