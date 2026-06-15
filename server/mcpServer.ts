@@ -336,13 +336,20 @@ async function toolSearchClaims(
     return { total: 0, claims: [] };
   }
 
+  // Sprint 20 fix: filter by min_confidence post-query, but return filtered total
+  // so callers get accurate counts. Previously total was pre-filter, claims was
+  // post-filter — a misleading mismatch that caused "total:7, claims:[]" responses.
   const filtered =
     minConfidence !== undefined
       ? result.rows.filter(r => (r.confidenceScore ?? 0) >= minConfidence)
       : result.rows;
 
+  // When min_confidence is applied, total reflects the filtered set
+  const reportedTotal =
+    minConfidence !== undefined ? filtered.length : result.total;
+
   return {
-    total: result.total,
+    total: reportedTotal,
     claims: filtered.map(r => ({
       claimId: String(r.id),
       claimText: r.claimText,
@@ -350,7 +357,10 @@ async function toolSearchClaims(
       confidence: r.confidenceScore ?? 0,
       domain: r.verticalDomain ?? null,
       processedAt: r.updatedAt?.toISOString() ?? null,
-      evidenceCount: r.pdbEvidenceUrl ? 1 : 0,
+      // evidenceCount: count PDB evidence + verdictRationale as proxy for evidence richness
+      evidenceCount:
+        (r.pdbEvidenceUrl ? 1 : 0) +
+        (r.verdictRationale && r.verdictRationale.length > 20 ? 1 : 0),
       primarySourceId: r.pdbId ?? null,
     })),
   };

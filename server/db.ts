@@ -50,6 +50,7 @@ import {
   citations,
   Citation,
   InsertCitation,
+  contradictionAlerts,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1918,6 +1919,60 @@ export async function setCitationGraphEnriched(claimId: number): Promise<void> {
  * Returns the most recently updated matching claim, or null if not found.
  * Fail-open: returns null on DB unavailability.
  */
+/**
+ * getContradictionsForClaim
+ *
+ * Returns open contradiction alerts involving a given claim ID.
+ * Used by verify_claim to surface contradictions in the MCP response.
+ * Returns at most 5 contradictions ordered by severity (high first).
+ */
+export async function getContradictionsForClaim(claimId: number): Promise<
+  Array<{
+    contradictingClaimId: number;
+    severity: string;
+    claimAVerdict: string | null;
+    claimBVerdict: string | null;
+    edgeWeight: number;
+  }>
+> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        claimAId: contradictionAlerts.claimAId,
+        claimBId: contradictionAlerts.claimBId,
+        severity: contradictionAlerts.severity,
+        claimAVerdict: contradictionAlerts.claimAVerdict,
+        claimBVerdict: contradictionAlerts.claimBVerdict,
+        edgeWeight: contradictionAlerts.edgeWeight,
+      })
+      .from(contradictionAlerts)
+      .where(
+        and(
+          or(
+            eq(contradictionAlerts.claimAId, claimId),
+            eq(contradictionAlerts.claimBId, claimId)
+          ),
+          eq(contradictionAlerts.status, "open")
+        )
+      )
+      .orderBy(
+        sql`CASE ${contradictionAlerts.severity} WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END`
+      )
+      .limit(5);
+    return rows.map(r => ({
+      contradictingClaimId: r.claimAId === claimId ? r.claimBId : r.claimAId,
+      severity: r.severity,
+      claimAVerdict: r.claimAVerdict,
+      claimBVerdict: r.claimBVerdict,
+      edgeWeight: r.edgeWeight,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function findClaimByText(claimText: string): Promise<{
   id: number;
   verdict: string | null;

@@ -53,10 +53,9 @@ import type { EvidenceResult } from "./verticalAdapters/types";
 import "./verticalAdapters"; // ensure all adapters are registered
 import { translateQueryToClaims } from "./_queryTranslator";
 import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
-import { findClaimByText } from "./db";
+import { findClaimByText, getContradictionsForClaim } from "./db";
 import { logger, errData } from "./logger";
 const log = logger("verifyClaimRoute");
-
 
 // ─── EuropePMC search ─────────────────────────────────────────────────────────
 
@@ -273,12 +272,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     return;
   }
   if (claim.trim().length > 2000) {
-    res
-      .status(400)
-      .json({
-        ok: false,
-        error: "Claim text must be 2000 characters or fewer.",
-      });
+    res.status(400).json({
+      ok: false,
+      error: "Claim text must be 2000 characters or fewer.",
+    });
     return;
   }
 
@@ -375,6 +372,14 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     // ── Step 3: Fast registry lookup — surface claimId if this claim is already known ──
     const existingClaim = await findClaimByText(claimText).catch(() => null);
     const registryClaimId = existingClaim?.id ?? null;
+
+    // ── Step 3b: Fetch open contradictions for this claim (if registry hit) ──
+    // Sprint 20: surface contradictions in verify_claim response per Perplexity spec
+    const contradictions =
+      registryClaimId !== null
+        ? await getContradictionsForClaim(registryClaimId).catch(() => [])
+        : [];
+
     // ── Step 4: Fire autonomous ingest in background (grows knowledge graph) ──
     if (allPubMedResults.length > 0) {
       triggerAutonomousIngest({
@@ -398,6 +403,14 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       claimText,
       // Sprint 12: surface registry ID when claim is already known
       claimId: registryClaimId,
+      // Sprint 20: contradictions from the knowledge graph (Perplexity spec)
+      contradictions: contradictions.map(c => ({
+        claimId: c.contradictingClaimId,
+        severity: c.severity,
+        verdictA: c.claimAVerdict,
+        verdictB: c.claimBVerdict,
+        edgeWeight: c.edgeWeight,
+      })),
       pubmedResults: allPubMedResults.slice(0, 5).map(p => ({
         pmid: p.pmid,
         title: p.title,

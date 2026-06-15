@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T08:55:48.363Z
+> **Generated:** 2026-06-15T13:47:53.426Z
 > **Branch:** main
-> **Last commit:** [33m126946a[m Sprint 11: citation.is MCP branding + @citation-is/mcp-server package
+> **Last commit:** [33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -10,6 +10,7 @@
 ## 🎯 What This Project Is
 
 **Protein Truth Desk** — a scientific claim verification platform that:
+
 - Ingests research papers (PubMed, PMC, bioRxiv, manual upload)
 - Extracts protein/structural biology claims using LLM
 - Verifies claims against PDB (Protein Data Bank) and other evidence sources
@@ -33,12 +34,12 @@ _No session audit result found. Run `pnpm session:audit` to check._
 
 ⚠️ **HANDOFF.md exists** — previous session was incomplete. Read HANDOFF.md first.
 
-
 ---
 
 ## 🗄️ Database Schema
 
 **Tables (64 total):**
+
 - `users`
 - `documents`
 - `claims`
@@ -161,6 +162,7 @@ Router file: `server/routers.ts`
 - `server/discoveryAgent.ts`
 - `server/discoveryEngine.ts`
 - `server/discoveryLoopJob.ts`
+- `server/domainIngestScheduler.ts`
 - `server/dreamStagingRoute.ts`
 - `server/embedRoutes.ts`
 - `server/embedWidgetRoute.ts`
@@ -222,6 +224,7 @@ Router file: `server/routers.ts`
 - `server/swarmTickJob.ts`
 - `server/telegramBot.ts`
 - `server/temporalVersioning.ts`
+- `server/trainingBridge.ts`
 - `server/trainingCorpusListener.ts`
 - `server/translateAndSearchApi.ts`
 - `server/uniprotAdapter.ts`
@@ -311,13 +314,13 @@ Scheduled endpoints in: `server/_core/index.ts` (search for `/api/scheduled/`)
 
 The platform has a 5-layer autonomous loop (`server/autonomousLoop/`):
 
-| Layer | File | Purpose |
-|-------|------|---------|
-| L1 — Friction | `frictionLayer.ts` | Handles document_submitted, manual_review_complete |
+| Layer            | File                 | Purpose                                                                             |
+| ---------------- | -------------------- | ----------------------------------------------------------------------------------- |
+| L1 — Friction    | `frictionLayer.ts`   | Handles document_submitted, manual_review_complete                                  |
 | L2 — Self-Prompt | `selfPromptLayer.ts` | LLM decides next action (drain_queue, reverify_stale, recalibrate_confidence, etc.) |
-| L3 — Frontier | `frontierLayer.ts` | Gap detection, hypothesis generation, evidence pursuit |
-| L3 — Truth | `truthLayer.ts` | PDB re-verification, source_data_changed, paper_discovered |
-| L4 — Meta | `metaLayer.ts` | Code guardian, pipeline guardian (7 invariants), alert routing |
+| L3 — Frontier    | `frontierLayer.ts`   | Gap detection, hypothesis generation, evidence pursuit                              |
+| L3 — Truth       | `truthLayer.ts`      | PDB re-verification, source_data_changed, paper_discovered                          |
+| L4 — Meta        | `metaLayer.ts`       | Code guardian, pipeline guardian (7 invariants), alert routing                      |
 
 Event bus: `server/autonomousLoop/eventBus.ts`
 Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
@@ -326,8 +329,6 @@ Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
 
 ## 🔧 Available Environment Variables
 
-
-
 Env config: `server/_core/env.ts`
 
 ---
@@ -335,23 +336,27 @@ Env config: `server/_core/env.ts`
 ## ✅ Quality Gates
 
 **TypeScript:**
+
 ```
 clean
 ```
 
 **Tests:**
+
 ```
-Start at  08:55:49
-   Duration  26.03s (transform 5.45s, setup 0ms, collect 30.23s, tests 35.49s, environment 55ms, prepare 20.20s)
+Start at  13:47:54
+   Duration  24.58s (transform 5.25s, setup 0ms, collect 28.65s, tests 34.34s, environment 59ms, prepare 19.12s)
 ```
 
 **Lint:**
+
 ```
 > protein-truth-desk@1.0.0 lint /home/ubuntu/ttruthdesk-platform
 > eslint . --ext .ts,.tsx --max-warnings 0
 ```
 
 **Coverage thresholds:**
+
 ```
 lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
         branches: 48, // actual: 69.61% (branches well covered)
@@ -360,6 +365,7 @@ lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
 ```
 
 **Stubs:**
+
 ```
 unknown
 ```
@@ -369,21 +375,27 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
+[33m03b7572[m feat(status): add SLM training progress to /api/public/status/domains
+[33m63c2fd2[m fix(ci): use runtime string for optional sibling module import
+[33mf20b633[m fix(ci): migrate pnpm config to pnpm-workspace.yaml
+[33m1532514[m chore(cron): register domain-ingest-6h in heartbeatRegistrar
+[33m307fc3a[m feat(pipeline): sprint-14 domain-ingest scheduler and status/domains endpoint
+[33m54159be[m feat(sprint-13): wire SLM distillation pipeline into autonomous ingest loop
+[33m67a4be1[m feat(aaif): add AGENTS.md and agentgateway proxy config
+[33m35deb95[m Sprint 12: fix loopTriggered flag in MCP verify_claim, surface claimId from upstream, add findClaimByText to db.ts, add 4 live routing tests (2712 passing)
 [33m126946a[m Sprint 11: citation.is MCP branding + @citation-is/mcp-server package
-[33mff43d0c[m fix(lint): remove unused eslint-disable directive in billingRouter.test.ts
-[33m54b8f9d[m feat(phase-133): pricing page + billing.requestAccess tRPC procedure
-[33mdb19e12[m Merge remote-tracking branch 'github/main'
-[33mddd7f15[m fix(pdf-spec): MCP SSE flushHeaders, NCBI organism routing, claim deduplication, phase115 test
-[33md7fe599[m docs: backend developer instructions for MCP SSE fix, organism routing fix, dedup
-[33mfa71d9a[m sprint-7: Phase 132 — SIA harness test expansion + training module wiring + stale backlog cleanup
-[33m637005f[m sprint-6: third-pass audit fixes — external routes, claims.json, RSS, NCBI, OpenAPI
-[33me15b394[m fix(api): register Phase 118-120 routes — claimHistory, claimProvenance, batchVerify [sprint-5]
-[33m924d340[m sprint-5: Phase 121 verified complete; add migration runbook + OpenAIRE registration doc
 ```
 
 **Uncommitted changes:**
+
 ```
 [31mM[m CONTEXT_SNAPSHOT.md
+ [31mM[m infra/agentgateway/config.yaml
+[32mM[m  server/claimsRoutes.test.ts
+[32mM[m  server/claimsRoutes.ts
+[32mM[m  server/db.ts
+[32mM[m  server/mcpServer.test.ts
 ```
 
 ---

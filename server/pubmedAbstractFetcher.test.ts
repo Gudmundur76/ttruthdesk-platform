@@ -47,7 +47,8 @@ describe("extractBestExcerpt", () => {
   });
 
   it("falls back to the first sentence when no keywords match", () => {
-    const abstract = "Unrelated topic. Another unrelated sentence. Third sentence.";
+    const abstract =
+      "Unrelated topic. Another unrelated sentence. Third sentence.";
     const claim = "Lysozyme resolution 1.5 Å";
     const result = extractBestExcerpt(claim, abstract);
     // Should return the first sentence as fallback, not null
@@ -55,7 +56,8 @@ describe("extractBestExcerpt", () => {
   });
 
   it("is case-insensitive in keyword matching", () => {
-    const abstract = "LYSOZYME RESOLUTION IS 1.5 ANGSTROMS. Other content here.";
+    const abstract =
+      "LYSOZYME RESOLUTION IS 1.5 ANGSTROMS. Other content here.";
     const claim = "lysozyme resolution 1.5";
     const result = extractBestExcerpt(claim, abstract);
     expect(result?.toLowerCase()).toContain("lysozyme");
@@ -140,12 +142,24 @@ describe("buildEvidenceWithExcerpts", () => {
 
   it("sets correct sourceUrl", () => {
     const evidence = buildEvidenceWithExcerpts(claimText, pubmedResults, 0.75);
-    expect(evidence[0].sourceUrl).toBe("https://pubmed.ncbi.nlm.nih.gov/12345/");
+    expect(evidence[0].sourceUrl).toBe(
+      "https://pubmed.ncbi.nlm.nih.gov/12345/"
+    );
   });
 
-  it("sets confidenceScore from the passed confidence parameter", () => {
+  it("sets confidenceScore via per-item keyword overlap (not flat claim confidence)", () => {
+    // Sprint 20: confidence is now computed per-item via Jaccard keyword overlap
+    // between the claim text and the evidence item's title + abstract.
+    // The passed confidence parameter is ignored (renamed _claimConfidence).
+    // For claimText "Lysozyme has a resolution of 1.5 Å in PDB 1LYZ" and
+    // evidence[0] title "Crystal structure of lysozyme" + abstract about lysozyme
+    // at 1.5 Å, we expect a score in [0.1, 1.0] that is NOT the passed value.
     const evidence = buildEvidenceWithExcerpts(claimText, pubmedResults, 0.82);
-    expect(evidence[0].confidenceScore).toBe(0.82);
+    const score = evidence[0].confidenceScore as number;
+    expect(score).toBeGreaterThanOrEqual(0.1);
+    expect(score).toBeLessThanOrEqual(1.0);
+    // The score must be computed from keyword overlap, not from the passed 0.82
+    expect(score).not.toBe(0.82);
   });
 
   it("sets database field to pubmed", () => {

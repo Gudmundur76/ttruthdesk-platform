@@ -1,29 +1,33 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
 # agentgateway v1.2.1 — citation.is MCP proxy config
-# https://github.com/agentgateway/agentgateway
+# https://agentgateway.dev/docs/standalone/
 #
-# Run: agentgateway --config infra/agentgateway/config.yaml
-# Then point any MCP client to: http://localhost:8080/mcp
-
-listeners:
-  - name: mcp-listener
-    protocol: MCP
-    address: "0.0.0.0:8080"
-
-targets:
-  - name: citation-is-mcp
-    protocol: MCP
-    url: https://citation.is/mcp
-    transport: streamable_http
-    description: "Verified scientific claim registry — 12 MCP tools"
-    timeout_ms: 10000
-    retry:
-      max_attempts: 3
-      backoff_ms: 500
-
-routing:
-  default: citation-is-mcp
-
-observability:
-  metrics: true
-  tracing: true
-  log_level: info
+# Run: agentgateway -f infra/agentgateway/config.yaml
+# MCP endpoint: http://localhost:3000/mcp
+# Admin UI:     http://localhost:15000/ui/
+binds:
+- port: 3000
+  listeners:
+  - routes:
+    - backends:
+      - mcp:
+          targets:
+          - name: citation-is-mcp
+            sse:
+              host: citation.is
+              port: 443
+              path: /mcp
+            policies:
+              backendTLS:
+                hostname: citation.is
+      policies:
+        cors:
+          allowOrigins:
+          - "*"
+          allowHeaders:
+          - mcp-protocol-version
+          - content-type
+          - cache-control
+          - mcp-session-id
+          exposeHeaders:
+          - "Mcp-Session-Id"

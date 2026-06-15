@@ -39,10 +39,46 @@ const MAX_EXCERPT_CHARS = 500;
 
 // Common English stop-words excluded from keyword matching to improve signal quality
 const STOP_WORDS = new Set([
-  "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-  "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-  "has", "have", "had", "this", "that", "it", "its", "as", "not", "no",
-  "can", "may", "will", "would", "could", "should", "do", "does", "did",
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "but",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "from",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "has",
+  "have",
+  "had",
+  "this",
+  "that",
+  "it",
+  "its",
+  "as",
+  "not",
+  "no",
+  "can",
+  "may",
+  "will",
+  "would",
+  "could",
+  "should",
+  "do",
+  "does",
+  "did",
 ]);
 
 // ─── Keyword extraction ───────────────────────────────────────────────────────
@@ -95,7 +131,9 @@ export function extractBestExcerpt(
   for (const sentence of sentences) {
     const sentenceKeywords = extractKeywords(sentence);
     let overlap = 0;
-    claimKeywords.forEach(kw => { if (sentenceKeywords.has(kw)) overlap++; });
+    claimKeywords.forEach(kw => {
+      if (sentenceKeywords.has(kw)) overlap++;
+    });
     if (overlap > bestScore) {
       bestScore = overlap;
       bestSentence = sentence;
@@ -113,9 +151,29 @@ function truncate(text: string): string {
 // ─── buildEvidenceWithExcerpts ────────────────────────────────────────────────
 
 /**
- * Maps an array of PubMedResult-shaped objects to EvidenceItem[], populating
- * `excerpt` from `abstractSnippet` using keyword-overlap selection.
+ * Compute a per-item confidence score based on keyword overlap between
+ * the claim text and the evidence item's title + abstract snippet.
+ * Returns a value in [0.1, 1.0] — minimum 0.1 so items are never invisible.
  */
+function scoreEvidenceItem(
+  claimText: string,
+  title: string | undefined,
+  snippet: string | undefined
+): number {
+  const claimKeywords = extractKeywords(claimText);
+  if (claimKeywords.size === 0) return 0.5;
+  const combined = `${title ?? ""} ${snippet ?? ""}`;
+  const itemKeywords = extractKeywords(combined);
+  let overlap = 0;
+  claimKeywords.forEach(kw => {
+    if (itemKeywords.has(kw)) overlap++;
+  });
+  // Jaccard-style: overlap / union, then remap to [0.1, 1.0]
+  const union = claimKeywords.size + itemKeywords.size - overlap;
+  const raw = union > 0 ? overlap / union : 0;
+  return Math.max(0.1, Math.min(1.0, Math.round(raw * 10) / 10));
+}
+
 export function buildEvidenceWithExcerpts(
   claimText: string,
   pubmedResults: Array<{
@@ -127,20 +185,19 @@ export function buildEvidenceWithExcerpts(
     journal?: string;
     year?: number;
   }>,
-  confidenceScore: number
+  _claimConfidence: number
 ): EvidenceItem[] {
   return pubmedResults.map(p => {
     const snippet = p.abstractSnippet ?? "";
     const excerpt = snippet ? extractBestExcerpt(claimText, snippet) : null;
+    const perItemScore = scoreEvidenceItem(claimText, p.title, snippet);
     return {
       sourceId: `pmid:${p.pmid}`,
       sourceUrl:
         p.citationUrl ??
-        (p.pmid
-          ? `https://pubmed.ncbi.nlm.nih.gov/${p.pmid}/`
-          : ""),
+        (p.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${p.pmid}/` : ""),
       excerpt,
-      confidenceScore,
+      confidenceScore: perItemScore,
       database: "pubmed",
       title: p.title,
       publicationYear: p.year,
@@ -166,7 +223,9 @@ export function selectBestPassage(
     if (!item.excerpt) continue;
     const excerptKeywords = extractKeywords(item.excerpt);
     let score = 0;
-    claimKeywords.forEach(kw => { if (excerptKeywords.has(kw)) score++; });
+    claimKeywords.forEach(kw => {
+      if (excerptKeywords.has(kw)) score++;
+    });
     if (score > bestScore) {
       bestScore = score;
       best = { excerpt: item.excerpt, sourceId: item.sourceId, score };

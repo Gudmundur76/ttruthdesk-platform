@@ -1987,6 +1987,28 @@ async function startServer() {
       res.status(500).json({ error: "domains_unavailable" });
     }
   });
+  // ── Corpus growth stats — powers the loop animation cards on the homepage ──
+  // Sprint 20: wires live numbers to Papers Queued, Claims Extracted, etc.
+  app.get("/api/public/corpus-growth", async (_req, res) => {
+    try {
+      const { getCorpusGrowthStats } = await import("../db");
+      const g = await getCorpusGrowthStats();
+      res.setHeader("Cache-Control", "public, max-age=60"); // 1-minute cache
+      res.json({
+        papersQueued: g.papersToday,
+        claimsExtracted: g.claimsToday,
+        verdictsAssigned: g.claimsToday, // proxy: every extracted claim gets a verdict
+        graphNodes: g.totalGraphNodes,
+        graphEdges: g.totalGraphEdges,
+        totalClaims: g.totalClaims,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("[/api/public/corpus-growth] error:", err);
+      res.status(500).json({ error: "corpus_growth_unavailable" });
+    }
+  });
+
   app.get("/api/public/leaderboard", async (req, res) => {
     try {
       const { getAllGraphEntities } = await import("../db");
