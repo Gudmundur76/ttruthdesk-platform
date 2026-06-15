@@ -29,13 +29,12 @@ import { bridgeOpenGapsToCoordQueue } from "./knowledgeGapBridge";
 import { logger, errData } from "./logger";
 const log = logger("discoveryLoopJob");
 
-
 // ─── Claim signal density check ───────────────────────────────────────────────
 
 export const CLAIM_SIGNALS = [
   // ── Structural biology ──────────────────────────────────────────────────────
   /\bPDB\b/i,
-  /\b[1-9][A-Z0-9]{3}\b/,           // PDB ID pattern e.g. 1ABC
+  /\b[1-9][A-Z0-9]{3}\b/, // PDB ID pattern e.g. 1ABC
   /\bcrystal structure\b/i,
   /\bcryo-?EM\b/i,
   /\bX-ray\b/i,
@@ -97,7 +96,7 @@ export const CLAIM_SIGNALS = [
   /\brandomized controlled\b/i,
   /\bmeta-analysis\b/i,
   /\bstatistically significant\b/i,
-  /\bp\s*[<=>]\s*0\.0[0-9]/,        // p-value e.g. p<0.05
+  /\bp\s*[<=>]\s*0\.0[0-9]/, // p-value e.g. p<0.05
   /\b95%\s*(?:confidence interval|CI)\b/i,
   /\bbiomarker\b/i,
   /\btherapeutic\b/i,
@@ -111,10 +110,88 @@ export const CLAIM_SIGNALS = [
   /\bin vivo\b/i,
   /\banimal model\b/i,
   /\bcell line\b/i,
+  // ── Medicine / clinical ───────────────────────────────────────────────────────────────────────────────────
+  // Sprint 20: domain expansion — medicine, climate, economics, law
+  /\bdiagnosis\b/i,
+  /\btreatment\b/i,
+  /\bpathogen\b/i,
+  /\bpandemic\b/i,
+  /\bepidemic\b/i,
+  /\bepidemiolog(?:y|ical)\b/i,
+  /\bincidence\b/i,
+  /\bprevalence\b/i,
+  /\bmortality\b/i,
+  /\bmorbidity\b/i,
+  /\bsystematic review\b/i,
+  /\bplacebo-controlled\b/i,
+  /\bdouble-blind\b/i,
+  /\bCochrane\b/i,
+  /\bWHO\b/,
+  /\bCDC\b/,
+  /\bFDA\b/,
+  /\bEMA\b/,
+  /\bICD-\d+\b/, // ICD-10/11 disease codes
+  /\bDSM-\d+\b/, // DSM diagnostic codes
+  /\bsurgical\b/i,
+  /\bpharmacological\b/i,
+  /\bvaccination\b/i,
+  /\bimmunisation\b/i,
+  // ── Climate / environment ───────────────────────────────────────────────────────────────────────────────
+  /\bclimate change\b/i,
+  /\bglobal warming\b/i,
+  /\bcarbon dioxide\b/i,
+  /\bCO2\b/,
+  /\bgreenhouse gas\b/i,
+  /\bIPCC\b/,
+  /\bsea level rise\b/i,
+  /\btemperature anomaly\b/i,
+  /\bcarbon emission\b/i,
+  /\bnet zero\b/i,
+  /\brenewable energy\b/i,
+  /\bbiodiversity\b/i,
+  /\bdeforestation\b/i,
+  /\bppm\b.*\bCO2\b/i, // e.g. "420 ppm CO2"
+  // ── Economics / finance ───────────────────────────────────────────────────────────────────────────────
+  /\bGDP\b/,
+  /\binflation\b/i,
+  /\binterest rate\b/i,
+  /\bunemployment\b/i,
+  /\bfiscal policy\b/i,
+  /\bmonetary policy\b/i,
+  /\bOECD\b/,
+  /\bIMF\b/,
+  /\bWorld Bank\b/i,
+  /\bpoverty rate\b/i,
+  /\bGini coefficient\b/i,
+  /\btrade deficit\b/i,
+  /\bsupply chain\b/i,
+  /\bmarket capitalisation\b/i,
+  /\bstock market\b/i,
+  /\bSEC filing\b/i,
+  /\bEBITDA\b/,
+  // ── Law / regulation ──────────────────────────────────────────────────────────────────────────────────────
+  /\bstatute\b/i,
+  /\bregulation\b/i,
+  /\bjurisdiction\b/i,
+  /\blegislation\b/i,
+  /\bcourtroom\b/i,
+  /\bprecedent\b/i,
+  /\bconstitutional\b/i,
+  /\bEUR-Lex\b/i,
+  /\bCourtListener\b/i,
+  /\bGDPR\b/,
+  /\bliability\b/i,
+  /\bcontract law\b/i,
+  /\bintellectual property\b/i,
+  /\bpatent\b/i,
+  /\btrademark\b/i,
+  /\bcopyright\b/i,
+  /\bantitrust\b/i,
+  /\bcompliance\b/i,
 ];
 
 export function computeSignalDensity(text: string): number {
-  return CLAIM_SIGNALS.filter((re) => re.test(text)).length;
+  return CLAIM_SIGNALS.filter(re => re.test(text)).length;
 }
 
 // ─── Abstract fetcher ─────────────────────────────────────────────────────────
@@ -122,15 +199,21 @@ export function computeSignalDensity(text: string): number {
 async function fetchAbstract(pmid: string): Promise<string | null> {
   if (pmid.startsWith("biorxiv:") || pmid.startsWith("pdb:")) return null;
   try {
-    const url = new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi");
+    const url = new URL(
+      "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+    );
     url.searchParams.set("db", "pubmed");
     url.searchParams.set("id", pmid);
     url.searchParams.set("rettype", "abstract");
     url.searchParams.set("retmode", "text");
-    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) return null;
     const text = await res.text();
-    const match = text.match(/AB\s+-\s+([\s\S]+?)(?:\n\n|\nFAU\s+-|\nMH\s+-|$)/);
+    const match = text.match(
+      /AB\s+-\s+([\s\S]+?)(?:\n\n|\nFAU\s+-|\nMH\s+-|$)/
+    );
     return match?.[1]?.replace(/\s+/g, " ").trim() ?? text.slice(0, 1000);
   } catch {
     return null;
@@ -151,7 +234,10 @@ function isAuthorised(req: Request): boolean {
 // We use OWNER_OPEN_ID from env to find the owner's user record.
 const SYSTEM_USER_ID = 1; // fallback; real ID resolved at runtime from env
 
-export async function handleDiscoveryLoop(req: Request, res: Response): Promise<void> {
+export async function handleDiscoveryLoop(
+  req: Request,
+  res: Response
+): Promise<void> {
   if (!isAuthorised(req)) {
     res.status(401).json({ ok: false, error: "Unauthorized" });
     return;
@@ -179,12 +265,17 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
     stats.discovered = discovery.deduplicatedCount;
     log.info(
       `[DiscoveryLoop] Discovered ${discovery.deduplicatedCount} candidates ` +
-      `(${discovery.totalFetched} raw, sources: ${JSON.stringify(discovery.sourceBreakdown)})`
+        `(${discovery.totalFetched} raw, sources: ${JSON.stringify(discovery.sourceBreakdown)})`
     );
 
     if (discovery.candidates.length === 0) {
       const dur0 = Date.now() - startedAt;
-      void logCronRun("discovery-loop-daily", "ok", dur0, "No new candidates found");
+      void logCronRun(
+        "discovery-loop-daily",
+        "ok",
+        dur0,
+        "No new candidates found"
+      );
       res.json({ ok: true, stats, durationMs: dur0 });
       return;
     }
@@ -199,13 +290,16 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
         newCandidates.push(candidate);
       }
     }
-    log.info(`[DiscoveryLoop] ${newCandidates.length} new candidates after dedup`);
+    log.info(
+      `[DiscoveryLoop] ${newCandidates.length} new candidates after dedup`
+    );
 
     // Process each new candidate
     for (const candidate of newCandidates) {
       try {
         // Fetch abstract if not already present
-        const abstractText = candidate.abstractText ?? await fetchAbstract(candidate.pmid);
+        const abstractText =
+          candidate.abstractText ?? (await fetchAbstract(candidate.pmid));
 
         // Quality gate: signal density check
         const textToScore = `${candidate.title} ${abstractText ?? ""}`;
@@ -270,10 +364,13 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
           claimCount: 0,
           verticalDomain: "structural_biology",
         });
-        const documentId = (docResult as unknown as { insertId: number }).insertId;
+        const documentId = (docResult as unknown as { insertId: number })
+          .insertId;
 
         // Mark as submitted
-        await updateAutoIngestedPaperStatus(candidate.pmid, "submitted", { documentId });
+        await updateAutoIngestedPaperStatus(candidate.pmid, "submitted", {
+          documentId,
+        });
 
         // Fire-and-forget: run the full audit pipeline asynchronously
         const pmidKey = candidate.pmid;
@@ -281,7 +378,9 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
           runAnalysisPipeline(documentId, rawText, SYSTEM_USER_ID)
             .then(() => updateAutoIngestedPaperStatus(pmidKey, "complete"))
             .catch((err: unknown) =>
-              updateAutoIngestedPaperStatus(pmidKey, "failed", { errorMessage: String(err) })
+              updateAutoIngestedPaperStatus(pmidKey, "failed", {
+                errorMessage: String(err),
+              })
             );
         });
 
@@ -291,7 +390,10 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
         );
       } catch (err) {
         stats.failed++;
-        log.error(`[DiscoveryLoop] Failed candidate ${candidate.pmid}:`, errData(err));
+        log.error(
+          `[DiscoveryLoop] Failed candidate ${candidate.pmid}:`,
+          errData(err)
+        );
       }
     }
 
@@ -315,7 +417,9 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
     }
 
     const gapBridgeResult = await bridgeOpenGapsToCoordQueue();
-    log.info(`[DiscoveryLoop] Gap bridge: ${gapBridgeResult.gapsBridged} gaps bridged, ${gapBridgeResult.gapsFailed} failed`);
+    log.info(
+      `[DiscoveryLoop] Gap bridge: ${gapBridgeResult.gapsBridged} gaps bridged, ${gapBridgeResult.gapsFailed} failed`
+    );
 
     const finalDur = Date.now() - startedAt;
     void logCronRun(
@@ -333,7 +437,13 @@ export async function handleDiscoveryLoop(req: Request, res: Response): Promise<
     });
   } catch (err) {
     log.error("[DiscoveryLoop] Fatal error:", errData(err));
-    void logCronRun("discovery-loop-daily", "error", Date.now() - startedAt, undefined, String(err));
+    void logCronRun(
+      "discovery-loop-daily",
+      "error",
+      Date.now() - startedAt,
+      undefined,
+      String(err)
+    );
     res.status(500).json({ ok: false, error: String(err), stats });
   }
 }

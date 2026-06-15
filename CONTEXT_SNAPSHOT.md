@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T13:47:53.426Z
+> **Generated:** 2026-06-15T14:32:28.427Z
 > **Branch:** main
-> **Last commit:** [33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
+> **Last commit:** [33mbbd553b[m feat(api): add manually_reviewed filter to claims endpoint
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -344,8 +344,8 @@ clean
 **Tests:**
 
 ```
-Start at  13:47:54
-   Duration  24.58s (transform 5.25s, setup 0ms, collect 28.65s, tests 34.34s, environment 59ms, prepare 19.12s)
+Start at  14:32:29
+   Duration  24.18s (transform 4.94s, setup 0ms, collect 27.27s, tests 33.78s, environment 57ms, prepare 18.97s)
 ```
 
 **Lint:**
@@ -375,6 +375,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33mbbd553b[m feat(api): add manually_reviewed filter to claims endpoint
 [33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
 [33m03b7572[m feat(status): add SLM training progress to /api/public/status/domains
 [33m63c2fd2[m fix(ci): use runtime string for optional sibling module import
@@ -384,18 +385,19 @@ unknown
 [33m54159be[m feat(sprint-13): wire SLM distillation pipeline into autonomous ingest loop
 [33m67a4be1[m feat(aaif): add AGENTS.md and agentgateway proxy config
 [33m35deb95[m Sprint 12: fix loopTriggered flag in MCP verify_claim, surface claimId from upstream, add findClaimByText to db.ts, add 4 live routing tests (2712 passing)
-[33m126946a[m Sprint 11: citation.is MCP branding + @citation-is/mcp-server package
 ```
 
 **Uncommitted changes:**
 
 ```
-[31mM[m CONTEXT_SNAPSHOT.md
- [31mM[m infra/agentgateway/config.yaml
-[32mM[m  server/claimsRoutes.test.ts
-[32mM[m  server/claimsRoutes.ts
+[32mM[m[31mM[m CONTEXT_SNAPSHOT.md
+[32mM[m  infra/agentgateway/config.yaml
+[32mM[m  server/_core/index.ts
 [32mM[m  server/db.ts
-[32mM[m  server/mcpServer.test.ts
+[32mM[m  server/mcpServer.ts
+[32mM[m  server/pubmedAbstractFetcher.test.ts
+[32mM[m  server/pubmedAbstractFetcher.ts
+[32mM[m  server/verifyClaimRoute.ts
 ```
 
 ---
