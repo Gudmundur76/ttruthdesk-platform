@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T19:11:39.803Z
+> **Generated:** 2026-06-15T23:10:17.275Z
 > **Branch:** main
-> **Last commit:** [33mb6c3c40[m fix(ingest): replace journal filters with MeSH terms for 10x PubMed yield
+> **Last commit:** [33m3392071[m feat(sprint-25): questionDecomposer + parallel routing + Perplexity demo — 2800 tests passing
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -162,7 +162,9 @@ Router file: `server/routers.ts`
 - `server/discoveryAgent.ts`
 - `server/discoveryEngine.ts`
 - `server/discoveryLoopJob.ts`
+- `server/domainClassifier.ts`
 - `server/domainIngestScheduler.ts`
+- `server/domainRules.ts`
 - `server/dreamStagingRoute.ts`
 - `server/embedRoutes.ts`
 - `server/embedWidgetRoute.ts`
@@ -207,6 +209,7 @@ Router file: `server/routers.ts`
 - `server/pubmedIngestJob.ts`
 - `server/qualityPassJob.ts`
 - `server/qualityScorerJob.ts`
+- `server/questionDecomposer.ts`
 - `server/questionRouter.ts`
 - `server/reEvaluationEngine.ts`
 - `server/reportGenerator.ts`
@@ -346,15 +349,15 @@ clean
 **Tests:**
 
 ```
-Start at  19:11:41
-   Duration  26.77s (transform 5.60s, setup 0ms, collect 30.75s, tests 36.07s, environment 59ms, prepare 21.08s)
+Start at  23:10:18
+   Duration  25.02s (transform 5.09s, setup 0ms, collect 28.35s, tests 34.13s, environment 55ms, prepare 19.95s)
 ```
 
 **Lint:**
 
 ```
-ESLint found too many warnings (maximum: 0).
- ELIFECYCLE  Command failed with exit code 1.
+> protein-truth-desk@1.0.0 lint /home/ubuntu/ttruthdesk-platform
+> eslint . --ext .ts,.tsx --max-warnings 0
 ```
 
 **Coverage thresholds:**
@@ -377,25 +380,26 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33m3392071[m feat(sprint-25): questionDecomposer + parallel routing + Perplexity demo — 2800 tests passing
+[33m2e0565d[m fix(ci): replace console.log with console.info in run-ingest.ts — zero eslint warnings
+[33m934bd20[m fix(sprint-24): confidenceScore real value + PubMed relevance filter + AAIF discipline
+[33m82050e2[m feat(sprint-22b): wire verdict webhook to SLM data flywheel
 [33mb6c3c40[m fix(ingest): replace journal filters with MeSH terms for 10x PubMed yield
 [33mfbc2d37[m feat(sprint22): rss feed, imf adapter, fix verticalDomain ts error
 [33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
 [33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
 [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
 [33m8864347[m feat(api): Sprint 20 File 3 — entity resolve endpoint + developer asks documentation
-[33m7c26356[m feat(pipeline): Sprint 20 File 2 — domain expansion signals for medicine, climate, economics, law
-[33m2f23fb7[m feat(sprint20): fix verify_claim pipeline, search_claims, contradictions, corpus-growth
-[33mbbd553b[m feat(api): add manually_reviewed filter to claims endpoint
-[33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
 ```
 
 **Uncommitted changes:**
 
 ```
 [32mM[m  CONTEXT_SNAPSHOT.md
-[32mM[m  server/_core/env.ts
-[32mA[m  server/verdictWebhookRoute.test.ts
-[32mA[m  server/verdictWebhookRoute.ts
+[32mA[m  server/domainClassifier.test.ts
+[32mA[m  server/domainClassifier.ts
+[32mA[m  server/domainRules.ts
+[32mM[m  server/questionRouter.ts
 [32mM[m  server/verifyClaimRoute.ts
 ```
 

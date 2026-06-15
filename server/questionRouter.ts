@@ -25,8 +25,10 @@ import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { insertQuestion, getQuestion } from "./db";
 import { logger, errData } from "./logger";
+import { classifyClaim } from "./domainClassifier";
+import type { ClassificationResult } from "./domainClassifier";
+import { questionToDeclarative } from "./questionDecomposer";
 const log = logger("questionRouter");
-
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -51,6 +53,8 @@ export interface AnswerQuestionResult {
   sources: SourceCitation[];
   loopTriggered: boolean;
   processedAt: string;
+  /** Domain classification for the derived claim — Sprint 26 */
+  domainClassification?: ClassificationResult;
 }
 
 export interface SourceCitation {
@@ -176,9 +180,10 @@ export async function processQuestion(
 
       derivedClaim = parsed.derivedClaim ?? questionText;
       verdict = parsed.verdict ?? "insufficient_evidence";
-      confidence = typeof parsed.confidence === "number"
-        ? Math.max(0, Math.min(1, parsed.confidence))
-        : 0.1;
+      confidence =
+        typeof parsed.confidence === "number"
+          ? Math.max(0, Math.min(1, parsed.confidence))
+          : 0.1;
       rationale = parsed.rationale ?? rationale;
       sources = Array.isArray(parsed.sources) ? parsed.sources : [];
     }
@@ -193,6 +198,20 @@ export async function processQuestion(
   const loopTriggered =
     confidence < LOOP_TRIGGER_CONFIDENCE || verdict === LOOP_TRIGGER_VERDICT;
 
+  // Classify the derived claim to the correct source adapter(s) — Sprint 26
+  const declarative = questionToDeclarative(derivedClaim);
+  const syntheticClaim = {
+    text: declarative,
+    method: "passthrough" as const,
+    confidence,
+    index: 0,
+  };
+  const domainClassification = classifyClaim(syntheticClaim);
+  log.debug("domain classified", {
+    domain: domainClassification.domain,
+    primary: domainClassification.routes[0]?.sourceId,
+  });
+
   return {
     questionText,
     derivedClaim,
@@ -202,6 +221,7 @@ export async function processQuestion(
     sources,
     loopTriggered,
     processedAt,
+    domainClassification,
   };
 }
 
@@ -216,9 +236,7 @@ async function emitCoverageGap(
   confidence: number
 ): Promise<void> {
   try {
-    const { publishEvent } = await import(
-      "./autonomousLoop/eventBus"
-    );
+    const { publishEvent } = await import("./autonomousLoop/eventBus");
     await publishEvent("coverage_gap", {
       questionText,
       derivedClaim,
@@ -227,7 +245,10 @@ async function emitCoverageGap(
       detectedAt: Math.floor(Date.now() / 1000),
     });
   } catch (err) {
-    log.warn("[QuestionRouter] coverage_gap event publish failed:", errData(err));
+    log.warn(
+      "[QuestionRouter] coverage_gap event publish failed:",
+      errData(err)
+    );
   }
 }
 
@@ -247,7 +268,10 @@ export const questionRouter = router({
         question: z
           .string()
           .min(3, "Question must be at least 3 characters")
-          .max(MAX_QUESTION_LENGTH, `Question must be at most ${MAX_QUESTION_LENGTH} characters`)
+          .max(
+            MAX_QUESTION_LENGTH,
+            `Question must be at most ${MAX_QUESTION_LENGTH} characters`
+          )
           .trim(),
       })
     )

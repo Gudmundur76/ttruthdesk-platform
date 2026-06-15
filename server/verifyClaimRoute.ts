@@ -60,6 +60,7 @@ import { extractSpoTriple } from "./spoExtractor";
 import { logger, errData } from "./logger";
 import { fireVerdictWebhook, buildVerdictPayload } from "./verdictWebhookRoute";
 import { decomposeQuestion, buildPubMedQuery } from "./questionDecomposer";
+import { classifyClaims, getPrimaryRoute } from "./domainClassifier";
 const log = logger("verifyClaimRoute");
 
 // ─── EuropePMC search ─────────────────────────────────────────────────────────
@@ -420,6 +421,13 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     let primaryClaimType = "general_molecular";
     let primaryPdbId: string | null = null;
     let primaryProteinName: string | null = null;
+    // Sprint 26: domain routing per decomposed claim (populated in NL path)
+    const domainRouting: Array<{
+      claim: string;
+      domain: string;
+      primarySource: string;
+      confidence: number;
+    }> = [];
 
     if (extracted && extracted.length > 0) {
       // Structured path: use first extracted claim for structural DB lookup
@@ -477,14 +485,34 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       } else {
         // Sprint 25: decompose the original question into atomic claims for better PubMed relevance
         const decomposed = await decomposeQuestion(claimText);
-        const decomposedQueries = decomposed.claims.map(c => buildPubMedQuery(c));
+        const decomposedQueries = decomposed.claims.map(c =>
+          buildPubMedQuery(c)
+        );
+        // Sprint 26: classify each decomposed claim to the correct source adapter
+        const claimClassifications = classifyClaims(decomposed.claims);
+        domainRouting.push(
+          ...claimClassifications.map(r => ({
+            claim: r.claim.text,
+            domain: r.domain,
+            primarySource: getPrimaryRoute(r).sourceId,
+            confidence: getPrimaryRoute(r).confidence,
+          }))
+        );
+        log.debug("domain routing computed", {
+          count: domainRouting.length,
+          domains: domainRouting.map(d => d.domain),
+        });
         // Merge decomposed queries with translated claim search queries (deduplicated, max 3)
         const allSearchQueries = [
           ...decomposedQueries,
           ...translated.map(c => c.searchQuery),
-        ].filter((q, i, arr) => q.length > 0 && arr.indexOf(q) === i).slice(0, 3);
+        ]
+          .filter((q, i, arr) => q.length > 0 && arr.indexOf(q) === i)
+          .slice(0, 3);
         // Search PubMed for each query in parallel
-        const searchPromises = allSearchQueries.map(q => fetchPubMedResults(q, 4));
+        const searchPromises = allSearchQueries.map(q =>
+          fetchPubMedResults(q, 4)
+        );
         const allResults = await Promise.all(searchPromises);
         const rawResults = allResults
           .flat()
@@ -603,8 +631,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         citationUrl: p.citationUrl,
       })),
       translatedClaims,
+      // Sprint 26: per-claim domain routing — which source adapter each claim was dispatched to
+      domainRouting,
       processedAt,
-      apiVersion: "1.2",
+      apiVersion: "1.3",
     });
   } catch (err) {
     log.error("[VerifyClaim] Error:", errData(err));
