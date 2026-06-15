@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T15:58:28.636Z
+> **Generated:** 2026-06-15T17:59:07.464Z
 > **Branch:** main
-> **Last commit:** [33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
+> **Last commit:** [33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -345,8 +345,8 @@ clean
 **Tests:**
 
 ```
-Start at  15:58:30
-   Duration  28.25s (transform 5.96s, setup 0ms, collect 32.38s, tests 37.93s, environment 59ms, prepare 22.37s)
+Start at  17:59:08
+   Duration  26.82s (transform 5.57s, setup 0ms, collect 30.91s, tests 36.36s, environment 57ms, prepare 21.03s)
 ```
 
 **Lint:**
@@ -376,6 +376,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
 [33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
 [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
 [33m8864347[m feat(api): Sprint 20 File 3 — entity resolve endpoint + developer asks documentation
@@ -385,16 +386,16 @@ unknown
 [33m36e381c[m docs(agents): wire AAIF toolchain as mandatory pre-sprint validation
 [33m03b7572[m feat(status): add SLM training progress to /api/public/status/domains
 [33m63c2fd2[m fix(ci): use runtime string for optional sibling module import
-[33mf20b633[m fix(ci): migrate pnpm config to pnpm-workspace.yaml
 ```
 
 **Uncommitted changes:**
 
 ```
-[32mM[m[31mM[m CONTEXT_SNAPSHOT.md
-[32mA[m  docs/agentstack-integration.md
-[32mA[m  docs/perplexity-outreach-email.md
-[32mA[m  scripts/export-opencitations.ts
+[32mM[m  CONTEXT_SNAPSHOT.md
+[32mM[m  server/_core/index.ts
+[32mA[m  server/verticalAdapters/imf.test.ts
+[32mA[m  server/verticalAdapters/imf.ts
+[32mM[m  server/verticalAdapters/index.ts
 ```
 
 ---

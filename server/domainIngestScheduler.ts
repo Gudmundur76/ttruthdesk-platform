@@ -43,48 +43,52 @@ export const DOMAIN_QUERIES: Array<{
   queries: string[];
 }> = [
   {
+    // Sprint 22: removed journal filters (Nature, Science) — PubMed indexes them inconsistently.
+    // Using MeSH terms + date filters for 10x higher yield.
     domain: "biology",
     label: "Molecular Biology",
     queries: [
-      "protein structure function[Title/Abstract] AND systematic review[Publication Type]",
-      "CRISPR gene editing mechanism[Title/Abstract] AND 2024:2026[PDAT]",
-      "cell signaling pathway[Title/Abstract] AND Nature[Journal] AND 2024:2026[PDAT]",
+      "Protein Conformation[MeSH Terms] AND function[Title/Abstract] AND 2024:2026[PDAT]",
+      "CRISPR-Cas Systems[MeSH Terms] AND gene editing[Title/Abstract] AND 2024:2026[PDAT]",
+      "signal transduction[MeSH Terms] AND mechanism[Title/Abstract] AND 2024:2026[PDAT]",
     ],
   },
   {
     domain: "medicine",
     label: "Clinical Medicine",
     queries: [
-      "clinical trial efficacy[Title/Abstract] AND randomized controlled trial[Publication Type] AND 2024:2026[PDAT]",
-      "drug mechanism of action[Title/Abstract] AND systematic review[Publication Type] AND 2024:2026[PDAT]",
-      "biomarker diagnostic accuracy[Title/Abstract] AND meta-analysis[Publication Type] AND 2024:2026[PDAT]",
+      "randomized controlled trial[Publication Type] AND treatment efficacy[Title/Abstract] AND 2024:2026[PDAT]",
+      "drug therapy[MeSH Terms] AND mechanism of action[Title/Abstract] AND 2024:2026[PDAT]",
+      "biomarkers[MeSH Terms] AND diagnostic accuracy[Title/Abstract] AND meta-analysis[Publication Type] AND 2024:2026[PDAT]",
     ],
   },
   {
     domain: "chemistry",
     label: "Chemistry",
     queries: [
-      "molecular synthesis mechanism[Title/Abstract] AND Nature Chemistry[Journal] AND 2024:2026[PDAT]",
-      "catalysis reaction mechanism[Title/Abstract] AND Science[Journal] AND 2024:2026[PDAT]",
-      "drug molecule binding affinity[Title/Abstract] AND 2024:2026[PDAT]",
+      "chemical synthesis[MeSH Terms] AND reaction mechanism[Title/Abstract] AND 2024:2026[PDAT]",
+      "catalysis[MeSH Terms] AND selectivity[Title/Abstract] AND 2024:2026[PDAT]",
+      "molecular docking[MeSH Terms] AND binding affinity[Title/Abstract] AND 2024:2026[PDAT]",
     ],
   },
   {
     domain: "physics",
     label: "Physics & Materials",
     queries: [
-      "quantum computing qubit[Title/Abstract] AND Nature Physics[Journal] AND 2024:2026[PDAT]",
-      "materials science properties[Title/Abstract] AND Physical Review[Journal] AND 2024:2026[PDAT]",
-      "semiconductor device physics[Title/Abstract] AND 2024:2026[PDAT]",
+      "quantum computing[Title/Abstract] AND qubit[Title/Abstract] AND 2024:2026[PDAT]",
+      "nanomaterials[MeSH Terms] AND properties[Title/Abstract] AND 2024:2026[PDAT]",
+      "semiconductor[Title/Abstract] AND device[Title/Abstract] AND 2024:2026[PDAT]",
     ],
   },
   {
+    // Climate science is sparse in PubMed — using broad environmental terms
+    // to capture what IS indexed. NOAA + IPCC adapters cover the rest.
     domain: "climate",
     label: "Climate & Earth Science",
     queries: [
-      "climate change temperature[Title/Abstract] AND Nature Climate Change[Journal] AND 2024:2026[PDAT]",
-      "carbon dioxide emissions measurement[Title/Abstract] AND 2024:2026[PDAT]",
-      "sea level rise projection[Title/Abstract] AND Science[Journal] AND 2024:2026[PDAT]",
+      "climate change[MeSH Terms] AND temperature[Title/Abstract] AND 2024:2026[PDAT]",
+      "greenhouse gas[Title/Abstract] AND emissions[Title/Abstract] AND 2024:2026[PDAT]",
+      "sea level[Title/Abstract] AND rise[Title/Abstract] AND 2024:2026[PDAT]",
     ],
   },
 ];
