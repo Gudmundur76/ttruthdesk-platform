@@ -1,6 +1,6 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T14:55:55.660Z
+> **Generated:** 2026-06-15T15:47:54.135Z
 > **Branch:** main
 > **Last commit:** [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
 > **READ THIS FIRST** at the start of every session.
@@ -217,6 +217,7 @@ Router file: `server/routers.ts`
 - `server/sitemapRoute.ts`
 - `server/sourceRegistry.ts`
 - `server/sourceVersionAgent.ts`
+- `server/spoExtractor.ts`
 - `server/storage.ts`
 - `server/streamVerifyRoute.ts`
 - `server/structuredErrors.ts`
@@ -344,8 +345,8 @@ clean
 **Tests:**
 
 ```
-Start at  14:55:59
-   Duration  26.35s (transform 5.43s, setup 0ms, collect 30.17s, tests 36.12s, environment 57ms, prepare 20.67s)
+Start at  15:47:55
+   Duration  24.48s (transform 4.94s, setup 0ms, collect 27.58s, tests 33.53s, environment 60ms, prepare 19.37s)
 ```
 
 **Lint:**
@@ -390,7 +391,18 @@ unknown
 **Uncommitted changes:**
 
 ```
-[31mM[m CONTEXT_SNAPSHOT.md
+[32mM[m  CONTEXT_SNAPSHOT.md
+[32mM[m  infra/agentgateway/config.yaml
+[32mM[m  server/mcpServer.ts
+[32mA[m  server/spoExtractor.test.ts
+[32mA[m  server/spoExtractor.ts
+[32mM[m  server/verifyClaimRoute.ts
+[32mA[m  server/verticalAdapters/crossrefRetraction.test.ts
+[32mA[m  server/verticalAdapters/crossrefRetraction.ts
+[32mA[m  server/verticalAdapters/fred.ts
+[32mM[m  server/verticalAdapters/index.ts
+[32mA[m  server/verticalAdapters/noaa.ts
+[32mA[m  server/verticalAdapters/noaa_fred.test.ts
 ```
 
 ---
