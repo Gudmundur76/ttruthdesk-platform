@@ -642,12 +642,15 @@ async function startServer() {
       })
       .json({
         schema_version: "v1",
-        name: "Truth Desk",
+        name: "citation.is",
+        display_name: "citation.is — Scientific Grounding Layer for AI Systems",
         description:
-          "Autonomous multi-vertical scientific claims verification platform. Verifies molecular, structural, and biological claims against authoritative databases: PDB, PubChem, PubMed, UniProt, PMC Open Access. Compatible with Microsoft Scout and MCP-enabled agents.",
+          "citation.is is the scientific grounding layer for AI systems. Provides verified claim lookup, real-time verification, and autonomous ingestion from PubMed, UniProt, PubChem, PDB, and PMC Open Access. No authentication required for read operations. Ideal for Perplexity, Claude, ChatGPT, and any MCP-compatible AI agent that needs grounded, citable scientific answers.",
         version: "1.0.0",
         url: SITE_ORIGIN,
-        mcp_endpoint: `${SITE_ORIGIN}/api/mcp`,
+        mcp_endpoint: `${SITE_ORIGIN}/mcp`,
+        npm_package: "@citation-is/mcp-server",
+        npm_install: "npx @citation-is/mcp-server",
         tools: MCP_TOOLS,
         resources: [
           {
@@ -655,35 +658,47 @@ async function startServer() {
             description: "AI instructions and endpoint documentation",
           },
           {
-            uri: `${SITE_ORIGIN}/sitemap.xml`,
-            description: "All public report URLs",
+            uri: `${SITE_ORIGIN}/llms-full.txt`,
+            description:
+              "Full verified claims corpus for LLM grounding and RAG",
           },
           {
             uri: `${SITE_ORIGIN}/api/public/claims.json`,
-            description: "Machine-readable claims registry",
+            description:
+              "Machine-readable claims registry (bulk download, CC BY 4.0)",
+          },
+          {
+            uri: `${SITE_ORIGIN}/sitemap.xml`,
+            description: "All public claim and registry URLs",
           },
         ],
-        contact: `${SITE_ORIGIN}/pricing`,
+        contact: `${SITE_ORIGIN}/developers`,
         license: "CC BY 4.0",
-        provider: { name: "Arctic Media LLC", url: SITE_ORIGIN },
+        provider: { name: "citation.is", url: SITE_ORIGIN },
+        integration: {
+          claude_desktop: {
+            config: {
+              mcpServers: {
+                "citation-is": {
+                  command: "npx",
+                  args: ["-y", "@citation-is/mcp-server"],
+                },
+              },
+            },
+          },
+          http: {
+            endpoint: `${SITE_ORIGIN}/mcp`,
+            protocol: "MCP 2024-11-05 (JSON-RPC 2.0 over HTTP)",
+            auth: "None required for read tools. Bearer token for write tools.",
+          },
+        },
         policy_conformance: {
-          framework: "Microsoft Scout / MCP 2024-11-05",
+          framework: "MCP 2024-11-05",
           credential_scoping: true,
           audit_trail: true,
           data_protection: "CC BY 4.0 — public read, authenticated write",
-          agent_identity: "Entra-compatible via OAuth 2.0 PKCE",
+          agent_identity: "OAuth 2.0 PKCE",
           opr: `${SITE_ORIGIN}/.well-known/auth.md`,
-        },
-        scout_integration: {
-          compatible: true,
-          autopilot_triggers: [
-            "new_contradiction_found",
-            "claim_verified",
-            "monitoring_alert",
-          ],
-          teams_webhook_ready: true,
-          description:
-            "Truth Desk can be added as a Microsoft Scout MCP integration to automatically verify scientific claims in documents flowing through Teams and Outlook.",
         },
       });
   });

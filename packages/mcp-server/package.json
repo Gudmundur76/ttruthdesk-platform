@@ -1,0 +1,47 @@
+{
+  "name": "@citation-is/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for citation.is — the scientific grounding layer for AI systems. Provides verified claim lookup and real-time verification from PubMed, UniProt, PubChem, PDB, and PMC Open Access.",
+  "main": "dist/index.js",
+  "bin": {
+    "citation-is-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "citation",
+    "scientific",
+    "verification",
+    "pubmed",
+    "uniprot",
+    "pdb",
+    "ai",
+    "grounding"
+  ],
+  "author": "citation.is",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/citation-is/mcp-server"
+  },
+  "homepage": "https://citation.is/developers",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}
