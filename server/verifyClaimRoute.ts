@@ -59,6 +59,7 @@ import { findClaimByText, getContradictionsForClaim } from "./db";
 import { extractSpoTriple } from "./spoExtractor";
 import { logger, errData } from "./logger";
 import { fireVerdictWebhook, buildVerdictPayload } from "./verdictWebhookRoute";
+import { decomposeQuestion, buildPubMedQuery } from "./questionDecomposer";
 const log = logger("verifyClaimRoute");
 
 // ─── EuropePMC search ─────────────────────────────────────────────────────────
@@ -474,10 +475,16 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         bestVerdictResult = verdictFromPubMed(fallbackResults, claimText);
         primaryProteinName = null;
       } else {
-        // Search PubMed for each translated claim in parallel (max 3 to stay fast)
-        const searchPromises = translated
-          .slice(0, 3)
-          .map(c => fetchPubMedResults(c.searchQuery, 4));
+        // Sprint 25: decompose the original question into atomic claims for better PubMed relevance
+        const decomposed = await decomposeQuestion(claimText);
+        const decomposedQueries = decomposed.claims.map(c => buildPubMedQuery(c));
+        // Merge decomposed queries with translated claim search queries (deduplicated, max 3)
+        const allSearchQueries = [
+          ...decomposedQueries,
+          ...translated.map(c => c.searchQuery),
+        ].filter((q, i, arr) => q.length > 0 && arr.indexOf(q) === i).slice(0, 3);
+        // Search PubMed for each query in parallel
+        const searchPromises = allSearchQueries.map(q => fetchPubMedResults(q, 4));
         const allResults = await Promise.all(searchPromises);
         const rawResults = allResults
           .flat()
