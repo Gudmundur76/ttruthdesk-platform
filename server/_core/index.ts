@@ -2082,7 +2082,65 @@ async function startServer() {
   };
   // ── Agent orchestrator endpoint ───────────────────────────────────────────
   // POST /api/public/agent — runs the full Planner→Executor→Verifier pipeline
+  // Rate limit: 10 req/min per IP (NCBI unauthenticated cap is 3 req/s)
+  const _agentRateMap = new Map<string, { count: number; resetAt: number }>();
+  const AGENT_RATE_LIMIT = 10;
+  const AGENT_WINDOW_MS = 60 * 1000;
+  setInterval(
+    () => {
+      const now = Date.now();
+      for (const [ip, entry] of Array.from(_agentRateMap.entries())) {
+        if (now > entry.resetAt) _agentRateMap.delete(ip);
+      }
+    },
+    5 * 60 * 1000
+  );
+  function _agentCheckRL(ip: string) {
+    const now = Date.now();
+    const e = _agentRateMap.get(ip);
+    if (!e || now > e.resetAt) {
+      _agentRateMap.set(ip, { count: 1, resetAt: now + AGENT_WINDOW_MS });
+      return {
+        allowed: true,
+        remaining: AGENT_RATE_LIMIT - 1,
+        resetAt: now + AGENT_WINDOW_MS,
+      };
+    }
+    if (e.count >= AGENT_RATE_LIMIT)
+      return { allowed: false, remaining: 0, resetAt: e.resetAt };
+    e.count++;
+    return {
+      allowed: true,
+      remaining: AGENT_RATE_LIMIT - e.count,
+      resetAt: e.resetAt,
+    };
+  }
+  app.options("/api/public/agent", (_req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.status(204).end();
+  });
   app.post("/api/public/agent", async (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    const ip =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
+      req.ip ??
+      "unknown";
+    const rl = _agentCheckRL(ip);
+    res.setHeader("X-RateLimit-Limit", String(AGENT_RATE_LIMIT));
+    res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
+    res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
+    if (!rl.allowed) {
+      res
+        .status(429)
+        .json({
+          ok: false,
+          error: "Rate limit exceeded. Max 10 req/min per IP.",
+          retryAfterMs: rl.resetAt - Date.now(),
+        });
+      return;
+    }
     try {
       const { runAgent } = await import("../agentOrchestrator");
       const { question } = req.body as { question?: string };
@@ -2091,14 +2149,23 @@ async function startServer() {
         typeof question !== "string" ||
         question.trim().length === 0
       ) {
-        res.status(400).json({ error: "question is required" });
+        res.status(400).json({ ok: false, error: "question is required" });
+        return;
+      }
+      if (question.trim().length > 500) {
+        res
+          .status(400)
+          .json({
+            ok: false,
+            error: "question must be at most 500 characters",
+          });
         return;
       }
       const result = await runAgent(question.trim());
       res.json(result);
     } catch (err) {
       console.error("[/api/public/agent] error:", err);
-      res.status(500).json({ error: "agent_error" });
+      res.status(500).json({ ok: false, error: "agent_error" });
     }
   });
 

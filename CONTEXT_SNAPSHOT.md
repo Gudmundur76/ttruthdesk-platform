@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T23:13:21.118Z
+> **Generated:** 2026-06-16T00:52:57.467Z
 > **Branch:** main
-> **Last commit:** [33m3392071[m feat(sprint-25): questionDecomposer + parallel routing + Perplexity demo — 2800 tests passing
+> **Last commit:** [33m34abf98[m feat(pipeline): add domainClassifier + domainRules, wire into questionRouter + verifyClaimRoute
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -125,6 +125,7 @@ Router file: `server/routers.ts`
 - `server/adminAnalytics.ts`
 - `server/agentFeedback.ts`
 - `server/agentIngestionEndpoint.ts`
+- `server/agentOrchestrator.ts`
 - `server/alertDispatcher.ts`
 - `server/analysisPipeline.ts`
 - `server/answerRoute.ts`
@@ -193,6 +194,7 @@ Router file: `server/routers.ts`
 - `server/micronDeploy.ts`
 - `server/misrepresentationClassifier.ts`
 - `server/monitoringJob.ts`
+- `server/ncbiAdapter.ts`
 - `server/openCitationsEnricher.ts`
 - `server/openfdaAdapter.ts`
 - `server/orchestratorTickJob.ts`
@@ -258,6 +260,7 @@ Router file: `server/routers.ts`
 - `client/src/pages/AdminCrons.tsx`
 - `client/src/pages/AdminHarness.tsx`
 - `client/src/pages/AdminVerticals.tsx`
+- `client/src/pages/Agent.tsx`
 - `client/src/pages/AlertSettings.tsx`
 - `client/src/pages/ApiDocs.tsx`
 - `client/src/pages/ApiKeys.tsx`
@@ -349,8 +352,8 @@ clean
 **Tests:**
 
 ```
-Start at  23:13:22
-   Duration  25.11s (transform 5.32s, setup 0ms, collect 28.40s, tests 34.16s, environment 56ms, prepare 19.85s)
+Start at  00:52:58
+   Duration  27.10s (transform 6.20s, setup 0ms, collect 31.60s, tests 36.07s, environment 63ms, prepare 21.37s)
 ```
 
 **Lint:**
@@ -380,6 +383,7 @@ unknown
 ## 📝 Recent Git History
 
 ```
+[33m34abf98[m feat(pipeline): add domainClassifier + domainRules, wire into questionRouter + verifyClaimRoute
 [33m3392071[m feat(sprint-25): questionDecomposer + parallel routing + Perplexity demo — 2800 tests passing
 [33m2e0565d[m fix(ci): replace console.log with console.info in run-ingest.ts — zero eslint warnings
 [33m934bd20[m fix(sprint-24): confidenceScore real value + PubMed relevance filter + AAIF discipline
@@ -389,17 +393,20 @@ unknown
 [33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
 [33m27c3fef[m feat(sprint-21): SPO triple, Crossref retraction, NOAA+FRED adapters
 [33mced06a8[m docs(sprint20): File 4 — MCP listing plan + Crossref/Scite integration spec
-[33m8864347[m feat(api): Sprint 20 File 3 — entity resolve endpoint + developer asks documentation
 ```
 
 **Uncommitted changes:**
 
 ```
 [32mM[m  CONTEXT_SNAPSHOT.md
-[32mA[m  server/domainClassifier.test.ts
-[32mA[m  server/domainClassifier.ts
-[32mA[m  server/domainRules.ts
-[32mM[m  server/questionRouter.ts
+[32mM[m  client/src/App.tsx
+[32mA[m  client/src/pages/Agent.tsx
+[32mM[m  server/_core/index.ts
+[32mA[m  server/agentOrchestrator.test.ts
+[32mA[m  server/agentOrchestrator.ts
+[32mM[m  server/domainIngestScheduler.ts
+[32mA[m  server/ncbiAdapter.test.ts
+[32mA[m  server/ncbiAdapter.ts
 [32mM[m  server/verifyClaimRoute.ts
 ```
 

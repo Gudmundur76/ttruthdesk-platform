@@ -49,23 +49,26 @@ const ESEARCH_RESPONSE = {
   esearchresult: { idlist: ["12345678", "87654321"] },
 };
 
-const EFETCH_XML_1 = `
+// Combined XML for the batched efetch request (both PMIDs in one response)
+const EFETCH_XML_BATCH = `
+<PubmedArticleSet>
 <PubmedArticle>
+  <PMID>12345678</PMID>
   <ArticleTitle>Aspirin reduces cardiovascular events in adults</ArticleTitle>
   <AbstractText>Aspirin significantly reduces the risk of major cardiovascular events in adults over 50. The drug inhibits platelet aggregation.</AbstractText>
   <ISOAbbreviation>N Engl J Med</ISOAbbreviation>
   <PubDate><Year>2022</Year></PubDate>
   <LastName>Smith</LastName>
-</PubmedArticle>`;
-
-const EFETCH_XML_2 = `
+</PubmedArticle>
 <PubmedArticle>
+  <PMID>87654321</PMID>
   <ArticleTitle>Ibuprofen and gastrointestinal bleeding</ArticleTitle>
   <AbstractText>Ibuprofen use is associated with increased risk of gastrointestinal bleeding. NSAIDs inhibit prostaglandin synthesis.</AbstractText>
   <ISOAbbreviation>Lancet</ISOAbbreviation>
   <PubDate><Year>2021</Year></PubDate>
   <LastName>Jones</LastName>
-</PubmedArticle>`;
+</PubmedArticle>
+</PubmedArticleSet>`;
 
 describe("fetchNcbiResults", () => {
   beforeEach(() => {
@@ -78,15 +81,10 @@ describe("fetchNcbiResults", () => {
             json: () => Promise.resolve(ESEARCH_RESPONSE),
           });
         }
-        if (url.includes("12345678")) {
-          return Promise.resolve({
-            ok: true,
-            text: () => Promise.resolve(EFETCH_XML_1),
-          });
-        }
+        // Batched efetch — both PMIDs in one request
         return Promise.resolve({
           ok: true,
-          text: () => Promise.resolve(EFETCH_XML_2),
+          text: () => Promise.resolve(EFETCH_XML_BATCH),
         });
       })
     );

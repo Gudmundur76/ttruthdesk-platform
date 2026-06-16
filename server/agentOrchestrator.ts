@@ -51,6 +51,24 @@ export interface AgentResponse {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Extract the most likely protein name from a claim sentence.
+ * Uses the SPO subject field first; falls back to the first capitalised noun
+ * in the sentence (heuristic for protein names like "Lysozyme", "BRCA1").
+ */
+function extractProteinName(claimText: string): string {
+  // Take the first word(s) before a verb indicator ("is", "are", "has", "can", "reduces", etc.)
+  const m = claimText.match(
+    /^([A-Za-z0-9][A-Za-z0-9\-_\s]{1,40?})\s+(?:is|are|has|can|reduces|increases|binds|forms|inhibits|activates|causes|prevents)/i
+  );
+  if (m) return m[1].trim();
+  // Fall back to the first capitalised token
+  const firstCap = claimText.match(/\b([A-Z][A-Za-z0-9\-_]{2,})\b/);
+  if (firstCap) return firstCap[1];
+  // Last resort: first 40 chars
+  return claimText.slice(0, 40).trim();
+}
+
 function mapNcbiToEvidence(
   results: Awaited<ReturnType<typeof fetchNcbiResults>>
 ): AgentEvidence | null {
@@ -113,10 +131,12 @@ export async function runAgent(question: string): Promise<AgentResponse> {
       // VERIFIER: Route to the correct adapter based on Executor's decision
       try {
         if (source === "rcsb_pdb" || source === "uniprot") {
-          // PDB path: extract protein name from claim text for lookup
+          // PDB path: extract the subject noun from the SPO triple as the protein name.
+          // Passing the full claim sentence causes PDB full-text search to return 0 results.
+          const proteinName = extractProteinName(claimText);
           const pdbResult = await verdictForClaim({
             claimType: "protein_name",
-            proteinName: claimText,
+            proteinName,
           });
           verdict = pdbResult.verdict;
           confidence = verdict === "Supported" ? 0.9 : 0.4;
