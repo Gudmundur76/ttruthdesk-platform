@@ -1,6 +1,6 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-15T23:10:17.275Z
+> **Generated:** 2026-06-15T23:13:21.118Z
 > **Branch:** main
 > **Last commit:** [33m3392071[m feat(sprint-25): questionDecomposer + parallel routing + Perplexity demo — 2800 tests passing
 > **READ THIS FIRST** at the start of every session.
@@ -349,8 +349,8 @@ clean
 **Tests:**
 
 ```
-Start at  23:10:18
-   Duration  25.02s (transform 5.09s, setup 0ms, collect 28.35s, tests 34.13s, environment 55ms, prepare 19.95s)
+Start at  23:13:22
+   Duration  25.11s (transform 5.32s, setup 0ms, collect 28.40s, tests 34.16s, environment 56ms, prepare 19.85s)
 ```
 
 **Lint:**

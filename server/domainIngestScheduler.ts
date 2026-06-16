@@ -43,13 +43,14 @@ export const DOMAIN_QUERIES: Array<{
   queries: string[];
 }> = [
   {
-    // Sprint 22: removed journal filters (Nature, Science) — PubMed indexes them inconsistently.
-    // Using MeSH terms + date filters for 10x higher yield.
+    // Sprint 27: fixed broken MeSH terms.
+    // 'Protein Conformation[MeSH]' and 'CRISPR-Cas Systems[MeSH]' returned 0 results —
+    // replaced with verified working queries (confirmed via NCBI probe Jun 16 2026).
     domain: "biology",
     label: "Molecular Biology",
     queries: [
-      "Protein Conformation[MeSH Terms] AND function[Title/Abstract] AND 2024:2026[PDAT]",
-      "CRISPR-Cas Systems[MeSH Terms] AND gene editing[Title/Abstract] AND 2024:2026[PDAT]",
+      "protein folding[MeSH Terms] AND structure[Title/Abstract] AND 2024:2026[PDAT]",
+      "CRISPR[Title/Abstract] AND gene editing[Title/Abstract] AND 2024:2026[PDAT]",
       "signal transduction[MeSH Terms] AND mechanism[Title/Abstract] AND 2024:2026[PDAT]",
     ],
   },

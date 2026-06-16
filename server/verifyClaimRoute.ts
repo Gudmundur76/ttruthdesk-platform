@@ -63,51 +63,15 @@ import { decomposeQuestion, buildPubMedQuery } from "./questionDecomposer";
 import { classifyClaims, getPrimaryRoute } from "./domainClassifier";
 const log = logger("verifyClaimRoute");
 
-// ─── EuropePMC search ─────────────────────────────────────────────────────────
-
-const EUROPE_PMC_SEARCH =
-  "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
-
+// ─── NCBI E-utilities adapter (Sprint 25 Phase 3 — replaces EuropePMC) ──────
+import { fetchNcbiResults } from "./ncbiAdapter";
+// Thin wrapper: keeps all call-sites identical; claimText drives sentence scoring
 async function fetchPubMedResults(
   query: string,
-  limit = 5
+  limit = 5,
+  claimText = query
 ): Promise<PubMedResult[]> {
-  const encoded = encodeURIComponent(query);
-  const url = `${EUROPE_PMC_SEARCH}?query=${encoded}&format=json&pageSize=${limit}&resultType=core&sort=CITED+desc`;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
-    if (!res.ok) return [];
-    const data = (await res.json()) as {
-      resultList?: {
-        result?: Array<{
-          pmid?: string;
-          id?: string;
-          title?: string;
-          abstractText?: string;
-          authorString?: string;
-          journalTitle?: string;
-          pubYear?: string;
-        }>;
-      };
-    };
-    const results = data.resultList?.result ?? [];
-    return results
-      .slice(0, limit)
-      .map(r => ({
-        pmid: r.pmid ?? r.id ?? "",
-        title: r.title ?? "Untitled",
-        abstractSnippet: (r.abstractText ?? "").slice(0, 400),
-        citationUrl: r.pmid
-          ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`
-          : `https://europepmc.org/article/MED/${r.id ?? ""}`,
-        authors: r.authorString ? r.authorString.split(", ").slice(0, 5) : [],
-        journal: r.journalTitle ?? undefined,
-        year: r.pubYear ? parseInt(r.pubYear, 10) : undefined,
-      }))
-      .filter(r => r.pmid);
-  } catch {
-    return [];
-  }
+  return fetchNcbiResults(query, claimText, limit);
 }
 
 // ─── Keyword overlap relevance filter ────────────────────────────────────────
@@ -459,7 +423,11 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       }
 
       // Also search PubMed to enrich with literature evidence
-      const pubmedResults = await fetchPubMedResults(primaryClaim.claimText, 5);
+      const pubmedResults = await fetchPubMedResults(
+        primaryClaim.claimText,
+        5,
+        primaryClaim.claimText
+      );
       allPubMedResults = filterByRelevance(
         pubmedResults,
         primaryClaim.claimText
@@ -478,7 +446,11 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
 
       if (translated.length === 0) {
         // Absolute fallback: search PubMed with the raw text
-        const fallbackResults = await fetchPubMedResults(claimText, 5);
+        const fallbackResults = await fetchPubMedResults(
+          claimText,
+          5,
+          claimText
+        );
         allPubMedResults = filterByRelevance(fallbackResults, claimText);
         bestVerdictResult = verdictFromPubMed(fallbackResults, claimText);
         primaryProteinName = null;
@@ -511,7 +483,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
           .slice(0, 3);
         // Search PubMed for each query in parallel
         const searchPromises = allSearchQueries.map(q =>
-          fetchPubMedResults(q, 4)
+          fetchPubMedResults(q, 4, translated[0]?.claimText ?? claimText)
         );
         const allResults = await Promise.all(searchPromises);
         const rawResults = allResults

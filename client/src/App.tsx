@@ -74,7 +74,9 @@ const SourceWhitelist = lazy(() => import("@/pages/SourceWhitelist"));
 const AdminCrons = lazy(() => import("@/pages/AdminCrons"));
 const AdminVerticals = lazy(() => import("@/pages/AdminVerticals"));
 const AdminHarness = lazy(() => import("@/pages/AdminHarness"));
-const AdminContradictions = lazy(() => import("@/pages/admin/ContradictionAlerts"));
+const AdminContradictions = lazy(
+  () => import("@/pages/admin/ContradictionAlerts")
+);
 const DeploymentDashboard = lazy(
   () => import("@/pages/admin/DeploymentDashboard")
 );
@@ -89,6 +91,7 @@ const ApiDocs = lazy(() => import("@/pages/ApiDocs"));
 const SavedResearch = lazy(() => import("@/pages/SavedResearch"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
+const Agent = lazy(() => import("@/pages/Agent"));
 
 function Router() {
   return (
@@ -153,6 +156,7 @@ function Router() {
         <Route path="/saved-research" component={SavedResearch} />
         <Route path="/chat" component={ChatPage} />
         <Route path="/pricing" component={Pricing} />
+        <Route path="/agent" component={Agent} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

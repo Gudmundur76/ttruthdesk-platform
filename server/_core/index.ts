@@ -2080,6 +2080,28 @@ async function startServer() {
         .send('<?xml version="1.0"?><error>rss_unavailable</error>');
     }
   };
+  // ── Agent orchestrator endpoint ───────────────────────────────────────────
+  // POST /api/public/agent — runs the full Planner→Executor→Verifier pipeline
+  app.post("/api/public/agent", async (req, res) => {
+    try {
+      const { runAgent } = await import("../agentOrchestrator");
+      const { question } = req.body as { question?: string };
+      if (
+        !question ||
+        typeof question !== "string" ||
+        question.trim().length === 0
+      ) {
+        res.status(400).json({ error: "question is required" });
+        return;
+      }
+      const result = await runAgent(question.trim());
+      res.json(result);
+    } catch (err) {
+      console.error("[/api/public/agent] error:", err);
+      res.status(500).json({ error: "agent_error" });
+    }
+  });
+
   app.get("/rss.xml", rssHandler);
   app.get("/api/public/rss", rssHandler);
 
