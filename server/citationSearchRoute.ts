@@ -44,6 +44,15 @@ interface RateBucket {
 }
 const rateBuckets = new Map<string, RateBucket>();
 
+// Purge expired rate-limit entries every 10 minutes to prevent unbounded memory growth.
+// Entries older than WINDOW_MS are logically expired and safe to delete.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, bucket] of Array.from(rateBuckets.entries())) {
+    if (now - bucket.windowStart > WINDOW_MS) rateBuckets.delete(ip);
+  }
+}, 10 * 60 * 1000);
+
 function checkRateLimit(
   ip: string,
   isApiKey: boolean
