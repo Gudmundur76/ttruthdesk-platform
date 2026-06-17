@@ -69,7 +69,10 @@ export type SourceId =
   | "nist_chemistry"
   | "campbell"
   | "apa_psycarticles"
-  | "ssrn";
+  | "ssrn"
+  | "iea"
+  | "irena"
+  | "usgs";
 
 export type DomainLabel =
   | "structural_biology"
@@ -93,6 +96,8 @@ export type DomainLabel =
   | "nice"
   | "who_iris"
   | "embase"
+  | "energy"
+  | "earth_science"
   | "unknown";
 
 export interface ClassificationResult {
