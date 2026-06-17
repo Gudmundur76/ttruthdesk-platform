@@ -12,6 +12,21 @@ import {
 
 const WHO_IRIS_BASE = "https://iris.who.int/rest/search";
 
+interface WhoIrisObject {
+  indexableObject?: {
+    handle?: string;
+    metadata?: Record<string, Array<{ value: string }>>;
+  };
+}
+
+interface WhoIrisResponse {
+  _embedded?: {
+    searchResult?: {
+      _embedded?: { objects?: WhoIrisObject[] };
+    };
+  };
+}
+
 function noResult(flags: string[]): EvidenceResult {
   return {
     found: false,
@@ -21,6 +36,48 @@ function noResult(flags: string[]): EvidenceResult {
     confidenceScore: 0,
     confidenceFlags: flags,
   };
+}
+
+function buildSearchUrl(query: string): string {
+  const url = new URL(WHO_IRIS_BASE);
+  url.searchParams.set("query", query.slice(0, 200));
+  url.searchParams.set("rpp", "5");
+  url.searchParams.set("scope", "/");
+  return url.toString();
+}
+
+function extractObjects(data: WhoIrisResponse): WhoIrisObject[] {
+  return data._embedded?.searchResult?._embedded?.objects ?? [];
+}
+
+function buildResult(obj: WhoIrisObject): EvidenceResult {
+  const item = obj.indexableObject;
+  const handle = item?.handle ?? null;
+  const title = item?.metadata?.["dc.title"]?.[0]?.value ?? null;
+  const date = item?.metadata?.["dc.date.issued"]?.[0]?.value ?? null;
+  const type = item?.metadata?.["dc.type"]?.[0]?.value ?? null;
+  return {
+    found: true,
+    sourceId: handle,
+    sourceUrl: handle
+      ? `https://iris.who.int/handle/${handle}`
+      : "https://iris.who.int",
+    evidenceRaw: { handle, title, date, type },
+    confidenceScore: 0.92,
+    confidenceFlags: ["who_primary_source", "intergovernmental_authority"],
+  };
+}
+
+async function fetchWhoIris(query: string): Promise<EvidenceResult> {
+  const res = await fetch(buildSearchUrl(query), {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) return noResult(["http_error_" + res.status]);
+  const data = (await res.json()) as WhoIrisResponse;
+  const objects = extractObjects(data);
+  if (objects.length === 0) return noResult(["no_who_iris_results"]);
+  return buildResult(objects[0]);
 }
 
 const adapter: VerticalAdapter = {
@@ -45,47 +102,8 @@ const adapter: VerticalAdapter = {
     extractedValue: string | null;
   }): Promise<EvidenceResult> {
     const query = claim.extractedValue ?? claim.claimText;
-    const url = new URL(WHO_IRIS_BASE);
-    url.searchParams.set("query", query.slice(0, 200));
-    url.searchParams.set("rpp", "5");
-    url.searchParams.set("scope", "/");
     try {
-      const res = await fetch(url.toString(), {
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) return noResult(["http_error_" + res.status]);
-      const data = (await res.json()) as {
-        _embedded?: {
-          searchResult?: {
-            _embedded?: {
-              objects?: Array<{
-                indexableObject?: {
-                  handle?: string;
-                  metadata?: Record<string, Array<{ value: string }>>;
-                };
-              }>;
-            };
-          };
-        };
-      };
-      const objects = data._embedded?.searchResult?._embedded?.objects ?? [];
-      if (objects.length === 0) return noResult(["no_who_iris_results"]);
-      const first = objects[0].indexableObject;
-      const handle = first?.handle ?? null;
-      const title = first?.metadata?.["dc.title"]?.[0]?.value ?? null;
-      const date = first?.metadata?.["dc.date.issued"]?.[0]?.value ?? null;
-      const type = first?.metadata?.["dc.type"]?.[0]?.value ?? null;
-      return {
-        found: true,
-        sourceId: handle,
-        sourceUrl: handle
-          ? `https://iris.who.int/handle/${handle}`
-          : "https://iris.who.int",
-        evidenceRaw: { handle, title, date, type },
-        confidenceScore: 0.92,
-        confidenceFlags: ["who_primary_source", "intergovernmental_authority"],
-      };
+      return await fetchWhoIris(query);
     } catch (err) {
       console.error(
         "[verticalAdapters/who_iris] Error fetching from WHO IRIS:",
