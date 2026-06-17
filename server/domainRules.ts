@@ -27,14 +27,14 @@ export const DOMAIN_RULES: DomainRule[] = [
         reason: "Structural biology claim — RCSB PDB is the primary source",
       },
       {
-        sourceId: "uniprot",
-        confidence: 0.7,
-        reason: "Protein function context from UniProt",
-      },
-      {
         sourceId: "alphafold" as SourceId,
         confidence: 0.88,
         reason: "AlphaFold predicted protein structure from EMBL-EBI",
+      },
+      {
+        sourceId: "uniprot",
+        confidence: 0.7,
+        reason: "Protein function context from UniProt",
       },
       {
         sourceId: "pubmed",
@@ -160,6 +160,17 @@ export const DOMAIN_RULES: DomainRule[] = [
           "Food safety/toxicology claim — EFSA OpenFoodTox is the primary source",
       },
       {
+        sourceId: "usda_fooddata" as SourceId,
+        confidence: 0.88,
+        reason:
+          "USDA FoodData Central — authoritative nutrient composition database",
+      },
+      {
+        sourceId: "codex" as SourceId,
+        confidence: 0.85,
+        reason: "CODEX Alimentarius — international food safety standards",
+      },
+      {
         sourceId: "who",
         confidence: 0.75,
         reason: "WHO dietary guidelines and public health data",
@@ -168,16 +179,6 @@ export const DOMAIN_RULES: DomainRule[] = [
         sourceId: "pubmed",
         confidence: 0.65,
         reason: "Nutrition literature from PubMed",
-      },
-      {
-        sourceId: "usda_fooddata" as SourceId,
-        confidence: 0.88,
-        reason: "USDA FoodData Central — authoritative nutrient composition database",
-      },
-      {
-        sourceId: "codex" as SourceId,
-        confidence: 0.85,
-        reason: "CODEX Alimentarius — international food safety standards",
       },
     ],
   },
@@ -194,14 +195,15 @@ export const DOMAIN_RULES: DomainRule[] = [
         reason: "Chemical compound claim — PubChem is the primary source",
       },
       {
+        sourceId: "nist_chemistry" as SourceId,
+        confidence: 0.88,
+        reason:
+          "NIST Chemistry WebBook — authoritative thermochemical and physical property data",
+      },
+      {
         sourceId: "chembl",
         confidence: 0.85,
         reason: "Bioactive compound data from ChEMBL",
-      },
-      {
-        sourceId: "nist_chemistry" as SourceId,
-        confidence: 0.88,
-        reason: "NIST Chemistry WebBook — authoritative thermochemical and physical property data",
       },
       {
         sourceId: "pubmed",
@@ -247,14 +249,14 @@ export const DOMAIN_RULES: DomainRule[] = [
         reason: "Financial/SEC regulatory claim — EDGAR is the primary source",
       },
       {
-        sourceId: "world_bank",
-        confidence: 0.55,
-        reason: "Macroeconomic context from World Bank",
-      },
-      {
         sourceId: "bis_statistics" as SourceId,
         confidence: 0.82,
         reason: "BIS macroprudential and financial stability statistics",
+      },
+      {
+        sourceId: "world_bank",
+        confidence: 0.55,
+        reason: "Macroeconomic context from World Bank",
       },
     ],
   },
@@ -271,14 +273,14 @@ export const DOMAIN_RULES: DomainRule[] = [
         reason: "Legal case claim — CourtListener is the primary source",
       },
       {
-        sourceId: "eur_lex",
-        confidence: 0.85,
-        reason: "EU regulatory claim — EUR-Lex is the primary source",
-      },
-      {
         sourceId: "us_code" as SourceId,
         confidence: 0.87,
         reason: "US federal statutory law from OLRC US Code",
+      },
+      {
+        sourceId: "eur_lex",
+        confidence: 0.85,
+        reason: "EU regulatory claim — EUR-Lex is the primary source",
       },
     ],
   },
@@ -333,14 +335,14 @@ export const DOMAIN_RULES: DomainRule[] = [
         reason: "EU economic statistics from Eurostat",
       },
       {
+        sourceId: "bis_statistics" as SourceId,
+        confidence: 0.8,
+        reason: "BIS statistics for banking and financial stability data",
+      },
+      {
         sourceId: "owid",
         confidence: 0.75,
         reason: "Our World in Data for long-run economic trends",
-      },
-      {
-        sourceId: "bis_statistics" as SourceId,
-        confidence: 0.80,
-        reason: "BIS statistics for banking and financial stability data",
       },
     ],
   },
@@ -389,14 +391,164 @@ export const DOMAIN_RULES: DomainRule[] = [
   },
   {
     domain: "environmental_science" as DomainLabel,
-    patterns: [/climate change/i, /global warming/i, /greenhouse gas/i, /CO2 emissions/i, /sea level/i, /arctic ice/i, /air quality/i, /particulate matter/i, /PM2\.5/i, /ozone/i, /biodiversity/i, /deforestation/i, /carbon/i, /temperature anomaly/i],
+    patterns: [
+      /climate change/i,
+      /global warming/i,
+      /greenhouse gas/i,
+      /CO2 emissions/i,
+      /sea level/i,
+      /arctic ice/i,
+      /air quality/i,
+      /particulate matter/i,
+      /PM2\.5/i,
+      /ozone/i,
+      /biodiversity/i,
+      /deforestation/i,
+      /carbon/i,
+      /temperature anomaly/i,
+    ],
     routes: [
-      { sourceId: "nasa_earthdata" as SourceId, confidence: 0.90, reason: "NASA satellite climate observations" },
-      { sourceId: "noaa" as SourceId, confidence: 0.90, reason: "NOAA atmospheric and ocean data" },
-      { sourceId: "ipcc" as SourceId, confidence: 0.92, reason: "IPCC climate assessment reports" },
-      { sourceId: "eea" as SourceId, confidence: 0.86, reason: "European Environment Agency indicators" },
-      { sourceId: "epa" as SourceId, confidence: 0.84, reason: "US EPA environmental science" },
-      { sourceId: "owid" as SourceId, confidence: 0.82, reason: "Our World in Data climate statistics" },
+      {
+        sourceId: "nasa_earthdata" as SourceId,
+        confidence: 0.9,
+        reason: "NASA satellite climate observations",
+      },
+      {
+        sourceId: "noaa" as SourceId,
+        confidence: 0.9,
+        reason: "NOAA atmospheric and ocean data",
+      },
+      {
+        sourceId: "ipcc" as SourceId,
+        confidence: 0.92,
+        reason: "IPCC climate assessment reports",
+      },
+      {
+        sourceId: "eea" as SourceId,
+        confidence: 0.86,
+        reason: "European Environment Agency indicators",
+      },
+      {
+        sourceId: "epa" as SourceId,
+        confidence: 0.84,
+        reason: "US EPA environmental science",
+      },
+      {
+        sourceId: "owid" as SourceId,
+        confidence: 0.82,
+        reason: "Our World in Data climate statistics",
+      },
+    ],
+  },
+  // ── Social Science ───────────────────────────────────────────────────────
+  {
+    domain: "social_science" as DomainLabel,
+    patterns: [
+      /social policy/i,
+      /intervention program/i,
+      /randomized controlled trial/i,
+      /\bRCT\b/i,
+      /systematic review/i,
+      /meta.analysis/i,
+      /evidence.based/i,
+      /what works/i,
+      /program evaluation/i,
+      /social experiment/i,
+      /behavioral intervention/i,
+      /crime prevention/i,
+      /educational intervention/i,
+      /development aid/i,
+    ],
+    routes: [
+      {
+        sourceId: "campbell" as SourceId,
+        confidence: 0.9,
+        reason: "Campbell Collaboration systematic reviews in social science",
+      },
+      {
+        sourceId: "ssrn" as SourceId,
+        confidence: 0.78,
+        reason: "SSRN working papers in social science",
+      },
+      {
+        sourceId: "semantic_scholar",
+        confidence: 0.65,
+        reason: "Cross-domain academic literature",
+      },
+    ],
+  },
+  // ── Psychology ────────────────────────────────────────────────────────────
+  {
+    domain: "psychology" as DomainLabel,
+    patterns: [
+      /psychology/i,
+      /cognitive/i,
+      /behavioral/i,
+      /mental health/i,
+      /clinical psychology/i,
+      /personality/i,
+      /developmental psychology/i,
+      /social psychology/i,
+      /neuroscience/i,
+      /psychotherapy/i,
+      /anxiety/i,
+      /depression/i,
+      /trauma/i,
+      /cognition/i,
+    ],
+    routes: [
+      {
+        sourceId: "apa_psycarticles" as SourceId,
+        confidence: 0.88,
+        reason: "APA PsycArticles — peer-reviewed psychology journals",
+      },
+      {
+        sourceId: "pubmed",
+        confidence: 0.75,
+        reason: "PubMed for clinical psychology literature",
+      },
+      {
+        sourceId: "semantic_scholar",
+        confidence: 0.65,
+        reason: "Cross-domain academic literature",
+      },
+    ],
+  },
+  // ── Economics / Finance ───────────────────────────────────────────────────
+  {
+    domain: "economics" as DomainLabel,
+    patterns: [
+      /economics/i,
+      /macroeconomics/i,
+      /microeconomics/i,
+      /\bGDP\b/i,
+      /inflation/i,
+      /monetary policy/i,
+      /fiscal policy/i,
+      /trade policy/i,
+      /labor market/i,
+      /unemployment/i,
+      /interest rate/i,
+      /financial market/i,
+      /stock market/i,
+      /working paper/i,
+    ],
+    routes: [
+      {
+        sourceId: "ssrn" as SourceId,
+        confidence: 0.82,
+        reason: "SSRN working papers in economics and finance",
+      },
+      {
+        sourceId: "bis_statistics" as SourceId,
+        confidence: 0.85,
+        reason: "BIS Statistics for monetary and financial data",
+      },
+      {
+        sourceId: "semantic_scholar",
+        confidence: 0.65,
+        reason: "Cross-domain academic literature",
+      },
     ],
   },
 ];
