@@ -19,10 +19,26 @@
  *   2. Semantic search by claim text
  *   3. Returns influential citations count as a quality signal
  */
-import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+/**
+ * Sprint 36 (Relevance Quality): added post-retrieval relevance gate on the
+ * semantic search path. Semantic Scholar's ranking is good but not infallible;
+ * we apply a lower threshold (SEMANTIC_RELEVANCE_THRESHOLD) to only reject
+ * clearly off-topic results.
+ */
+import {
+  registerVertical,
+  type VerticalAdapter,
+  type EvidenceResult,
+} from "./types";
+import {
+  isRelevant,
+  relevanceAdjustedConfidence,
+  SEMANTIC_RELEVANCE_THRESHOLD,
+} from "./relevanceUtils";
 
 const S2_BASE = "https://api.semanticscholar.org/graph/v1";
-const PAPER_FIELDS = "paperId,externalIds,title,abstract,year,citationCount,influentialCitationCount,fieldsOfStudy,tldr,openAccessPdf,publicationTypes,journal";
+const PAPER_FIELDS =
+  "paperId,externalIds,title,abstract,year,citationCount,influentialCitationCount,fieldsOfStudy,tldr,openAccessPdf,publicationTypes,journal";
 
 const DOI_RE = /\b(10\.\d{4,}(?:\.\d+)*\/\S+)\b/gi;
 const PMID_RE = /\bPMID:?\s*(\d{6,9})\b/i;
@@ -42,7 +58,7 @@ interface S2Paper {
   journal?: { name?: string };
 }
 
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function lookupByIdentifier(identifier: string): Promise<EvidenceResult> {
   try {
     const res = await fetch(
@@ -59,7 +75,9 @@ async function lookupByIdentifier(identifier: string): Promise<EvidenceResult> {
         sourceUrl: null,
         evidenceRaw: null,
         confidenceScore: 0.2,
-        confidenceFlags: [`Semantic Scholar: ${identifier} not found (HTTP ${res.status})`],
+        confidenceFlags: [
+          `Semantic Scholar: ${identifier} not found (HTTP ${res.status})`,
+        ],
       };
     }
     const paper = (await res.json()) as S2Paper;
@@ -77,7 +95,9 @@ async function lookupByIdentifier(identifier: string): Promise<EvidenceResult> {
     return {
       found: true,
       sourceId: paper.paperId,
-      sourceUrl: doi ? `https://doi.org/${doi}` : `https://www.semanticscholar.org/paper/${paper.paperId}`,
+      sourceUrl: doi
+        ? `https://doi.org/${doi}`
+        : `https://www.semanticscholar.org/paper/${paper.paperId}`,
       evidenceRaw: {
         s2Id: paper.paperId,
         doi,
@@ -96,9 +116,8 @@ async function lookupByIdentifier(identifier: string): Promise<EvidenceResult> {
         publicationTypes: paper.publicationTypes ?? [],
       },
       confidenceScore: confidence,
-      confidenceFlags: influential > 0
-        ? [`${influential} influential citations`]
-        : [],
+      confidenceFlags:
+        influential > 0 ? [`${influential} influential citations`] : [],
     };
   } catch (err) {
     return {
@@ -130,7 +149,9 @@ async function semanticSearch(query: string): Promise<EvidenceResult> {
         sourceUrl: null,
         evidenceRaw: null,
         confidenceScore: 0.15,
-        confidenceFlags: [`Semantic Scholar search failed (HTTP ${res.status})`],
+        confidenceFlags: [
+          `Semantic Scholar search failed (HTTP ${res.status})`,
+        ],
       };
     }
     const json = (await res.json()) as { data: S2Paper[]; total: number };
@@ -148,16 +169,43 @@ async function semanticSearch(query: string): Promise<EvidenceResult> {
     const best = results[0];
     const doi = best.externalIds?.DOI ?? null;
     const influential = best.influentialCitationCount ?? 0;
+    const title = best.title ?? null;
+    const abstract = best.abstract ?? null;
+
+    // ── Sprint 36: Relevance gate ──────────────────────────────────────────────
+    // Semantic Scholar does semantic ranking, so we use a lower threshold
+    // than keyword-only adapters. We only reject clearly off-topic results.
+    if (!isRelevant(query, title, abstract, SEMANTIC_RELEVANCE_THRESHOLD)) {
+      return {
+        found: false,
+        sourceId: null,
+        sourceUrl: null,
+        evidenceRaw: null,
+        confidenceScore: 0.1,
+        confidenceFlags: ["low_relevance", "semantic_search_result_rejected"],
+      };
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    const baseConfidence = 0.62;
+    const adjustedConfidence = relevanceAdjustedConfidence(
+      baseConfidence,
+      query,
+      title,
+      abstract
+    );
 
     return {
       found: true,
       sourceId: best.paperId,
-      sourceUrl: doi ? `https://doi.org/${doi}` : `https://www.semanticscholar.org/paper/${best.paperId}`,
+      sourceUrl: doi
+        ? `https://doi.org/${doi}`
+        : `https://www.semanticscholar.org/paper/${best.paperId}`,
       evidenceRaw: {
         s2Id: best.paperId,
         doi,
-        title: best.title ?? null,
-        abstract: best.abstract ?? null,
+        title,
+        abstract,
         tldr: best.tldr?.text ?? null,
         year: best.year ?? null,
         citations: best.citationCount ?? 0,
@@ -166,7 +214,7 @@ async function semanticSearch(query: string): Promise<EvidenceResult> {
         journal: best.journal?.name ?? null,
         totalResults: json.total,
       },
-      confidenceScore: 0.62,
+      confidenceScore: adjustedConfidence,
       confidenceFlags: [
         "Semantic Scholar semantic search (best match)",
         ...(influential > 0 ? [`${influential} influential citations`] : []),

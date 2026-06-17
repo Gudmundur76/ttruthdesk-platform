@@ -152,7 +152,11 @@ function relevanceScore(
 function filterByRelevance(
   papers: PubMedResult[],
   claimText: string,
-  minScore = 0.08
+  // Sprint 36 (Relevance Quality): raised from 0.08 → 0.25.
+  // 0.08 was too permissive — papers with only 1 keyword match in 12 keywords
+  // passed through, producing false-positive verdicts. 0.25 requires at least
+  // 2–3 meaningful keyword overlaps before a paper is considered relevant.
+  minScore = 0.25
 ): PubMedResult[] {
   const keywords = extractKeywords(claimText);
   if (keywords.size === 0) return papers;
@@ -160,8 +164,14 @@ function filterByRelevance(
     .map(p => ({ paper: p, score: relevanceScore(keywords, p) }))
     .filter(({ score }) => score >= minScore)
     .sort((a, b) => b.score - a.score);
-  // Always return at least 1 paper if any exist (avoid empty result for short claims)
-  return scored.length > 0 ? scored.map(s => s.paper) : papers.slice(0, 1);
+  // Only fall back to top-1 if the claim is very short (≤3 keywords) and
+  // nothing passes the threshold — avoids empty results for short claims.
+  const isShortClaim = keywords.size <= 3;
+  return scored.length > 0
+    ? scored.map(s => s.paper)
+    : isShortClaim
+      ? papers.slice(0, 1)
+      : [];
 }
 
 // ─── Compute a real confidence score from available signals ───────────────────
