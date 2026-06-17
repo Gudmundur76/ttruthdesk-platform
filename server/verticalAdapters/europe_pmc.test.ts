@@ -31,12 +31,14 @@ describe("europePmcAdapter", () => {
             {
               pmid: "12345678",
               pmcid: "PMC1234567",
-              title: "Test Paper",
+              title: "Protein folding mechanisms in eukaryotic cells",
+              abstractText:
+                "This study examines protein folding mechanisms in eukaryotes and the role of molecular chaperones.",
               journalTitle: "Nature",
               pubYear: "2022",
               isOpenAccess: "Y",
               journalInfo: { journal: { title: "Nature" } },
-              pubType: "Journal Article",
+              pubType: ["Journal Article"],
               fullTextUrlList: {
                 fullTextUrl: [
                   { url: "https://europepmc.org/article/MED/12345678" },

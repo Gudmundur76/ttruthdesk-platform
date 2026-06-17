@@ -22,7 +22,11 @@ const makeMockEntry = (
 ) => ({
   querySelector: vi.fn((sel: string) => {
     if (sel === "title") return { textContent: title };
-    if (sel === "summary") return { textContent: "Test summary" };
+    if (sel === "summary")
+      return {
+        textContent:
+          "Transformer models achieve state of the art results on NLP benchmarks",
+      };
     if (sel === "id") return { textContent: `http://arxiv.org/abs/${id}` };
     if (sel === 'link[rel="alternate"]')
       return link ? { getAttribute: () => link } : null;
@@ -40,7 +44,7 @@ vi.stubGlobal(
     parseFromString(xml: string) {
       if (xml.includes("<entry>")) {
         const entry = makeMockEntry(
-          "Test Paper Title",
+          "Transformer models achieve state of the art results in NLP",
           "2301.00001",
           "https://arxiv.org/abs/2301.00001"
         );
@@ -78,8 +82,8 @@ describe("arxivAdapter", () => {
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>
     <id>http://arxiv.org/abs/2301.00001v1</id>
-    <title>Test Paper Title</title>
-    <summary>Test summary</summary>
+    <title>Transformer models achieve state of the art results in NLP</title>
+    <summary>Transformer models achieve state of the art results on multiple NLP benchmarks.</summary>
     <link rel="alternate" href="https://arxiv.org/abs/2301.00001"/>
     <published>2023-01-15T00:00:00Z</published>
   </entry>

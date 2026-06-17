@@ -51,14 +51,14 @@ describe("questionToDeclarative", () => {
   });
 
   it("converts do-question to declarative", () => {
-    const result = questionToDeclarative(
-      "Do statins lower LDL cholesterol?"
-    );
+    const result = questionToDeclarative("Do statins lower LDL cholesterol?");
     expect(result).toBe("statins lower LDL cholesterol");
   });
 
   it("converts is-question to declarative", () => {
-    const result = questionToDeclarative("Is metformin safe for elderly patients?");
+    const result = questionToDeclarative(
+      "Is metformin safe for elderly patients?"
+    );
     expect(result).toContain("metformin");
     expect(result.endsWith("?")).toBe(false);
   });
@@ -189,10 +189,7 @@ describe("decomposeQuestion — LLM path", () => {
     const { invokeLLM } = await import("./_core/llm");
     vi.mocked(invokeLLM).mockRejectedValueOnce(new Error("LLM timeout"));
 
-    const result = await decomposeQuestion(
-      "Does aspirin reduce risk?",
-      true
-    );
+    const result = await decomposeQuestion("Does aspirin reduce risk?", true);
     expect(result.claims.length).toBeGreaterThanOrEqual(1);
     // Should not throw
   });
@@ -202,7 +199,9 @@ describe("decomposeQuestion — LLM path", () => {
 
 describe("extractClaimKeywords", () => {
   it("removes stop words", () => {
-    const keywords = extractClaimKeywords("aspirin reduces the risk of cardiovascular disease");
+    const keywords = extractClaimKeywords(
+      "aspirin reduces the risk of cardiovascular disease"
+    );
     expect(keywords).not.toContain("the");
     expect(keywords).not.toContain("of");
     expect(keywords).toContain("aspirin");
@@ -247,8 +246,10 @@ describe("buildPubMedQuery", () => {
       index: 0,
     };
     const query = buildPubMedQuery(claim);
-    const words = query.split(" ");
-    expect(words.length).toBeLessThanOrEqual(5);
+    // The query is now in [tiab] AND format: "keyword[tiab] AND keyword[tiab] ..."
+    // Count the number of [tiab]-tagged terms, not raw space-separated tokens
+    const tiabTerms = query.match(/\[tiab\]/g) ?? [];
+    expect(tiabTerms.length).toBeLessThanOrEqual(5);
   });
 
   it("prioritizes longer (more specific) keywords", () => {

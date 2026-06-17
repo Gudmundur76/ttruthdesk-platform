@@ -19,7 +19,20 @@
  *   2. Title/keyword search via /works?search=...
  *   3. Returns concept tags for domain classification
  */
-import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+/**
+ * Sprint 36 (Relevance Quality): added post-retrieval relevance gate on the
+ * keyword search path to prevent topically-adjacent but claim-irrelevant results.
+ */
+import {
+  registerVertical,
+  type VerticalAdapter,
+  type EvidenceResult,
+} from "./types";
+import {
+  isRelevant,
+  relevanceAdjustedConfidence,
+  MIN_RELEVANCE_THRESHOLD,
+} from "./relevanceUtils";
 
 const OPENALEX_BASE = "https://api.openalex.org";
 const POLITE_MAILTO = "citation-engine@citation.is";
@@ -48,7 +61,9 @@ interface OpenAlexWork {
 }
 
 /** Reconstruct abstract from OpenAlex inverted index format */
-function reconstructAbstract(invertedIndex: Record<string, number[]> | undefined): string | null {
+function reconstructAbstract(
+  invertedIndex: Record<string, number[]> | undefined
+): string | null {
   if (!invertedIndex) return null;
   const words: string[] = [];
   for (const [word, positions] of Object.entries(invertedIndex)) {
@@ -59,7 +74,7 @@ function reconstructAbstract(invertedIndex: Record<string, number[]> | undefined
   return words.filter(Boolean).join(" ").substring(0, 800);
 }
 
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function lookupByDoi(doi: string): Promise<EvidenceResult> {
   try {
     const res = await fetch(
@@ -110,7 +125,8 @@ async function lookupByDoi(doi: string): Promise<EvidenceResult> {
         type: work.type ?? null,
       },
       confidenceScore: confidence,
-      confidenceFlags: topConcepts.length > 0 ? [`Domains: ${topConcepts.join(", ")}`] : [],
+      confidenceFlags:
+        topConcepts.length > 0 ? [`Domains: ${topConcepts.join(", ")}`] : [],
     };
   } catch (err) {
     return {
@@ -129,7 +145,8 @@ async function searchByKeyword(query: string): Promise<EvidenceResult> {
     const params = new URLSearchParams({
       search: query.substring(0, 200),
       per_page: "3",
-      select: "id,doi,title,abstract_inverted_index,publication_year,cited_by_count,concepts,primary_location,open_access,type",
+      select:
+        "id,doi,title,abstract_inverted_index,publication_year,cited_by_count,concepts,primary_location,open_access,type",
       mailto: POLITE_MAILTO,
     });
     const res = await fetch(`${OPENALEX_BASE}/works?${params}`, {
@@ -146,7 +163,10 @@ async function searchByKeyword(query: string): Promise<EvidenceResult> {
         confidenceFlags: [`OpenAlex search failed (HTTP ${res.status})`],
       };
     }
-    const json = (await res.json()) as { results: OpenAlexWork[]; meta: { count: number } };
+    const json = (await res.json()) as {
+      results: OpenAlexWork[];
+      meta: { count: number };
+    };
     const results = json.results ?? [];
     if (results.length === 0) {
       return {
@@ -165,6 +185,29 @@ async function searchByKeyword(query: string): Promise<EvidenceResult> {
       .slice(0, 5)
       .map(c => c.display_name);
 
+    // ── Sprint 36: Relevance gate ──────────────────────────────────────────────
+    // OpenAlex keyword search returns the best match by relevance score, but
+    // that score is not exposed. Apply our own keyword overlap check.
+    if (!isRelevant(query, best.title, abstract, MIN_RELEVANCE_THRESHOLD)) {
+      return {
+        found: false,
+        sourceId: null,
+        sourceUrl: null,
+        evidenceRaw: null,
+        confidenceScore: 0.1,
+        confidenceFlags: ["low_relevance", "openalex_keyword_result_rejected"],
+      };
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    const baseConfidence = 0.65;
+    const confidenceScore = relevanceAdjustedConfidence(
+      baseConfidence,
+      query,
+      best.title,
+      abstract
+    );
+
     return {
       found: true,
       sourceId: best.id,
@@ -182,10 +225,12 @@ async function searchByKeyword(query: string): Promise<EvidenceResult> {
         type: best.type ?? null,
         totalResults: json.meta.count,
       },
-      confidenceScore: 0.65,
+      confidenceScore,
       confidenceFlags: [
         "OpenAlex keyword search (best match)",
-        ...(topConcepts.length > 0 ? [`Domains: ${topConcepts.join(", ")}`] : []),
+        ...(topConcepts.length > 0
+          ? [`Domains: ${topConcepts.join(", ")}`]
+          : []),
       ],
     };
   } catch (err) {
@@ -231,7 +276,7 @@ For each claim, extract:
     const doiMatches = Array.from(claim.claimText.matchAll(DOI_RE));
     const doi = claim.extractedValue?.match(/^10\.\d{4,}\//)?.[0]
       ? claim.extractedValue
-      : doiMatches[0]?.[1] ?? null;
+      : (doiMatches[0]?.[1] ?? null);
 
     if (doi) {
       return lookupByDoi(doi);

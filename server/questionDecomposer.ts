@@ -68,26 +68,103 @@ const _CONJUNCTIVE_PATTERNS = [
 ];
 
 /** Question words that indicate yes/no questions to convert to declarative form */
-const _YES_NO_QUESTION_RE = /^(does|do|is|are|was|were|has|have|can|could|will|would|should)\s+/i;
+const _YES_NO_QUESTION_RE =
+  /^(does|do|is|are|was|were|has|have|can|could|will|would|should)\s+/i;
 
 /** Comparative question patterns */
-const COMPARATIVE_RE = /\b(safer|more effective|better|worse|higher|lower|greater|less)\s+than\b/i;
+const COMPARATIVE_RE =
+  /\b(safer|more effective|better|worse|higher|lower|greater|less)\s+than\b/i;
 
 /** Multi-entity list pattern: "X, Y, and Z" */
 const _ENTITY_LIST_RE = /([^,]+(?:,\s*[^,]+)+(?:,?\s*and\s+[^?.,]+))/i;
 
 /** Stop words to exclude from keyword extraction */
 const STOP_WORDS = new Set([
-  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "could",
-  "should", "may", "might", "shall", "can", "need", "dare", "ought",
-  "used", "to", "of", "in", "on", "at", "by", "for", "with", "about",
-  "against", "between", "into", "through", "during", "before", "after",
-  "above", "below", "from", "up", "down", "out", "off", "over", "under",
-  "again", "further", "then", "once", "and", "but", "or", "nor", "so",
-  "yet", "both", "either", "neither", "not", "only", "own", "same",
-  "than", "too", "very", "just", "because", "as", "until", "while",
-  "that", "this", "these", "those", "it", "its", "itself",
+  "the",
+  "a",
+  "an",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "shall",
+  "can",
+  "need",
+  "dare",
+  "ought",
+  "used",
+  "to",
+  "of",
+  "in",
+  "on",
+  "at",
+  "by",
+  "for",
+  "with",
+  "about",
+  "against",
+  "between",
+  "into",
+  "through",
+  "during",
+  "before",
+  "after",
+  "above",
+  "below",
+  "from",
+  "up",
+  "down",
+  "out",
+  "off",
+  "over",
+  "under",
+  "again",
+  "further",
+  "then",
+  "once",
+  "and",
+  "but",
+  "or",
+  "nor",
+  "so",
+  "yet",
+  "both",
+  "either",
+  "neither",
+  "not",
+  "only",
+  "own",
+  "same",
+  "than",
+  "too",
+  "very",
+  "just",
+  "because",
+  "as",
+  "until",
+  "while",
+  "that",
+  "this",
+  "these",
+  "those",
+  "it",
+  "its",
+  "itself",
 ]);
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -147,9 +224,7 @@ export async function decomposeQuestion(
 
   // Step 4: Return heuristic result or passthrough
   const fallback =
-    heuristicClaims.length > 0
-      ? heuristicClaims
-      : [passthrough(trimmed)];
+    heuristicClaims.length > 0 ? heuristicClaims : [passthrough(trimmed)];
 
   return {
     input,
@@ -180,8 +255,8 @@ function decomposeHeuristic(text: string): AtomicClaim[] {
   if (multiEntity.length > 1) return multiEntity;
 
   // 5. Single claim passthrough with high confidence if it looks declarative
-  const isDeclarative = !declarative.trim().endsWith("?") &&
-    declarative.split(" ").length >= 4;
+  const isDeclarative =
+    !declarative.trim().endsWith("?") && declarative.split(" ").length >= 4;
 
   return [
     {
@@ -217,7 +292,7 @@ export function questionToDeclarative(text: string): string {
 
   // Map auxiliary to present tense verb form
   const verbMap: Record<string, string> = {
-    does: "",    // "does X reduce Y" → "X reduces Y" (handled below)
+    does: "", // "does X reduce Y" → "X reduces Y" (handled below)
     do: "",
     is: "is",
     are: "are",
@@ -255,8 +330,13 @@ export function questionToDeclarative(text: string): string {
 /** Simple third-person singular conjugation for common scientific verbs */
 function conjugateThirdPerson(verb: string): string {
   const v = verb.toLowerCase();
-  if (v.endsWith("s") || v.endsWith("x") || v.endsWith("z") ||
-      v.endsWith("ch") || v.endsWith("sh")) {
+  if (
+    v.endsWith("s") ||
+    v.endsWith("x") ||
+    v.endsWith("z") ||
+    v.endsWith("ch") ||
+    v.endsWith("sh")
+  ) {
     return v + "es";
   }
   if (v.endsWith("y") && !/[aeiou]y$/.test(v)) {
@@ -316,15 +396,14 @@ function splitConjunctive(text: string): AtomicClaim[] {
   for (let i = 0; i < parts.length && i < MAX_CLAIMS; i++) {
     const part = parts[i].trim();
     // If second+ part starts with a verb (no subject), prepend subject from first
-    const startsWithVerb = firstWords.length > 1 &&
+    const startsWithVerb =
+      firstWords.length > 1 &&
       !STOP_WORDS.has(part.split(/\s+/)[0].toLowerCase()) &&
       i > 0 &&
       /^[a-z]/i.test(part) &&
       part.split(/\s+/).length < firstWords.length;
 
-    const claimText = startsWithVerb
-      ? `${firstWords[0]} ${part}`
-      : part;
+    const claimText = startsWithVerb ? `${firstWords[0]} ${part}` : part;
 
     claims.push({
       text: claimText,
@@ -451,13 +530,20 @@ export function extractClaimKeywords(claim: string): string[] {
 
 /**
  * Build a PubMed-optimized search query from an atomic claim.
- * Uses the most specific keywords to maximize relevance.
+ *
+ * Sprint 36 (Relevance Quality): uses [tiab] (title/abstract) field tags
+ * and AND operator to enforce claim-specific matching. This prevents PubMed's
+ * MeSH expansion from returning topically-adjacent but claim-irrelevant papers.
+ *
+ * Example: "creatine supplementation improves high-intensity exercise performance"
+ * → "creatine[tiab] AND supplementation[tiab] AND performance[tiab] AND exercise[tiab]"
  */
 export function buildPubMedQuery(claim: AtomicClaim): string {
   const keywords = extractClaimKeywords(claim.text);
-  // Take the top 5 most specific keywords (longest first, as proxies for specificity)
-  const topKeywords = keywords
-    .sort((a, b) => b.length - a.length)
-    .slice(0, 5);
-  return topKeywords.join(" ");
+  // Take the top 4 most specific keywords (longest first as proxy for specificity).
+  // Fewer keywords with [tiab] tags are more precise than 5 untagged keywords.
+  const topKeywords = keywords.sort((a, b) => b.length - a.length).slice(0, 4);
+  if (topKeywords.length === 0) return claim.text.substring(0, 100);
+  // Use [tiab] field restriction + AND for high-precision PubMed queries
+  return topKeywords.map(kw => `${kw}[tiab]`).join(" AND ");
 }
