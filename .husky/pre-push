@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+# ─── Pre-push quality gate ────────────────────────────────────────────────────
+# Runs on every `git push`. Mirrors exactly what CI Quality Gate checks:
+#   1. TypeScript — full project type check
+#   2. ESLint     — full codebase lint (max-warnings 0)
+#
+# This is intentionally FAST (< 15s) — it does NOT re-run the full test suite
+# because the pre-commit hook already ran tests on each commit.
+#
+# To bypass in a genuine emergency: git push --no-verify
+# Document why in the commit message or PR description.
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo "🔷 [pre-push] TypeScript check..."
+pnpm check || { echo "❌ TypeScript errors — fix before pushing"; exit 1; }
+
+echo "🔍 [pre-push] ESLint (full codebase)..."
+pnpm lint || { echo "❌ ESLint errors — run 'pnpm lint:fix' then review"; exit 1; }
+
+echo "✅ [pre-push] Quality gate passed — pushing."
