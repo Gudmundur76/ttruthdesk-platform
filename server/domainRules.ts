@@ -399,6 +399,72 @@ export const DOMAIN_RULES: DomainRule[] = [
       { sourceId: "owid" as SourceId, confidence: 0.82, reason: "Our World in Data climate statistics" },
     ],
   },
+  // ── Social Science ───────────────────────────────────────────────────────
+  {
+    domain: "social_science" as DomainLabel,
+    patterns: [/social policy/i, /intervention program/i, /randomized controlled trial/i, /\bRCT\b/i, /systematic review/i, /meta.analysis/i, /evidence.based/i, /what works/i, /program evaluation/i, /social experiment/i, /behavioral intervention/i, /crime prevention/i, /educational intervention/i, /development aid/i],
+    routes: [
+      {
+        sourceId: "campbell" as SourceId,
+        confidence: 0.90,
+        reason: "Campbell Collaboration systematic reviews in social science",
+      },
+      {
+        sourceId: "ssrn" as SourceId,
+        confidence: 0.78,
+        reason: "SSRN working papers in social science",
+      },
+      {
+        sourceId: "semantic_scholar",
+        confidence: 0.65,
+        reason: "Cross-domain academic literature",
+      },
+    ],
+  },
+  // ── Psychology ────────────────────────────────────────────────────────────
+  {
+    domain: "psychology" as DomainLabel,
+    patterns: [/psychology/i, /cognitive/i, /behavioral/i, /mental health/i, /clinical psychology/i, /personality/i, /developmental psychology/i, /social psychology/i, /neuroscience/i, /psychotherapy/i, /anxiety/i, /depression/i, /trauma/i, /cognition/i],
+    routes: [
+      {
+        sourceId: "apa_psycarticles" as SourceId,
+        confidence: 0.88,
+        reason: "APA PsycArticles — peer-reviewed psychology journals",
+      },
+      {
+        sourceId: "pubmed",
+        confidence: 0.75,
+        reason: "PubMed for clinical psychology literature",
+      },
+      {
+        sourceId: "semantic_scholar",
+        confidence: 0.65,
+        reason: "Cross-domain academic literature",
+      },
+    ],
+  },
+  // ── Economics / Finance ───────────────────────────────────────────────────
+  {
+    domain: "economics" as DomainLabel,
+    patterns: [/economics/i, /macroeconomics/i, /microeconomics/i, /\bGDP\b/i, /inflation/i, /monetary policy/i, /fiscal policy/i, /trade policy/i, /labor market/i, /unemployment/i, /interest rate/i, /financial market/i, /stock market/i, /working paper/i],
+    routes: [
+      {
+        sourceId: "ssrn" as SourceId,
+        confidence: 0.82,
+        reason: "SSRN working papers in economics and finance",
+      },
+      {
+        sourceId: "bis_statistics" as SourceId,
+        confidence: 0.85,
+        reason: "BIS Statistics for monetary and financial data",
+      },
+      {
+        sourceId: "semantic_scholar",
+        confidence: 0.65,
+        reason: "Cross-domain academic literature",
+      },
+    ],
+  },
 ];
 
 export const FALLBACK_ROUTES: SourceRoute[] = [
