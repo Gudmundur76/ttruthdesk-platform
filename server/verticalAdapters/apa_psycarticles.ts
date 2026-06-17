@@ -37,7 +37,7 @@ const APA_JOURNAL_ISSNS = new Set([
   "0021-843X", // Journal of Abnormal Psychology
   "1939-1315", // Journal of Family Psychology
   "0022-0167", // Journal of Counseling Psychology
-  "0022-3263", // Journal of Educational Psychology
+  "0022-0663", // Journal of Educational Psychology
 ]);
 
 interface CrossRefWork {
@@ -74,15 +74,17 @@ function noResult(flags: string[]): EvidenceResult {
 
 function isApaJournal(work: CrossRefWork): boolean {
   const issns = work.ISSN ?? [];
-  return issns.some((issn) => APA_JOURNAL_ISSNS.has(issn));
+  return issns.some(issn => APA_JOURNAL_ISSNS.has(issn));
 }
 
 function formatAuthors(authors: CrossRefWork["author"]): string {
   if (!authors?.length) return "Unknown";
-  return authors
-    .slice(0, 3)
-    .map((a) => `${a.family ?? ""}, ${(a.given ?? "").charAt(0)}.`)
-    .join("; ") + (authors.length > 3 ? " et al." : "");
+  return (
+    authors
+      .slice(0, 3)
+      .map(a => `${a.family ?? ""}, ${(a.given ?? "").charAt(0)}.`)
+      .join("; ") + (authors.length > 3 ? " et al." : "")
+  );
 }
 
 function getPublicationYear(work: CrossRefWork): number | null {
@@ -144,9 +146,19 @@ class ApaPsycarticlesAdapter implements VerticalAdapter {
 
     return {
       found: true,
-      sourceId: doi ? `apa-${doi.replace(/[^a-zA-Z0-9]/g, "-")}` : `apa-search-${Date.now()}`,
+      sourceId: doi
+        ? `apa-${doi.replace(/[^a-zA-Z0-9]/g, "-")}`
+        : `apa-search-${Date.now()}`,
       sourceUrl,
-      evidenceRaw: { doi, title, journal, authors, year, isApaJournal: isApa, totalResults },
+      evidenceRaw: {
+        doi,
+        title,
+        journal,
+        authors,
+        year,
+        isApaJournal: isApa,
+        totalResults,
+      },
       confidenceScore: isApa ? 0.87 : 0.72,
       confidenceFlags: flags,
     };
@@ -159,7 +171,7 @@ class ApaPsycarticlesAdapter implements VerticalAdapter {
         query,
         rows: "5",
         filter: "type:journal-article",
-        "mailto": "contact@citation.is",
+        mailto: "contact@citation.is",
       });
 
       const url = `${CROSSREF_API}?${params.toString()}`;

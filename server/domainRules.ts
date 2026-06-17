@@ -409,6 +409,11 @@ export const DOMAIN_RULES: DomainRule[] = [
     ],
     routes: [
       {
+        sourceId: "ipcc" as SourceId,
+        confidence: 0.92,
+        reason: "IPCC climate assessment reports",
+      },
+      {
         sourceId: "nasa_earthdata" as SourceId,
         confidence: 0.9,
         reason: "NASA satellite climate observations",
@@ -417,11 +422,6 @@ export const DOMAIN_RULES: DomainRule[] = [
         sourceId: "noaa" as SourceId,
         confidence: 0.9,
         reason: "NOAA atmospheric and ocean data",
-      },
-      {
-        sourceId: "ipcc" as SourceId,
-        confidence: 0.92,
-        reason: "IPCC climate assessment reports",
       },
       {
         sourceId: "eea" as SourceId,
@@ -535,14 +535,14 @@ export const DOMAIN_RULES: DomainRule[] = [
     ],
     routes: [
       {
-        sourceId: "ssrn" as SourceId,
-        confidence: 0.82,
-        reason: "SSRN working papers in economics and finance",
-      },
-      {
         sourceId: "bis_statistics" as SourceId,
         confidence: 0.85,
         reason: "BIS Statistics for monetary and financial data",
+      },
+      {
+        sourceId: "ssrn" as SourceId,
+        confidence: 0.82,
+        reason: "SSRN working papers in economics and finance",
       },
       {
         sourceId: "semantic_scholar",
