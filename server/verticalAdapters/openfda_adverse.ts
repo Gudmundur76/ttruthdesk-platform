@@ -3,6 +3,8 @@
  * OpenFDA FAERS Adverse Events adapter
  * API: https://api.fda.gov/drug/event.json
  */
+import { logger } from "../logger";
+const log = logger("verticalAdapters/openfda_adverse");
 import {
   registerVertical,
   type EvidenceResult,
@@ -44,7 +46,7 @@ const adapter: VerticalAdapter = {
     extractedValue: string | null;
   }): Promise<EvidenceResult> {
     const query = claim.extractedValue ?? claim.claimText;
-    const drugTerm = query.split(/\s+/)[0] ?? query;
+    const drugTerm = (claim.extractedValue ?? query.split(/\s+/).slice(0, 3).join(" ")).slice(0, 80);
     const url = new URL(BASE);
     url.searchParams.set(
       "search",
@@ -91,14 +93,7 @@ const adapter: VerticalAdapter = {
         confidenceFlags: ["faers_post_market_signal"],
       };
     } catch (err) {
-      console.error(
-        "[verticalAdapters/openfda_adverse] Error fetching from OpenFDA adverse events:",
-        {
-          err: err instanceof Error ? err.message : String(err),
-          stack:
-            err instanceof Error ? err.stack?.replace(/\n/g, " | ") : undefined,
-        }
-      );
+      log.error("Error fetching from OpenFDA adverse events", { err: err instanceof Error ? err.message : String(err) });
       return noResult(["network_or_parsing_error"]);
     }
   },

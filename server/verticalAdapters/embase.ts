@@ -1,3 +1,5 @@
+import { logger } from "../logger";
+const log = logger("verticalAdapters/embase");
 /**
  * embase.ts — Sprint 30
  * EMBASE European biomedical literature adapter (via Europe PMC EMBASE filter)
@@ -102,14 +104,7 @@ const adapter: VerticalAdapter = {
         confidenceFlags: ["embase_peer_reviewed", "european_biomedical"],
       };
     } catch (err) {
-      console.error(
-        "[verticalAdapters/embase] Error fetching from EMBASE via Europe PMC:",
-        {
-          err: err instanceof Error ? err.message : String(err),
-          stack:
-            err instanceof Error ? err.stack?.replace(/\n/g, " | ") : undefined,
-        }
-      );
+      log.error("Error fetching from EMBASE via Europe PMC", { err: err instanceof Error ? err.message : String(err) });
       return noResult(["network_or_parsing_error"]);
     }
   },
