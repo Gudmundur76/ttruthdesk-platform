@@ -60,6 +60,7 @@ import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 import { detailedHealthHandler } from "../detailedHealthRoute";
 import { ingestionAlertHandler } from "../ingestionAlertJob";
 import { domainIngestJobHandler } from "../domainIngestScheduler";
+import { registerCitationSearchRoute } from "../citationSearchRoute";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -1848,6 +1849,8 @@ async function startServer() {
   registerAnswerRoute(app);
   // SSE streaming verification endpoint (Phase 114)
   registerStreamVerifyRoute(app);
+  // Perplexity-style citation search — full-adapter live pipeline (Sprint 29)
+  registerCitationSearchRoute(app);
   // Epistemic provenance chain endpoint (Phase 121)
   registerProvenanceRoute(app);
   // Semantic similarity endpoint (Phase 124b)
