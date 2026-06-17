@@ -59,6 +59,7 @@ import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 import { detailedHealthHandler } from "../detailedHealthRoute";
 import { ingestionAlertHandler } from "../ingestionAlertJob";
 import { domainIngestJobHandler } from "../domainIngestScheduler";
+import { registerCitationSearchRoute } from "../citationSearchRoute";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -1843,6 +1844,8 @@ async function startServer() {
   registerAnswerRoute(app);
   // SSE streaming verification endpoint (Phase 114)
   registerStreamVerifyRoute(app);
+  // Perplexity-style citation search — full-adapter live pipeline (Sprint 29)
+  registerCitationSearchRoute(app);
   // Epistemic provenance chain endpoint (Phase 121)
   registerProvenanceRoute(app);
   // Semantic similarity endpoint (Phase 124b)
@@ -2132,13 +2135,11 @@ async function startServer() {
     res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
     res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
     if (!rl.allowed) {
-      res
-        .status(429)
-        .json({
-          ok: false,
-          error: "Rate limit exceeded. Max 10 req/min per IP.",
-          retryAfterMs: rl.resetAt - Date.now(),
-        });
+      res.status(429).json({
+        ok: false,
+        error: "Rate limit exceeded. Max 10 req/min per IP.",
+        retryAfterMs: rl.resetAt - Date.now(),
+      });
       return;
     }
     try {
@@ -2153,12 +2154,10 @@ async function startServer() {
         return;
       }
       if (question.trim().length > 500) {
-        res
-          .status(400)
-          .json({
-            ok: false,
-            error: "question must be at most 500 characters",
-          });
+        res.status(400).json({
+          ok: false,
+          error: "question must be at most 500 characters",
+        });
         return;
       }
       const result = await runAgent(question.trim());
