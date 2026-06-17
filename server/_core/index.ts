@@ -1330,9 +1330,13 @@ async function startServer() {
   // Manus Heartbeat jobs registered under a different project identity (cross-project
   // cron tokens are rejected by the OAuth server with "permission error for cron cookie").
   const requireCronOrAdmin: express.RequestHandler = async (req, res, next) => {
-    // Fast-path: accept the Forge API key as a Bearer token (Manus Heartbeat fallback)
+    // Fast-path: accept BUILT_IN_FORGE_API_KEY (Manus Heartbeat cron) or CRON_SECRET
+    // (sandbox / external callers set via Manus Project Settings env var).
     const authHeader = req.headers["authorization"] ?? "";
     if (ENV.forgeApiKey && authHeader === `Bearer ${ENV.forgeApiKey}`) {
+      return next();
+    }
+    if (ENV.cronSecret && authHeader === `Bearer ${ENV.cronSecret}`) {
       return next();
     }
     try {
@@ -2132,13 +2136,11 @@ async function startServer() {
     res.setHeader("X-RateLimit-Remaining", String(rl.remaining));
     res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt / 1000)));
     if (!rl.allowed) {
-      res
-        .status(429)
-        .json({
-          ok: false,
-          error: "Rate limit exceeded. Max 10 req/min per IP.",
-          retryAfterMs: rl.resetAt - Date.now(),
-        });
+      res.status(429).json({
+        ok: false,
+        error: "Rate limit exceeded. Max 10 req/min per IP.",
+        retryAfterMs: rl.resetAt - Date.now(),
+      });
       return;
     }
     try {
@@ -2153,12 +2155,10 @@ async function startServer() {
         return;
       }
       if (question.trim().length > 500) {
-        res
-          .status(400)
-          .json({
-            ok: false,
-            error: "question must be at most 500 characters",
-          });
+        res.status(400).json({
+          ok: false,
+          error: "question must be at most 500 characters",
+        });
         return;
       }
       const result = await runAgent(question.trim());
