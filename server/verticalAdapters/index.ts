@@ -77,5 +77,8 @@ import "./bis_statistics"; // Sprint 33 — BIS macroprudential and financial st
 import "./us_code"; // Sprint 33 — US Code (OLRC) federal statutory law
 import "./alphafold"; // Sprint 34 — AlphaFold protein structure predictions (EMBL-EBI)
 import "./nist_chemistry"; // Sprint 34 — NIST Chemistry WebBook thermochemical/physical data
+import "./campbell"; // Sprint 35 — Campbell Collaboration systematic reviews
+import "./apa_psycarticles"; // Sprint 35 — APA PsycArticles psychology journals
+import "./ssrn"; // Sprint 35 — SSRN social science working papers
 import "./unknown"; // no-op fallback for unresolved adapter names (sprint-1 fix)
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)

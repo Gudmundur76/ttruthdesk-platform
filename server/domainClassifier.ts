@@ -66,7 +66,10 @@ export type SourceId =
   | "bis_statistics"
   | "us_code"
   | "alphafold"
-  | "nist_chemistry";
+  | "nist_chemistry"
+  | "campbell"
+  | "apa_psycarticles"
+  | "ssrn";
 
 export type DomainLabel =
   | "structural_biology"
