@@ -170,7 +170,6 @@ class UsgsAdapter implements VerticalAdapter {
   private async lookupGeology(query: string): Promise<EvidenceResult> {
     // USGS Mineral Resources Data System — return a reference link
     const encodedQuery = encodeURIComponent(query.slice(0, 100));
-    const url = `https://mrdata.usgs.gov/geochem/doc/home.htm`;
 
     try {
       // Lightweight HEAD check to verify USGS is reachable
