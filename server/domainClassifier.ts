@@ -62,7 +62,9 @@ export type SourceId =
   | "usda_fooddata"
   | "codex"
   | "fred"
-  | "imf";
+  | "imf"
+  | "bis_statistics"
+  | "us_code";
 
 export type DomainLabel =
   | "structural_biology"
