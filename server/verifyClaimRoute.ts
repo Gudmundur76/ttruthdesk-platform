@@ -461,7 +461,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         primaryClaim.claimText
       );
       const pubmedVerdict = verdictFromPubMed(
-        pubmedResults,
+        allPubMedResults,
         primaryClaim.claimText
       );
 
@@ -480,7 +480,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
           claimText
         );
         allPubMedResults = filterByRelevance(fallbackResults, claimText);
-        bestVerdictResult = verdictFromPubMed(fallbackResults, claimText);
+        bestVerdictResult = verdictFromPubMed(allPubMedResults, claimText);
         primaryProteinName = null;
       } else {
         // Sprint 25: decompose the original question into atomic claims for better PubMed relevance
