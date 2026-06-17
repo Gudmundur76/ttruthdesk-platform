@@ -1538,6 +1538,100 @@ export const SOURCE_WHITELIST: SourceDefinition[] = [
       }
     },
   },
+  // ── Sprint 37: Energy & Earth Science ───────────────────────────────────────
+  {
+    id: "iea",
+    displayName: "IEA Energy Statistics",
+    description:
+      "International Energy Agency statistics on energy production, consumption, CO2 emissions, and renewable energy capacity for 150+ countries.",
+    apiBaseUrl: "https://api.iea.org/stats",
+    schema: ["country", "product", "flow", "year", "value", "unit"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-17",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(
+          "https://api.iea.org/stats?countries=WORLD&products=RENEWABLES&flows=TOTPROD&startYear=2022&endYear=2022&format=json",
+          { signal: AbortSignal.timeout(10_000) }
+        );
+        return {
+          healthy: res.ok,
+          latencyMs: Date.now() - start,
+          error: res.ok ? null : `HTTP ${res.status}`,
+        };
+      } catch (err) {
+        return {
+          healthy: false,
+          latencyMs: Date.now() - start,
+          error: String(err),
+        };
+      }
+    },
+  },
+  {
+    id: "irena",
+    displayName: "IRENA Renewable Energy Statistics",
+    description:
+      "International Renewable Energy Agency data on installed capacity, generation, and costs for all renewable energy technologies worldwide.",
+    apiBaseUrl: "https://pxweb.irena.org/api/v1/en/IRENASTAT",
+    schema: ["technology", "country", "year", "capacity_mw", "generation_gwh"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-17",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(
+          "https://pxweb.irena.org/api/v1/en/IRENASTAT/Power%20Capacity%20and%20Generation/ELECCAP/",
+          { method: "HEAD", signal: AbortSignal.timeout(10_000) }
+        );
+        return {
+          healthy: res.ok || res.status === 405, // HEAD may return 405 but service is up
+          latencyMs: Date.now() - start,
+          error: (res.ok || res.status === 405) ? null : `HTTP ${res.status}`,
+        };
+      } catch (err) {
+        return {
+          healthy: false,
+          latencyMs: Date.now() - start,
+          error: String(err),
+        };
+      }
+    },
+  },
+  {
+    id: "usgs",
+    displayName: "USGS Earth Sciences",
+    description:
+      "US Geological Survey data on earthquakes, seismic hazards, mineral resources, and earth science observations.",
+    apiBaseUrl: "https://earthquake.usgs.gov/fdsnws/event/1",
+    schema: ["event_id", "magnitude", "place", "time", "depth_km", "coordinates"],
+    failureMode: "degrade",
+    approved: true,
+    approvedAt: "2026-06-17",
+    healthCheckFn: async () => {
+      const start = Date.now();
+      try {
+        const res = await fetch(
+          "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minmagnitude=7.0&orderby=magnitude&limit=1&starttime=2000-01-01",
+          { signal: AbortSignal.timeout(10_000) }
+        );
+        return {
+          healthy: res.ok,
+          latencyMs: Date.now() - start,
+          error: res.ok ? null : `HTTP ${res.status}`,
+        };
+      } catch (err) {
+        return {
+          healthy: false,
+          latencyMs: Date.now() - start,
+          error: String(err),
+        };
+      }
+    },
+  },
 ];
 
 // ─── Registry helpers ──────────────────────────────────────────────────────────

@@ -80,5 +80,8 @@ import "./nist_chemistry"; // Sprint 34 — NIST Chemistry WebBook thermochemica
 import "./campbell"; // Sprint 35 — Campbell Collaboration systematic reviews
 import "./apa_psycarticles"; // Sprint 35 — APA PsycArticles psychology journals
 import "./ssrn"; // Sprint 35 — SSRN social science working papers
+import "./iea"; // Sprint 37 — IEA Energy Statistics
+import "./irena"; // Sprint 37 — IRENA Renewable Energy Statistics
+import "./usgs"; // Sprint 37 — USGS Earth Sciences (earthquakes, minerals)
 import "./unknown"; // no-op fallback for unresolved adapter names (sprint-1 fix)
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)
