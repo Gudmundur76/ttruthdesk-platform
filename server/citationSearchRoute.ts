@@ -182,6 +182,177 @@ async function synthesiseAnswer(
   }
 }
 
+// ─── Pipeline stage helpers ───────────────────────────────────────────────────
+
+/** Stage 1: decompose the question into atomic claims. */
+async function runDecomposeStage(
+  q: string,
+  res: Response,
+  clientGone: boolean
+): Promise<{ primaryClaim: string; claims: Awaited<ReturnType<typeof decomposeQuestion>>["claims"] }> {
+  const decomposition = await decomposeQuestion(q);
+  const { claims } = decomposition;
+  const primaryClaim = claims[0]?.text ?? q;
+  if (!clientGone) {
+    sseWrite(res, "stage:decompose", {
+      stage: 1,
+      label: "decompose",
+      question: q,
+      primaryClaim,
+      claims: claims.map(c => ({
+        text: c.text,
+        confidence: c.confidence,
+        method: c.method,
+      })),
+      claimCount: claims.length,
+    });
+  }
+  return { primaryClaim, claims };
+}
+
+type AdapterEntry = ReturnType<typeof listVerticals>[number];
+interface EvidenceEntry {
+  adapter: AdapterEntry;
+  evidence: EvidenceResult;
+}
+
+/** Stage 2: classify claims, query all relevant adapters in parallel, emit evidence event. */
+async function runEvidenceStage(
+  q: string,
+  primaryClaim: string,
+  claims: Awaited<ReturnType<typeof decomposeQuestion>>["claims"],
+  res: Response,
+  clientGone: boolean
+): Promise<{
+  foundSources: SourceSummary[];
+  successfulResults: EvidenceEntry[];
+  adaptersToQuery: AdapterEntry[];
+  classifications: ReturnType<typeof classifyClaims>;
+}> {
+  const classifications = classifyClaims(claims);
+  const allSourceIds = getAllSourceIds(classifications);
+  const allAdapters = listVerticals();
+
+  const GENERAL_ADAPTERS = ["openalex", "semantic_scholar", "crossref"];
+  const targetKeys = new Set<string>([...allSourceIds, ...GENERAL_ADAPTERS]);
+  const EXCLUDED_KEYS = new Set(["unknown", "generic_source"]);
+  const adaptersToQuery = allAdapters.filter(
+    a => targetKeys.has(a.domainKey) && !EXCLUDED_KEYS.has(a.domainKey)
+  );
+
+  const adapterResults = await Promise.allSettled(
+    adaptersToQuery.map(async adapter => {
+      const evidence = await adapter.lookupEvidence({
+        claimText: primaryClaim,
+        extractedValue: null,
+      });
+      return { adapter, evidence };
+    })
+  );
+
+  const successfulResults: EvidenceEntry[] = [];
+  let failedAdapters = 0;
+  for (const result of adapterResults) {
+    if (result.status === "fulfilled") {
+      successfulResults.push(result.value);
+    } else {
+      failedAdapters++;
+      log.debug("Adapter failed", { reason: String(result.reason) });
+    }
+  }
+
+  const foundSources: SourceSummary[] = successfulResults
+    .filter(r => r.evidence.found)
+    .map(r => ({
+      adapterKey: r.adapter.domainKey,
+      sourceId: r.evidence.sourceId,
+      sourceUrl: r.evidence.sourceUrl,
+      confidence: r.evidence.confidenceScore,
+      snippet:
+        typeof r.evidence.evidenceRaw?.abstractSnippet === "string"
+          ? r.evidence.evidenceRaw.abstractSnippet
+          : typeof r.evidence.evidenceRaw?.abstract === "string"
+            ? r.evidence.evidenceRaw.abstract
+            : undefined,
+      title:
+        typeof r.evidence.evidenceRaw?.title === "string"
+          ? r.evidence.evidenceRaw.title
+          : undefined,
+      journal:
+        typeof r.evidence.evidenceRaw?.journal === "string"
+          ? r.evidence.evidenceRaw.journal
+          : undefined,
+      year:
+        typeof r.evidence.evidenceRaw?.year === "number"
+          ? r.evidence.evidenceRaw.year
+          : undefined,
+    }))
+    .sort((a, b) => b.confidence - a.confidence);
+
+  if (!clientGone) {
+    sseWrite(res, "stage:evidence", {
+      stage: 2,
+      label: "evidence",
+      totalAdapters: adaptersToQuery.length,
+      sourcesFound: foundSources.length,
+      failedAdapters,
+      sources: foundSources.slice(0, 8).map(s => ({
+        adapterKey: s.adapterKey,
+        sourceId: s.sourceId,
+        sourceUrl: s.sourceUrl,
+        title: s.title ?? null,
+        journal: s.journal ?? null,
+        year: s.year ?? null,
+        confidence: s.confidence,
+      })),
+    });
+  }
+
+  return { foundSources, successfulResults, adaptersToQuery, classifications };
+}
+
+/** Stage 3: compute composite verdict and synthesise LLM answer. */
+async function runAnswerStage(
+  q: string,
+  primaryClaim: string,
+  successfulResults: EvidenceEntry[],
+  foundSources: SourceSummary[],
+  res: Response,
+  clientGone: boolean
+): Promise<{ compositeVerdict: { verdict: VerdictLabel; rationale: string }; confidence: number; answerText: string }> {
+  let compositeVerdict: { verdict: VerdictLabel; rationale: string } = {
+    verdict: "Insufficient Evidence",
+    rationale: "No authoritative sources found",
+  };
+  for (const r of successfulResults) {
+    const v = evidenceToVerdict(r.evidence, r.adapter.domainKey);
+    compositeVerdict = bestVerdict(compositeVerdict, v);
+  }
+
+  const confidence = verdictToConfidence(compositeVerdict.verdict);
+  const answerText = await synthesiseAnswer(q, primaryClaim, compositeVerdict.verdict, foundSources);
+
+  if (!clientGone) {
+    sseWrite(res, "stage:answer", {
+      stage: 3,
+      label: "answer",
+      verdict: compositeVerdict.verdict,
+      confidence,
+      answerLength: answerText.length,
+    });
+  }
+
+  return { compositeVerdict, confidence, answerText };
+}
+
+// ─── Auth helper ────────────────────────────────────────────────────────────
+async function resolveIsApiKey(authHeader: string): Promise<boolean> {
+  if (!authHeader.startsWith("Bearer ")) return false;
+  const token = authHeader.slice(7).trim();
+  const keyRecord = await validateApiKey(token);
+  return keyRecord?.valid === true;
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 async function handleCitationSearch(
   req: Request,
@@ -197,27 +368,17 @@ async function handleCitationSearch(
   }
 
   // Auth
-  const authHeader = req.headers["authorization"] ?? "";
-  let isApiKey = false;
-  if (authHeader.startsWith("Bearer ")) {
-    const token = authHeader.slice(7).trim();
-    const keyRecord = await validateApiKey(token);
-    if (keyRecord?.valid) isApiKey = true;
-  }
+  const authHeader = (req.headers["authorization"] as string) ?? "";
+  const isApiKey = await resolveIsApiKey(authHeader);
 
   // Input validation (before SSE headers)
   const q = typeof req.query["q"] === "string" ? req.query["q"].trim() : "";
   if (!q || q.length < 3) {
-    res.status(400).json({
-      ok: false,
-      error: "Query parameter 'q' is required (min 3 chars)",
-    });
+    res.status(400).json({ ok: false, error: "Query parameter 'q' is required (min 3 chars)" });
     return;
   }
   if (q.length > 2000) {
-    res
-      .status(400)
-      .json({ ok: false, error: "Query too long (max 2000 chars)" });
+    res.status(400).json({ ok: false, error: "Query too long (max 2000 chars)" });
     return;
   }
 
@@ -228,10 +389,7 @@ async function handleCitationSearch(
     "unknown";
   const { allowed, remaining } = checkRateLimit(ip, isApiKey);
   if (!allowed) {
-    res.status(429).json({
-      ok: false,
-      error: "Rate limit exceeded. 20 requests per hour for anonymous users.",
-    });
+    res.status(429).json({ ok: false, error: "Rate limit exceeded. 20 requests per hour for anonymous users." });
     return;
   }
 
@@ -244,9 +402,7 @@ async function handleCitationSearch(
   res.flushHeaders();
 
   let clientGone = false;
-  req.on("close", () => {
-    clientGone = true;
-  });
+  req.on("close", () => { clientGone = true; });
   res.write(": ping\n\n");
 
   const heartbeat = setInterval(() => {
@@ -256,151 +412,13 @@ async function handleCitationSearch(
   const processedAt = new Date().toISOString();
 
   try {
-    // ── Stage 1: Decompose ────────────────────────────────────────────────────
-    const decomposition = await decomposeQuestion(q);
-    const claims = decomposition.claims;
-    const primaryClaim = claims[0]?.text ?? q;
+    const { primaryClaim, claims } = await runDecomposeStage(q, res, clientGone);
+    const { foundSources, successfulResults, adaptersToQuery, classifications } =
+      await runEvidenceStage(q, primaryClaim, claims, res, clientGone);
+    const { compositeVerdict, confidence, answerText } =
+      await runAnswerStage(q, primaryClaim, successfulResults, foundSources, res, clientGone);
 
-    if (!clientGone) {
-      sseWrite(res, "stage:decompose", {
-        stage: 1,
-        label: "decompose",
-        question: q,
-        primaryClaim,
-        claims: claims.map(c => ({
-          text: c.text,
-          confidence: c.confidence,
-          method: c.method,
-        })),
-        claimCount: claims.length,
-      });
-    }
-
-    // ── Stage 2: Classify + query all relevant adapters in parallel ───────────
-    const classifications = classifyClaims(claims);
-    const allSourceIds = getAllSourceIds(classifications);
-
-    // Get all registered adapters
-    const allAdapters = listVerticals();
-
-    // Map sourceId → domainKey (adapters register with domainKey, classifier returns sourceId)
-    // We query adapters whose domainKey matches any sourceId from classification,
-    // plus always include the top-3 general academic adapters as fallback
-    const GENERAL_ADAPTERS = ["openalex", "semantic_scholar", "crossref"];
-    const targetKeys = new Set<string>([...allSourceIds, ...GENERAL_ADAPTERS]);
-
-    // Filter to adapters that are relevant (exclude no-op adapters)
-    const EXCLUDED_KEYS = new Set(["unknown", "generic_source"]);
-    const adaptersToQuery = allAdapters.filter(
-      a => targetKeys.has(a.domainKey) && !EXCLUDED_KEYS.has(a.domainKey)
-    );
-
-    // Query all relevant adapters in parallel with Promise.allSettled
-    const adapterResults = await Promise.allSettled(
-      adaptersToQuery.map(async adapter => {
-        const evidence = await adapter.lookupEvidence({
-          claimText: primaryClaim,
-          extractedValue: null,
-        });
-        return { adapter, evidence };
-      })
-    );
-
-    // Collect successful results
-    const successfulResults: Array<{
-      adapter: (typeof adaptersToQuery)[0];
-      evidence: EvidenceResult;
-    }> = [];
-    let failedAdapters = 0;
-    for (const result of adapterResults) {
-      if (result.status === "fulfilled") {
-        successfulResults.push(result.value);
-      } else {
-        failedAdapters++;
-        log.debug("Adapter failed", { reason: String(result.reason) });
-      }
-    }
-
-    // Build source summaries from found evidence
-    const foundSources: SourceSummary[] = successfulResults
-      .filter(r => r.evidence.found)
-      .map(r => ({
-        adapterKey: r.adapter.domainKey,
-        sourceId: r.evidence.sourceId,
-        sourceUrl: r.evidence.sourceUrl,
-        confidence: r.evidence.confidenceScore,
-        snippet:
-          typeof r.evidence.evidenceRaw?.abstractSnippet === "string"
-            ? r.evidence.evidenceRaw.abstractSnippet
-            : typeof r.evidence.evidenceRaw?.abstract === "string"
-              ? r.evidence.evidenceRaw.abstract
-              : undefined,
-        title:
-          typeof r.evidence.evidenceRaw?.title === "string"
-            ? r.evidence.evidenceRaw.title
-            : undefined,
-        journal:
-          typeof r.evidence.evidenceRaw?.journal === "string"
-            ? r.evidence.evidenceRaw.journal
-            : undefined,
-        year:
-          typeof r.evidence.evidenceRaw?.year === "number"
-            ? r.evidence.evidenceRaw.year
-            : undefined,
-      }))
-      .sort((a, b) => b.confidence - a.confidence);
-
-    if (!clientGone) {
-      sseWrite(res, "stage:evidence", {
-        stage: 2,
-        label: "evidence",
-        totalAdapters: adaptersToQuery.length,
-        sourcesFound: foundSources.length,
-        failedAdapters,
-        sources: foundSources.slice(0, 8).map(s => ({
-          adapterKey: s.adapterKey,
-          sourceId: s.sourceId,
-          sourceUrl: s.sourceUrl,
-          title: s.title ?? null,
-          journal: s.journal ?? null,
-          year: s.year ?? null,
-          confidence: s.confidence,
-        })),
-      });
-    }
-
-    // ── Stage 3: Composite verdict ────────────────────────────────────────────
-    let compositeVerdict: { verdict: VerdictLabel; rationale: string } = {
-      verdict: "Insufficient Evidence",
-      rationale: "No authoritative sources found",
-    };
-
-    for (const r of successfulResults) {
-      const v = evidenceToVerdict(r.evidence, r.adapter.domainKey);
-      compositeVerdict = bestVerdict(compositeVerdict, v);
-    }
-
-    const confidence = verdictToConfidence(compositeVerdict.verdict);
-
-    // LLM synthesis of answer text
-    const answerText = await synthesiseAnswer(
-      q,
-      primaryClaim,
-      compositeVerdict.verdict,
-      foundSources
-    );
-
-    if (!clientGone) {
-      sseWrite(res, "stage:answer", {
-        stage: 3,
-        label: "answer",
-        verdict: compositeVerdict.verdict,
-        confidence,
-        answerLength: answerText.length,
-      });
-    }
-
-    // ── Background: autonomous ingest ─────────────────────────────────────────
+    // Background: autonomous ingest
     if (foundSources.length > 0) {
       triggerAutonomousIngest({
         query: q,
@@ -421,7 +439,7 @@ async function handleCitationSearch(
       });
     }
 
-    // ── Final event ───────────────────────────────────────────────────────────
+    // Final event
     if (!clientGone) {
       sseWrite(res, "final", {
         ok: true,
@@ -455,10 +473,7 @@ async function handleCitationSearch(
     clearInterval(heartbeat);
     log.error("Citation search error:", errData(err));
     if (!clientGone) {
-      sseError(
-        res,
-        "Citation search failed due to an internal error. Please try again."
-      );
+      sseError(res, "Citation search failed due to an internal error. Please try again.");
     } else {
       res.end();
     }
@@ -470,10 +485,7 @@ export function registerCitationSearchRoute(app: Express): void {
   app.options("/api/citation-search/stream", (_req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization"
-    );
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.status(204).end();
   });
   app.get("/api/citation-search/stream", handleCitationSearch);
