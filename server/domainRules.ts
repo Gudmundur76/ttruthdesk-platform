@@ -352,6 +352,18 @@ export const DOMAIN_RULES: DomainRule[] = [
       },
     ],
   },
+  {
+    domain: "environmental_science" as DomainLabel,
+    patterns: [/climate change/i, /global warming/i, /greenhouse gas/i, /CO2 emissions/i, /sea level/i, /arctic ice/i, /air quality/i, /particulate matter/i, /PM2\.5/i, /ozone/i, /biodiversity/i, /deforestation/i, /carbon/i, /temperature anomaly/i],
+    routes: [
+      { sourceId: "nasa_earthdata" as SourceId, confidence: 0.90, reason: "NASA satellite climate observations" },
+      { sourceId: "noaa" as SourceId, confidence: 0.90, reason: "NOAA atmospheric and ocean data" },
+      { sourceId: "ipcc" as SourceId, confidence: 0.92, reason: "IPCC climate assessment reports" },
+      { sourceId: "eea" as SourceId, confidence: 0.86, reason: "European Environment Agency indicators" },
+      { sourceId: "epa" as SourceId, confidence: 0.84, reason: "US EPA environmental science" },
+      { sourceId: "owid" as SourceId, confidence: 0.82, reason: "Our World in Data climate statistics" },
+    ],
+  },
 ];
 
 export const FALLBACK_ROUTES: SourceRoute[] = [
