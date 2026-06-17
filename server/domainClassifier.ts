@@ -64,7 +64,9 @@ export type SourceId =
   | "fred"
   | "imf"
   | "bis_statistics"
-  | "us_code";
+  | "us_code"
+  | "alphafold"
+  | "nist_chemistry";
 
 export type DomainLabel =
   | "structural_biology"

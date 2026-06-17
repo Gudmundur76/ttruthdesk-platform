@@ -32,6 +32,11 @@ export const DOMAIN_RULES: DomainRule[] = [
         reason: "Protein function context from UniProt",
       },
       {
+        sourceId: "alphafold" as SourceId,
+        confidence: 0.88,
+        reason: "AlphaFold predicted protein structure from EMBL-EBI",
+      },
+      {
         sourceId: "pubmed",
         confidence: 0.6,
         reason: "Supporting literature from PubMed",
@@ -192,6 +197,11 @@ export const DOMAIN_RULES: DomainRule[] = [
         sourceId: "chembl",
         confidence: 0.85,
         reason: "Bioactive compound data from ChEMBL",
+      },
+      {
+        sourceId: "nist_chemistry" as SourceId,
+        confidence: 0.88,
+        reason: "NIST Chemistry WebBook — authoritative thermochemical and physical property data",
       },
       {
         sourceId: "pubmed",
