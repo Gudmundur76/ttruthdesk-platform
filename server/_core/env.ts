@@ -80,4 +80,10 @@ export const ENV = {
   // Set ADMIN_NOTIFY_EMAIL to receive new pricing access request notifications via Forge.
   // Falls back to Telegram channel notification if not set.
   adminNotifyEmail: process.env.ADMIN_NOTIFY_EMAIL ?? "",
+  // CRON_SECRET: sandbox-callable bearer token for POST /api/scheduled/domain-ingest.
+  // Set this in Manus Project Settings → Environment Variables.
+  // When set, the endpoint accepts EITHER BUILT_IN_FORGE_API_KEY (runtime cron)
+  // OR CRON_SECRET (sandbox / external callers) — whichever is non-empty and matches.
+  // This allows Manus to trigger the 5-domain PubMed ingest on demand from the sandbox.
+  cronSecret: process.env.CRON_SECRET ?? "",
 };

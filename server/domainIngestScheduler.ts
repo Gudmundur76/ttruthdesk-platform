@@ -318,10 +318,12 @@ export async function domainIngestJobHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  // Simple bearer token check — same pattern as pubmedIngestJob
+  // Bearer token check: accepts BUILT_IN_FORGE_API_KEY (runtime cron) OR CRON_SECRET
+  // (sandbox / external callers). At least one must match if either is set.
   const authHeader = req.headers["authorization"] ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
-  if (ENV.forgeApiKey && token !== ENV.forgeApiKey) {
+  const validTokens = [ENV.forgeApiKey, ENV.cronSecret].filter(Boolean);
+  if (validTokens.length > 0 && !validTokens.includes(token)) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
