@@ -38,6 +38,7 @@ import { registerEmbedRoutes } from "../embedRoutes";
 import { registerBackfillWikiRoute } from "../backfillWikiRoute";
 import { registerDreamStagingRoute } from "../dreamStagingRoute";
 import { registerBackfillEmbeddingsRoute } from "../backfillEmbeddingsRoute";
+import { registerBackfillDomainClaimsRoute } from "../backfillDomainClaimsRoute";
 import { createCoordRouter } from "../coordApi/index";
 import { createApiV2Router } from "../apiV2Router";
 import { createExportRouter } from "../exportRouter";
@@ -1880,6 +1881,7 @@ async function startServer() {
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
   registerDreamStagingRoute(app, requireOwnerOrAdmin);
   registerBackfillEmbeddingsRoute(app, requireCronOrAdmin);
+  registerBackfillDomainClaimsRoute(app, requireOwnerOrAdmin);
   // Phase 118-120: claim history, provenance, and batch verify
   registerClaimHistoryRoute(app);
   registerClaimProvenanceRoute(app);

@@ -27,6 +27,7 @@ import { ENV } from "./_core/env";
 import { logCronRun } from "./cronRunLogger";
 import { bridgeOpenGapsToCoordQueue } from "./knowledgeGapBridge";
 import { logger, errData } from "./logger";
+import { inferDomainFromText } from "./domainInference";
 const log = logger("discoveryLoopJob");
 
 // ─── Claim signal density check ───────────────────────────────────────────────
@@ -327,7 +328,11 @@ export async function handleDiscoveryLoop(
           continue;
         }
 
-        // Record as fetched
+        // Record as fetched — infer domain from title + abstract text
+        const inferredDomain = inferDomainFromText(
+          [candidate.title, abstractText ?? ""].join(" ")
+        );
+        log.info(`[Discovery] Inferred domain '${inferredDomain}' for: ${candidate.title.slice(0, 80)}`);
         await upsertAutoIngestedPaper({
           pmid: candidate.pmid,
           doi: candidate.doi,
@@ -338,7 +343,7 @@ export async function handleDiscoveryLoop(
           searchQuery: candidate.searchQuery,
           status: "fetched",
           isPublic: true,
-          verticalDomain: "structural_biology",
+          verticalDomain: inferredDomain,
           ingestSource: candidate.ingestSource,
         });
 
@@ -354,7 +359,8 @@ export async function handleDiscoveryLoop(
           .filter(Boolean)
           .join("\n");
 
-        // Insert document record
+        // Insert document record — use the inferred domain so the pipeline
+        // picks up the correct per-domain extraction prompt immediately
         const docResult = await createDocument({
           userId: SYSTEM_USER_ID,
           title: candidate.title.slice(0, 512),
@@ -362,7 +368,7 @@ export async function handleDiscoveryLoop(
           rawText,
           status: "pending",
           claimCount: 0,
-          verticalDomain: "structural_biology",
+          verticalDomain: inferredDomain,
         });
         const documentId = (docResult as unknown as { insertId: number })
           .insertId;

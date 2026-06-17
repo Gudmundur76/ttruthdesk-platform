@@ -90,10 +90,14 @@ export async function runAnalysisPipeline(
       });
     }
 
-    // 1. Extract claims
+    // 1. Extract claims — fetch domain FIRST so the extractor uses the correct prompt
     const llmProvider = options?.providerOverride ?? getActiveLLMProvider();
     await updateDocumentStatus(documentId, "extracting", { llmProvider });
-    const extracted = await extractClaims(rawText, options?.providerOverride);
+    const docForDomain = await getDocumentById(documentId);
+    const extractionDomain: string =
+      ((docForDomain as Record<string, unknown>)?.verticalDomain as string) ??
+      "structural_biology";
+    const extracted = await extractClaims(rawText, options?.providerOverride, extractionDomain);
     // 2. Insert claims into DB
     const claimInserts = extracted.map(c => ({
       documentId,
@@ -113,10 +117,8 @@ export async function runAnalysisPipeline(
     });
     // 3. Validate each claim — route through vertical adapter if available, else PDB
     const allClaims = await getClaimsByDocument(documentId);
-    const doc0 = await getDocumentById(documentId);
-    const verticalDomain: string =
-      ((doc0 as Record<string, unknown>)?.verticalDomain as string) ??
-      "structural_biology";
+    // Re-use the domain already fetched in step 1 (avoids a redundant DB round-trip)
+    const verticalDomain: string = extractionDomain;
     const adapter = getVertical(verticalDomain);
     const CLAIM_CONCURRENCY = 8;
     for (let i = 0; i < allClaims.length; i += CLAIM_CONCURRENCY) {
@@ -422,16 +424,25 @@ export async function runAnalysisPipeline(
       needsReview: qualityTier !== "verified",
     });
     // Notify owner that report is ready
+    // Guard: suppress notification for zero-claim documents — these are domain-mismatch
+    // artefacts (e.g. a neuroscience paper ingested before domain-aware extraction was
+    // deployed). Sending 0/0/0 notifications is noise and erodes trust in the system.
     const supportedCount =
       (summary as Record<string, number>)["Supported"] ?? 0;
     const contradictedCount =
       (summary as Record<string, number>)["Contradicted"] ?? 0;
-    await notifyOwner({
-      title: `Audit Report Ready: ${doc?.title ?? "Untitled"}`,
-      content: `Document audit complete.\n\nClaims: ${finalClaims.length} total\nSupported: ${supportedCount}\nContradicted: ${contradictedCount}\nHigh-risk: ${highRisk}\n\nReport: ${htmlUrl}`,
-    }).catch(() => {
-      /* non-fatal */
-    });
+    if (finalClaims.length > 0) {
+      await notifyOwner({
+        title: `Audit Report Ready: ${doc?.title ?? "Untitled"}`,
+        content: `Document audit complete.\n\nDomain: ${extractionDomain}\nClaims: ${finalClaims.length} total\nSupported: ${supportedCount}\nContradicted: ${contradictedCount}\nHigh-risk: ${highRisk}\n\nReport: ${htmlUrl}`,
+      }).catch(() => {
+        /* non-fatal */
+      });
+    } else {
+      log.info(
+        `[Pipeline] Suppressed zero-claim notification for doc ${documentId} (domain: ${extractionDomain}) — no verifiable claims extracted`
+      );
+    }
     // Ping IndexNow for all claim pages (instant Bing/Perplexity re-indexing)
     notifyIndexNowBatch(finalClaims.map(c => claimUrl(c.id))).catch(() => {
       /* non-fatal */

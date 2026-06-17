@@ -102,15 +102,9 @@ export const claims = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     documentId: int("documentId").notNull(),
     claimText: text("claimText").notNull(),
-    claimType: mysqlEnum("claimType", [
-      "pdb_id",
-      "protein_name",
-      "experimental_method",
-      "resolution",
-      "organism",
-      "ligand",
-      "general_molecular",
-    ]).notNull(),
+    // Sprint 40: changed from mysqlEnum to varchar(64) to support domain-aware claim types
+    // across all 12 domains. Migration: drizzle/0049_sprint40_domain_aware_claims.sql
+    claimType: varchar("claimType", { length: 64 }).notNull(),
     extractedValue: varchar("extractedValue", { length: 512 }),
     // PDB-specific fields
     pdbId: varchar("pdbId", { length: 16 }),

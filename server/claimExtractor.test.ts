@@ -146,7 +146,7 @@ describe("claimExtractor — extractClaims()", () => {
 
     const callArgs = mockInvokeMultiLLM.mock.calls[0][0];
     expect(callArgs.response_format?.type).toBe("json_schema");
-    expect(callArgs.response_format?.json_schema?.name).toBe("molecular_claims");
+    expect(callArgs.response_format?.json_schema?.name).toBe("domain_claims");
   });
 
   it("returns empty array when invokeMultiLLM throws", async () => {

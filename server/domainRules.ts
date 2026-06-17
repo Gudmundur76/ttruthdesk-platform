@@ -96,7 +96,7 @@ export const DOMAIN_RULES: DomainRule[] = [
   {
     domain: "pharmacology",
     patterns: [
-      /\b(drug|medication|pharmaceutical|adverse\s+(event|effect|reaction)|side\s+effect|contraindication|dosage|indication|fda\s+approved|drug\s+interaction|pharmacokinetic|bioavailability|half.life)\b/i,
+      /\b(drug|medication|pharmaceutical|adverse\s+(event|effect|reaction)|side\s+effect|contraindication|dosage|indication|fda\s+approved|drug\s+interaction|pharmacokinetic|bioavailability|half.life|ic50|ec50|ki\s+value|mechanism\s+of\s+action|kinase\s+inhibitor|protease\s+inhibitor|receptor\s+agonist|receptor\s+antagonist|drug\s+target|in\s+vitro|in\s+vivo|therapeutic\s+index)\b/i,
     ],
     routes: [
       {
@@ -240,7 +240,9 @@ export const DOMAIN_RULES: DomainRule[] = [
   {
     domain: "financial_regulatory",
     patterns: [
-      /\b(sec\s+filing|10-k|10-q|8-k|annual\s+report|earnings|revenue|profit|loss|balance\s+sheet|financial\s+statement|edgar|ipo|stock|share|dividend|market\s+cap)\b/i,
+      // Note: bare 'share' is excluded — too ambiguous (energy share, market share).
+      // Require financial context: 'share price', 'shares outstanding', 'per share'.
+      /\b(sec\s+filing|10-k|10-q|8-k|annual\s+report|earnings|revenue|profit|loss|balance\s+sheet|financial\s+statement|edgar|ipo|stock|share\s+price|shares\s+outstanding|per\s+share|dividend|market\s+cap)\b/i,
     ],
     routes: [
       {
