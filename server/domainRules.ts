@@ -164,6 +164,16 @@ export const DOMAIN_RULES: DomainRule[] = [
         confidence: 0.65,
         reason: "Nutrition literature from PubMed",
       },
+      {
+        sourceId: "usda_fooddata" as SourceId,
+        confidence: 0.88,
+        reason: "USDA FoodData Central — authoritative nutrient composition database",
+      },
+      {
+        sourceId: "codex" as SourceId,
+        confidence: 0.85,
+        reason: "CODEX Alimentarius — international food safety standards",
+      },
     ],
   },
   // ── Chemistry / Compounds ─────────────────────────────────────────────────

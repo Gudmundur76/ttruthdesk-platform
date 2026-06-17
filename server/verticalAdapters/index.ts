@@ -64,5 +64,14 @@ import "./wikidata"; // Wikidata — structured knowledge graph
 import "./nist"; // NIST — measurement standards
 import "./opencitations"; // OpenCitations — open citation graph + bibliographic metadata
 import "./crossrefRetraction"; // Crossref + Scite — DOI retraction detection (Sprint 21)
+import "./openfda_adverse"; // Sprint 30 — OpenFDA adverse events
+import "./nice"; // Sprint 30 — NICE UK clinical guidelines
+import "./who_iris"; // Sprint 30 — WHO IRIS repository
+import "./embase"; // Sprint 30 — EMBASE biomedical literature
+import "./nasa_earthdata"; // Sprint 31 — NASA Earthdata satellite observations
+import "./eea"; // Sprint 31 — European Environment Agency
+import "./epa"; // Sprint 31 — US EPA environmental science
+import "./usda_fooddata"; // Sprint 32 — USDA FoodData Central nutrition
+import "./codex"; // Sprint 32 — CODEX Alimentarius food safety standards
 import "./unknown"; // no-op fallback for unresolved adapter names (sprint-1 fix)
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)

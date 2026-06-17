@@ -54,7 +54,15 @@ export type SourceId =
   | "owid"
   | "who"
   | "ipcc"
-  | "wikidata";
+  | "wikidata"
+  | "noaa"
+  | "eea"
+  | "nasa_earthdata"
+  | "epa"
+  | "usda_fooddata"
+  | "codex"
+  | "fred"
+  | "imf";
 
 export type DomainLabel =
   | "structural_biology"
