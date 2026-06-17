@@ -54,7 +54,15 @@ export type SourceId =
   | "owid"
   | "who"
   | "ipcc"
-  | "wikidata";
+  | "wikidata"
+  | "noaa"
+  | "eea"
+  | "nasa_earthdata"
+  | "epa"
+  | "usda_fooddata"
+  | "codex"
+  | "fred"
+  | "imf";
 
 export type DomainLabel =
   | "structural_biology"
@@ -74,6 +82,10 @@ export type DomainLabel =
   | "public_health"
   | "climate"
   | "chemistry"
+  | "openfda_adverse"
+  | "nice"
+  | "who_iris"
+  | "embase"
   | "unknown";
 
 export interface ClassificationResult {
