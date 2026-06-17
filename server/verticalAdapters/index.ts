@@ -84,4 +84,9 @@ import "./iea"; // Sprint 37 — IEA Energy Statistics
 import "./irena"; // Sprint 37 — IRENA Renewable Energy Statistics
 import "./usgs"; // Sprint 37 — USGS Earth Sciences (earthquakes, minerals)
 import "./unknown"; // no-op fallback for unresolved adapter names (sprint-1 fix)
+// ── Sprint 30: Biomedical depth ──────────────────────────────────────────────
+import "./openfda_adverse"; // OpenFDA adverse events — FAERS drug safety reports
+import "./nice";            // NICE Evidence — UK clinical guidelines and appraisals
+import "./who_iris";        // WHO IRIS — WHO technical reports and guidelines
+import "./embase";          // EMBASE — European biomedical literature (via Europe PMC)
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)

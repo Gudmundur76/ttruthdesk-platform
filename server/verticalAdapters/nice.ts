@@ -1,3 +1,5 @@
+import { logger } from "../logger";
+const log = logger("verticalAdapters/nice");
 /**
  * nice.ts — Sprint 30
  * NICE Evidence UK clinical guidelines adapter
@@ -80,14 +82,7 @@ const adapter: VerticalAdapter = {
         confidenceFlags: ["nice_clinical_guideline", "uk_regulatory_authority"],
       };
     } catch (err) {
-      console.error(
-        "[verticalAdapters/nice] Error fetching from NICE Evidence:",
-        {
-          err: err instanceof Error ? err.message : String(err),
-          stack:
-            err instanceof Error ? err.stack?.replace(/\n/g, " | ") : undefined,
-        }
-      );
+      log.error("Error fetching from NICE Evidence", { err: err instanceof Error ? err.message : String(err) });
       return noResult(["network_or_parsing_error"]);
     }
   },
