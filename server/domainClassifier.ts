@@ -74,6 +74,10 @@ export type DomainLabel =
   | "public_health"
   | "climate"
   | "chemistry"
+  | "openfda_adverse"
+  | "nice"
+  | "who_iris"
+  | "embase"
   | "unknown";
 
 export interface ClassificationResult {
