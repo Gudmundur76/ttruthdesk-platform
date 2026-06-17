@@ -73,5 +73,7 @@ import "./eea"; // Sprint 31 — European Environment Agency
 import "./epa"; // Sprint 31 — US EPA environmental science
 import "./usda_fooddata"; // Sprint 32 — USDA FoodData Central nutrition
 import "./codex"; // Sprint 32 — CODEX Alimentarius food safety standards
+import "./bis_statistics"; // Sprint 33 — BIS macroprudential and financial stability statistics
+import "./us_code"; // Sprint 33 — US Code (OLRC) federal statutory law
 import "./unknown"; // no-op fallback for unresolved adapter names (sprint-1 fix)
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)

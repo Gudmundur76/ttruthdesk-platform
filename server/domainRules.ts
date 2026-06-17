@@ -241,6 +241,11 @@ export const DOMAIN_RULES: DomainRule[] = [
         confidence: 0.55,
         reason: "Macroeconomic context from World Bank",
       },
+      {
+        sourceId: "bis_statistics" as SourceId,
+        confidence: 0.82,
+        reason: "BIS macroprudential and financial stability statistics",
+      },
     ],
   },
   // ── Legal / Court ─────────────────────────────────────────────────────────
@@ -259,6 +264,11 @@ export const DOMAIN_RULES: DomainRule[] = [
         sourceId: "eur_lex",
         confidence: 0.85,
         reason: "EU regulatory claim — EUR-Lex is the primary source",
+      },
+      {
+        sourceId: "us_code" as SourceId,
+        confidence: 0.87,
+        reason: "US federal statutory law from OLRC US Code",
       },
     ],
   },
@@ -316,6 +326,11 @@ export const DOMAIN_RULES: DomainRule[] = [
         sourceId: "owid",
         confidence: 0.75,
         reason: "Our World in Data for long-run economic trends",
+      },
+      {
+        sourceId: "bis_statistics" as SourceId,
+        confidence: 0.80,
+        reason: "BIS statistics for banking and financial stability data",
       },
     ],
   },
