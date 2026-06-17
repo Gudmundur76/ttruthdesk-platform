@@ -1,8 +1,8 @@
 # CONTEXT_SNAPSHOT.md — Full Project State
 
-> **Generated:** 2026-06-16T01:21:30.580Z
-> **Branch:** main
-> **Last commit:** [33m6130a57[m fix: rate limiting, batched NCBI efetch, LRU cache, PDB protein extraction
+> **Generated:** 2026-06-17T11:53:42.355Z
+> **Branch:** sprint-36-coverage-push
+> **Last commit:** [33ma87ef30[m feat(sprint-35): social science adapters — Campbell, APA PsycArticles, SSRN + 3 new domain rules (58 total, 21 new tests)
 > **READ THIS FIRST** at the start of every session.
 
 ---
@@ -10,7 +10,6 @@
 ## 🎯 What This Project Is
 
 **Protein Truth Desk** — a scientific claim verification platform that:
-
 - Ingests research papers (PubMed, PMC, bioRxiv, manual upload)
 - Extracts protein/structural biology claims using LLM
 - Verifies claims against PDB (Protein Data Bank) and other evidence sources
@@ -34,12 +33,12 @@ _No session audit result found. Run `pnpm session:audit` to check._
 
 ⚠️ **HANDOFF.md exists** — previous session was incomplete. Read HANDOFF.md first.
 
+
 ---
 
 ## 🗄️ Database Schema
 
 **Tables (64 total):**
-
 - `users`
 - `documents`
 - `claims`
@@ -322,13 +321,13 @@ Scheduled endpoints in: `server/_core/index.ts` (search for `/api/scheduled/`)
 
 The platform has a 5-layer autonomous loop (`server/autonomousLoop/`):
 
-| Layer            | File                 | Purpose                                                                             |
-| ---------------- | -------------------- | ----------------------------------------------------------------------------------- |
-| L1 — Friction    | `frictionLayer.ts`   | Handles document_submitted, manual_review_complete                                  |
+| Layer | File | Purpose |
+|-------|------|---------|
+| L1 — Friction | `frictionLayer.ts` | Handles document_submitted, manual_review_complete |
 | L2 — Self-Prompt | `selfPromptLayer.ts` | LLM decides next action (drain_queue, reverify_stale, recalibrate_confidence, etc.) |
-| L3 — Frontier    | `frontierLayer.ts`   | Gap detection, hypothesis generation, evidence pursuit                              |
-| L3 — Truth       | `truthLayer.ts`      | PDB re-verification, source_data_changed, paper_discovered                          |
-| L4 — Meta        | `metaLayer.ts`       | Code guardian, pipeline guardian (7 invariants), alert routing                      |
+| L3 — Frontier | `frontierLayer.ts` | Gap detection, hypothesis generation, evidence pursuit |
+| L3 — Truth | `truthLayer.ts` | PDB re-verification, source_data_changed, paper_discovered |
+| L4 — Meta | `metaLayer.ts` | Code guardian, pipeline guardian (7 invariants), alert routing |
 
 Event bus: `server/autonomousLoop/eventBus.ts`
 Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
@@ -337,6 +336,8 @@ Orchestrator: `server/autonomousLoop/loopOrchestrator.ts`
 
 ## 🔧 Available Environment Variables
 
+
+
 Env config: `server/_core/env.ts`
 
 ---
@@ -344,36 +345,31 @@ Env config: `server/_core/env.ts`
 ## ✅ Quality Gates
 
 **TypeScript:**
-
 ```
 clean
 ```
 
 **Tests:**
-
 ```
-Start at  01:21:31
-   Duration  27.41s (transform 6.02s, setup 0ms, collect 32.17s, tests 36.91s, environment 60ms, prepare 21.56s)
+Start at  11:53:43
+   Duration  26.60s (transform 5.77s, setup 0ms, collect 30.33s, tests 35.65s, environment 57ms, prepare 21.15s)
 ```
 
 **Lint:**
-
 ```
 > protein-truth-desk@1.0.0 lint /home/ubuntu/ttruthdesk-platform
 > eslint . --ext .ts,.tsx --max-warnings 0
 ```
 
 **Coverage thresholds:**
-
 ```
-lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
-        branches: 48, // actual: 69.61% (branches well covered)
-        functions: 47, // Phase 124a: actual 47.98% — target 55% Phase 124b/125
-        statements: 35, // Phase 123: actual 35.01% — target 38% Phase 124
+lines: 58, // Sprint 36: actual 60.24% — floor at -2% buffer
+        branches: 71, // Sprint 36: actual 73.07% — floor at -2% buffer
+        functions: 71, // Sprint 36: actual 73.04% — floor at -2% buffer
+        statements: 58, // Sprint 36: actual 60.24% — floor at -2% buffer
 ```
 
 **Stubs:**
-
 ```
 unknown
 ```
@@ -383,22 +379,22 @@ unknown
 ## 📝 Recent Git History
 
 ```
-[33m6130a57[m fix: rate limiting, batched NCBI efetch, LRU cache, PDB protein extraction
-[33mfc868b6[m feat: agent orchestrator, NCBI adapter, Agent UI, biology query fix
-[33m34abf98[m feat(pipeline): add domainClassifier + domainRules, wire into questionRouter + verifyClaimRoute
-[33m3392071[m feat(sprint-25): questionDecomposer + parallel routing + Perplexity demo — 2800 tests passing
-[33m2e0565d[m fix(ci): replace console.log with console.info in run-ingest.ts — zero eslint warnings
-[33m934bd20[m fix(sprint-24): confidenceScore real value + PubMed relevance filter + AAIF discipline
-[33m82050e2[m feat(sprint-22b): wire verdict webhook to SLM data flywheel
-[33mb6c3c40[m fix(ingest): replace journal filters with MeSH terms for 10x PubMed yield
-[33mfbc2d37[m feat(sprint22): rss feed, imf adapter, fix verticalDomain ts error
-[33mf9a2a87[m docs(docs): OpenCitations export, AgentStack guide, Perplexity outreach
+[33ma87ef30[m feat(sprint-35): social science adapters — Campbell, APA PsycArticles, SSRN + 3 new domain rules (58 total, 21 new tests)
+[33m9ef9958[m feat(sprint-34): molecular biology adapters — AlphaFold, NIST Chemistry + domain rules (55 total, 16 new tests)
+[33mb9a1845[m feat(sprint-33): economics/law adapters — BIS Statistics, US Code + domain rules (53 total, 14 new tests)
+[33m59b2341[m feat(sprint-32): nutrition/food-safety adapters — USDA FoodData Central, CODEX Alimentarius + nutrition/food_safety domain rules (51 total, 14 new tests)
+[33m8dd2338[m ci: trigger CI verification run
+[33m96594f8[m ci: trigger CI verification run
+[33mb1dcef4[m ci: trigger CI verification run
+[33m85e890b[m fix(ci): fix economics and environmental_science route ordering
+[33mb6408a3[m fix(ci): fix economics and environmental_science route ordering
+[33mda8c906[m fix(ci): fix economics and environmental_science route ordering
 ```
 
 **Uncommitted changes:**
-
 ```
-[31mM[m CONTEXT_SNAPSHOT.md
+[32mA[m  server/verticalAdapters/sprint36.test.ts
+[32mM[m  vitest.config.ts
 ```
 
 ---

@@ -35,14 +35,15 @@ export default defineConfig({
       reportsDirectory: "./coverage",
       // Quality floor — CI fails if coverage drops below these thresholds.
       // Baseline (Jun 2026): lines 26.95%, branches 65%+, functions 36.64%, statements 26.95%.
-      // Raised +5% per phase. Current floor: Phase 89.
-      // Next target: lines 40%, functions 50% (add adapter + agent unit tests)
-      // Final target: lines 70%, functions 70% (full coverage)
+      // Sprint 36 (17 Jun 2026): sprints 32-35 merged (58 adapters, 2970 tests).
+      // Actuals post-Sprint 36: lines 60.24%, branches 73.07%, functions 73.04%, statements 60.24%.
+      // Thresholds set at actual - 2% buffer to enforce no regression.
+      // Final target: lines 70%, functions 70% (full coverage — Sprint 38+)
       thresholds: {
-        lines: 35, // Phase 123: actual 35.01% — target 38% Phase 124
-        branches: 48, // actual: 69.61% (branches well covered)
-        functions: 47, // Phase 124a: actual 47.98% — target 55% Phase 124b/125
-        statements: 35, // Phase 123: actual 35.01% — target 38% Phase 124
+        lines: 58, // Sprint 36: actual 60.24% — floor at -2% buffer
+        branches: 71, // Sprint 36: actual 73.07% — floor at -2% buffer
+        functions: 71, // Sprint 36: actual 73.04% — floor at -2% buffer
+        statements: 58, // Sprint 36: actual 60.24% — floor at -2% buffer
       },
     },
   },
