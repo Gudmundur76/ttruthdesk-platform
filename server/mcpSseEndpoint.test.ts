@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import express from "express";
 import http from "http";
 import type { AddressInfo } from "net";
+import { buildOrigin } from "./buildOrigin";
 
 // ── Minimal mocks so we can register the route without a real DB ─────────────
 vi.mock("./db", () => ({
@@ -55,10 +56,7 @@ function buildTestApp(): express.Express {
     });
     res.flushHeaders();
 
-    const origin =
-      ((req.headers["x-forwarded-proto"] as string | undefined)
-        ? `${req.headers["x-forwarded-proto"]}://${req.headers["host"]}`
-        : null) ?? SITE_ORIGIN;
+    const origin = buildOrigin(req, SITE_ORIGIN);
     res.write(`event: endpoint\ndata: ${origin}/mcp\n\n`);
 
     const heartbeat = setInterval(() => {

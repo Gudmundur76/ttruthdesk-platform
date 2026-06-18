@@ -61,6 +61,7 @@ import { detailedHealthHandler } from "../detailedHealthRoute";
 import { ingestionAlertHandler } from "../ingestionAlertJob";
 import { domainIngestJobHandler } from "../domainIngestScheduler";
 import { registerCitationSearchRoute } from "../citationSearchRoute";
+import { buildOrigin } from "../buildOrigin";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -724,10 +725,7 @@ async function startServer() {
     // containing the URI where the client should POST JSON-RPC requests.
     // Without this event, MCP clients (Claude, Cursor, Goose) never complete
     // the handshake and time out.
-    const origin =
-      ((req.headers["x-forwarded-proto"] as string | undefined)
-        ? `${req.headers["x-forwarded-proto"]}://${req.headers["host"]}`
-        : null) ?? SITE_ORIGIN;
+    const origin = buildOrigin(req, SITE_ORIGIN);
     res.write(`event: endpoint\ndata: ${origin}/mcp\n\n`);
 
     // Keep connection alive with heartbeat comments (not data events).
