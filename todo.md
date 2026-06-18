@@ -1666,3 +1666,77 @@
 - [x] Add listProposals with status filter test
 - [x] Full suite GREEN (2700/2700), TSC clean, ESLint clean
 - [x] Commit and push phase-132
+
+## Sprint 40 Restore (Phase 135 — 2026-06-18)
+
+- [x] Clone Gudmundur76/ttruthdesk-platform at commit 147a543
+- [x] Copy all production files into protein-truth-desk webdev project
+- [x] Verify all 6 Sprint 40 key files present
+- [x] Verify server/_core/env.ts has cronSecret field
+- [x] Verify server/_core/index.ts has requireCronOrAdmin + buildOrigin + Sprint 40 routes
+- [x] Verify drizzle/0049_sprint40_domain_aware_claims.sql present
+- [x] Install dependencies (pnpm install)
+- [x] Apply migration 0049 (claimType varchar64) via webdev_execute_sql
+- [x] Run pnpm check (TypeScript) — 0 errors
+- [x] Run pnpm lint (ESLint zero warnings) — 0 warnings
+- [x] Run pnpm test (all tests passing) — 3081 tests, 259 files
+- [x] Save webdev checkpoint with exact Sprint 40 description — version 35816161
+- [ ] Publish website via Manus API (website_id: 5R5rZPYgTj2s3EMJSc7MVm) — PENDING: MANUS_API_KEY not in sandbox env; use Publish button in Management UI
+- [x] Update manus-persistent-drive with Phase 135 log entry — pushed to dde1916
+
+## Sprint 41: PDB Direct Lookup Pipeline Fix
+**Goal:** Reduce `Insufficient Evidence` for structural biology claims by fixing the extraction-to-lookup pipeline so PDB accession codes and resolution values are reliably passed to the RCSB PDB Data API for deterministic verification.
+**Success criteria:** ≥400 claims move from `Insufficient Evidence` to `Supported` or `Contradicted`. PDB lookup hit rate ≥ 60% for claims containing a PDB ID.
+
+### Implementation tasks
+
+- [ ] Audit `claimExtractor.ts` — verify PDB accession regex captures all formats (4-char, 8-char extended, lowercase) and is passed through to `structuralBiology` adapter context
+- [ ] Fix `domainClaimExtractor.ts` — ensure `pdbIds`, `resolution`, `method`, `organism`, `ligands` fields are extracted into claim metadata and stored in `claims.confidenceFlags` JSON
+- [ ] Update `verticalAdapters/structuralBiology.ts` — add direct RCSB PDB Data API call (`https://data.rcsb.org/rest/v1/core/entry/{pdbId}`) for resolution, method, organism, release date; add RCSB Search API call for protein name lookup
+- [ ] Add deterministic verdict logic: if claim resolution matches PDB entry resolution within 0.05 Å → `Supported`; if contradicts → `Contradicted`; if PDB ID present but no match → `Insufficient Evidence` (not null)
+- [ ] Add `pdbLookupAdapter.ts` — standalone adapter that takes a PDB ID list and returns structured evidence objects (resolution, method, organism, ligands, depositionDate, title)
+- [ ] Wire `pdbLookupAdapter` into `runAnalysisPipeline` — called first before LLM-based adapters when PDB IDs are detected in the claim
+- [ ] Add Vitest tests for pdbLookupAdapter (mock RCSB API responses, test resolution match/mismatch/missing cases)
+- [ ] Run batch re-verify on all claims with `confidenceFlags` containing pdbIds — measure before/after `Insufficient Evidence` count
+- [ ] TypeScript clean, all tests passing
+- [ ] Save checkpoint + push to ttruthdesk-platform + update manus-persistent-drive (Phase 137)
+
+---
+
+## Sprint 42: UniProt + AlphaFold Protein Function Verification
+**Goal:** Enable deterministic verification of protein function claims (active site residues, domain architecture, binding partners, catalytic mechanisms) using UniProt REST API and AlphaFold confidence scores.
+**Success criteria:** ≥200 protein function claims move from `Insufficient Evidence` to `Supported` or `Contradicted`. UniProt lookup hit rate ≥ 70% for claims containing a protein name or UniProt accession.
+
+### Implementation tasks
+
+- [ ] Build `uniprotAdapter.ts` — queries UniProt REST API (`https://rest.uniprot.org/uniprotkb/search`) by protein name or accession; extracts active site annotations, domain features, catalytic residues, organism, gene name
+- [ ] Build `alphafoldAdapter.ts` — queries AlphaFold DB API (`https://alphafold.ebi.ac.uk/api/prediction/{uniprotAccession}`) for pLDDT confidence scores per residue; corroborates structural prediction claims
+- [ ] Extend `domainClaimExtractor.ts` — add extraction patterns for UniProt accession codes (P/Q/O prefix + 5 alphanumeric), protein family names, catalytic residue patterns (e.g. `Cys269`, `His353`)
+- [ ] Add deterministic verdict logic for UniProt: if claim residue matches UniProt active site annotation → `Supported`; if contradicts → `Contradicted`; if protein found but residue not annotated → `Ambiguous`
+- [ ] Add deterministic verdict logic for AlphaFold: if claim references predicted structure and pLDDT > 70 for claimed region → `Supported`; if pLDDT < 50 → `Ambiguous`
+- [ ] Wire both adapters into `runAnalysisPipeline` — called when `verticalDomain` is `structural_biology` or `salmon_biotech` and protein names are detected
+- [ ] Add Vitest tests for uniprotAdapter and alphafoldAdapter (mock API responses, test active site match/mismatch, pLDDT threshold logic)
+- [ ] Run batch re-verify on all protein function claims — measure before/after `Insufficient Evidence` count
+- [ ] TypeScript clean, all tests passing
+- [ ] Save checkpoint + push to ttruthdesk-platform + update manus-persistent-drive (Phase 138)
+
+---
+
+## Sprint 43: Source Paper Semantic Search Verification
+**Goal:** Verify claims against the source paper's own full text using semantic similarity — a claim extracted from paper X that appears in paper X's Methods/Results is `Supported` by definition. This is the highest-confidence verification path.
+**Success criteria:** ≥600 claims move from `Insufficient Evidence` to `Supported`. Source-paper match rate ≥ 50% for claims with a known PMID/PMCID.
+
+### Implementation tasks
+
+- [ ] Build `sourcePaperAdapter.ts` — given a claim and its source document's PMID/PMCID, fetches the paper's full text (PMC OA API), splits into sentences, computes cosine similarity between claim text and each sentence using the Manus built-in embedding API
+- [ ] Add embedding helper to `server/_core/llm.ts` — `embedText(text: string): Promise<number[]>` using the Manus built-in embeddings endpoint
+- [ ] Add `cosineSimilarity(a: number[], b: number[]): number` utility to `shared/utils.ts`
+- [ ] Deterministic verdict logic: if top-3 sentence similarity ≥ 0.85 → `Supported` with source passage; if 0.65–0.85 → `Ambiguous`; if < 0.65 → pass to other adapters
+- [ ] Store matched source passage in `claims.evidenceUrl` (as `pmcid:PMCID#sentence-N`) and in `claims.rationale` as quoted text
+- [ ] Wire `sourcePaperAdapter` as the first adapter called in `runAnalysisPipeline` when the claim has a known source document PMID — short-circuit if similarity ≥ 0.85
+- [ ] Add caching layer: store paper sentence embeddings in a new `paper_embeddings` table (pmcid, sentenceIndex, embedding JSON) to avoid re-fetching on re-verify
+- [ ] Add `paper_embeddings` table to `drizzle/schema.ts`, generate and apply migration 0050
+- [ ] Add Vitest tests for sourcePaperAdapter (mock PMC fetch, mock embeddings, test similarity threshold logic, test cache hit/miss)
+- [ ] Run batch re-verify on all claims with a known source PMID — measure before/after `Insufficient Evidence` count
+- [ ] TypeScript clean, all tests passing
+- [ ] Save checkpoint + push to ttruthdesk-platform + update manus-persistent-drive (Phase 139)
