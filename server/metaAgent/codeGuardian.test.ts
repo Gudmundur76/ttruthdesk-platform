@@ -120,6 +120,7 @@ function makePipelineReport(
     failCount: invariants.filter(i => i.status === "fail").length,
     warnCount: invariants.filter(i => i.status === "warn").length,
     checkedAt: new Date().toISOString(),
+    durationMs: 0,
   };
 }
 

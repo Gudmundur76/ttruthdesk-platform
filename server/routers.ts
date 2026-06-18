@@ -49,7 +49,6 @@ import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
 import { logger, errData } from "./logger";
 const log = logger("routers");
 
-
 // ─── EuropePMC helper (used by chat.query) ────────────────────────────────────
 const EUROPE_PMC_SEARCH =
   "https://www.ebi.ac.uk/europepmc/webservices/rest/search";
@@ -165,9 +164,7 @@ export const appRouter = router({
           await incrementEmailUserAuditCount(emailUserId).catch(() => {});
         }
         // Run pipeline async (fire and forget)
-        runAnalysisPipeline(docId, input.text, ctx.user.id).catch(
-          log.error
-        );
+        runAnalysisPipeline(docId, input.text, ctx.user.id).catch(log.error);
         // Publish to autonomous loop event bus (fire and forget)
         import("./autonomousLoop/eventBus")
           .then(({ publishEvent }) =>
@@ -229,9 +226,7 @@ export const appRouter = router({
           );
           await incrementEmailUserAuditCount(emailUserId).catch(() => {});
         }
-        runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(
-          log.error
-        );
+        runAnalysisPipeline(docId, input.rawText, ctx.user.id).catch(log.error);
         // Publish to autonomous loop event bus (fire and forget)
         import("./autonomousLoop/eventBus")
           .then(({ publishEvent }) =>
@@ -260,7 +255,7 @@ export const appRouter = router({
             .describe("PMID, DOI, or PubMed URL"),
         })
       )
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+      // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
       .mutation(async ({ input }) => {
         const raw = input.query.trim();
 
@@ -971,7 +966,7 @@ export const appRouter = router({
     // LLM-backed graph query: requires auth to prevent unauthenticated LLM abuse
     query: protectedProcedure
       .input(z.object({ question: z.string().min(3).max(500) }))
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+      // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
       .mutation(async ({ input }) => {
         // Step 1: Fetch graph context
         const [entities, relations, contradictions] = await Promise.all([
@@ -1616,6 +1611,7 @@ Respond in this exact structure:
      * Run the meta-agent (codeGuardianAgent) on demand and return the full report.
      * Includes code health score, drift findings, stub ledger, and pipeline invariants.
      */
+    // eslint-disable-next-line complexity
     metaAgentStatus: protectedProcedure.mutation(async ({ ctx }) => {
       const { ENV } = await import("./_core/env");
       if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
@@ -1636,58 +1632,64 @@ Respond in this exact structure:
         completedAt: report.completedAt,
         timedOut: report.timedOut,
         faultedLayers: report.faultedLayers,
-        drift: report.codeDrift ? {
-          schema: {
-            status: report.codeDrift.schemaDrift?.severity ?? "info",
-            summary: report.codeDrift.schemaDrift?.summary ?? "",
-          },
-          api: {
-            status: report.codeDrift.apiDrift?.severity ?? "info",
-            summary: report.codeDrift.apiDrift?.summary ?? "",
-          },
-          test: {
-            status: report.codeDrift.testDrift?.severity ?? "info",
-            summary: report.codeDrift.testDrift?.summary ?? "",
-          },
-          dependency: {
-            status: report.codeDrift.dependencyDrift?.severity ?? "info",
-            summary: report.codeDrift.dependencyDrift?.summary ?? "",
-          },
-          config: {
-            status: report.codeDrift.configDrift?.severity ?? "info",
-            summary: report.codeDrift.configDrift?.summary ?? "",
-          },
-          discipline: {
-            status: report.codeDrift.disciplineDrift?.severity ?? "info",
-            summary: report.codeDrift.disciplineDrift?.summary ?? "",
-          },
-        } : null,
-        stubs: report.stubLedger ? {
-          total: report.stubLedger.total,
-          overdue: report.stubLedger.overdue,
-          byPriority: report.stubLedger.byPriority,
-          overdueEscalations: report.overdueEscalations.map(e => ({
-            id: e.stub.id,
-            file: e.stub.file,
-            line: e.stub.line,
-            priority: e.stub.priority,
-            daysOverdue: e.stub.daysOverdue,
-            escalationReason: e.escalationReason,
-            suggestedAction: e.suggestedAction,
-          })),
-        } : null,
-        pipeline: report.pipelineGuardian ? {
-          overallStatus: report.pipelineGuardian.overallStatus,
-          failCount: report.pipelineGuardian.failCount,
-          warnCount: report.pipelineGuardian.warnCount,
-          invariants: report.pipelineGuardian.invariants.map(inv => ({
-            name: inv.name,
-            status: inv.status,
-            threshold: inv.threshold,
-            actual: inv.actual,
-            severity: inv.severity,
-          })),
-        } : null,
+        drift: report.codeDrift
+          ? {
+              schema: {
+                status: report.codeDrift.schemaDrift?.severity ?? "info",
+                summary: report.codeDrift.schemaDrift?.summary ?? "",
+              },
+              api: {
+                status: report.codeDrift.apiDrift?.severity ?? "info",
+                summary: report.codeDrift.apiDrift?.summary ?? "",
+              },
+              test: {
+                status: report.codeDrift.testDrift?.severity ?? "info",
+                summary: report.codeDrift.testDrift?.summary ?? "",
+              },
+              dependency: {
+                status: report.codeDrift.dependencyDrift?.severity ?? "info",
+                summary: report.codeDrift.dependencyDrift?.summary ?? "",
+              },
+              config: {
+                status: report.codeDrift.configDrift?.severity ?? "info",
+                summary: report.codeDrift.configDrift?.summary ?? "",
+              },
+              discipline: {
+                status: report.codeDrift.disciplineDrift?.severity ?? "info",
+                summary: report.codeDrift.disciplineDrift?.summary ?? "",
+              },
+            }
+          : null,
+        stubs: report.stubLedger
+          ? {
+              total: report.stubLedger.total,
+              overdue: report.stubLedger.overdue,
+              byPriority: report.stubLedger.byPriority,
+              overdueEscalations: report.overdueEscalations.map(e => ({
+                id: e.stub.id,
+                file: e.stub.file,
+                line: e.stub.line,
+                priority: e.stub.priority,
+                daysOverdue: e.stub.daysOverdue,
+                escalationReason: e.escalationReason,
+                suggestedAction: e.suggestedAction,
+              })),
+            }
+          : null,
+        pipeline: report.pipelineGuardian
+          ? {
+              overallStatus: report.pipelineGuardian.overallStatus,
+              failCount: report.pipelineGuardian.failCount,
+              warnCount: report.pipelineGuardian.warnCount,
+              invariants: report.pipelineGuardian.invariants.map(inv => ({
+                name: inv.name,
+                status: inv.status,
+                threshold: inv.threshold,
+                actual: inv.actual,
+                severity: inv.severity,
+              })),
+            }
+          : null,
       };
     }),
 
@@ -2893,7 +2895,7 @@ Respond in this exact structure:
           documentIdB: z.number(),
         })
       )
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+      // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
       .query(async ({ ctx, input }) => {
         const [docA, docB] = await Promise.all([
           getDocumentById(input.documentIdA),
@@ -3476,27 +3478,35 @@ Respond in this exact structure:
         const { getApiKeyUsage } = await import("./apiKeyService");
         const usage = await getApiKeyUsage(input.keyId, ctx.user.id);
         if (!usage)
-          throw new TRPCError({ code: "NOT_FOUND", message: "API key not found or not owned by you" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "API key not found or not owned by you",
+          });
         return usage;
       }),
 
     /** Admin-only: list all API keys across all users with usage stats */
-    listAll: protectedProcedure.use(({ ctx, next }) => {
-      if (ctx.user.role !== "admin")
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-      return next({ ctx });
-    }).query(async () => {
-      const { getDb } = await import("./db");
-      const { apiKeys } = await import("../drizzle/schema");
-      const { isNull } = await import("drizzle-orm");
-      const db = await getDb();
-      if (!db) return [];
-      return db
-        .select()
-        .from(apiKeys)
-        .where(isNull(apiKeys.revokedAt))
-        .orderBy(apiKeys.createdAt);
-    }),
+    listAll: protectedProcedure
+      .use(({ ctx, next }) => {
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Admin access required",
+          });
+        return next({ ctx });
+      })
+      .query(async () => {
+        const { getDb } = await import("./db");
+        const { apiKeys } = await import("../drizzle/schema");
+        const { isNull } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return [];
+        return db
+          .select()
+          .from(apiKeys)
+          .where(isNull(apiKeys.revokedAt))
+          .orderBy(apiKeys.createdAt);
+      }),
   }),
 
   // ─── Confidence Trend ───────────────────────────────────────────────────────────────────────

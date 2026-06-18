@@ -1,16 +1,22 @@
 /**
  * stages.ts — Pipeline stages 0-5 for PRD-L1 Phases 1-4.
  */
-import type { StageFn, StageResult } from "./stageRegistry";
+import type { StageFn } from "./stageRegistry";
 
 // ── Stage 0: DraftGuard ───────────────────────────────────────────────────────
 /**
  * DraftGuard: Skip documents that are not yet complete/verified.
  * Fatal stage — aborts the pipeline for draft/pending documents.
  */
-export const draftGuardStage: StageFn = async (ctx) => {
-  if (ctx.documentStatus !== "complete" && ctx.documentStatus !== "generating_report") {
-    return { outcome: "SKIP", reason: `Document status is "${ctx.documentStatus}" — not ready for pipeline` };
+export const draftGuardStage: StageFn = async ctx => {
+  if (
+    ctx.documentStatus !== "complete" &&
+    ctx.documentStatus !== "generating_report"
+  ) {
+    return {
+      outcome: "SKIP",
+      reason: `Document status is "${ctx.documentStatus}" — not ready for pipeline`,
+    };
   }
   return { outcome: "PASS" };
 };
@@ -20,7 +26,7 @@ export const draftGuardStage: StageFn = async (ctx) => {
  * ClaimExtraction: Extract claims from the document.
  * Delegates to the existing claimExtractor module.
  */
-export const claimExtractionStage: StageFn = async (ctx) => {
+export const claimExtractionStage: StageFn = async ctx => {
   try {
     const { getClaimsByDocument } = await import("../db");
     const claims = await getClaimsByDocument(ctx.documentId);
@@ -30,7 +36,10 @@ export const claimExtractionStage: StageFn = async (ctx) => {
       reason: `Extracted ${claims.length} claims`,
     };
   } catch (err) {
-    return { outcome: "FAIL", reason: `ClaimExtraction failed: ${String(err)}` };
+    return {
+      outcome: "FAIL",
+      reason: `ClaimExtraction failed: ${String(err)}`,
+    };
   }
 };
 
@@ -38,8 +47,12 @@ export const claimExtractionStage: StageFn = async (ctx) => {
 /**
  * PassageExtraction: Extract source passages for each claim.
  */
-export const passageExtractionStage: StageFn = async (ctx) => {
-  const claims = (ctx.extractedClaims as Array<{ id: number; sourcePassage?: string | null }>) ?? [];
+export const passageExtractionStage: StageFn = async ctx => {
+  const claims =
+    (ctx.extractedClaims as Array<{
+      id: number;
+      sourcePassage?: string | null;
+    }>) ?? [];
   const withPassages = claims.filter(c => c.sourcePassage);
   return {
     outcome: "PASS",
@@ -52,17 +65,23 @@ export const passageExtractionStage: StageFn = async (ctx) => {
 /**
  * MisrepresentationClassifier: Classify misrepresentation type for contradicted claims.
  */
-export const misrepresentationClassifierStage: StageFn = async (ctx) => {
-  const claims = (ctx.extractedClaims as Array<{ verdict?: string; misrepresentationType?: string }>) ?? [];
-  const contradicted = claims.filter(c =>
-    c.verdict === "Contradicted" || c.verdict === "Partially Supported"
+export const misrepresentationClassifierStage: StageFn = async ctx => {
+  const claims =
+    (ctx.extractedClaims as Array<{
+      verdict?: string;
+      misrepresentationType?: string;
+    }>) ?? [];
+  const contradicted = claims.filter(
+    c => c.verdict === "Contradicted" || c.verdict === "Partially Supported"
   );
-  const classified = contradicted.filter(c =>
-    c.misrepresentationType && c.misrepresentationType !== "unknown"
+  const classified = contradicted.filter(
+    c => c.misrepresentationType && c.misrepresentationType !== "unknown"
   );
   return {
     outcome: "PASS",
-    data: { misrepresentationType: classified.length > 0 ? "classified" : "pending" },
+    data: {
+      misrepresentationType: classified.length > 0 ? "classified" : "pending",
+    },
     reason: `${classified.length}/${contradicted.length} contradicted claims classified`,
   };
 };
@@ -71,14 +90,16 @@ export const misrepresentationClassifierStage: StageFn = async (ctx) => {
 /**
  * AdapterRouter: Route claims to the appropriate vertical adapter for verification.
  */
-export const adapterRouterStage: StageFn = async (ctx) => {
+export const adapterRouterStage: StageFn = async ctx => {
   try {
     const { getClaimsByDocument } = await import("../db");
     const claims = await getClaimsByDocument(ctx.documentId);
     const unverified = claims.filter(c => !c.verdict);
     return {
       outcome: "PASS",
-      data: { adapterResult: { total: claims.length, unverified: unverified.length } },
+      data: {
+        adapterResult: { total: claims.length, unverified: unverified.length },
+      },
       reason: `${unverified.length} claims pending adapter verification`,
     };
   } catch (err) {
@@ -90,7 +111,7 @@ export const adapterRouterStage: StageFn = async (ctx) => {
 /**
  * VerdictAggregator: Aggregate verdicts across all claims for the document.
  */
-export const verdictAggregatorStage: StageFn = async (ctx) => {
+export const verdictAggregatorStage: StageFn = async ctx => {
   const claims = (ctx.extractedClaims as Array<{ verdict?: string }>) ?? [];
   const verdictCounts: Record<string, number> = {};
   for (const claim of claims) {

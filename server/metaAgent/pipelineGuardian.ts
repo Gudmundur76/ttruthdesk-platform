@@ -370,23 +370,29 @@ export async function runPipelineGuardian(): Promise<PipelineGuardianReport> {
   const startMs = Date.now();
 
   // 15-second overall timeout — returns unavailable state if exceeded
-  const timeoutPromise = new Promise<PipelineGuardianReport>((resolve) =>
-    setTimeout(() => resolve({
-      invariants: [],
-      overallStatus: "unavailable",
-      failCount: 0,
-      warnCount: 0,
-      checkedAt: new Date().toISOString(),
-      durationMs: GUARDIAN_TIMEOUT_MS,
-    }), GUARDIAN_TIMEOUT_MS)
+  const timeoutPromise = new Promise<PipelineGuardianReport>(resolve =>
+    setTimeout(
+      () =>
+        resolve({
+          invariants: [],
+          overallStatus: "unavailable",
+          failCount: 0,
+          warnCount: 0,
+          checkedAt: new Date().toISOString(),
+          durationMs: GUARDIAN_TIMEOUT_MS,
+        }),
+      GUARDIAN_TIMEOUT_MS
+    )
   );
 
   const runPromise = (async (): Promise<PipelineGuardianReport> => {
     const db = await getDb();
     if (!db) {
+      // DB unavailable is treated as a hard failure — the pipeline cannot be
+      // verified without database access. PRD-L4: overallStatus must be "fail".
       const errorResult: InvariantResult = {
         name: "dbConnection",
-        status: "unavailable",
+        status: "fail",
         threshold: "DB must be available",
         actual: "DB connection failed",
         details: {},
@@ -394,8 +400,8 @@ export async function runPipelineGuardian(): Promise<PipelineGuardianReport> {
       };
       return {
         invariants: [errorResult],
-        overallStatus: "unavailable",
-        failCount: 0,
+        overallStatus: "fail",
+        failCount: 1,
         warnCount: 0,
         checkedAt: new Date().toISOString(),
         durationMs: Date.now() - startMs,

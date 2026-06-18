@@ -73,11 +73,14 @@ function expectReport(r: PipelineGuardianReport) {
 
 // ─── DB unavailable ───────────────────────────────────────────────────────────
 describe("pipelineGuardian — DB unavailable", () => {
-  it("returns unavailable report when DB is null", async () => {
+  it("returns fail report when DB is null (PRD-L4: DB unavailable = hard failure)", async () => {
     mockGetDb.mockResolvedValue(null);
     const r = await runPipelineGuardian();
     expectReport(r);
-    expect(r.overallStatus).toBe("unavailable");
+    // PRD-L4 spec: DB unavailable is a hard failure, not a soft 'unavailable' state.
+    // The pipeline cannot be verified without DB access, so overallStatus must be "fail".
+    expect(r.overallStatus).toBe("fail");
+    expect(r.failCount).toBe(1);
   });
 });
 
@@ -126,11 +129,12 @@ describe("pipelineGuardian — report structure", () => {
     expect(r.warnCount).toBe(actualWarns);
   });
 
-  it("overallStatus is unavailable when DB is null", async () => {
+  it("overallStatus is fail when DB is null (PRD-L4: DB unavailable = hard failure)", async () => {
     mockGetDb.mockResolvedValue(null);
     const r = await runPipelineGuardian();
-    expect(r.overallStatus).toBe("unavailable");
-    expect(r.failCount).toBe(0);
+    // PRD-L4 spec: DB unavailable is a hard failure, not a soft 'unavailable' state.
+    expect(r.overallStatus).toBe("fail");
+    expect(r.failCount).toBe(1);
   });
 });
 
