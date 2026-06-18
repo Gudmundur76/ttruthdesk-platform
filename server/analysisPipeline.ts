@@ -24,6 +24,10 @@ import {
   type VerdictResult,
   fetchPdbEntry,
 } from "./pdbAdapter";
+import {
+  verifyResolutionByProteinSearch,
+  verifyProteinNameBySearch,
+} from "./pdbLookupAdapter";
 import { getVertical } from "./verticalAdapters/types";
 import type { EvidenceResult } from "./verticalAdapters/types";
 import {
@@ -180,6 +184,81 @@ export async function runAnalysisPipeline(
               evidenceUrl: pdbResult.entry?.url ?? null,
               evidenceRaw: pdbResult.entry,
             };
+          } else if (
+            claim.claimType === "resolution" &&
+            !claim.pdbId &&
+            claim.resolution != null
+          ) {
+            // ── Sprint 41: Resolution claim with no PDB ID — search by protein name ──
+            const lookupResult = await verifyResolutionByProteinSearch({
+              claimText: claim.claimText,
+              proteinName: claim.proteinName ?? undefined,
+              resolution: claim.resolution,
+            });
+            result = lookupResult ?? {
+              verdict: "Insufficient Evidence",
+              rationale: "No protein name extractable for resolution lookup.",
+              evidenceUrl: null,
+              evidenceRaw: null,
+            };
+            decision = {
+              verdict: result.verdict,
+              rationale: result.rationale,
+              method: "deterministic_source",
+              decisionConfidence: 0.85,
+              sourceCompletenessScore: 0.9,
+            };
+          } else if (
+            (claim.claimType === "general_molecular" ||
+              claim.claimType === "protein_name") &&
+            !claim.pdbId
+          ) {
+            // ── Sprint 41: Route general_molecular / protein_name through structuralBiology adapter ──
+            const sbAdapter = getVertical("structural_biology");
+            if (sbAdapter) {
+              const evidence = await sbAdapter.lookupEvidence({
+                claimText: claim.claimText,
+                extractedValue: claim.extractedValue ?? claim.proteinName ?? null,
+              });
+              const completeness = checkAdapterCompleteness({
+                found: evidence.found,
+                confidenceScore: evidence.confidenceScore,
+                confidenceFlags: evidence.confidenceFlags,
+                sourceId: evidence.sourceId,
+                sourceUrl: evidence.sourceUrl,
+              });
+              decision = classifyByConfidence(
+                evidence.confidenceScore,
+                completeness,
+                evidence.sourceId,
+                evidence.confidenceFlags
+              );
+              result = {
+                verdict: decision.verdict,
+                rationale: decision.rationale,
+                evidenceUrl: evidence.sourceUrl,
+                evidenceRaw: evidence.evidenceRaw as never,
+              };
+            } else {
+              // structuralBiology adapter not registered — try protein name search
+              const nameResult = await verifyProteinNameBySearch({
+                claimText: claim.claimText,
+                proteinName: claim.proteinName ?? undefined,
+              });
+              result = nameResult ?? {
+                verdict: "Insufficient Evidence",
+                rationale: "No structural biology adapter available and protein name not found in PDB.",
+                evidenceUrl: null,
+                evidenceRaw: null,
+              };
+              decision = {
+                verdict: result.verdict,
+                rationale: result.rationale,
+                method: "deterministic_source",
+                decisionConfidence: 0.75,
+                sourceCompletenessScore: 0.8,
+              };
+            }
           } else {
             // Fall back to PDB adapter for other claim types
             result = await verdictForClaim({
