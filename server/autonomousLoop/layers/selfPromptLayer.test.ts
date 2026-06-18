@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   mockRunSelfPromptCycle: vi.fn(),
   mockPublishEvent: vi.fn(),
   mockAppendLog: vi.fn(),
+  mockRunFrontierEngine: vi.fn(),
+  mockRunInversePromptEngine: vi.fn(),
 }));
 
 vi.mock("../../selfPrompt/engine", () => ({
@@ -19,6 +21,14 @@ vi.mock("../eventBus", () => ({
 vi.mock("../../wikiEngine", () => ({
   appendLog: mocks.mockAppendLog,
 }));
+// These are dynamically imported inside handleInsufficientEvidence — must be
+// mocked at module level so vi.mock hoisting intercepts the dynamic import.
+vi.mock("../../frontier/frontierEngine", () => ({
+  runFrontierEngine: mocks.mockRunFrontierEngine,
+}));
+vi.mock("../../inversePrompt/inversePromptEngine", () => ({
+  runInversePromptEngine: mocks.mockRunInversePromptEngine,
+}));
 
 describe("runSelfPromptLayer()", () => {
   beforeEach(() => {
@@ -27,6 +37,14 @@ describe("runSelfPromptLayer()", () => {
     mocks.mockRunSelfPromptCycle.mockResolvedValue({ actionsExecuted: 2, nextState: "idle" });
     mocks.mockPublishEvent.mockResolvedValue(undefined);
     mocks.mockAppendLog.mockResolvedValue(undefined);
+    mocks.mockRunFrontierEngine.mockResolvedValue({
+      gapMapping: { total: 0, newGaps: 0, closedGaps: 0 },
+      actionsExecuted: 0,
+    });
+    mocks.mockRunInversePromptEngine.mockResolvedValue({
+      candidatesGenerated: 0,
+      passedGate: 0,
+    });
   });
 
   it("handles verdict_complete Supported — returns wiki_update action", async () => {

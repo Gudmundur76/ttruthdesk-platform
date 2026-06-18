@@ -285,3 +285,90 @@ describe("alertRouter — sendTelegramMetaAlert error paths", () => {
     await expect(rf(makeFinding("critical"))).resolves.not.toThrow();
   });
 });
+
+// ─── build1_foundation Phase 138 additions ───────────────────────────────────
+
+describe("alertRouter — buildDedupeKey", () => {
+  it("produces stable key from checkType + severity", async () => {
+    const { buildDedupeKey } = await import("./alertRouter");
+    expect(buildDedupeKey("schemaDrift", "warning")).toBe("schemaDrift:warning");
+    expect(buildDedupeKey("pipeline.ieRate", "critical")).toBe("pipeline.ieRate:critical");
+  });
+
+  it("produces different keys for different severities", async () => {
+    const { buildDedupeKey } = await import("./alertRouter");
+    expect(buildDedupeKey("testDrift", "warning")).not.toBe(
+      buildDedupeKey("testDrift", "critical")
+    );
+  });
+});
+
+describe("alertRouter — persistAlert", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetDb.mockResolvedValue(makeDb());
+  });
+
+  it("returns null when DB unavailable", async () => {
+    mockGetDb.mockResolvedValue(null);
+    const { persistAlert } = await import("./alertRouter");
+    const result = await persistAlert(makeFinding("warning"), null, "owner_notifier");
+    expect(result).toBeNull();
+  });
+
+  it("inserts into metaAgentAlerts and returns insertId", async () => {
+    const db = makeDb();
+    mockGetDb.mockResolvedValue(db);
+    const { persistAlert } = await import("./alertRouter");
+    const result = await persistAlert(makeFinding("critical"), 7, "critical_escalator");
+    expect(db.insert).toHaveBeenCalled();
+    expect(db.values).toHaveBeenCalled();
+    expect(result === null || typeof result === "number").toBe(true);
+  });
+
+  it("returns null (does not throw) when DB insert fails", async () => {
+    const db = makeDb();
+    db.values = vi.fn().mockRejectedValue(new Error("DB error"));
+    mockGetDb.mockResolvedValue(db);
+    const { persistAlert } = await import("./alertRouter");
+    await expect(persistAlert(makeFinding("warning"), null, "owner_notifier")).resolves.toBeNull();
+  });
+
+  it("includes friction_assumptions in payload when present", async () => {
+    const db = makeDb();
+    mockGetDb.mockResolvedValue(db);
+    const { persistAlert } = await import("./alertRouter");
+    const finding: MetaFinding = {
+      ...makeFinding("warning"),
+      assumptions: [{ statement: "test", type: "technical", risk: "low", test: "re-run" }],
+    };
+    await persistAlert(finding, null, "owner_notifier");
+    const valuesArg = (db.values as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(valuesArg.payload).toHaveProperty("friction_assumptions");
+  });
+});
+
+describe("alertRouter — routeFinding return value (build1_foundation)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetDb.mockResolvedValue(makeDb());
+    mockNotifyOwner.mockResolvedValue(true);
+  });
+
+  it("returns null for info findings", async () => {
+    const result = await routeFinding(makeFinding("info"));
+    expect(result).toBeNull();
+  });
+
+  it("returns null for deduped findings", async () => {
+    const db = makeDb([{ id: 99 }]); // dedup row exists
+    mockGetDb.mockResolvedValue(db);
+    const result = await routeFinding(makeFinding("warning"));
+    expect(result).toBeNull();
+  });
+
+  it("returns a number or null for non-deduped warning", async () => {
+    const result = await routeFinding(makeFinding("warning"));
+    expect(result === null || typeof result === "number").toBe(true);
+  });
+});

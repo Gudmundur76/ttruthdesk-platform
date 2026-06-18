@@ -330,6 +330,13 @@
       "when": 1781447923178,
       "tag": "0046_sprint1_sprint2_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1781812274125,
+      "tag": "0047_serious_preak",
+      "breakpoints": true
     }
   ]
 }

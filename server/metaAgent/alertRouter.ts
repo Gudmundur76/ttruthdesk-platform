@@ -8,10 +8,18 @@
  *
  * Deduplicates alerts within a 24-hour window so the same finding
  * doesn't spam the owner on every swarm tick.
+ *
+ * build1_foundation Phase 138 upgrades:
+ *   - Deduplication now uses meta_agent_alerts.dedupeKey (deterministic hash)
+ *     instead of querying metaAgentChecks. This gives a stable, auditable
+ *     dedup trail that survives schema changes to meta_agent_checks.
+ *   - persistAlert() writes to meta_agent_alerts (new table) in addition to
+ *     metaAgentChecks (legacy table, kept for backward compat).
+ *   - routeFinding() returns the meta_agent_alerts.id for telemetry wiring.
  */
 
 import { getDb } from "../db";
-import { metaAgentChecks } from "../../drizzle/schema";
+import { metaAgentChecks, metaAgentAlerts } from "../../drizzle/schema";
 import { notifyOwner } from "../_core/notification";
 import { ENV } from "../_core/env";
 import type { DriftFinding } from "./codeDriftService";
@@ -51,34 +59,63 @@ export interface MetaFinding {
 const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
- * Returns true if this checkType + severity combo was already persisted
- * within the dedup window (so we don't re-alert).
+ * Build a deterministic deduplication key for a finding.
+ * Format: "checkType:severity" — stable across restarts.
+ */
+export function buildDedupeKey(checkType: string, severity: AlertSeverity): string {
+  return `${checkType}:${severity}`;
+}
+
+/**
+ * Returns true if this dedupeKey was already dispatched within the dedup window.
+ * Uses meta_agent_alerts.dedupeKey for a stable, auditable dedup trail.
  */
 async function isRecentlyAlerted(checkType: string, severity: AlertSeverity): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
+  const dedupeKey = buildDedupeKey(checkType, severity);
   const cutoff = new Date(Date.now() - DEDUP_WINDOW_MS);
   try {
     const recent = await db
-      .select({ id: metaAgentChecks.id })
-      .from(metaAgentChecks)
+      .select({ id: metaAgentAlerts.id })
+      .from(metaAgentAlerts)
       .where(
         and(
-          eq(metaAgentChecks.checkType, checkType),
-          eq(metaAgentChecks.severity, severity),
-          eq(metaAgentChecks.actionTaken, "alerted"),
-          gt(metaAgentChecks.createdAt, cutoff)
+          eq(metaAgentAlerts.dedupeKey, dedupeKey),
+          gt(metaAgentAlerts.dispatchedAt, cutoff)
         )
       )
       .limit(1);
     return recent.length > 0;
   } catch {
-    return false;
+    // Fall back to legacy metaAgentChecks query if meta_agent_alerts is unavailable
+    try {
+      const cutoffLegacy = new Date(Date.now() - DEDUP_WINDOW_MS);
+      const recent = await db
+        .select({ id: metaAgentChecks.id })
+        .from(metaAgentChecks)
+        .where(
+          and(
+            eq(metaAgentChecks.checkType, checkType),
+            eq(metaAgentChecks.severity, severity),
+            eq(metaAgentChecks.actionTaken, "alerted"),
+            gt(metaAgentChecks.createdAt, cutoffLegacy)
+          )
+        )
+        .limit(1);
+      return recent.length > 0;
+    } catch {
+      return false;
+    }
   }
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
+/**
+ * Persist a finding to the legacy meta_agent_checks table.
+ * Kept for backward compatibility with existing dashboards and queries.
+ */
 export async function persistFinding(finding: MetaFinding): Promise<number | null> {
   const db = await getDb();
   if (!db) return null;
@@ -99,6 +136,42 @@ export async function persistFinding(finding: MetaFinding): Promise<number | nul
     return (result as unknown as { insertId: number }).insertId ?? null;
   } catch (err) {
     log.error("[MetaAgent] Failed to persist finding:", errData(err));
+    return null;
+  }
+}
+
+/**
+ * Persist an alert to the new meta_agent_alerts table (build1_foundation).
+ * Returns the inserted alert ID, or null on failure.
+ */
+export async function persistAlert(
+  finding: MetaFinding,
+  checkId: number | null,
+  handlerName: string
+): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const dedupeKey = buildDedupeKey(finding.checkType, finding.severity);
+  try {
+    const enrichedPayload: Record<string, unknown> = {
+      summary: finding.summary,
+      confidence: finding.confidence,
+      actionTaken: finding.actionTaken ?? "ok",
+      ...finding.details,
+      ...(finding.assumptions ? { friction_assumptions: finding.assumptions } : {}),
+      ...(finding.recommended_action ? { friction_recommended_action: finding.recommended_action } : {}),
+    };
+    const result = await db.insert(metaAgentAlerts).values({
+      checkId: checkId ?? undefined,
+      severity: finding.severity,
+      handlerName,
+      payload: enrichedPayload,
+      dedupeKey,
+      acknowledged: false,
+    });
+    return (result as unknown as { insertId: number }).insertId ?? null;
+  } catch (err) {
+    log.error("[MetaAgent] Failed to persist alert:", errData(err));
     return null;
   }
 }
@@ -140,38 +213,43 @@ async function sendTelegramMetaAlert(finding: MetaFinding): Promise<void> {
 // ─── Main Router ──────────────────────────────────────────────────────────────
 
 /**
- * Routes a single finding: persists it, then dispatches notifications
- * according to severity and deduplication rules.
+ * Routes a single finding: persists it to both tables, then dispatches
+ * notifications according to severity and deduplication rules.
+ *
+ * @returns The meta_agent_alerts.id of the persisted alert, or null if deduped/info.
  */
-export async function routeFinding(finding: MetaFinding): Promise<void> {
+export async function routeFinding(finding: MetaFinding): Promise<number | null> {
   const { checkType, severity, summary } = finding;
 
   if (severity === "info") {
     log.info(`[MetaAgent] ℹ️  [${checkType}] ${summary}`);
-    await persistFinding({ ...finding, actionTaken: "ok" });
-    return;
+    const checkId = await persistFinding({ ...finding, actionTaken: "ok" });
+    await persistAlert({ ...finding, actionTaken: "ok" }, checkId, "info_logger");
+    return null;
   }
 
   const alreadyAlerted = await isRecentlyAlerted(checkType, severity);
   if (alreadyAlerted) {
     log.info(`[MetaAgent] ⏭️  [${checkType}] Deduped — already alerted within 24h`);
-    return;
+    return null;
   }
 
   if (severity === "warning") {
     log.warn(`[MetaAgent] ⚠️  [${checkType}] ${summary}`);
-    await persistFinding({ ...finding, actionTaken: "alerted" });
+    const checkId = await persistFinding({ ...finding, actionTaken: "alerted" });
+    const alertId = await persistAlert({ ...finding, actionTaken: "alerted" }, checkId, "owner_notifier");
     // Owner notification (non-blocking)
     notifyOwner({
       title: `⚠️ Meta-Agent Warning: ${checkType}`,
       content: summary,
     }).catch(() => { /* non-fatal */ });
-    return;
+    return alertId;
   }
 
   if (severity === "critical") {
     log.error(`[MetaAgent] 🚨 [${checkType}] ${summary}`);
-    await persistFinding({ ...finding, actionTaken: "escalated" });
+    const checkId = await persistFinding({ ...finding, actionTaken: "escalated" });
+    const alertId = await persistAlert({ ...finding, actionTaken: "escalated" }, checkId, "critical_escalator");
     // Immediate owner notification
     await notifyOwner({
       title: `🚨 Meta-Agent Critical: ${checkType}`,
@@ -179,17 +257,23 @@ export async function routeFinding(finding: MetaFinding): Promise<void> {
     }).catch(() => { /* non-fatal */ });
     // Telegram for critical
     await sendTelegramMetaAlert(finding);
+    return alertId;
   }
+
+  return null;
 }
 
 /**
  * Routes a batch of findings, respecting deduplication per finding.
+ * Returns an array of alert IDs (null for deduped/info findings).
  */
-export async function routeFindings(findings: MetaFinding[]): Promise<void> {
+export async function routeFindings(findings: MetaFinding[]): Promise<(number | null)[]> {
   // Process sequentially to avoid hammering the notification API
+  const results: (number | null)[] = [];
   for (const finding of findings) {
-    await routeFinding(finding);
+    results.push(await routeFinding(finding));
   }
+  return results;
 }
 
 // ─── Converters ───────────────────────────────────────────────────────────────

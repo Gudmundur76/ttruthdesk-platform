@@ -2504,3 +2504,114 @@ export const pricingLeads = mysqlTable(
 export type PricingLead = typeof pricingLeads.$inferSelect;
 export type InsertPricingLead = typeof pricingLeads.$inferInsert;
 
+
+// ─── build1_foundation: Unified Orchestration Tables (Phase 138) ──────────────
+
+/**
+ * layer_telemetry — unified telemetry plane for all 6 autonomous loop layers.
+ * Every layer handler emits start/end telemetry on each loop iteration.
+ * Enables cross-layer dashboards and degradation detection.
+ */
+export const layerTelemetry = mysqlTable(
+  "layer_telemetry",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    layer: mysqlEnum("layer", [
+      "L0_FRICTION",
+      "L1_TRUTH",
+      "L2_SELF_PROMPT",
+      "L3_FRONTIER",
+      "L4_META",
+      "L5_DREAM",
+      "ORCHESTRATOR",
+    ]).notNull(),
+    eventType: mysqlEnum("eventType", ["start", "end", "error"]).notNull(),
+    eventQueueId: int("eventQueueId"),
+    correlationId: varchar("correlationId", { length: 36 }),
+    durationMs: int("durationMs"),
+    success: boolean("success").notNull().default(true),
+    errorCode: varchar("errorCode", { length: 64 }),
+    payloadHash: varchar("payloadHash", { length: 64 }),
+    metadataJson: json("metadataJson").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    layerIdx: index("lt_layer_idx").on(t.layer),
+    correlationIdx: index("lt_correlation_idx").on(t.correlationId),
+    createdAtIdx: index("lt_created_at_idx").on(t.createdAt),
+    eventQueueIdx: index("lt_event_queue_idx").on(t.eventQueueId),
+  })
+);
+export type LayerTelemetry = typeof layerTelemetry.$inferSelect;
+export type InsertLayerTelemetry = typeof layerTelemetry.$inferInsert;
+
+/**
+ * frontier_directives — typed directives issued by L2 (Self-Prompting Engine)
+ * to L3 (Frontier Engine). Every L3 session must reference a directive.
+ */
+export const frontierDirectives = mysqlTable(
+  "frontier_directives",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    directiveId: varchar("directiveId", { length: 36 }).notNull().unique(),
+    triggerReason: mysqlEnum("triggerReason", [
+      "convergence_stalled",
+      "confidence_low",
+      "gap_detected",
+      "scheduled",
+      "manual",
+    ]).notNull(),
+    priority: int("priority").notNull().default(5),
+    targetGapIds: json("targetGapIds").$type<string[]>().notNull(),
+    maxIterations: int("maxIterations").notNull().default(10),
+    evidenceStrengthThreshold: float("evidenceStrengthThreshold").notNull().default(0.6),
+    status: mysqlEnum("status", [
+      "pending",
+      "active",
+      "complete",
+      "cancelled",
+      "max_iterations_reached",
+    ])
+      .notNull()
+      .default("pending"),
+    frontierSessionId: int("frontierSessionId"),
+    iterationsUsed: int("iterationsUsed"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+  },
+  t => ({
+    directiveIdIdx: index("fd_directive_id_idx").on(t.directiveId),
+    statusIdx: index("fd_status_idx").on(t.status),
+    priorityIdx: index("fd_priority_idx").on(t.priority),
+    createdAtIdx: index("fd_created_at_idx").on(t.createdAt),
+  })
+);
+export type FrontierDirective = typeof frontierDirectives.$inferSelect;
+export type InsertFrontierDirective = typeof frontierDirectives.$inferInsert;
+
+/**
+ * meta_agent_alerts — persisted record of every alert dispatched by the
+ * L4 Meta-Agent alertRouter. Enables deduplication and audit trail.
+ */
+export const metaAgentAlerts = mysqlTable(
+  "meta_agent_alerts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    checkId: int("checkId"),
+    severity: mysqlEnum("severity", ["info", "warning", "critical"]).notNull(),
+    handlerName: varchar("handlerName", { length: 128 }).notNull(),
+    payload: json("payload").$type<Record<string, unknown>>().notNull(),
+    acknowledged: boolean("acknowledged").notNull().default(false),
+    dedupeKey: varchar("dedupeKey", { length: 256 }),
+    dispatchedAt: timestamp("dispatchedAt").defaultNow().notNull(),
+    acknowledgedAt: timestamp("acknowledgedAt"),
+  },
+  t => ({
+    severityIdx: index("maa_severity_idx").on(t.severity),
+    checkIdIdx: index("maa_check_id_idx").on(t.checkId),
+    dedupeKeyIdx: index("maa_dedupe_key_idx").on(t.dedupeKey),
+    dispatchedAtIdx: index("maa_dispatched_at_idx").on(t.dispatchedAt),
+  })
+);
+export type MetaAgentAlert = typeof metaAgentAlerts.$inferSelect;
+export type InsertMetaAgentAlert = typeof metaAgentAlerts.$inferInsert;

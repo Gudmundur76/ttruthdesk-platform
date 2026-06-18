@@ -26,6 +26,19 @@ import { getDb } from "../db";
 import { eventQueue } from "../../drizzle/schema";
 import { eq, and, lt, sql } from "drizzle-orm";
 import { logger, errData } from "../logger";
+import {
+  type TypedEventEnvelope,
+  type SourceLayer,
+  type ExtendedLoopEventType,
+  createEnvelope,
+  validateEventPayload,
+  DEFAULT_TTL_MS,
+} from "./eventSchemas";
+
+// Re-export for consumers
+export type { TypedEventEnvelope, SourceLayer, ExtendedLoopEventType };
+export { createEnvelope, DEFAULT_TTL_MS };
+
 const log = logger("autonomousLoop/eventBus");
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -84,6 +97,8 @@ export interface LoopEvent {
   errorMessage: string | null;
   createdAt: Date;
   processedAt: Date | null;
+  /** Typed envelope — present when event was published with build1_foundation envelope */
+  envelope?: TypedEventEnvelope;
 }
 
 // ─── Reactive Drain Worker ─────────────────────────────────────────────────────
@@ -149,20 +164,44 @@ export function scheduleDrain(): void {
  * Publish a new event to the event bus.
  * Returns the persisted event ID.
  *
- * After persisting, schedules a reactive drain pass so the loop processes
- * the event within milliseconds rather than waiting for the next cron tick.
+ * PRD-MASTER FR-MASTER-03: Every event carries a TypedEventEnvelope with
+ * eventId (UUID v4), correlationId (UUID), ttl (epoch ms), sourceLayer, timestamp.
+ *
+ * @param eventType  The event type
+ * @param payload    Event payload — Zod-validated if a schema is registered
+ * @param envelope   Optional partial envelope. correlationId is propagated from
+ *                   parent events to child events in the same claim pipeline.
+ * @returns The inserted event_queue row ID
+ * @throws SCHEMA_VALIDATION_ERROR if payload fails Zod validation
  */
 export async function publishEvent(
   eventType: LoopEventType,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  envelope?: { correlationId?: string; sourceLayer?: SourceLayer; ttl?: number }
 ): Promise<number> {
+  // Validate payload against registered Zod schema (if one exists)
+  try {
+    validateEventPayload(eventType as ExtendedLoopEventType, payload);
+  } catch (err) {
+    log.error("publishEvent: schema validation failed", { eventType, err: errData(err as Error) });
+    throw err;
+  }
+
+  // Build the typed envelope — merge caller-supplied fields with fresh defaults
+  const finalEnvelope: TypedEventEnvelope = createEnvelope(
+    envelope?.sourceLayer ?? "ORCHESTRATOR",
+    envelope?.correlationId
+  );
+  if (envelope?.ttl) finalEnvelope.ttl = envelope.ttl;
+
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const entryLayer = EVENT_ENTRY_LAYERS[eventType];
+  const entryLayer = EVENT_ENTRY_LAYERS[eventType] ?? 0;
   const [result] = await db.insert(eventQueue).values({
     eventType,
-    payload,
+    // Embed envelope in payload for persistence (backward compat with consumers)
+    payload: { ...payload, __envelope: finalEnvelope },
     status: "pending",
     entryLayer,
     attempts: 0,
@@ -172,6 +211,16 @@ export async function publishEvent(
   scheduleDrain();
 
   return result.insertId;
+}
+
+/**
+ * Extract the TypedEventEnvelope from a LoopEvent payload.
+ * Returns undefined if the event was published before build1_foundation.
+ */
+export function extractEnvelope(event: LoopEvent): TypedEventEnvelope | undefined {
+  const env = event.payload?.__envelope;
+  if (!env || typeof env !== "object") return undefined;
+  return env as TypedEventEnvelope;
 }
 
 // ─── Consume ───────────────────────────────────────────────────────────────────

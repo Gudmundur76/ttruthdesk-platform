@@ -20,6 +20,10 @@
  *   - -3 per failed pipeline invariant
  *   - -1 per warned pipeline invariant
  *   Minimum: 0
+ *
+ * build1_foundation Phase 138:
+ *   - Emits layer_telemetry start/end/error rows for every run
+ *   - Propagates correlationId through all sub-operations
  */
 
 import { detectCodeDrift, type CodeDriftReport } from "./codeDriftService";
@@ -31,9 +35,36 @@ import {
   invariantResultToMetaFinding,
   type MetaFinding,
 } from "./alertRouter";
+import { getDb } from "../db";
+import { layerTelemetry } from "../../drizzle/schema";
 import { logger } from "../logger";
 const log = logger("metaAgent/codeGuardian");
 
+// ─── Telemetry helpers ────────────────────────────────────────────────────────
+
+async function emitTelemetry(
+  eventType: "start" | "end" | "error",
+  correlationId: string,
+  opts?: { durationMs?: number; success?: boolean; errorCode?: string; meta?: Record<string, unknown> }
+): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(layerTelemetry).values({
+      layer: "L4_META",
+      eventType,
+      correlationId,
+      durationMs: opts?.durationMs,
+      success: opts?.success ?? true,
+      errorCode: opts?.errorCode,
+      metadataJson: opts?.meta,
+    });
+  } catch {
+    // Telemetry is non-fatal — never throw
+  }
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CodeGuardianReport {
   agentName: "codeGuardianAgent";
@@ -49,6 +80,8 @@ export interface CodeGuardianReport {
   startedAt: string;
   completedAt: string;
   durationMs: number;
+  /** build1_foundation: correlationId for this run's telemetry chain */
+  correlationId: string;
 }
 
 // ─── Health Score ─────────────────────────────────────────────────────────────
@@ -105,75 +138,94 @@ function scoreToGrade(score: number): CodeGuardianReport["healthGrade"] {
 export async function runCodeGuardian(): Promise<CodeGuardianReport> {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
+  const correlationId = crypto.randomUUID();
 
   log.info("[MetaAgent] codeGuardianAgent starting — running all 4 layers");
+  await emitTelemetry("start", correlationId);
 
-  // Layer 1 + 2 run in parallel (both are mostly sync/file-based)
-  // Layer 3 requires DB so runs concurrently
-  const [codeDrift, stubLedger, pipeline] = await Promise.all([
-    detectCodeDrift(),
-    Promise.resolve(buildStubLedger()),
-    runPipelineGuardian(),
-  ]);
+  try {
+    // Layer 1 + 2 run in parallel (both are mostly sync/file-based)
+    // Layer 3 requires DB so runs concurrently
+    const [codeDrift, stubLedger, pipeline] = await Promise.all([
+      detectCodeDrift(),
+      Promise.resolve(buildStubLedger()),
+      runPipelineGuardian(),
+    ]);
 
-  const overdueEscalations = getOverdueEscalations(stubLedger);
+    const overdueEscalations = getOverdueEscalations(stubLedger);
 
-  // Assemble all findings for routing
-  const allFindings: MetaFinding[] = [
-    // Drift findings
-    driftFindingToMetaFinding(codeDrift.schemaDrift),
-    driftFindingToMetaFinding(codeDrift.apiDrift),
-    driftFindingToMetaFinding(codeDrift.testDrift),
-    driftFindingToMetaFinding(codeDrift.dependencyDrift),
-    driftFindingToMetaFinding(codeDrift.configDrift),
-    driftFindingToMetaFinding(codeDrift.disciplineDrift),
-    // Pipeline invariants
-    ...pipeline.invariants.map(invariantResultToMetaFinding),
-    // Stub escalations (as warning/critical findings)
-    ...overdueEscalations.map((esc) => ({
-      checkType: `stubLedger.${esc.stub.priority}`,
-      severity: (esc.stub.priority === "P0" ? "critical" : "warning") as MetaFinding["severity"],
-      confidence: 0.9,
-      summary: esc.escalationReason,
-      details: {
-        stubId: esc.stub.id,
-        file: esc.stub.file,
-        line: esc.stub.line,
-        daysOverdue: esc.stub.daysOverdue,
-        suggestedAction: esc.suggestedAction,
-      },
-    })),
-  ];
+    // Assemble all findings for routing
+    const allFindings: MetaFinding[] = [
+      // Drift findings
+      driftFindingToMetaFinding(codeDrift.schemaDrift),
+      driftFindingToMetaFinding(codeDrift.apiDrift),
+      driftFindingToMetaFinding(codeDrift.testDrift),
+      driftFindingToMetaFinding(codeDrift.dependencyDrift),
+      driftFindingToMetaFinding(codeDrift.configDrift),
+      driftFindingToMetaFinding(codeDrift.disciplineDrift),
+      // Pipeline invariants
+      ...pipeline.invariants.map(invariantResultToMetaFinding),
+      // Stub escalations (as warning/critical findings)
+      ...overdueEscalations.map((esc) => ({
+        checkType: `stubLedger.${esc.stub.priority}`,
+        severity: (esc.stub.priority === "P0" ? "critical" : "warning") as MetaFinding["severity"],
+        confidence: 0.9,
+        summary: esc.escalationReason,
+        details: {
+          stubId: esc.stub.id,
+          file: esc.stub.file,
+          line: esc.stub.line,
+          daysOverdue: esc.stub.daysOverdue,
+          suggestedAction: esc.suggestedAction,
+        },
+      })),
+    ];
 
-  // Layer 4: route all findings
-  await routeFindings(allFindings);
+    // Layer 4: route all findings
+    await routeFindings(allFindings);
 
-  const healthScore = computeHealthScore(codeDrift, stubLedger, pipeline);
-  const healthGrade = scoreToGrade(healthScore);
-  const criticalCount = allFindings.filter((f) => f.severity === "critical").length;
-  const warningCount = allFindings.filter((f) => f.severity === "warning").length;
-  const completedAt = new Date().toISOString();
-  const durationMs = Date.now() - startMs;
+    const healthScore = computeHealthScore(codeDrift, stubLedger, pipeline);
+    const healthGrade = scoreToGrade(healthScore);
+    const criticalCount = allFindings.filter((f) => f.severity === "critical").length;
+    const warningCount = allFindings.filter((f) => f.severity === "warning").length;
+    const completedAt = new Date().toISOString();
+    const durationMs = Date.now() - startMs;
 
-  log.info(
-    `[MetaAgent] codeGuardianAgent complete in ${durationMs}ms — ` +
-    `Health: ${healthScore}/100 (${healthGrade}), ` +
-    `${criticalCount} critical, ${warningCount} warnings`
-  );
+    await emitTelemetry("end", correlationId, {
+      durationMs,
+      success: true,
+      meta: { healthScore, healthGrade, criticalCount, warningCount },
+    });
 
-  return {
-    agentName: "codeGuardianAgent",
-    healthScore,
-    healthGrade,
-    codeDrift,
-    stubLedger,
-    overdueEscalations,
-    pipelineGuardian: pipeline,
-    allFindings,
-    criticalCount,
-    warningCount,
-    startedAt,
-    completedAt,
-    durationMs,
-  };
+    log.info(
+      `[MetaAgent] codeGuardianAgent complete in ${durationMs}ms — ` +
+      `Health: ${healthScore}/100 (${healthGrade}), ` +
+      `${criticalCount} critical, ${warningCount} warnings`
+    );
+
+    return {
+      agentName: "codeGuardianAgent",
+      healthScore,
+      healthGrade,
+      codeDrift,
+      stubLedger,
+      overdueEscalations,
+      pipelineGuardian: pipeline,
+      allFindings,
+      criticalCount,
+      warningCount,
+      startedAt,
+      completedAt,
+      durationMs,
+      correlationId,
+    };
+  } catch (err) {
+    const durationMs = Date.now() - startMs;
+    await emitTelemetry("error", correlationId, {
+      durationMs,
+      success: false,
+      errorCode: (err as Error)?.name ?? "UNKNOWN",
+    });
+    throw err;
+  }
 }
