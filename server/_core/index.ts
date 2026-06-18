@@ -707,7 +707,9 @@ async function startServer() {
   });
 
   // ── MCP SSE endpoint (streamable HTTP transport) ──────────────────────────
-  app.get("/mcp", (_req, res) => {
+  app.get("/mcp", (req, res) => {
+    // MCP 2024-11-05 SSE transport handshake.
+    // Step 1: open the SSE stream.
     res.set({
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
@@ -716,28 +718,22 @@ async function startServer() {
       "X-Accel-Buffering": "no",
     });
     res.flushHeaders();
-    // Send MCP initialize response
-    const initEvent = {
-      jsonrpc: "2.0",
-      id: 1,
-      result: {
-        protocolVersion: "2024-11-05",
-        capabilities: { tools: {}, resources: {} },
-        serverInfo: { name: "Truth Desk", version: "1.0.0" },
-      },
-    };
-    res.write(`data: ${JSON.stringify(initEvent)}\n\n`);
-    // Send tools/list
-    const toolsEvent = {
-      jsonrpc: "2.0",
-      method: "notifications/tools/list_changed",
-      params: { tools: MCP_TOOLS },
-    };
-    res.write(`data: ${JSON.stringify(toolsEvent)}\n\n`);
-    // Keep connection alive with heartbeat
+
+    // Step 2: send the required `endpoint` event.
+    // Per MCP 2024-11-05 spec, the server MUST send an `endpoint` event
+    // containing the URI where the client should POST JSON-RPC requests.
+    // Without this event, MCP clients (Claude, Cursor, Goose) never complete
+    // the handshake and time out.
+    const origin =
+      ((req.headers["x-forwarded-proto"] as string | undefined)
+        ? `${req.headers["x-forwarded-proto"]}://${req.headers["host"]}`
+        : null) ?? SITE_ORIGIN;
+    res.write(`event: endpoint\ndata: ${origin}/mcp\n\n`);
+
+    // Keep connection alive with heartbeat comments (not data events).
     const heartbeat = setInterval(() => {
-      res.write(`: heartbeat\n\n`);
-    }, 15000);
+      res.write(": heartbeat\n\n");
+    }, 15_000);
     res.on("close", () => clearInterval(heartbeat));
   });
 

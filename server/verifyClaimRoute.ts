@@ -351,7 +351,8 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { claim, vertical = "structural_biology" } = req.body ?? {};
+  const { claim, vertical: requestedVertical = null } = req.body ?? {};
+  let vertical: string | null = requestedVertical;
   if (typeof claim !== "string" || claim.trim().length === 0) {
     res.status(400).json({
       ok: false,
@@ -470,6 +471,13 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
             confidence: getPrimaryRoute(r).confidence,
           }))
         );
+        // Use the highest-confidence domain classification as the response vertical
+        if (domainRouting.length > 0 && vertical === null) {
+          const best = domainRouting.reduce((a, b) =>
+            b.confidence > a.confidence ? b : a
+          );
+          vertical = best.domain;
+        }
         log.debug("domain routing computed", {
           count: domainRouting.length,
           domains: domainRouting.map(d => d.domain),
