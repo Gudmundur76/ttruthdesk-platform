@@ -286,3 +286,67 @@ export function getOverdueEscalations(ledger: StubLedgerReport): StubEscalation[
       suggestedAction: `Implement or mark as wontfix: ${stub.file}:${stub.line} — ${stub.description}`,
     }));
 }
+
+// ─── Registry Persistence (.meta/stub-registry.json) ─────────────────────────
+import { writeFileSync, renameSync, mkdirSync, existsSync } from "fs";
+
+const REGISTRY_DIR = join(PROJECT_ROOT, ".meta");
+const REGISTRY_PATH = join(REGISTRY_DIR, "stub-registry.json");
+const REGISTRY_TMP = join(REGISTRY_DIR, "stub-registry.json.tmp");
+
+export interface PersistedStubRegistry {
+  version: number;
+  generatedAt: string;
+  stubs: StubEntry[];
+}
+
+/**
+ * Persist the current stub ledger to .meta/stub-registry.json using an atomic
+ * write (write to .tmp then rename) to prevent partial-write corruption.
+ */
+export function persistRegistry(ledger: StubLedgerReport): void {
+  if (!existsSync(REGISTRY_DIR)) {
+    mkdirSync(REGISTRY_DIR, { recursive: true });
+  }
+  const registry: PersistedStubRegistry = {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    stubs: ledger.stubs,
+  };
+  writeFileSync(REGISTRY_TMP, JSON.stringify(registry, null, 2), "utf-8");
+  renameSync(REGISTRY_TMP, REGISTRY_PATH);
+}
+
+/**
+ * Load the persisted stub registry from .meta/stub-registry.json.
+ * Returns null if the file does not exist.
+ */
+export function loadRegistry(): PersistedStubRegistry | null {
+  if (!existsSync(REGISTRY_PATH)) return null;
+  try {
+    const raw = readFileSync(REGISTRY_PATH, "utf-8");
+    return JSON.parse(raw) as PersistedStubRegistry;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Auto-escalate stubs: promote stubs from "open" to "overdue" based on their
+ * daysOverdue field. Returns the number of stubs promoted.
+ */
+export function autoEscalate(ledger: StubLedgerReport): number {
+  let promoted = 0;
+  for (const stub of ledger.stubs) {
+    if (stub.status !== "open") continue;
+    const overdueThresholdDays =
+      stub.priority === "P0" ? 0
+        : stub.priority === "P1" ? 7
+          : 21;
+    if (stub.daysOverdue > overdueThresholdDays) {
+      stub.status = "overdue";
+      promoted++;
+    }
+  }
+  return promoted;
+}

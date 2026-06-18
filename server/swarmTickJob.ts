@@ -201,7 +201,7 @@ async function runCodeGuardianAgent(): Promise<{ agent: string; status: string; 
       detail:
         `Health: ${report.healthScore}/100 (${report.healthGrade}) — ` +
         `${report.criticalCount} critical, ${report.warningCount} warnings, ` +
-        `${report.stubLedger.overdue} overdue stubs`,
+        `${report.stubLedger?.overdue ?? 0} overdue stubs`,
     };
   } catch (err) {
     return { agent: "code_guardian", status: "error", detail: String(err) };

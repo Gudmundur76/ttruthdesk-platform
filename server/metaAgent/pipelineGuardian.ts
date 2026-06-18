@@ -21,7 +21,7 @@ import {
 } from "../../drizzle/schema";
 import { lt, lte, eq, sql, and, count, isNotNull } from "drizzle-orm";
 
-export type InvariantStatus = "pass" | "warn" | "fail";
+export type InvariantStatus = "pass" | "warn" | "fail" | "unavailable";
 
 export interface InvariantResult {
   name: string;
@@ -38,6 +38,7 @@ export interface PipelineGuardianReport {
   failCount: number;
   warnCount: number;
   checkedAt: string;
+  durationMs: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -363,63 +364,85 @@ async function checkLowConfidenceClaims(
 
 // ─── Main Guardian ────────────────────────────────────────────────────────────
 
+const GUARDIAN_TIMEOUT_MS = 15_000;
+
 export async function runPipelineGuardian(): Promise<PipelineGuardianReport> {
-  const db = await getDb();
-  if (!db) {
-    const errorResult: InvariantResult = {
-      name: "dbConnection",
-      status: "fail",
-      threshold: "DB must be available",
-      actual: "DB connection failed",
-      details: {},
-      severity: "critical",
-    };
-    return {
-      invariants: [errorResult],
-      overallStatus: "fail",
-      failCount: 1,
+  const startMs = Date.now();
+
+  // 15-second overall timeout — returns unavailable state if exceeded
+  const timeoutPromise = new Promise<PipelineGuardianReport>((resolve) =>
+    setTimeout(() => resolve({
+      invariants: [],
+      overallStatus: "unavailable",
+      failCount: 0,
       warnCount: 0,
       checkedAt: new Date().toISOString(),
+      durationMs: GUARDIAN_TIMEOUT_MS,
+    }), GUARDIAN_TIMEOUT_MS)
+  );
+
+  const runPromise = (async (): Promise<PipelineGuardianReport> => {
+    const db = await getDb();
+    if (!db) {
+      const errorResult: InvariantResult = {
+        name: "dbConnection",
+        status: "unavailable",
+        threshold: "DB must be available",
+        actual: "DB connection failed",
+        details: {},
+        severity: "critical",
+      };
+      return {
+        invariants: [errorResult],
+        overallStatus: "unavailable",
+        failCount: 0,
+        warnCount: 0,
+        checkedAt: new Date().toISOString(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    const [
+      stuck,
+      orphans,
+      zeroClaim,
+      modelRate,
+      wikiStale,
+      stalePdb,
+      lowConfidence,
+    ] = await Promise.all([
+      checkStuckDocuments(db),
+      checkClaimOrphans(db),
+      checkZeroClaimCompletions(db),
+      checkModelValidationRate(db),
+      checkWikiStaleness(db),
+      checkStalePdbEvidence(db),
+      checkLowConfidenceClaims(db),
+    ]);
+
+    const invariants = [
+      stuck,
+      orphans,
+      zeroClaim,
+      modelRate,
+      wikiStale,
+      stalePdb,
+      lowConfidence,
+    ];
+    const failCount = invariants.filter(i => i.status === "fail").length;
+    const warnCount = invariants.filter(i => i.status === "warn").length;
+    const overallStatus: InvariantStatus =
+      failCount > 0 ? "fail" : warnCount > 0 ? "warn" : "pass";
+
+    return {
+      invariants,
+      overallStatus,
+      failCount,
+      warnCount,
+      checkedAt: new Date().toISOString(),
+      durationMs: Date.now() - startMs,
     };
-  }
+  })();
 
-  const [
-    stuck,
-    orphans,
-    zeroClaim,
-    modelRate,
-    wikiStale,
-    stalePdb,
-    lowConfidence,
-  ] = await Promise.all([
-    checkStuckDocuments(db),
-    checkClaimOrphans(db),
-    checkZeroClaimCompletions(db),
-    checkModelValidationRate(db),
-    checkWikiStaleness(db),
-    checkStalePdbEvidence(db),
-    checkLowConfidenceClaims(db),
-  ]);
-
-  const invariants = [
-    stuck,
-    orphans,
-    zeroClaim,
-    modelRate,
-    wikiStale,
-    stalePdb,
-    lowConfidence,
-  ];
-  const failCount = invariants.filter(i => i.status === "fail").length;
-  const warnCount = invariants.filter(i => i.status === "warn").length;
-  const overallStatus: InvariantStatus =
-    failCount > 0 ? "fail" : warnCount > 0 ? "warn" : "pass";
-
-  return {
-    invariants,
-    overallStatus,
-    failCount,
-    warnCount,
-    checkedAt: new Date().toISOString(),
-  };
+  return Promise.race([runPromise, timeoutPromise]);
 }

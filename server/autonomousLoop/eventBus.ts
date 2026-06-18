@@ -61,7 +61,20 @@ export type LoopEventType =
   | "dream_session_complete"
   | "source_version_changed"
   | "coverage_gap"
-  | "system_capability_required";
+  | "system_capability_required"
+  | "frontier_search_requested"
+  | "frontier_result_received"
+  | "dream_hypothesis_generated"
+  | "dream_cycle_started"
+  | "code_drift_detected"
+  | "stub_escalated"
+  | "pipeline_invariant_violated"
+  | "self_prompt_triggered"
+  | "authority_violation"
+  | "layer_telemetry_recorded"
+  | "pipeline_stage_complete"
+  | "convergence_gate_opened"
+  | "dream_queue_processed";
 
 /** Entry layer for each event type (per the spec) */
 export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
@@ -83,6 +96,19 @@ export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
   source_version_changed: 1, // L1: Truth (re-verify claims from changed source)
   coverage_gap: 2, // L2: Self-Prompt → Frontier (pursue missing evidence)
   system_capability_required: 4, // L4: Meta-Agent → Manus spawnDevTask for autonomous repair
+  frontier_search_requested: 3, // L3: Frontier search
+  frontier_result_received: 1, // L1: Truth re-verify
+  dream_hypothesis_generated: 5, // L5: Dream hypothesis
+  dream_cycle_started: 5, // L5: Dream cycle
+  code_drift_detected: 4, // L4: Meta-Agent alert
+  stub_escalated: 4, // L4: Meta-Agent alert
+  pipeline_invariant_violated: 4, // L4: Meta-Agent critical
+  self_prompt_triggered: 2, // L2: Self-prompt
+  authority_violation: 4, // L4: Meta-Agent authority enforcement
+  layer_telemetry_recorded: 4, // L4: Meta-Agent telemetry
+  pipeline_stage_complete: 1, // L1: Truth pipeline stage
+  convergence_gate_opened: 2, // L2: Self-Prompt convergence
+  dream_queue_processed: 5, // L5: Dream queue
 };
 
 export interface LoopEvent {

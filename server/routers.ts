@@ -1634,33 +1634,35 @@ Respond in this exact structure:
         durationMs: report.durationMs,
         startedAt: report.startedAt,
         completedAt: report.completedAt,
-        drift: {
+        timedOut: report.timedOut,
+        faultedLayers: report.faultedLayers,
+        drift: report.codeDrift ? {
           schema: {
-            status: report.codeDrift.schemaDrift.severity,
-            summary: report.codeDrift.schemaDrift.summary,
+            status: report.codeDrift.schemaDrift?.severity ?? "info",
+            summary: report.codeDrift.schemaDrift?.summary ?? "",
           },
           api: {
-            status: report.codeDrift.apiDrift.severity,
-            summary: report.codeDrift.apiDrift.summary,
+            status: report.codeDrift.apiDrift?.severity ?? "info",
+            summary: report.codeDrift.apiDrift?.summary ?? "",
           },
           test: {
-            status: report.codeDrift.testDrift.severity,
-            summary: report.codeDrift.testDrift.summary,
+            status: report.codeDrift.testDrift?.severity ?? "info",
+            summary: report.codeDrift.testDrift?.summary ?? "",
           },
           dependency: {
-            status: report.codeDrift.dependencyDrift.severity,
-            summary: report.codeDrift.dependencyDrift.summary,
+            status: report.codeDrift.dependencyDrift?.severity ?? "info",
+            summary: report.codeDrift.dependencyDrift?.summary ?? "",
           },
           config: {
-            status: report.codeDrift.configDrift.severity,
-            summary: report.codeDrift.configDrift.summary,
+            status: report.codeDrift.configDrift?.severity ?? "info",
+            summary: report.codeDrift.configDrift?.summary ?? "",
           },
           discipline: {
-            status: report.codeDrift.disciplineDrift.severity,
-            summary: report.codeDrift.disciplineDrift.summary,
+            status: report.codeDrift.disciplineDrift?.severity ?? "info",
+            summary: report.codeDrift.disciplineDrift?.summary ?? "",
           },
-        },
-        stubs: {
+        } : null,
+        stubs: report.stubLedger ? {
           total: report.stubLedger.total,
           overdue: report.stubLedger.overdue,
           byPriority: report.stubLedger.byPriority,
@@ -1673,8 +1675,8 @@ Respond in this exact structure:
             escalationReason: e.escalationReason,
             suggestedAction: e.suggestedAction,
           })),
-        },
-        pipeline: {
+        } : null,
+        pipeline: report.pipelineGuardian ? {
           overallStatus: report.pipelineGuardian.overallStatus,
           failCount: report.pipelineGuardian.failCount,
           warnCount: report.pipelineGuardian.warnCount,
@@ -1685,7 +1687,7 @@ Respond in this exact structure:
             actual: inv.actual,
             severity: inv.severity,
           })),
-        },
+        } : null,
       };
     }),
 

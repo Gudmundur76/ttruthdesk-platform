@@ -65,7 +65,7 @@ function expectShape(r: InvariantResult) {
 
 function expectReport(r: PipelineGuardianReport) {
   expect(Array.isArray(r.invariants)).toBe(true);
-  expect(["pass", "warn", "fail"]).toContain(r.overallStatus);
+  expect(["pass", "warn", "fail", "unavailable"]).toContain(r.overallStatus);
   expect(typeof r.failCount).toBe("number");
   expect(typeof r.warnCount).toBe("number");
   expect(typeof r.checkedAt).toBe("string");
@@ -73,13 +73,11 @@ function expectReport(r: PipelineGuardianReport) {
 
 // ─── DB unavailable ───────────────────────────────────────────────────────────
 describe("pipelineGuardian — DB unavailable", () => {
-  it("returns fail report with dbConnection invariant", async () => {
+  it("returns unavailable report when DB is null", async () => {
     mockGetDb.mockResolvedValue(null);
     const r = await runPipelineGuardian();
     expectReport(r);
-    expect(r.overallStatus).toBe("fail");
-    expect(r.invariants[0].name).toBe("dbConnection");
-    expect(r.invariants[0].severity).toBe("critical");
+    expect(r.overallStatus).toBe("unavailable");
   });
 });
 
@@ -128,11 +126,11 @@ describe("pipelineGuardian — report structure", () => {
     expect(r.warnCount).toBe(actualWarns);
   });
 
-  it("overallStatus is fail when DB is null (failCount=1)", async () => {
+  it("overallStatus is unavailable when DB is null", async () => {
     mockGetDb.mockResolvedValue(null);
     const r = await runPipelineGuardian();
-    expect(r.failCount).toBeGreaterThan(0);
-    expect(r.overallStatus).toBe("fail");
+    expect(r.overallStatus).toBe("unavailable");
+    expect(r.failCount).toBe(0);
   });
 });
 

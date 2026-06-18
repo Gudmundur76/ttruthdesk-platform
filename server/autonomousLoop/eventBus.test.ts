@@ -6,7 +6,7 @@ import { EVENT_ENTRY_LAYERS, scheduleDrain } from "./eventBus";
 import type { LoopEventType } from "./eventBus";
 
 describe("EVENT_ENTRY_LAYERS", () => {
-  it("contains all 18 expected event types", () => {
+  it("contains all 31 expected event types", () => {
     const expected: LoopEventType[] = [
       "document_submitted",
       "paper_discovered",
@@ -26,6 +26,19 @@ describe("EVENT_ENTRY_LAYERS", () => {
       "source_version_changed",
       "coverage_gap",
       "system_capability_required",
+      "frontier_search_requested",
+      "frontier_result_received",
+      "dream_hypothesis_generated",
+      "dream_cycle_started",
+      "code_drift_detected",
+      "stub_escalated",
+      "pipeline_invariant_violated",
+      "self_prompt_triggered",
+      "authority_violation",
+      "layer_telemetry_recorded",
+      "pipeline_stage_complete",
+      "convergence_gate_opened",
+      "dream_queue_processed",
     ];
     for (const type of expected)
       expect(EVENT_ENTRY_LAYERS).toHaveProperty(type);
