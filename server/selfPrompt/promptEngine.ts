@@ -47,7 +47,8 @@ export type SelfPromptAction =
   | "alert_dispatch" // Dispatch a structured alert for a specific claim
   | "graph_suggest" // Suggest a new concept graph entity from an existing entity
   | "ingest_request" // Request a domain ingest run (fire-and-forget)
-  | "update_claim"; // Update a claim's verdict rationale based on new evidence
+  | "update_claim" // Update a claim's verdict rationale based on new evidence
+  | "report_flag"; // Flag a report for human review (sets audit_reports.flaggedForReview)
 
 export interface PrioritizedAction {
   priority: number; // 1–100
@@ -160,6 +161,7 @@ AVAILABLE ACTIONS:
 - drain_queue: Drain pending coord_queue items through the analysis pipeline (use when pendingItems > 0)
 - reverify_stale: Re-verify claims whose PDB evidence is >180 days old (use when staleEvidenceCount > 0)
 - recalibrate_confidence: Run confidence recalibration on low-confidence claims (use when lowConfidenceCount > 0)
+- report_flag: Flag a report for human review when contradictions or high-risk claims are detected
 - converge: Stop — no high-value action remaining
 
 OUTPUT FORMAT (strict JSON, no markdown):
@@ -168,7 +170,7 @@ OUTPUT FORMAT (strict JSON, no markdown):
   "actions": [
     {
       "priority": 1-100,
-      "action": "notify|wiki_update|frontier|reindex|alert|gap_map|meta_check|drain_queue|reverify_stale|recalibrate_confidence|converge",
+      "action": "notify|wiki_update|frontier|reindex|alert|gap_map|meta_check|drain_queue|reverify_stale|recalibrate_confidence|report_flag|converge",
       "targetId": number,
       "reasoning": "why this specific action matters now",
       "justification": "one sentence: why this action over alternatives",

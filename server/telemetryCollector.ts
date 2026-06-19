@@ -214,3 +214,193 @@ export async function getLayerTelemetrySummary(
     return null;
   }
 }
+
+// ─── Span API (Class-based) ───────────────────────────────────────────────────
+
+import { randomUUID } from "crypto";
+import { and, gte, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+
+/**
+ * A live telemetry span. Call `end()` or `fail()` to close it.
+ * Created via `TelemetryCollector.start()`.
+ */
+export interface TelemetrySpan {
+  correlationId: string;
+  layer: TelemetryLayer;
+  startMs: number;
+  end(opts?: Pick<TelemetryOptions, "eventQueueId" | "meta">): Promise<void>;
+  fail(errorCode: string, opts?: Pick<TelemetryOptions, "eventQueueId" | "meta">): Promise<void>;
+}
+
+export interface TelemetryQueryRow {
+  id: number;
+  layer: string;
+  eventType: string;
+  correlationId: string | null;
+  durationMs: number | null;
+  success: boolean | null;
+  errorCode: string | null;
+  createdAt: Date;
+}
+
+export interface PipelineTrace {
+  correlationId: string;
+  spans: Array<{
+    layer: string;
+    eventType: string;
+    durationMs: number | null;
+    success: boolean | null;
+    errorCode: string | null;
+    createdAt: Date;
+  }>;
+}
+
+/**
+ * Class-based telemetry collector with span API.
+ * Provides `start()`, `query()`, `summary()`, and `getPipelineTrace()`.
+ *
+ * All methods are non-fatal — DB failures are swallowed and logged at debug level.
+ *
+ * Usage:
+ *   const collector = new TelemetryCollector();
+ *   const span = await collector.start("L1_TRUTH", { eventQueueId: event.id });
+ *   try {
+ *     const result = await runTruthLayer(event);
+ *     await span.end();
+ *   } catch (err) {
+ *     await span.fail("LAYER_ERROR");
+ *   }
+ */
+export class TelemetryCollector {
+  /**
+   * Start a new telemetry span for the given layer.
+   * Returns a span object with `end()` and `fail()` methods.
+   */
+  async start(
+    layer: TelemetryLayer,
+    opts?: Pick<TelemetryOptions, "eventQueueId" | "payloadHash" | "meta">
+  ): Promise<TelemetrySpan> {
+    const correlationId = randomUUID();
+    const startMs = Date.now();
+    await emitLayerStart(layer, correlationId, opts);
+    return {
+      correlationId,
+      layer,
+      startMs,
+      end: async (endOpts?) => {
+        await emitLayerEnd(layer, correlationId, startMs, endOpts);
+      },
+      fail: async (errorCode, failOpts?) => {
+        await emitLayerError(layer, correlationId, errorCode, {
+          ...failOpts,
+          durationMs: Date.now() - startMs,
+        });
+      },
+    };
+  }
+
+  /**
+   * Query raw telemetry rows for a layer within a time window.
+   * Returns empty array if DB is unavailable.
+   */
+  async query(
+    layer: TelemetryLayer,
+    windowHours = 24
+  ): Promise<TelemetryQueryRow[]> {
+    try {
+      const db = await getDb();
+      if (!db) return [];
+      const since = new Date(Date.now() - windowHours * 3600 * 1000);
+      const rows = await db
+        .select()
+        .from(layerTelemetry)
+        .where(
+          and(
+            eq(layerTelemetry.layer, layer),
+            gte(layerTelemetry.createdAt, since)
+          )
+        )
+        .orderBy(layerTelemetry.createdAt);
+      return rows.map(r => ({
+        id: r.id,
+        layer: r.layer,
+        eventType: r.eventType,
+        correlationId: r.correlationId,
+        durationMs: r.durationMs ?? null,
+        success: r.success ?? null,
+        errorCode: r.errorCode ?? null,
+        createdAt: r.createdAt,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get a summary of recent telemetry for a specific layer.
+   * Delegates to the standalone `getLayerTelemetrySummary()` function.
+   */
+  async summary(
+    layer: TelemetryLayer,
+    windowHours = 24
+  ): Promise<LayerTelemetrySummary | null> {
+    return getLayerTelemetrySummary(layer, windowHours);
+  }
+
+  /**
+   * Reconstruct a full pipeline trace for a given correlationId.
+   * Returns all spans (start/end/error) associated with that ID across all layers.
+   * Returns null if DB is unavailable or no rows found.
+   */
+  async getPipelineTrace(correlationId: string): Promise<PipelineTrace | null> {
+    try {
+      const db = await getDb();
+      if (!db) return null;
+      const rows = await db
+        .select()
+        .from(layerTelemetry)
+        .where(eq(layerTelemetry.correlationId, correlationId))
+        .orderBy(layerTelemetry.createdAt);
+      if (rows.length === 0) return null;
+      return {
+        correlationId,
+        spans: rows.map(r => ({
+          layer: r.layer,
+          eventType: r.eventType,
+          durationMs: r.durationMs ?? null,
+          success: r.success ?? null,
+          errorCode: r.errorCode ?? null,
+          createdAt: r.createdAt,
+        })),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get summaries for all layers in a single call.
+   * Returns a map of layer → summary (null if DB unavailable for that layer).
+   */
+  async allSummaries(
+    windowHours = 24
+  ): Promise<Record<TelemetryLayer, LayerTelemetrySummary | null>> {
+    const layers: TelemetryLayer[] = [
+      "L0_FRICTION",
+      "L1_TRUTH",
+      "L2_SELF_PROMPT",
+      "L3_FRONTIER",
+      "L4_META",
+      "L5_DREAM",
+      "ORCHESTRATOR",
+    ];
+    const entries = await Promise.all(
+      layers.map(async layer => [layer, await getLayerTelemetrySummary(layer, windowHours)] as const)
+    );
+    return Object.fromEntries(entries) as Record<TelemetryLayer, LayerTelemetrySummary | null>;
+  }
+}
+
+/** Singleton instance for convenience */
+export const telemetryCollector = new TelemetryCollector();

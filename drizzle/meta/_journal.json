@@ -407,6 +407,13 @@
       "when": 1781879049965,
       "tag": "0057_pink_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1781898679556,
+      "tag": "0058_clever_calypso",
+      "breakpoints": true
     }
   ]
 }

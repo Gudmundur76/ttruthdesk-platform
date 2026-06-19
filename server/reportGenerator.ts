@@ -77,6 +77,38 @@ export function generateHtmlReport(params: {
     )
     .join("");
 
+  // Section 3: Alert banner — shown when there are high-risk claims
+  const alertBanner = highRisk > 0
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 24px;margin-bottom:24px;display:flex;align-items:flex-start;gap:12px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" style="flex-shrink:0;margin-top:2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>
+          <p style="font-size:14px;font-weight:700;color:#991b1b;margin:0 0 4px;">⚠ ${highRisk} High-Risk Claim${highRisk > 1 ? "s" : ""} Detected</p>
+          <p style="font-size:13px;color:#b91c1c;margin:0;">This report contains ${highRisk} claim${highRisk > 1 ? "s" : ""} classified as Contradicted or Needs Expert Review. Human scientific judgment is required before acting on these findings.</p>
+        </div>
+      </div>`
+    : "";
+
+  // Section 5: Evidence detail expandables — one <details> block per claim with evidence
+  const evidenceDetails = claims
+    .filter(c => c.pdbEvidenceUrl || c.verdictRationale)
+    .map((c, i) => {
+      const v = c.overriddenVerdict ?? c.verdict ?? "Insufficient Evidence";
+      const color = VERDICT_COLORS[v] ?? "#374151";
+      const bg = VERDICT_BG[v] ?? "#f9fafb";
+      return `<details style="border-bottom:1px solid #e5e7eb;">
+        <summary style="padding:12px 24px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;font-size:13px;color:#374151;">
+          <span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700;background:${bg};color:${color};">${v}</span>
+          <span style="flex:1;">${escapeHtml(c.claimText.slice(0, 120))}${c.claimText.length > 120 ? "…" : ""}</span>
+        </summary>
+        <div style="padding:12px 24px 16px 44px;font-size:13px;color:#374151;">
+          ${c.verdictRationale ? `<p style="margin:0 0 8px;"><strong>Rationale:</strong> ${escapeHtml(c.verdictRationale)}</p>` : ""}
+          ${c.pdbEvidenceUrl ? `<p style="margin:0;"><strong>Evidence:</strong> <a href="${escapeHtml(c.pdbEvidenceUrl)}" target="_blank" style="color:#0369a1;">View in PDB ↗</a></p>` : ""}
+          ${c.overriddenVerdict ? `<p style="margin:8px 0 0;"><strong>Note:</strong> Verdict was overridden from <em>${escapeHtml(c.verdict ?? "")}</em> to <em>${escapeHtml(c.overriddenVerdict)}</em>.</p>` : ""}
+        </div>
+      </details>`;
+    })
+    .join("");
+
   const claimRows = claims
     .map((c, i) => {
       const v = c.overriddenVerdict ?? c.verdict ?? "Insufficient Evidence";
@@ -125,6 +157,7 @@ export function generateHtmlReport(params: {
 </head>
 <body>
 <div class="page">
+  ${alertBanner}
   <div style="display:flex;align-items:center;gap:16px;margin-bottom:32px;">
     <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#0f172a,#1e40af);display:flex;align-items:center;justify-content:center;">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
@@ -174,6 +207,28 @@ export function generateHtmlReport(params: {
         </thead>
         <tbody>${claimRows}</tbody>
       </table>
+    </div>
+  </div>
+
+  ${evidenceDetails.length > 0 ? `<div class="section">
+    <div class="section-header"><p class="section-title">Evidence Details</p></div>
+    ${evidenceDetails}
+  </div>` : ""}
+
+  <div class="section">
+    <div class="section-header"><p class="section-title">Methodology</p></div>
+    <div style="padding:20px 24px;font-size:13px;color:#374151;line-height:1.7;">
+      <p style="margin:0 0 12px;">Protein Truth Desk extracts factual claims from scientific documents using a large language model fine-tuned for structural biology. Each claim is independently verified against the RCSB Protein Data Bank (PDB), UniProt, AlphaFold DB, and other registered evidence sources.</p>
+      <p style="margin:0 0 12px;"><strong>Verdict definitions:</strong></p>
+      <ul style="margin:0 0 12px;padding-left:20px;">
+        <li><strong style="color:#16a34a;">Supported</strong> — Direct structural or experimental evidence confirms the claim.</li>
+        <li><strong style="color:#dc2626;">Contradicted</strong> — Evidence directly refutes the claim.</li>
+        <li><strong style="color:#d97706;">Partially Supported</strong> — Some evidence supports the claim but with notable caveats.</li>
+        <li><strong style="color:#7c3aed;">Ambiguous</strong> — Conflicting evidence; no clear consensus.</li>
+        <li><strong style="color:#6b7280;">Insufficient Evidence</strong> — No relevant evidence found in the queried databases.</li>
+        <li><strong style="color:#0369a1;">Needs Expert Review</strong> — Claim requires domain expert judgment beyond automated verification.</li>
+      </ul>
+      <p style="margin:0;">This report is generated autonomously and should be reviewed by a qualified scientist before use in clinical, regulatory, or publication contexts.</p>
     </div>
   </div>
 

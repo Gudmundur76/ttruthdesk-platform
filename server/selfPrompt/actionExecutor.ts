@@ -16,7 +16,8 @@
 
 import type { PrioritizedAction } from "./promptEngine";
 import { getDb } from "../db";
-import { graphEntities, claims } from "../../drizzle/schema";
+import { graphEntities, claims, auditReports } from "../../drizzle/schema";
+import * as schema from "../../drizzle/schema";
 import { eq, lt, and, isNotNull } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { notifyIndexNow, claimUrl } from "../seo/indexNow";
@@ -507,6 +508,64 @@ export async function executeAction(
         };
       }
 
+      case "report_flag": {
+        // FR-L2-08: Flag a report for human review.
+        // targetId is the auditReport.id (or documentId if report not yet generated).
+        // Authority boundary: only sets flaggedForReview + flagReason; never modifies verdicts.
+        if (!targetId) {
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "report_flag requires a non-zero targetId (auditReport.id or documentId)",
+          };
+        }
+        const dbRf = await getDb();
+        if (!dbRf) {
+          return {
+            action: actionType,
+            targetId,
+            status: "error",
+            detail: "DB unavailable",
+          };
+        }
+        // Try to find the report by id first, then by documentId
+        const [byId] = await dbRf
+          .select({ id: auditReports.id })
+          .from(auditReports)
+          .where(eq(auditReports.id, targetId))
+          .limit(1);
+        const [byDocId] = byId
+          ? [byId]
+          : await dbRf
+              .select({ id: auditReports.id })
+              .from(auditReports)
+              .where(eq(auditReports.documentId, targetId))
+              .limit(1);
+        if (!byDocId) {
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: `No audit report found for id/documentId=${targetId}`,
+          };
+        }
+        await dbRf
+          .update(auditReports)
+          .set({
+            flaggedForReview: true,
+            flagReason: reasoning.slice(0, 500),
+            flaggedAt: new Date(),
+          })
+          .where(eq(auditReports.id, byDocId.id));
+        return {
+          action: actionType,
+          targetId: byDocId.id,
+          status: "ok",
+          detail: `Report ${byDocId.id} flagged for human review`,
+        };
+      }
+
       case "converge": {
         return {
           action: actionType,
@@ -628,6 +687,7 @@ function getDelegatedTo(actionType: string): string {
     graph_suggest: "graphEngine",
     ingest_request: "domainIngestScheduler",
     update_claim: "claimVerifier",
+    report_flag: "auditReportService",
     converge: "selfPromptEngine",
   };
   return map[actionType] ?? "unknown";

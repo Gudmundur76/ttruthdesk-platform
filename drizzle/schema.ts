@@ -211,6 +211,10 @@ export const auditReports = mysqlTable("audit_reports", {
   highRiskCount: int("highRiskCount").default(0).notNull(),
   totalClaims: int("totalClaims").default(0).notNull(),
   notifiedCustomer: boolean("notifiedCustomer").default(false).notNull(),
+  /** Set by L2 Self-Prompting Engine report_flag action when human review is needed */
+  flaggedForReview: boolean("flaggedForReview").default(false).notNull(),
+  flagReason: varchar("flagReason", { length: 500 }),
+  flaggedAt: timestamp("flaggedAt"),
   generatedAt: timestamp("generatedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
