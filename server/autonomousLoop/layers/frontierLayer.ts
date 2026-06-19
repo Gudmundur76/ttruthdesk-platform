@@ -73,6 +73,7 @@ export function onDirectiveReceived(payload: {
   const directive: FrontierDirective = {
     directiveId: payload.directiveId,
     type,
+    directiveType: type, // PRD_BACKEND_V2 alias — always equals type
     targetGapId,
     ttlSeconds: 1800, // 30 min per PRD spec (FR-L3-25)
     createdAt: new Date(),

@@ -3858,6 +3858,7 @@ Respond in this exact structure:
         directiveStore.add({
           directiveId,
           type: input.type,
+          directiveType: input.type, // PRD_BACKEND_V2 alias
           targetGapId: input.targetGapId,
           targetEntityId: input.targetEntityId,
           ttlSeconds: input.ttlSeconds,

@@ -13,14 +13,15 @@ import {
 function makeDirective(
   overrides: Partial<FrontierDirective> = {}
 ): FrontierDirective {
-  return {
+  const base = {
     directiveId: "dir-" + Math.random().toString(36).slice(2),
-    type: "focus_gap",
+    type: "focus_gap" as const,
     targetGapId: "gap-1",
     ttlSeconds: 3600,
     createdAt: new Date(),
     ...overrides,
   };
+  return { ...base, directiveType: base.type };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

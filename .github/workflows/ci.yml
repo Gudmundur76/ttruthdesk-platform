@@ -117,6 +117,38 @@ jobs:
         run: pnpm stubs || true
         # stubs are advisory — reports overdue stubs but does not fail the build
 
+  # ── Adapter Calibration CI (FR-CAL-10) ──────────────────────────────────
+  calibrate-adapters:
+    name: Adapter Calibration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: quality
+    continue-on-error: true  # Calibration regression is a warning, not a blocker
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run adapter calibration (CI mode)
+        env:
+          BUILT_IN_FORGE_API_KEY: ${{ secrets.BUILT_IN_FORGE_API_KEY }}
+          BUILT_IN_FORGE_API_URL: ${{ secrets.BUILT_IN_FORGE_API_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm calibrate:adapters:ci
+        # FR-CAL-10: calibration runs in CI to catch prompt regression before merge
+
   # ── Drive Staleness Check ─────────────────────────────────────────────
   drive-staleness:
     name: Drive Staleness

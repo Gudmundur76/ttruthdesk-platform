@@ -117,13 +117,14 @@ import { directiveStore, type FrontierDirective } from "./directiveStore";
 import { frontierCircuitBreaker } from "./circuitBreaker";
 
 function makeDirective(overrides: Partial<FrontierDirective> = {}): FrontierDirective {
-  return {
+  const base = {
     directiveId: `d-${Math.random().toString(36).slice(2)}`,
-    type: "focus_gap",
+    type: "focus_gap" as const,
     ttlSeconds: 3600,
     createdAt: new Date(),
     ...overrides,
   };
+  return { ...base, directiveType: base.type };
 }
 
 describe("frontier/frontierEngine — directive-aware orchestration (T021-T030)", () => {

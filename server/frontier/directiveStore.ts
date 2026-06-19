@@ -22,11 +22,16 @@ export interface FrontierDirective {
   directiveId: string;
   /** Type of directive */
   type: DirectiveType;
+  /**
+   * PRD_BACKEND_V2 alias for `type` — always equals `type`.
+   * Kept for interface compatibility with the PRD-specified TypeScript contract.
+   */
+  directiveType: DirectiveType;
   /** Gap ID to focus on (for focus_gap directives) */
   targetGapId?: string;
   /** Entity ID to deep-dive on (for deep_dive_entity directives) */
   targetEntityId?: string;
-  /** TTL in seconds (default 3600). Directive expires at createdAt + ttlSeconds */
+  /** TTL in seconds (default 1800 = 30 min per FR-L3-25). Directive expires at createdAt + ttlSeconds */
   ttlSeconds: number;
   /** When this directive was created */
   createdAt: Date;
