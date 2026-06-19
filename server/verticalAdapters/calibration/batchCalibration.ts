@@ -2,7 +2,8 @@
  * batchCalibration.ts
  * Batch runner over all registered adapters. FR-CAL-03.
  */
-import { listVerticals } from "../types";
+// Import from index.ts (not types.ts) so all adapters self-register on module load
+import { listVerticals } from "../index";
 import { calibrateAdapterFull } from "./adapterCalibration";
 import { buildCalibrationReport } from "./calibrationReport";
 import type { CalibrationReport } from "./calibrationReport";
