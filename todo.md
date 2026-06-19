@@ -1820,3 +1820,25 @@
 - [x] Tests: 3544/3544 passed (277 test files)
 - [x] Commit and push to origin/main (Phase 145)
 - [x] Update manus-persistent-drive with Phase 145 log entry
+
+---
+## Phase 137 — AlphaFold Adapter + UniProt wiring (complete)
+- [x] alphafoldAdapter.ts — AlphaFold DB pLDDT confidence scores
+- [x] alphafoldAdapter.test.ts — 18 unit tests
+- [x] analysisPipeline.ts — wire AlphaFold for structural_biology / protein_biochemistry claims
+- [x] analysisPipeline.ts — wire sourcePaperAdapter PMID enrichment
+
+## Phase 138 — Source Paper Adapter + paper_embeddings (complete)
+- [x] sourcePaperAdapter.ts — PMC full-text semantic similarity via embeddings
+- [x] sourcePaperAdapter.test.ts — 22 unit tests
+- [x] drizzle/schema.ts — paper_embeddings table
+- [x] migration 0059 applied — paper_embeddings table in DB
+
+## Build3 T001-T038 — Frontier Engine hardening (complete)
+- [x] apiV2Router.ts — GET /api/v2/health/frontier endpoint (MetricReporter)
+- [x] frontierCircuitBreaker.getState() wired into /health/frontier response
+
+## Build3 T039-T092 — Dream State (complete)
+- [x] dreamLayer.ts — L5 adapter (dream_cycle_started / dream_pattern_detected → runDreamSession)
+- [x] Null-safe sessionResult handling
+- [x] Wake protocol integration via wakeProtocolResult

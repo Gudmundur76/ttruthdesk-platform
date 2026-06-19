@@ -414,6 +414,13 @@
       "when": 1781898679556,
       "tag": "0058_clever_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1781906114146,
+      "tag": "0059_cultured_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

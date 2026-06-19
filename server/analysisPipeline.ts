@@ -28,6 +28,10 @@ import {
   verifyResolutionByProteinSearch,
   verifyProteinNameBySearch,
 } from "./pdbLookupAdapter";
+import {
+  verifyStructurePredictionViaAlphaFold,
+  extractUniProtAccessions,
+} from "./alphafoldAdapter";
 import { getVertical } from "./verticalAdapters/types";
 import type { EvidenceResult } from "./verticalAdapters/types";
 import {
@@ -64,6 +68,10 @@ import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
 import { analyzeCitationChain } from "./citationChainAnalyzer";
 import { computeCompositeTruth } from "./compositeTruthEngine";
 import { openCitationsEnrichClaim } from "./openCitationsEnricher";
+import {
+  verifyClaimAgainstSourcePaper,
+  extractPmids,
+} from "./sourcePaperAdapter";
 import { setCitationGraphEnriched } from "./db";
 import { logger, errData } from "./logger";
 const log = logger("analysisPipeline");
@@ -257,6 +265,54 @@ export async function runAnalysisPipeline(
                 method: "deterministic_source",
                 decisionConfidence: 0.75,
                 sourceCompletenessScore: 0.8,
+              };
+            }
+          } else if (
+            (claim.claimType === "protein_function" ||
+              claim.claimType === "sequence" ||
+              claim.claimType === "general_protein") &&
+            !claim.pdbId
+          ) {
+            // ── Phase 137: AlphaFold pLDDT verification for protein biochemistry claims ──
+            // Extract UniProt accession codes from the claim text; if found, query AlphaFold.
+            const accessions = extractUniProtAccessions(claim.claimText);
+            const accession = accessions[0] ?? null;
+            if (accession) {
+              const afVerdict = await verifyStructurePredictionViaAlphaFold(
+                accession,
+                claim.claimText
+              );
+              result = {
+                verdict: afVerdict.verdict,
+                rationale: afVerdict.rationale,
+                evidenceUrl: afVerdict.evidenceUrl,
+                evidenceRaw: afVerdict.evidenceRaw as never,
+              };
+              decision = {
+                verdict: afVerdict.verdict,
+                rationale: afVerdict.rationale,
+                method: "deterministic_source",
+                decisionConfidence: afVerdict.confidenceScore,
+                sourceCompletenessScore: afVerdict.confidenceScore,
+              };
+            } else {
+              // No UniProt accession — fall through to PDB adapter
+              result = await verdictForClaim({
+                claimType: claim.claimType,
+                pdbId: claim.pdbId,
+                proteinName: claim.proteinName,
+                experimentalMethod: claim.experimentalMethod,
+                resolution: claim.resolution ?? undefined,
+                organism: claim.organism,
+                ligand: claim.ligand,
+                extractedValue: claim.extractedValue,
+              });
+              decision = {
+                verdict: result.verdict,
+                rationale: result.rationale,
+                method: "deterministic_source",
+                decisionConfidence: 0.7,
+                sourceCompletenessScore: 0.7,
               };
             }
           } else {
@@ -794,6 +850,35 @@ export async function runAnalysisPipeline(
             log.warn(
               `[Stage3.5/OC] OpenCitations enrichment failed for claim ${claim.id} (non-fatal):`,
               errData(ocErr)
+            );
+          }
+
+          // ── Phase 138: Source Paper Semantic Similarity enrichment ──
+          // If the claim text contains a PMID reference, verify semantic alignment
+          // with the cited abstract. This enriches the composite truth signal.
+          let sourcePaperSimilarity: number | null = null;
+          try {
+            const pmids = extractPmids(claim.claimText);
+            if (pmids.length > 0) {
+              const spVerdict = await verifyClaimAgainstSourcePaper(
+                claim.claimText,
+                pmids[0]
+              );
+              sourcePaperSimilarity = spVerdict.similarityScore;
+              // If the source paper strongly contradicts the claim, downgrade confidence
+              if (
+                spVerdict.verdict === "Insufficient Evidence" &&
+                claim.verdict === "Supported"
+              ) {
+                log.warn(
+                  `[Stage3.6/SP] Source paper similarity low (${sourcePaperSimilarity?.toFixed(2)}) for claim ${claim.id} — confidence may be overstated`
+                );
+              }
+            }
+          } catch (spErr) {
+            log.warn(
+              `[Stage3.6/SP] Source paper enrichment failed for claim ${claim.id} (non-fatal):`,
+              errData(spErr)
             );
           }
 

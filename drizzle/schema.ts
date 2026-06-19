@@ -4,6 +4,7 @@ import {
   mysqlEnum,
   mysqlTable,
   text,
+  mediumtext,
   timestamp,
   varchar,
   float,
@@ -2993,3 +2994,31 @@ export const adapterPromptVersions = mysqlTable(
 export type AdapterPromptVersion = typeof adapterPromptVersions.$inferSelect;
 export type InsertAdapterPromptVersion =
   typeof adapterPromptVersions.$inferInsert;
+
+// ─── Phase 138: Source Paper Embeddings ─────────────────────────────────────────────
+/**
+ * paper_embeddings — cache of PMC/PubMed abstract text embeddings.
+ * Avoids recomputing embeddings for the same paper on every claim verification.
+ */
+export const paperEmbeddings = mysqlTable(
+  "paper_embeddings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** PubMed ID (unique per paper) */
+    pmid: varchar("pmid", { length: 20 }).notNull().unique(),
+    /** Abstract text (truncated to 4000 chars) */
+    abstractText: text("abstractText").notNull(),
+    /** JSON-serialised float array from text-embedding-3-small (1536 dims) */
+    embedding: mediumtext("embedding").notNull(),
+    /** Model used to compute the embedding (e.g. text-embedding-3-small) */
+    embeddingModel: varchar("embeddingModel", { length: 64 })
+      .notNull()
+      .default("text-embedding-3-small"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    pmidIdx: index("paper_embeddings_pmid_idx").on(t.pmid),
+  })
+);
+export type PaperEmbedding = typeof paperEmbeddings.$inferSelect;
+export type InsertPaperEmbedding = typeof paperEmbeddings.$inferInsert;

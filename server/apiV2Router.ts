@@ -19,6 +19,8 @@
  *   GET /api/v2/health              — API health check
  */
 import { Router, type Request, type Response } from "express";
+import { getFrontierMetrics } from "./frontier/frontierEngine";
+import { frontierCircuitBreaker } from "./frontier/circuitBreaker";
 import { checkRateLimit as checkDbRateLimit } from "./_core/rateLimit";
 import { scanLocalContradictions } from "./contradictionDetector";
 import {
@@ -135,6 +137,47 @@ export function createApiV2Router(): Router {
       });
   });
 
+
+  // ── GET /api/v2/health/frontier ──────────────────────────────────────────
+  //
+  // Build3 T031-T038: MetricReporter endpoint.
+  router.get("/health/frontier", async (_req, res) => {
+    try {
+      const metrics = await getFrontierMetrics();
+      const cbState = frontierCircuitBreaker.getState();
+      res.set(CORS_HEADERS).status(200).json({
+        ok: true,
+        timestamp: new Date().toISOString(),
+        frontier: {
+          totalGapsDetected: metrics.totalGapsDetected,
+          openGaps: metrics.openGaps,
+          pursuedGaps: metrics.pursuedGaps,
+          closedVerified: metrics.closedVerified,
+          closedResolved: metrics.closedResolved,
+          staleGaps: metrics.staleGaps,
+          hypothesesQueued: metrics.hypothesesQueued,
+          hypothesesVerified: metrics.hypothesesVerified,
+          hypothesesRefuted: metrics.hypothesesRefuted,
+          falseHypothesisRate: metrics.falseHypothesisRate,
+          closureRate30Days: metrics.closureRate30Days,
+          directivesApplied: metrics.directivesApplied ?? 0,
+        },
+        circuitBreaker: {
+          isOpen: cbState.isOpen,
+          consecutiveFailures: cbState.consecutiveFailures,
+          openedAt: cbState.openedAt?.toISOString() ?? null,
+          cooldownMs: cbState.cooldownMs,
+          threshold: cbState.threshold,
+        },
+      });
+    } catch (err) {
+      res.set(CORS_HEADERS).status(503).json({
+        ok: false,
+        error: String(err),
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
   // ── GET /api/v2/claims ────────────────────────────────────────────────────
   //
   // Query params:
