@@ -122,11 +122,21 @@ describe("codeDriftService — detectApiDrift()", () => {
 });
 
 // ─── detectTestDrift ──────────────────────────────────────────────────────────
+
+// Helper: create a Dirent-like object for the recursive scanner
+function makeDirent(name: string, isDir = false) {
+  return { name, isDirectory: () => isDir, isFile: () => !isDir };
+}
+
 describe("codeDriftService — detectTestDrift()", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns info when all source files have test files", () => {
-    mockReaddirSync.mockReturnValue(["claimExtractor.ts", "claimExtractor.test.ts"]);
+    // The recursive scanner calls readdirSync(dir, { withFileTypes: true })
+    mockReaddirSync.mockReturnValue([
+      makeDirent("claimExtractor.ts"),
+      makeDirent("claimExtractor.test.ts"),
+    ]);
     mockExistsSync.mockReturnValue(true);
 
     const result = detectTestDrift();
@@ -141,7 +151,9 @@ describe("codeDriftService — detectTestDrift()", () => {
   it("returns warning when coverage is below 70%", () => {
     // 3 source files, all missing test files
     mockReaddirSync.mockReturnValue([
-      "fileA.ts", "fileB.ts", "fileC.ts",
+      makeDirent("fileA.ts"),
+      makeDirent("fileB.ts"),
+      makeDirent("fileC.ts"),
     ]);
     mockExistsSync.mockReturnValue(false);
 
@@ -153,7 +165,7 @@ describe("codeDriftService — detectTestDrift()", () => {
 
   it("returns critical when coverage is below 50%", () => {
     // 10 source files, none have tests
-    const files = Array.from({ length: 10 }, (_, i) => `module${i}.ts`);
+    const files = Array.from({ length: 10 }, (_, i) => makeDirent(`module${i}.ts`));
     mockReaddirSync.mockReturnValue(files);
     mockExistsSync.mockReturnValue(false);
 
@@ -239,14 +251,16 @@ describe("codeDriftService — detectCodeDrift()", () => {
     expect(["info", "warning", "critical"]).toContain(report.overallSeverity);
   });
 
-  it("sets overallSeverity to critical when any finding is critical", async () => {
-    // Make readdirSync return many untested files to trigger critical testDrift
-    const files = Array.from({ length: 20 }, (_, i) => `module${i}.ts`);
+    it("sets overallSeverity to critical when any finding is critical", async () => {
+    // Make readdirSync return many untested files (as Dirent-like objects) to trigger critical testDrift
+    const files = Array.from({ length: 20 }, (_, i) => ({
+      name: `module${i}.ts`,
+      isDirectory: () => false,
+      isFile: () => true,
+    }));
     mockReaddirSync.mockReturnValue(files);
     mockExistsSync.mockReturnValue(false);
-
     const report = await detectCodeDrift();
-
     expect(report.overallSeverity).toBe("critical");
   });
 

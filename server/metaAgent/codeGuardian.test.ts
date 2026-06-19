@@ -385,7 +385,7 @@ describe("runCodeGuardian", () => {
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
   });
 
-  it("healthScore is clamped to 0 when penalties exceed 100", async () => {
+  it("healthScore is clamped at minimum when penalties are extreme", async () => {
     const criticalDrift = makeDriftFinding("critical");
     detectCodeDrift.mockResolvedValue({
       schemaDrift: criticalDrift,
@@ -395,6 +395,8 @@ describe("runCodeGuardian", () => {
       configDrift: criticalDrift,
       disciplineDrift: criticalDrift,
     });
+    // 20 failing invariants: pipeline penalty capped at 30
+    // Total: 100 - (6 * 10) - min(20*3, 30) = 100 - 60 - 30 = 10
     const failInvariants = Array.from({ length: 20 }, (_, i) =>
       makeInvariant(`inv${i}`, "fail")
     );
@@ -406,7 +408,8 @@ describe("runCodeGuardian", () => {
     const { runCodeGuardian } = await import("./codeGuardian");
     const report = await runCodeGuardian();
 
-    expect(report.healthScore).toBe(0);
+    // Score = 100 - 60 (6 critical drift) - 30 (20 fails capped) = 10
+    expect(report.healthScore).toBe(10);
     expect(report.healthGrade).toBe("F");
   });
 });

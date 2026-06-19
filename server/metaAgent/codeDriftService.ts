@@ -16,6 +16,19 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
+// ─── Recursive TS file collector ─────────────────────────────────────────────
+function collectTsFilesRecursive(dir: string, results: string[] = []): string[] {
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) collectTsFilesRecursive(full, results);
+      else if (entry.isFile() && entry.name.endsWith(".ts")) results.push(full);
+    }
+  } catch { /* skip unreadable dirs */ }
+  return results;
+}
+
 export interface DriftFinding {
   checkType: string;
   severity: "info" | "warning" | "critical";
@@ -143,43 +156,44 @@ export function detectApiDrift(): DriftFinding {
 // ─── 3. Test Drift ────────────────────────────────────────────────────────────
 
 /**
- * Finds server/*.ts files (excluding _core, test files, and known non-testable files)
- * that have no corresponding *.test.ts.
+ * Finds all server .ts files recursively (excluding _core, test files, and known non-testable files)
+ * that have no corresponding .test.ts counterpart.
+ * Scans recursively so subdirectory test files (e.g. server/metaAgent/*.test.ts) are counted.
  */
 export function detectTestDrift(): DriftFinding {
   const SKIP_PATTERNS = [
     /\.test\.ts$/,
-    /^server\/_core\//,
+    /[\\/]_core[\\/]/,
     /routers\.ts$/,
     /schema\.ts$/,
     /relations\.ts$/,
-    /db\.ts$/,
-    /storage\.ts$/,
+    /[\\/]db\.ts$/,
+    /[\\/]storage\.ts$/,
     /seedKnowledgeGraph\.ts$/,
+    /\.d\.ts$/,
   ];
 
-  let sourceFiles: string[] = [];
-  try {
-    sourceFiles = readdirSync(SERVER_DIR)
-      .filter(f => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-      .map(f => join(SERVER_DIR, f));
-  } catch {
-    /* skip */
-  }
+  // Collect ALL .ts files recursively under server/
+  const allFiles = collectTsFilesRecursive(SERVER_DIR);
+  const testFileSet = new Set(allFiles.filter(f => f.endsWith(".test.ts")));
+
+  // Source files = non-test .ts files not excluded by skip patterns
+  const testableFiles = allFiles.filter(f => {
+    const rel = f.replace(PROJECT_ROOT + "/", "");
+    return !SKIP_PATTERNS.some(p => p.test(rel));
+  });
 
   const untestedFiles: string[] = [];
-  for (const file of sourceFiles) {
-    const rel = file.replace(PROJECT_ROOT + "/", "");
-    if (SKIP_PATTERNS.some(p => p.test(rel))) continue;
+  for (const file of testableFiles) {
     const testFile = file.replace(/\.ts$/, ".test.ts");
-    if (!existsSync(testFile)) {
-      untestedFiles.push(rel);
+    if (!testFileSet.has(testFile) && !existsSync(testFile)) {
+      untestedFiles.push(file.replace(PROJECT_ROOT + "/", ""));
     }
   }
 
   const coverageRatio =
-    sourceFiles.length > 0
-      ? (sourceFiles.length - untestedFiles.length) / sourceFiles.length
+    testableFiles.length > 0
+      ? (testableFiles.length - untestedFiles.length) / testableFiles.length
       : 1;
 
   const severity: DriftFinding["severity"] =
@@ -190,7 +204,7 @@ export function detectTestDrift(): DriftFinding {
     severity,
     confidence: 0.9,
     details: {
-      totalSourceFiles: sourceFiles.length,
+      totalSourceFiles: testableFiles.length,
       untestedCount: untestedFiles.length,
       coverageRatio: Math.round(coverageRatio * 100) / 100,
       untestedFiles,

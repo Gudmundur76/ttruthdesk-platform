@@ -153,10 +153,15 @@ function computeHealthScore(
   }
 
   if (pipeline) {
+    // Cap total pipeline penalty at 30 points to prevent a single batch of
+    // stale invariant failures from zeroing the score. Each failing invariant
+    // costs 3 points; each warning costs 1 point; total capped at -30.
+    let pipelinePenalty = 0;
     for (const inv of pipeline.invariants) {
-      if (inv.status === "fail") score -= 3;
-      else if (inv.status === "warn") score -= 1;
+      if (inv.status === "fail") pipelinePenalty += 3;
+      else if (inv.status === "warn") pipelinePenalty += 1;
     }
+    score -= Math.min(pipelinePenalty, 30);
   }
 
   return Math.max(0, Math.round(score));
