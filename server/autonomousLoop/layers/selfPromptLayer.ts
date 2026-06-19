@@ -13,12 +13,18 @@
  *               manual_review_complete, scheduled_tick
  */
 
+import { randomUUID } from "crypto";
 import type { LoopEvent } from "../eventBus";
 import type { LoopAction } from "../loopOrchestrator";
 import { runSelfPromptCycle } from "../../selfPrompt/engine";
 import type { SelfPromptEvent } from "../../selfPrompt/stateCollector";
 import { publishEvent } from "../eventBus";
 import { scanLocalContradictions } from "../../contradictionDetector";
+import {
+  emitLayerStart,
+  emitLayerEnd,
+  emitLayerError,
+} from "../../telemetryCollector";
 
 export interface SelfPromptLayerResult {
   actions: LoopAction[];
@@ -378,6 +384,9 @@ async function handlePartiallySupported(
 export async function runSelfPromptLayer(
   event: LoopEvent
 ): Promise<SelfPromptLayerResult> {
+  const corrId = randomUUID();
+  const startMs = Date.now();
+  await emitLayerStart("L2_SELF_PROMPT", corrId, { eventQueueId: event.id });
   const actions: LoopAction[] = [];
 
   try {
@@ -450,6 +459,10 @@ export async function runSelfPromptLayer(
       });
     }
   } catch (err) {
+    await emitLayerError("L2_SELF_PROMPT", corrId, "LAYER_ERROR", {
+      eventQueueId: event.id,
+      durationMs: Date.now() - startMs,
+    });
     actions.push({
       type: "self_prompt_cycle",
       description: `Self-prompt layer failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -457,7 +470,8 @@ export async function runSelfPromptLayer(
       result: "failed",
       error: err instanceof Error ? err.message : String(err),
     });
+    return { actions };
   }
-
+  await emitLayerEnd("L2_SELF_PROMPT", corrId, startMs, { eventQueueId: event.id });
   return { actions };
 }

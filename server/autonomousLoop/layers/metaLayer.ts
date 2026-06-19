@@ -6,6 +6,7 @@
  * Fires the existing MetaAgent health check for system_health_change events.
  */
 
+import { randomUUID } from "crypto";
 import type { LoopEvent } from "../eventBus";
 import type { LoopAction } from "../loopOrchestrator";
 import { evaluateHealthAndTriggerSafeMode } from "../safeModeController";
@@ -14,6 +15,10 @@ import { spawnDevTask } from "../../manusOrchestrator";
 import { getDb } from "../../db";
 import { metaAgentChecks } from "../../../drizzle/schema";
 import { sql, desc } from "drizzle-orm";
+import {
+  emitLayerStart,
+  emitLayerEnd,
+} from "../../telemetryCollector";
 
 // Track last known health score to detect changes
 let _lastPublishedHealthScore: number | null = null;
@@ -29,6 +34,9 @@ export async function runMetaLayer(
   event: LoopEvent,
   _priorActions: LoopAction[]
 ): Promise<MetaLayerResult> {
+  const corrId = randomUUID();
+  const startMs = Date.now();
+  await emitLayerStart("L4_META", corrId, { eventQueueId: event.id });
   const actions: LoopAction[] = [];
   let safeModeTriggered = false;
 
@@ -126,6 +134,7 @@ export async function runMetaLayer(
     }
   }
 
+  await emitLayerEnd("L4_META", corrId, startMs, { eventQueueId: event.id });
   return { actions, healthScore, safeModeTriggered };
 }
 

@@ -2686,6 +2686,12 @@ export const frontierDirectives = mysqlTable(
       .default("pending"),
     frontierSessionId: int("frontierSessionId"),
     iterationsUsed: int("iterationsUsed"),
+    /** Confidence score [0,1] from the issuing L2 cycle (FR-L2-26) */
+    confidence: float("confidence").notNull().default(0.5),
+    /** TTL in minutes — directive expires at createdAt + ttlMinutes (FR-L3-25) */
+    ttlMinutes: int("ttlMinutes").notNull().default(60),
+    /** Computed expiry timestamp for fast DB-side filtering */
+    expiresAt: timestamp("expiresAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     completedAt: timestamp("completedAt"),
   },
@@ -2693,6 +2699,7 @@ export const frontierDirectives = mysqlTable(
     directiveIdIdx: index("fd_directive_id_idx").on(t.directiveId),
     statusIdx: index("fd_status_idx").on(t.status),
     priorityIdx: index("fd_priority_idx").on(t.priority),
+    expiresAtIdx: index("fd_expires_at_idx").on(t.expiresAt),
     createdAtIdx: index("fd_created_at_idx").on(t.createdAt),
   })
 );

@@ -13,12 +13,18 @@
  * DirectiveStore for consumption at the next cycle start (FR-L3-23).
  */
 
+import { randomUUID } from "crypto";
 import type { LoopEvent } from "../eventBus";
 import type { LoopAction } from "../loopOrchestrator";
 import { runFrontierEngine } from "../../frontier/frontierEngine";
 import { handlePaperDiscovered } from "../../frontier/paperDiscoveredHandler";
 import { directiveStore, type FrontierDirective } from "../../frontier/directiveStore";
 import { logger } from "../../logger";
+import {
+  emitLayerStart,
+  emitLayerEnd,
+  emitLayerError,
+} from "../../telemetryCollector";
 
 const log = logger("frontier/frontierLayer");
 
@@ -83,67 +89,85 @@ export async function runFrontierLayer(
   event: LoopEvent,
   priorActions: LoopAction[]
 ): Promise<FrontierLayerResult> {
+  const corrId = randomUUID();
+  const startMs = Date.now();
+  await emitLayerStart("L3_FRONTIER", corrId, { eventQueueId: event.id });
+
   const actions: LoopAction[] = [];
 
-  // Handle frontier_directive events — store and return (FR-L3-23)
-  if (event.eventType === "frontier_directive") {
-    const payload = event.payload as Parameters<typeof onDirectiveReceived>[0];
-    onDirectiveReceived(payload);
-    actions.push({
-      type: "frontier_directive_stored",
-      description: `Frontier directive stored: ${payload.directiveId}`,
-      priority: 30,
-      result: "success",
-    });
-    return { ran: true, actions };
-  }
+  try {
+    // Handle frontier_directive events — store and return (FR-L3-23)
+    if (event.eventType === "frontier_directive") {
+      const payload = event.payload as Parameters<typeof onDirectiveReceived>[0];
+      onDirectiveReceived(payload);
+      actions.push({
+        type: "frontier_directive_stored",
+        description: `Frontier directive stored: ${payload.directiveId}`,
+        priority: 30,
+        result: "success",
+      });
+      await emitLayerEnd("L3_FRONTIER", corrId, startMs, { eventQueueId: event.id });
+      return { ran: true, actions };
+    }
 
-  // Only run the full engine for trigger events
-  if (!FRONTIER_TRIGGER_EVENTS.has(event.eventType)) {
-    return { ran: false, actions };
-  }
+    // Only run the full engine for trigger events
+    if (!FRONTIER_TRIGGER_EVENTS.has(event.eventType)) {
+      await emitLayerEnd("L3_FRONTIER", corrId, startMs, { eventQueueId: event.id });
+      return { ran: false, actions };
+    }
 
-  // Don't run if prior actions already triggered a frontier run
-  const alreadyRan = priorActions.some((a) => a.type.startsWith("frontier_"));
-  if (alreadyRan) {
-    return { ran: false, actions };
-  }
+    // Don't run if prior actions already triggered a frontier run
+    const alreadyRan = priorActions.some((a) => a.type.startsWith("frontier_"));
+    if (alreadyRan) {
+      await emitLayerEnd("L3_FRONTIER", corrId, startMs, { eventQueueId: event.id });
+      return { ran: false, actions };
+    }
 
-  // paper_discovered: generate gap-closing hypotheses from the paper, then
-  // also run the full Frontier Engine to pick up any new structural gaps.
-  if (event.eventType === "paper_discovered") {
+    // paper_discovered: generate gap-closing hypotheses from the paper, then
+    // also run the full Frontier Engine to pick up any new structural gaps.
+    if (event.eventType === "paper_discovered") {
+      try {
+        const { actions: paperActions } = await handlePaperDiscovered(event);
+        actions.push(...paperActions);
+      } catch (err) {
+        actions.push({
+          type: "paper_discovered_hypotheses",
+          description: `Paper hypothesis generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          priority: 45,
+          result: "failed",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      await emitLayerEnd("L3_FRONTIER", corrId, startMs, { eventQueueId: event.id });
+      return { ran: true, actions };
+    }
+
     try {
-      const { actions: paperActions } = await handlePaperDiscovered(event);
-      actions.push(...paperActions);
+      const result = await runFrontierEngine();
+      actions.push({
+        type: "frontier_engine_run",
+        description: `Frontier Engine: ${result.gapMapping.newGapsCreated} new gaps, ${result.hypothesisGeneration.hypothesesGenerated} hypotheses, ${result.pursuitResults.length} pursuit tasks`,
+        priority: 50,
+        result: "success",
+      });
     } catch (err) {
       actions.push({
-        type: "paper_discovered_hypotheses",
-        description: `Paper hypothesis generation failed: ${err instanceof Error ? err.message : String(err)}`,
-        priority: 45,
+        type: "frontier_engine_run",
+        description: `Frontier Engine failed: ${err instanceof Error ? err.message : String(err)}`,
+        priority: 50,
         result: "failed",
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    return { ran: true, actions };
-  }
 
-  try {
-    const result = await runFrontierEngine();
-    actions.push({
-      type: "frontier_engine_run",
-      description: `Frontier Engine: ${result.gapMapping.newGapsCreated} new gaps, ${result.hypothesisGeneration.hypothesesGenerated} hypotheses, ${result.pursuitResults.length} pursuit tasks`,
-      priority: 50,
-      result: "success",
-    });
+    await emitLayerEnd("L3_FRONTIER", corrId, startMs, { eventQueueId: event.id });
     return { ran: true, actions };
   } catch (err) {
-    actions.push({
-      type: "frontier_engine_run",
-      description: `Frontier Engine failed: ${err instanceof Error ? err.message : String(err)}`,
-      priority: 50,
-      result: "failed",
-      error: err instanceof Error ? err.message : String(err),
+    await emitLayerError("L3_FRONTIER", corrId, "LAYER_ERROR", {
+      eventQueueId: event.id,
+      durationMs: Date.now() - startMs,
     });
-    return { ran: true, actions };
+    log.error("[FrontierLayer] Unhandled error:", { err: String(err) });
+    return { ran: false, actions };
   }
 }

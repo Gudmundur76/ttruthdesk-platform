@@ -34,9 +34,15 @@ import { runConfidenceRecalibration } from "./confidenceRecalibrator";
 import type { RecalibrationReport } from "./confidenceRecalibrator";
 import { runContradictionSimulation } from "./contradictionSimulator";
 import type { SimulationResult } from "./contradictionSimulator";
+import { randomUUID } from "crypto";
 import { publishEvent, getPendingEventCount } from "../autonomousLoop/eventBus";
 import { executeWakeProtocol } from "./dreamEventPublisher";
 import { logger, errData } from "../logger";
+import {
+  emitLayerStart,
+  emitLayerEnd,
+  emitLayerError,
+} from "../telemetryCollector";
 
 const log = logger("dream/dreamEngine");
 
@@ -194,8 +200,14 @@ export async function runDreamSession(
     manualTrigger?: boolean;
   } = {}
 ): Promise<DreamSessionResult | null> {
+  const corrId = randomUUID();
+  const telemetryStartMs = Date.now();
+  await emitLayerStart("L5_DREAM", corrId);
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    await emitLayerError("L5_DREAM", corrId, "DB_UNAVAILABLE");
+    return null;
+  }
 
   const startedAt = Date.now();
   let cyclesCompleted = 0;
@@ -439,6 +451,9 @@ export async function runDreamSession(
     reasonForWaking,
   }).catch(() => {});
 
+  await emitLayerEnd("L5_DREAM", corrId, telemetryStartMs, {
+    meta: { sessionId, cyclesCompleted, reasonForWaking },
+  });
   return {
     sessionId,
     cyclesCompleted,

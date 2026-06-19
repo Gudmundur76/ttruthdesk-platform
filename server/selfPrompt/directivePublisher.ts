@@ -113,6 +113,9 @@ export async function publishFrontierDirective(
         targetGapIds: req.targetGapId ? [String(req.targetGapId)] : [],
         maxIterations: 10,
         evidenceStrengthThreshold: req.confidence,
+        confidence: req.confidence,
+        ttlMinutes,
+        expiresAt,
         status: "pending",
       });
       dbRowId = (insertResult as { insertId?: number }).insertId ?? undefined;
