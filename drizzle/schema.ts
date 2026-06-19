@@ -2940,3 +2940,52 @@ export const preflightConstraints = mysqlTable(
 export type PreflightConstraint = typeof preflightConstraints.$inferSelect;
 export type InsertPreflightConstraint =
   typeof preflightConstraints.$inferInsert;
+
+// ─── Adapter Calibration ──────────────────────────────────────────────────────
+
+export const adapterCalibrationRuns = mysqlTable(
+  "adapter_calibration_runs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    runId: varchar("runId", { length: 64 }).notNull(),
+    adapterId: varchar("adapterId", { length: 128 }).notNull(),
+    documentId: varchar("documentId", { length: 16 }).notNull(),
+    claimsExtracted: int("claimsExtracted").notNull().default(0),
+    claimsSupported: int("claimsSupported").notNull().default(0),
+    claimsRefuted: int("claimsRefuted").notNull().default(0),
+    claimsUnverifiable: int("claimsUnverifiable").notNull().default(0),
+    precisionScore: float("precisionScore").notNull().default(0),
+    recallScore: float("recallScore").notNull().default(0),
+    f1Score: float("f1Score").notNull().default(0),
+    failureGroup: mysqlEnum("failureGroup", ["G1", "G2", "G3", "G4"])
+      .notNull()
+      .default("G4"),
+    errorCount: int("errorCount").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    runAdapterIdx: index("run_adapter_idx").on(t.runId, t.adapterId),
+  })
+);
+export type AdapterCalibrationRun = typeof adapterCalibrationRuns.$inferSelect;
+export type InsertAdapterCalibrationRun =
+  typeof adapterCalibrationRuns.$inferInsert;
+
+export const adapterPromptVersions = mysqlTable(
+  "adapter_prompt_versions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    adapterId: varchar("adapterId", { length: 128 }).notNull(),
+    version: int("version").notNull().default(1),
+    promptText: text("promptText").notNull(),
+    failureGroup: varchar("failureGroup", { length: 4 }).notNull().default("G4"),
+    isActive: boolean("isActive").notNull().default(true),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    adapterActiveIdx: index("adapter_active_idx").on(t.adapterId, t.isActive),
+  })
+);
+export type AdapterPromptVersion = typeof adapterPromptVersions.$inferSelect;
+export type InsertAdapterPromptVersion =
+  typeof adapterPromptVersions.$inferInsert;
