@@ -219,7 +219,6 @@ export async function getLayerTelemetrySummary(
 
 import { randomUUID } from "crypto";
 import { and, gte, eq } from "drizzle-orm";
-import { sql } from "drizzle-orm";
 
 /**
  * A live telemetry span. Call `end()` or `fail()` to close it.

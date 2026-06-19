@@ -17,7 +17,6 @@
 import type { PrioritizedAction } from "./promptEngine";
 import { getDb } from "../db";
 import { graphEntities, claims, auditReports } from "../../drizzle/schema";
-import * as schema from "../../drizzle/schema";
 import { eq, lt, and, isNotNull } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { notifyIndexNow, claimUrl } from "../seo/indexNow";

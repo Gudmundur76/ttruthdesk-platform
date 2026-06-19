@@ -91,7 +91,7 @@ export function generateHtmlReport(params: {
   // Section 5: Evidence detail expandables — one <details> block per claim with evidence
   const evidenceDetails = claims
     .filter(c => c.pdbEvidenceUrl || c.verdictRationale)
-    .map((c, i) => {
+    .map((c) => {
       const v = c.overriddenVerdict ?? c.verdict ?? "Insufficient Evidence";
       const color = VERDICT_COLORS[v] ?? "#374151";
       const bg = VERDICT_BG[v] ?? "#f9fafb";
