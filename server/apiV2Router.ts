@@ -21,6 +21,10 @@
 import { Router, type Request, type Response } from "express";
 import { checkRateLimit as checkDbRateLimit } from "./_core/rateLimit";
 import { scanLocalContradictions } from "./contradictionDetector";
+import {
+  toolVerifyClaimLocal,
+  toolVerifyClaimsBatchLocal,
+} from "./inference/mcpServerLocal";
 import { getDb } from "./db";
 import {
   claims,
@@ -671,6 +675,51 @@ export function createApiV2Router(): Router {
       report: reportRows[0] ?? null,
       claims: claimRows,
     });
+  });
+
+  // ── POST /api/v2/verify-local (PRD_SKILLOPT_AGENT2MODEL §3) ─────────────────
+  // Verify a claim using the locally-distilled model.
+  // 500x cheaper and 30x faster than the orchestrated pipeline.
+  router.post("/verify-local", async (req: Request, res: Response) => {
+    const { claimText, domain } = req.body as {
+      claimText?: unknown;
+      domain?: unknown;
+    };
+    if (typeof claimText !== "string" || claimText.trim().length === 0) {
+      return apiError(
+        res,
+        400,
+        "claimText is required and must be a non-empty string"
+      );
+    }
+    if (claimText.length > 2000) {
+      return apiError(
+        res,
+        400,
+        "claimText exceeds maximum length of 2000 characters"
+      );
+    }
+    const result = await toolVerifyClaimLocal({
+      claimText,
+      ...(typeof domain === "string" ? { domain } : {}),
+    });
+    if (!result.success) {
+      return apiError(res, 400, result.error ?? "Verification failed");
+    }
+    return apiOk(res, result.data);
+  });
+
+  // ── POST /api/v2/verify-local/batch (PRD_SKILLOPT_AGENT2MODEL §3) ────────────
+  // Batch verify up to 50 claims using the locally-distilled model.
+  router.post("/verify-local/batch", async (req: Request, res: Response) => {
+    const { claims: claimsInput } = req.body as { claims?: unknown };
+    const result = await toolVerifyClaimsBatchLocal({
+      claims: claimsInput,
+    });
+    if (!result.success) {
+      return apiError(res, 400, result.error ?? "Batch verification failed");
+    }
+    return apiOk(res, result.data);
   });
 
   return router;

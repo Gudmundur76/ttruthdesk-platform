@@ -1,0 +1,178 @@
+name: SkillOpt CI
+
+# PRD_SKILLOPT_AGENT2MODEL §7 — CI/CD integration
+#
+# Runs on every push to main and on pull requests.
+# Validates the SkillOpt module and inference layer:
+#   1. TypeScript compilation (no errors)
+#   2. Unit tests for skillopt/* and inference/* modules
+#   3. Python script syntax validation (convert_to_agent2model_format.py, evaluate_model.py)
+#   4. Shell script lint (export_training_corpus.sh)
+#
+# The evaluate_model job runs only when a trained model artifact is available
+# (i.e., when the MODEL_SERVER_URL secret is set). It is skipped in forks and
+# for PRs from external contributors.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/skillopt/**"
+      - "server/inference/**"
+      - "scripts/convert_to_agent2model_format.py"
+      - "scripts/evaluate_model.py"
+      - "scripts/export_training_corpus.sh"
+      - ".github/workflows/skillopt.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "server/skillopt/**"
+      - "server/inference/**"
+      - "scripts/convert_to_agent2model_format.py"
+      - "scripts/evaluate_model.py"
+      - "scripts/export_training_corpus.sh"
+      - ".github/workflows/skillopt.yml"
+
+jobs:
+  # ─── TypeScript + Unit Tests ─────────────────────────────────────────────────
+  test:
+    name: TypeScript + Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Run SkillOpt unit tests
+        run: pnpm vitest run server/skillopt/skillopt.test.ts --reporter=verbose
+
+      - name: Run inference unit tests
+        run: pnpm vitest run server/inference/inference.test.ts --reporter=verbose
+
+      - name: Run apiV2Router tests (verify-local endpoints)
+        run: pnpm vitest run server/apiV2Router.test.ts --reporter=verbose
+
+  # ─── Python Script Validation ─────────────────────────────────────────────────
+  python-scripts:
+    name: Python Script Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate convert_to_agent2model_format.py syntax
+        run: python3 -m py_compile scripts/convert_to_agent2model_format.py && echo "OK"
+
+      - name: Validate evaluate_model.py syntax
+        run: python3 -m py_compile scripts/evaluate_model.py && echo "OK"
+
+      - name: Run convert_to_agent2model_format.py --help
+        run: python3 scripts/convert_to_agent2model_format.py --help
+
+      - name: Run evaluate_model.py --help
+        run: python3 scripts/evaluate_model.py --help
+
+      - name: Test convert_to_agent2model_format.py with sample data
+        run: |
+          mkdir -p /tmp/corpus-test
+          # Create a minimal sample corpus
+          cat > /tmp/corpus-test/corpus.jsonl << 'EOF'
+          {"id":"test-1","claimText":"Protein 1ABC has a resolution of 2.1 angstroms.","verdict":"Supported","confidenceScore":0.92,"domain":"structural_biology","compositeTruthLabel":"verified_faithful","compositeTruthScore":0.88}
+          {"id":"test-2","claimText":"Lysozyme is an enzyme that damages bacterial cell walls.","verdict":"Supported","confidenceScore":0.95,"domain":"structural_biology","compositeTruthLabel":"verified_faithful","compositeTruthScore":0.91}
+          {"id":"test-3","claimText":"This claim has insufficient evidence.","verdict":"Insufficient Evidence","confidenceScore":0.3,"domain":"general","compositeTruthLabel":"insufficient_evidence","compositeTruthScore":0.2}
+          EOF
+          python3 scripts/convert_to_agent2model_format.py \
+            --input /tmp/corpus-test/corpus.jsonl \
+            --output /tmp/corpus-test/formatted.jsonl \
+            --min-confidence 0.7 \
+            --min-composite 0.6
+          # Verify output was created and has content
+          test -f /tmp/corpus-test/formatted.jsonl
+          echo "Formatted output:"
+          cat /tmp/corpus-test/formatted.jsonl
+
+  # ─── Shell Script Lint ────────────────────────────────────────────────────────
+  shell-lint:
+    name: Shell Script Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint export_training_corpus.sh
+        run: shellcheck scripts/export_training_corpus.sh
+
+  # ─── Model Evaluation (optional, requires MODEL_SERVER_URL secret) ────────────
+  evaluate:
+    name: Model Evaluation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run when the model server URL is configured (not in forks or external PRs)
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.MODEL_EVALUATION_ENABLED == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download test set artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-set
+          path: training/
+        continue-on-error: true  # Skip if no artifact exists yet
+
+      - name: Run model evaluation
+        run: |
+          python3 scripts/evaluate_model.py \
+            --model-server "${{ secrets.MODEL_SERVER_URL }}" \
+            --test-set training/test.jsonl \
+            --output reports/evaluation_report.json \
+            --max-samples 200
+        env:
+          MODEL_SERVER_URL: ${{ secrets.MODEL_SERVER_URL }}
+
+      - name: Upload evaluation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-report
+          path: reports/evaluation_report.json
+          retention-days: 30

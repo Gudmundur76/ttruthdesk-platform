@@ -70,6 +70,11 @@ import {
   toolFindSimilar,
   FIND_SIMILAR_TOOLS_MANIFEST,
 } from "./findSimilarRoute";
+import {
+  toolVerifyClaimLocal,
+  toolVerifyClaimsBatchLocal,
+  toolModelCapabilities,
+} from "./inference/mcpServerLocal";
 
 const log = logger("mcpServer");
 
@@ -897,8 +902,74 @@ const TOOLS: Record<
     >,
     handler: async params => toolFindSimilar(params),
   },
+  // ─── Local Model Tools (agent2model — PRD_SKILLOPT_AGENT2MODEL §3) ────────────
+  verify_claim_local: {
+    description:
+      "Verify a claim using the locally-distilled model (agent2model). " +
+      "500x cheaper and 30x faster than the orchestrated pipeline. " +
+      "Supports domains: structural_biology, clinical, economic, legal, environmental, general. " +
+      "Falls back to Insufficient Evidence when the local model is unavailable.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        claimText: {
+          type: "string",
+          description: "The claim to verify (max 2000 chars)",
+          maxLength: 2000,
+        },
+        domain: {
+          type: "string",
+          description:
+            "Optional domain hint (structural_biology, clinical, economic, legal, environmental, general)",
+        },
+      },
+      required: ["claimText"],
+      additionalProperties: false,
+    },
+    handler: async (params: Record<string, unknown>) =>
+      toolVerifyClaimLocal(params),
+  },
+  verify_claims_batch_local: {
+    description:
+      "Batch verify up to 50 claims using the locally-distilled model. " +
+      "All claims are processed in parallel. Returns an array of LocalVerificationResult.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        claims: {
+          type: "array",
+          description: "Array of claims to verify (max 50)",
+          maxItems: 50,
+          items: {
+            type: "object",
+            properties: {
+              claimText: { type: "string", maxLength: 2000 },
+              domain: { type: "string" },
+            },
+            required: ["claimText"],
+          },
+        },
+      },
+      required: ["claims"],
+      additionalProperties: false,
+    },
+    handler: async (params: Record<string, unknown>) =>
+      toolVerifyClaimsBatchLocal(params),
+  },
+  model_capabilities: {
+    description:
+      "Check local model availability and supported domains. " +
+      "Returns available (bool), domains (string[]), modelId, and modelSizeMb.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [] as string[],
+      additionalProperties: false,
+    },
+    handler: async (params: Record<string, unknown>) =>
+      toolModelCapabilities(params),
+  },
 };
-
 // ─── Capabilities response ────────────────────────────────────────────────────
 function buildCapabilities() {
   return {

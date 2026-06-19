@@ -72,6 +72,27 @@ vi.mock("./epistemicProvenance", () => ({
     },
   ],
 }));
+vi.mock("./inference/mcpServerLocal", () => ({
+  toolVerifyClaimLocal: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      verdict: "Supported",
+      confidence: 0.9,
+      domain: "general",
+      modelId: "test-model",
+      latencyMs: 5,
+    },
+  }),
+  toolVerifyClaimsBatchLocal: vi.fn().mockResolvedValue({
+    success: true,
+    data: { results: [], count: 0, latencyMs: 5 },
+  }),
+  toolModelCapabilities: vi.fn().mockResolvedValue({
+    success: true,
+    data: { available: false, domains: [], modelId: null, modelSizeMb: null },
+  }),
+}));
+
 vi.mock("./findSimilarRoute", () => ({
   toolFindSimilar: vi.fn().mockResolvedValue({
     claimId: 1,
@@ -177,7 +198,7 @@ describe("buildCapabilities", () => {
     expect(Array.isArray(caps.tools)).toBe(true);
   });
 
-  it("includes all 12 tools in the capabilities response", () => {
+  it("includes all 15 tools in the capabilities response", () => {
     const caps = buildCapabilities();
     const names = caps.tools.map(t => t.name);
     expect(names).toContain("verify_claim");
@@ -191,7 +212,11 @@ describe("buildCapabilities", () => {
     expect(names).toContain("flag_stale");
     expect(names).toContain("report_contradiction");
     expect(names).toContain("get_provenance");
-    expect(names).toHaveLength(12);
+    // Local model tools (PRD_SKILLOPT_AGENT2MODEL)
+    expect(names).toContain("verify_claim_local");
+    expect(names).toContain("verify_claims_batch_local");
+    expect(names).toContain("model_capabilities");
+    expect(names).toHaveLength(15);
   });
 
   it("every tool has a description and inputSchema", () => {
@@ -214,8 +239,9 @@ describe("buildCapabilities", () => {
 
 // ─── Tool Registry ────────────────────────────────────────────────────────────
 describe("TOOLS registry", () => {
-  it("contains exactly 12 tools", () => {
-    expect(Object.keys(TOOLS)).toHaveLength(12);
+  it("contains exactly 15 tools", () => {
+    // 12 original + 3 local model tools (PRD_SKILLOPT_AGENT2MODEL)
+    expect(Object.keys(TOOLS)).toHaveLength(15);
   });
 
   it("every tool has a handler function", () => {
@@ -291,7 +317,8 @@ describe("mcpServerFingerprint", () => {
     // If we add/remove tools, the fingerprint must change
     const fp = mcpServerFingerprint();
     expect(fp).toBeTruthy();
-    // Verify it encodes the 12 known tools
+    // Verify it encodes the 15 known tools (12 original + 3 local model tools from PRD_SKILLOPT_AGENT2MODEL)
+    // List MUST be in alphabetical order to match Object.keys(TOOLS).sort()
     const expected = createHash("sha256")
       .update(
         [
@@ -301,12 +328,15 @@ describe("mcpServerFingerprint", () => {
           "get_claim",
           "get_provenance",
           "get_source_version",
+          "model_capabilities",
           "report_contradiction",
           "search_claims",
           "submit_claim",
           "verify_claim",
           "verify_claim_at_date",
+          "verify_claim_local",
           "verify_claims_batch",
+          "verify_claims_batch_local",
         ].join(",")
       )
       .digest("hex")

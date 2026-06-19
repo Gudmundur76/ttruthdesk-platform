@@ -1784,3 +1784,39 @@
 
 ### Phase 10: CI Gate
 - [ ] T085-T092: Tests, TypeScript, lint, commit, push
+
+---
+## PRD_SKILLOPT_AGENT2MODEL: SkillOpt + Agent-to-Model Distillation
+**Goal:** Build the SkillOpt prompt optimization loop, inference module (local model serving), training scripts, and CI workflow per PRD_SKILLOPT_AGENT2MODEL.
+
+### SkillOpt Module (server/skillopt/)
+- [x] Create `scorer.ts` — F1/precision/recall/accuracy scoring with `computeMetrics()` and `meetsTarget()`
+- [x] Create `groundTruthLoader.ts` — loads calibration data as ground truth examples from JSONL
+- [x] Create `candidateGenerator.ts` — generates N prompt variant candidates via LLM (invokeMultiLLM)
+- [x] Create `skillOptRunner.ts` — main SkillOpt loop: load instruction → evaluate → generate candidates → select best → converge
+- [x] Create `skillopt.test.ts` — 19 unit tests for all SkillOpt components
+
+### Inference Module (server/inference/)
+- [x] Create `claimVerifier.ts` — `LocalClaimVerifier` wrapper for distilled model HTTP endpoint
+- [x] Create `modelServer.ts` — Express HTTP server around `LocalClaimVerifier` for local model serving
+- [x] Create `mcpServerLocal.ts` — 3 MCP tool handlers: `toolVerifyClaimLocal`, `toolVerifyClaimsBatchLocal`, `toolModelCapabilities`
+- [x] Create `inference.test.ts` — 31 unit tests for inference module
+
+### Training Scripts (scripts/)
+- [x] Create `convert_to_agent2model_format.py` — converts corpus.jsonl to agent2model training format with filtering
+- [x] Create `evaluate_model.py` — evaluates distilled model vs orchestrated pipeline, outputs metrics report
+- [x] Create `export_training_corpus.sh` — exports verified claims from registry to corpus.jsonl
+
+### Modified Files
+- [x] `package.json` — added `skillopt:run`, `model:serve`, `model:train`, `corpus:export`, `model:evaluate` scripts
+- [x] `server/mcpServer.ts` — added 3 local model tools (tool count 12→15, fingerprint updated)
+- [x] `server/mcpServer.test.ts` — updated tool count/fingerprint assertions, added inference mock
+- [x] `server/apiV2Router.ts` — added `POST /api/v2/verify-local` and `POST /api/v2/verify-local/batch`
+- [x] `.github/workflows/skillopt.yml` — CI workflow: TypeScript + unit tests + Python validation + shell lint
+
+### Gate Results
+- [x] TypeScript: 0 errors
+- [x] ESLint: 0 warnings
+- [x] Tests: 3544/3544 passed (277 test files)
+- [x] Commit and push to origin/main (Phase 145)
+- [x] Update manus-persistent-drive with Phase 145 log entry

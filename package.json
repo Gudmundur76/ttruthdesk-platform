@@ -42,7 +42,12 @@
     "prepare": "husky",
     "test:integration": "NODE_ENV=test tsx tests/integration/harness.ts",
     "ci:local": "bash scripts/ci-local.sh",
-    "ci:local:fast": "bash scripts/ci-local.sh --fast"
+    "ci:local:fast": "bash scripts/ci-local.sh --fast",
+    "skillopt:run": "tsx server/skillopt/skillOptRunner.ts",
+    "model:serve": "tsx server/inference/modelServer.ts",
+    "model:train": "bash scripts/export_training_corpus.sh && python3 scripts/convert_to_agent2model_format.py",
+    "corpus:export": "bash scripts/export_training_corpus.sh",
+    "model:evaluate": "python3 scripts/evaluate_model.py"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.68",
