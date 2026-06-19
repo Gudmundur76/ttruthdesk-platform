@@ -18,9 +18,6 @@ import {
   generateG1Prompt,
   rewriteG2Prompt,
   enhanceG3Prompt,
-  G1_EXTRACTION_TEMPLATE,
-  G2_CLAIM_SENTENCE_CONSTRAINT,
-  G3_VERIFICATION_CRITERIA_BLOCK,
 } from "./promptTemplates";
 import type { VerticalAdapter } from "../types";
 import type { TestDocument } from "./testDocuments";
@@ -45,7 +42,7 @@ function makeAdapter(domainKey: string, evidenceFound = true): VerticalAdapter {
   };
 }
 
-function makeDoc(id: string): TestDocument {
+function makeDoc(id: "D1" | "D2" | "D3" | "D4" | "D5"): TestDocument {
   return { id, label: `Doc ${id}`, description: "Test document", text: `Sample text for ${id}` };
 }
 
@@ -53,9 +50,14 @@ function makeClaim(text: string) {
   return {
     claimText: text,
     extractedValue: null,
-    confidence: 0.8,
-    claimType: "structural" as const,
-    sourceSpan: text,
+    claimType: "structural",
+    domainFields: {},
+    pdbId: null,
+    proteinName: null,
+    experimentalMethod: null,
+    resolution: null,
+    organism: null,
+    ligand: null,
   };
 }
 
@@ -92,13 +94,13 @@ describe("calibrateAdapter", () => {
 
   it("returns correct counts when extraction succeeds and evidence is found", async () => {
     const adapter = makeAdapter("protein");
-    const doc = makeDoc("doc1");
+    const doc = makeDoc("D1");
     mockExtractClaims.mockResolvedValue([makeClaim("p53 is 2.1 angstroms"), makeClaim("BRCA1 is mutated")]);
 
     const result = await calibrateAdapter(adapter, doc);
 
     expect(result.adapterId).toBe("protein");
-    expect(result.documentId).toBe("doc1");
+    expect(result.documentId).toBe("D1");
     expect(result.claimsExtracted).toBe(2);
     expect(result.claimsSupported).toBe(2);
     expect(result.claimsUnverifiable).toBe(0);
@@ -109,7 +111,7 @@ describe("calibrateAdapter", () => {
 
   it("counts unverifiable when evidence not found", async () => {
     const adapter = makeAdapter("protein", false);
-    const doc = makeDoc("doc2");
+    const doc = makeDoc("D2");
     mockExtractClaims.mockResolvedValue([makeClaim("vague claim")]);
 
     const result = await calibrateAdapter(adapter, doc);
@@ -121,7 +123,7 @@ describe("calibrateAdapter", () => {
 
   it("handles extraction failure gracefully", async () => {
     const adapter = makeAdapter("protein");
-    const doc = makeDoc("doc3");
+    const doc = makeDoc("D3");
     mockExtractClaims.mockRejectedValue(new Error("LLM timeout"));
 
     const result = await calibrateAdapter(adapter, doc);
@@ -133,7 +135,7 @@ describe("calibrateAdapter", () => {
 
   it("handles verification failure gracefully and counts as refuted", async () => {
     const adapter = makeAdapter("protein");
-    const doc = makeDoc("doc4");
+    const doc = makeDoc("D4");
     mockExtractClaims.mockResolvedValue([makeClaim("some claim")]);
     vi.mocked(adapter.lookupEvidence).mockRejectedValue(new Error("API error"));
 
@@ -151,7 +153,7 @@ describe("calibrateAdapterFull", () => {
 
   it("aggregates results across all documents", async () => {
     const adapter = makeAdapter("economics");
-    const docs = [makeDoc("d1"), makeDoc("d2"), makeDoc("d3")];
+    const docs = [makeDoc("D1"), makeDoc("D2"), makeDoc("D3")];
     mockExtractClaims.mockResolvedValue([makeClaim("GDP grew 3%")]);
 
     const summary = await calibrateAdapterFull(adapter, docs);
