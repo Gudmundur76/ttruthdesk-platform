@@ -74,7 +74,7 @@ export function onDirectiveReceived(payload: {
     directiveId: payload.directiveId,
     type,
     targetGapId,
-    ttlSeconds: 3600,
+    ttlSeconds: 1800, // 30 min per PRD spec (FR-L3-25)
     createdAt: new Date(),
   };
 

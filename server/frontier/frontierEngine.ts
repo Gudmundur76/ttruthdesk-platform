@@ -69,6 +69,10 @@ export interface FrontierEngineRunResult {
   directivesConsumed: number;
   /** Build3: Whether this cycle ran in autonomous deep-dive mode (FR-L3-29, FR-L3-31) */
   isDeepDive: boolean;
+  /** PRD_BACKEND_V2: Whether at least one directive was applied this cycle */
+  directiveApplied: boolean;
+  /** PRD_BACKEND_V2: The type of the first directive applied, or null if none */
+  directiveType: string | null;
 }
 
 // ─── Public: runFrontierEngine ────────────────────────────────────────────────
@@ -80,6 +84,7 @@ export interface FrontierEngineRunResult {
  * Non-fatal: each stage is wrapped in try/catch so a failure in one stage
  * does not prevent subsequent stages from running.
  */
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   const startTime = Date.now();
   log.info("[FrontierEngine] Starting full pipeline run...");
@@ -273,6 +278,17 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
 
   log.info(`[FrontierEngine] Pipeline complete in ${durationMs}ms`);
 
+  // Derive PRD_BACKEND_V2 convenience fields from directiveEffect
+  const directiveApplied = directiveEffect.directivesApplied > 0;
+  // Determine directiveType from the effect flags (priority: deep_dive > skip_mapping > focus_gap > prioritize_hypotheses)
+  let directiveType: string | null = null;
+  if (directiveApplied) {
+    if (directiveEffect.deepDiveEntityId) directiveType = "deep_dive_entity";
+    else if (directiveEffect.skippedMapping) directiveType = "skip_mapping";
+    else if (directiveEffect.focusGapIds.length > 0) directiveType = "focus_gap";
+    else if (directiveEffect.extraHypotheses > 0) directiveType = "prioritize_hypotheses";
+  }
+
   return {
     runAt: new Date(),
     gapMapping,
@@ -285,6 +301,8 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
     directiveEffect,
     directivesConsumed,
     isDeepDive,
+    directiveApplied,
+    directiveType,
   };
 }
 

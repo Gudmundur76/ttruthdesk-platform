@@ -117,7 +117,7 @@ describe("runAnalysisPipeline()", () => {
     mocks.mockExtractClaims.mockResolvedValue([]);
     mocks.mockGetVertical.mockReturnValue(null);
     mocks.mockUpsertAuditReport.mockResolvedValue(undefined);
-    mocks.mockGenerateHtmlReport.mockReturnValue("<html/>");
+    mocks.mockGenerateHtmlReport.mockReturnValue({ html: "<html/>", title: "Test Report", claimCount: 0, supportedCount: 0, contradictedCount: 0 });
     mocks.mockBuildVerdictSummary.mockReturnValue({});
     mocks.mockCountHighRisk.mockReturnValue(0);
     mocks.mockStoragePut.mockResolvedValue({ key: "k", url: "/u" });

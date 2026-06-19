@@ -7,6 +7,25 @@ import { Claim } from "../drizzle/schema";
 
 export type VerdictSummary = Record<string, number>;
 
+// ─── PRD_BACKEND_V2: GeneratedHtmlReport return type ─────────────────────────
+
+/**
+ * Structured return type for generateHtmlReport().
+ * PRD_BACKEND_V2 requires a structured object instead of a raw HTML string.
+ */
+export interface GeneratedHtmlReport {
+  /** The full HTML string for the report */
+  html: string;
+  /** Human-readable report title */
+  title: string;
+  /** Total number of claims in the report */
+  claimCount: number;
+  /** Number of claims with a Supported verdict */
+  supportedCount: number;
+  /** Number of claims with a Contradicted verdict */
+  contradictedCount: number;
+}
+
 export function buildVerdictSummary(claims: Claim[]): VerdictSummary {
   const summary: VerdictSummary = {
     Supported: 0,
@@ -57,8 +76,20 @@ export function generateHtmlReport(params: {
   claims: Claim[];
   generatedAt: Date;
   reportId: number;
-}): string {
-  const { documentTitle, documentUrl, claims, generatedAt, reportId } = params;
+  /** PRD_BACKEND_V2: Whether to include expandable evidence detail blocks (default: true) */
+  includeEvidenceDetails?: boolean;
+  /** PRD_BACKEND_V2: Whether to render source links in the evidence table (default: true) */
+  includeSourceLinks?: boolean;
+}): GeneratedHtmlReport {
+  const {
+    documentTitle,
+    documentUrl,
+    claims,
+    generatedAt,
+    reportId,
+    includeEvidenceDetails = true,
+    includeSourceLinks = true,
+  } = params;
   const summary = buildVerdictSummary(claims);
   const highRisk = countHighRisk(claims);
   const total = claims.length;
@@ -89,7 +120,7 @@ export function generateHtmlReport(params: {
     : "";
 
   // Section 5: Evidence detail expandables — one <details> block per claim with evidence
-  const evidenceDetails = claims
+  const evidenceDetails = includeEvidenceDetails ? claims
     .filter(c => c.pdbEvidenceUrl || c.verdictRationale)
     .map((c) => {
       const v = c.overriddenVerdict ?? c.verdict ?? "Insufficient Evidence";
@@ -105,9 +136,9 @@ export function generateHtmlReport(params: {
           ${c.pdbEvidenceUrl ? `<p style="margin:0;"><strong>Evidence:</strong> <a href="${escapeHtml(c.pdbEvidenceUrl)}" target="_blank" style="color:#0369a1;">View in PDB ↗</a></p>` : ""}
           ${c.overriddenVerdict ? `<p style="margin:8px 0 0;"><strong>Note:</strong> Verdict was overridden from <em>${escapeHtml(c.verdict ?? "")}</em> to <em>${escapeHtml(c.overriddenVerdict)}</em>.</p>` : ""}
         </div>
-      </details>`;
+        </details>`;
     })
-    .join("");
+    .join("") : "";
 
   const claimRows = claims
     .map((c, i) => {
@@ -124,13 +155,17 @@ export function generateHtmlReport(params: {
         </td>
         <td style="padding:12px 16px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#374151;max-width:280px;">${escapeHtml(c.verdictRationale ?? "")}</td>
         <td style="padding:12px 16px;border-bottom:1px solid #e5e7eb;font-size:12px;">
-          ${c.pdbEvidenceUrl ? `<a href="${escapeHtml(c.pdbEvidenceUrl)}" target="_blank" style="color:#0369a1;text-decoration:none;">View in PDB ↗</a>` : '<span style="color:#9ca3af;">—</span>'}
+          ${includeSourceLinks && c.pdbEvidenceUrl ? `<a href="${escapeHtml(c.pdbEvidenceUrl)}" target="_blank" style="color:#0369a1;text-decoration:none;">View in PDB ↗</a>` : '<span style="color:#9ca3af;">—</span>'}
         </td>
       </tr>`;
     })
     .join("");
 
-  return `<!DOCTYPE html>
+  const title = `Molecular Evidence Audit Report — ${documentTitle} (#${reportId})`;
+  const supportedCount = summary["Supported"] ?? 0;
+  const contradictedCount = summary["Contradicted"] ?? 0;
+
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -240,6 +275,14 @@ export function generateHtmlReport(params: {
 </div>
 </body>
 </html>`;
+
+  return {
+    html,
+    title,
+    claimCount: total,
+    supportedCount,
+    contradictedCount,
+  };
 }
 
 function escapeHtml(str: string): string {

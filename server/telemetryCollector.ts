@@ -261,7 +261,11 @@ export interface PipelineTrace {
  *
  * All methods are non-fatal — DB failures are swallowed and logged at debug level.
  *
- * Usage:
+ * PRD_BACKEND_V2: Static methods are available for direct class-level calls:
+ *   const span = await TelemetryCollector.start("L1_TRUTH", { eventQueueId: event.id });
+ *   These delegate to the module-level singleton.
+ *
+ * Usage (instance):
  *   const collector = new TelemetryCollector();
  *   const span = await collector.start("L1_TRUTH", { eventQueueId: event.id });
  *   try {
@@ -272,6 +276,46 @@ export interface PipelineTrace {
  *   }
  */
 export class TelemetryCollector {
+  // ─── Static Method Aliases (PRD_BACKEND_V2) ────────────────────────────────
+  // PRD specifies `TelemetryCollector.start(...)` static call pattern.
+  // These static methods delegate to the module-level singleton (lazily resolved
+  // via a getter to avoid circular initialisation).
+
+  private static get _singleton(): TelemetryCollector {
+    return telemetryCollector;
+  }
+
+  /** PRD_BACKEND_V2 static alias — delegates to singleton */
+  static async start(
+    layer: TelemetryLayer,
+    opts?: Pick<TelemetryOptions, "eventQueueId" | "payloadHash" | "meta">
+  ): Promise<TelemetrySpan> {
+    return TelemetryCollector._singleton.start(layer, opts);
+  }
+
+  /** PRD_BACKEND_V2 static alias — delegates to singleton */
+  static async query(
+    layer: TelemetryLayer,
+    windowHours?: number
+  ): Promise<TelemetryQueryRow[]> {
+    return TelemetryCollector._singleton.query(layer, windowHours);
+  }
+
+  /** PRD_BACKEND_V2 static alias — delegates to singleton */
+  static async summary(
+    layer: TelemetryLayer,
+    windowHours?: number
+  ): Promise<LayerTelemetrySummary | null> {
+    return TelemetryCollector._singleton.summary(layer, windowHours);
+  }
+
+  /** PRD_BACKEND_V2 static alias — delegates to singleton */
+  static async getPipelineTrace(
+    correlationId: string
+  ): Promise<PipelineTrace | null> {
+    return TelemetryCollector._singleton.getPipelineTrace(correlationId);
+  }
+
   /**
    * Start a new telemetry span for the given layer.
    * Returns a span object with `end()` and `fail()` methods.

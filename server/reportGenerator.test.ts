@@ -4,7 +4,7 @@
  * Unit tests for reportGenerator.ts — pure functions only, no DB.
  */
 import { describe, it, expect } from "vitest";
-import { buildVerdictSummary, countHighRisk, generateHtmlReport } from "./reportGenerator";
+import { buildVerdictSummary, countHighRisk, generateHtmlReport, type GeneratedHtmlReport } from "./reportGenerator";
 import type { Claim } from "../drizzle/schema";
 
 function makeClaim(verdict: string | null, overriddenVerdict?: string | null): Claim {
@@ -118,51 +118,102 @@ describe("countHighRisk()", () => {
 // ─── generateHtmlReport ───────────────────────────────────────────────────────
 
 describe("generateHtmlReport()", () => {
-  it("returns a string containing the document title", () => {
-    const html = generateHtmlReport({
+  it("returns a GeneratedHtmlReport object with html containing the document title", () => {
+    const result = generateHtmlReport({
       documentTitle: "Test Document",
       documentUrl: "https://example.com",
       claims: [],
       generatedAt: new Date("2024-01-01"),
       reportId: 42,
     });
-    expect(typeof html).toBe("string");
-    expect(html).toContain("Test Document");
+    expect(typeof result).toBe("object");
+    expect(typeof result.html).toBe("string");
+    expect(result.html).toContain("Test Document");
+    expect(typeof result.title).toBe("string");
+    expect(result.title).toContain("Test Document");
+    expect(result.claimCount).toBe(0);
+    expect(result.supportedCount).toBe(0);
+    expect(result.contradictedCount).toBe(0);
   });
 
-  it("includes report ID in output", () => {
-    const html = generateHtmlReport({
+  it("includes report ID in html output", () => {
+    const result = generateHtmlReport({
       documentTitle: "Doc",
       documentUrl: null,
       claims: [],
       generatedAt: new Date(),
       reportId: 99,
     });
-    expect(html).toContain("99");
+    expect(result.html).toContain("99");
   });
 
   it("includes verdict summary rows for non-zero verdicts", () => {
     const claims = [makeClaim("Supported"), makeClaim("Contradicted")];
-    const html = generateHtmlReport({
+    const result = generateHtmlReport({
       documentTitle: "Doc",
       documentUrl: null,
       claims,
       generatedAt: new Date(),
       reportId: 1,
     });
-    expect(html).toContain("Supported");
-    expect(html).toContain("Contradicted");
+    expect(result.html).toContain("Supported");
+    expect(result.html).toContain("Contradicted");
+    expect(result.claimCount).toBe(2);
+    expect(result.supportedCount).toBe(1);
+    expect(result.contradictedCount).toBe(1);
   });
 
   it("handles null documentUrl gracefully", () => {
-    const html = generateHtmlReport({
+    const result = generateHtmlReport({
       documentTitle: "Doc",
       documentUrl: null,
       claims: [],
       generatedAt: new Date(),
       reportId: 1,
     });
-    expect(typeof html).toBe("string");
-    expect(html.length).toBeGreaterThan(100);
+    expect(typeof result.html).toBe("string");
+    expect(result.html.length).toBeGreaterThan(100);
+  });
+
+  it("respects includeEvidenceDetails=false flag", () => {
+    const claims = [makeClaim("Supported")];
+    const withDetails = generateHtmlReport({
+      documentTitle: "Doc",
+      documentUrl: null,
+      claims,
+      generatedAt: new Date(),
+      reportId: 1,
+      includeEvidenceDetails: true,
+    });
+    const withoutDetails = generateHtmlReport({
+      documentTitle: "Doc",
+      documentUrl: null,
+      claims,
+      generatedAt: new Date(),
+      reportId: 1,
+      includeEvidenceDetails: false,
+    });
+    // Both should be valid GeneratedHtmlReport objects
+    expect(typeof withDetails.html).toBe("string");
+    expect(typeof withoutDetails.html).toBe("string");
+  });
+
+  it("returns correct supportedCount and contradictedCount", () => {
+    const claims = [
+      makeClaim("Supported"),
+      makeClaim("Supported"),
+      makeClaim("Contradicted"),
+      makeClaim("Ambiguous"),
+    ];
+    const result = generateHtmlReport({
+      documentTitle: "Doc",
+      documentUrl: null,
+      claims,
+      generatedAt: new Date(),
+      reportId: 1,
+    });
+    expect(result.claimCount).toBe(4);
+    expect(result.supportedCount).toBe(2);
+    expect(result.contradictedCount).toBe(1);
   });
 });

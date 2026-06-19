@@ -439,7 +439,7 @@ export async function runAnalysisPipeline(
     const finalClaims = await getClaimsByDocument(documentId);
     const summary = buildVerdictSummary(finalClaims as never);
     const highRisk = countHighRisk(finalClaims as never);
-    const htmlContent = generateHtmlReport({
+    const reportResult = generateHtmlReport({
       documentTitle: doc?.title ?? "Untitled",
       documentUrl: doc?.storageUrl ?? null,
       claims: finalClaims as never,
@@ -450,7 +450,7 @@ export async function runAnalysisPipeline(
     const htmlKey = `reports/${userId}/${documentId}/audit-report.html`;
     const { url: htmlUrl } = await storagePut(
       htmlKey,
-      Buffer.from(htmlContent, "utf-8"),
+      Buffer.from(reportResult.html, "utf-8"),
       "text/html"
     );
     // 6. Generate PDF report (non-fatal — HTML report is the fallback)
