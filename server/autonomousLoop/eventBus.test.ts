@@ -90,3 +90,21 @@ describe("scheduleDrain", () => {
     }).not.toThrow();
   });
 });
+
+// ─── FR-L5-35: Dream queue promotion ─────────────────────────────────────────
+describe("FR-L5-35: dream_event_queue priority check", () => {
+  it("EVENT_ENTRY_LAYERS includes dream_queue_processed at layer 5", () => {
+    // dream_queue_processed is the event type used when dream events are promoted
+    expect(EVENT_ENTRY_LAYERS["dream_queue_processed"]).toBe(5);
+  });
+
+  it("frontier_directive is in EVENT_ENTRY_LAYERS at layer 3", () => {
+    expect(EVENT_ENTRY_LAYERS["frontier_directive"]).toBe(3);
+  });
+
+  it("scheduleDrain is exported and callable (drain pass includes dream queue check)", () => {
+    // The _promoteDreamEvents function is called inside _drainPass which is triggered by scheduleDrain
+    expect(typeof scheduleDrain).toBe("function");
+    expect(() => scheduleDrain()).not.toThrow();
+  });
+});

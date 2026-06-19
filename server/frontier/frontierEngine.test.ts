@@ -207,3 +207,70 @@ describe("frontier/frontierEngine — directive-aware orchestration (T021-T030)"
     expect(frontierCircuitBreaker.getState().consecutiveFailures).toBe(0);
   });
 });
+
+// ─── Build3 Gap Tests ─────────────────────────────────────────────────────────
+
+describe("frontier/frontierEngine — Build3 gap completions", () => {
+  const { mockGetDb: mockGetDbFE } = vi.hoisted(() => ({ mockGetDb: vi.fn() }));
+  vi.mock("../db", () => ({ getDb: mockGetDbFE }));
+
+  function makeDb(groupByResult: unknown[] = []) {
+    const chain = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      groupBy: vi.fn().mockReturnThis(),
+      having: vi.fn().mockResolvedValue(groupByResult),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockResolvedValue([{ insertId: 1 }]),
+    };
+    return chain;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRunGapMapper.mockResolvedValue(defaultGapMapping);
+    mockRankAllOpenGaps.mockResolvedValue(5);
+    mockPursueTopGaps.mockResolvedValue([{ gapId: 1, status: "evidence_found" }]);
+    mockRunHypothesisGenerator.mockResolvedValue(defaultHypothesis);
+    mockMarkStaleGaps.mockResolvedValue(3);
+  });
+
+  it("T-FR-L3-31: result includes isDeepDive field", async () => {
+    mockGetDbFE.mockResolvedValue(makeDb([]));
+    const result = await runFrontierEngine();
+    expect(result).toHaveProperty("isDeepDive");
+    expect(typeof result.isDeepDive).toBe("boolean");
+  });
+
+  it("T-FR-L3-32: metrics.directivesApplied is set to directivesConsumed", async () => {
+    mockGetDbFE.mockResolvedValue(makeDb([]));
+    const result = await runFrontierEngine();
+    expect(result.metrics).toHaveProperty("directivesApplied");
+    expect(typeof result.metrics.directivesApplied).toBe("number");
+  });
+
+  it("T-FR-L3-29: isDeepDive=false when no entity has 3+ open gaps", async () => {
+    mockGetDbFE.mockResolvedValue(makeDb([])); // no entities with 3+ gaps
+    const result = await runFrontierEngine();
+    expect(result.isDeepDive).toBe(false);
+  });
+
+  it("T-FR-L3-29b: isDeepDive=true when an entity has 3+ open gaps (autonomous trigger)", async () => {
+    mockGetDbFE.mockResolvedValue(makeDb([{ entityId: 42, gapCount: 4 }]));
+    const result = await runFrontierEngine();
+    expect(result.isDeepDive).toBe(true);
+    // pursueTopGaps should be called with entityId=42
+    expect(mockPursueTopGaps).toHaveBeenCalledWith(10, 42);
+  });
+
+  it("T-FR-L3-32b: metrics.isDeepDive matches result.isDeepDive", async () => {
+    mockGetDbFE.mockResolvedValue(makeDb([{ entityId: 7, gapCount: 3 }]));
+    const result = await runFrontierEngine();
+    expect(result.metrics.isDeepDive).toBe(result.isDeepDive);
+  });
+});

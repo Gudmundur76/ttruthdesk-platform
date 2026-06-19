@@ -52,6 +52,10 @@ export interface FrontierMetrics {
   falseHypothesisRate: number | null;
   /** Gaps closed within 30 days (success rate) */
   closureRate30Days: number | null;
+  /** Build3: Number of directives applied this cycle (FR-L3-32) */
+  directivesApplied?: number;
+  /** Build3: Whether this cycle ran in deep-dive mode (FR-L3-31) */
+  isDeepDive?: boolean;
 }
 
 export interface GapTimeline {

@@ -36,7 +36,11 @@ import { directiveStore, type DirectiveEffect } from "./directiveStore";
 import { frontierCircuitBreaker } from "./circuitBreaker";
 import { logger, errData } from "../logger";
 import { getDb } from "../db";
-import { frontierLog } from "../../drizzle/schema";
+import { frontierLog, knowledgeGaps } from "../../drizzle/schema";
+import { and, sql, inArray } from "drizzle-orm";
+
+/** Minimum open gaps for an entity to trigger autonomous deep dive (FR-L3-29) */
+const AUTO_DEEP_DIVE_GAP_THRESHOLD = 3;
 const log = logger("frontier/frontierEngine");
 
 
@@ -63,6 +67,8 @@ export interface FrontierEngineRunResult {
   directiveEffect: DirectiveEffect;
   /** Build3: Number of directives consumed this cycle */
   directivesConsumed: number;
+  /** Build3: Whether this cycle ran in autonomous deep-dive mode (FR-L3-29, FR-L3-31) */
+  isDeepDive: boolean;
 }
 
 // ─── Public: runFrontierEngine ────────────────────────────────────────────────
@@ -130,14 +136,52 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
     log.warn("[FrontierEngine] Gap ranking failed (non-fatal):", errData(err));
   }
 
+  // ── Build3: FR-L3-29 — Autonomous deep dive detection ───────────────────────
+  // If no directive specifies a deep-dive entity, check for any entity with
+  // 3+ open gaps and trigger an autonomous deep dive.
+  let autonomousDeepDiveEntityId: number | undefined;
+  if (!directiveEffect.deepDiveEntityId) {
+    try {
+      const db = await getDb();
+      if (db) {
+        const rows = await db
+          .select({
+            entityId: knowledgeGaps.entityAId,
+            gapCount: sql<number>`COUNT(*)`.as("gapCount"),
+          })
+          .from(knowledgeGaps)
+          .where(
+            and(
+              inArray(knowledgeGaps.status, ["open", "pursued", "narrowing"]),
+              sql`${knowledgeGaps.entityAId} IS NOT NULL`
+            )
+          )
+          .groupBy(knowledgeGaps.entityAId)
+          .having(sql`COUNT(*) >= ${AUTO_DEEP_DIVE_GAP_THRESHOLD}`);
+        if (rows.length > 0 && rows[0].entityId != null) {
+          autonomousDeepDiveEntityId = rows[0].entityId;
+          log.info(
+            `[FrontierEngine] FR-L3-29: Autonomous deep dive triggered for entity ${autonomousDeepDiveEntityId} (${rows[0].gapCount} open gaps)`
+          );
+        }
+      }
+    } catch (err) {
+      log.warn("[FrontierEngine] Autonomous deep dive detection failed (non-fatal):", errData(err));
+    }
+  }
+
+  const effectiveDeepDiveEntityId = directiveEffect.deepDiveEntityId
+    ? parseInt(directiveEffect.deepDiveEntityId, 10)
+    : autonomousDeepDiveEntityId;
+  const isDeepDive = effectiveDeepDiveEntityId != null && !isNaN(effectiveDeepDiveEntityId as number);
+
   // Stage 3: Evidence Pursuit (deep_dive_entity or top 5 gaps)
   let pursuitResults: PursuitResult[] = [];
   try {
-    if (directiveEffect.deepDiveEntityId) {
-      const entityIdNum = parseInt(directiveEffect.deepDiveEntityId, 10);
-      pursuitResults = await pursueTopGaps(10, isNaN(entityIdNum) ? undefined : entityIdNum);
+    if (effectiveDeepDiveEntityId != null && !isNaN(effectiveDeepDiveEntityId)) {
+      pursuitResults = await pursueTopGaps(10, effectiveDeepDiveEntityId);
       log.info(
-        `[FrontierEngine] Deep-dive pursuit: ${pursuitResults.length} gaps for entity ${directiveEffect.deepDiveEntityId}`
+        `[FrontierEngine] Deep-dive pursuit (${autonomousDeepDiveEntityId ? 'autonomous' : 'directive'}): ${pursuitResults.length} gaps for entity ${effectiveDeepDiveEntityId}`
       );
     } else {
       pursuitResults = await pursueTopGaps(5);
@@ -200,7 +244,12 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
     avgDaysToClosureHigh: null,
     falseHypothesisRate: null,
     closureRate30Days: null,
+    directivesApplied: 0,
+    isDeepDive: false,
   }));
+  // Annotate metrics with cycle-level directive/deep-dive info (FR-L3-31, FR-L3-32)
+  metrics.directivesApplied = directivesConsumed;
+  metrics.isDeepDive = isDeepDive;
 
   const durationMs = Date.now() - startTime;
 
@@ -235,6 +284,7 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
     durationMs,
     directiveEffect,
     directivesConsumed,
+    isDeepDive,
   };
 }
 

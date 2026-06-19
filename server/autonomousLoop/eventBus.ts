@@ -23,7 +23,7 @@
  */
 
 import { getDb } from "../db";
-import { eventQueue } from "../../drizzle/schema";
+import { eventQueue, dreamEventQueue } from "../../drizzle/schema";
 import { eq, and, lt, sql } from "drizzle-orm";
 import { logger, errData } from "../logger";
 import {
@@ -142,6 +142,57 @@ const MAX_DRAIN_PER_PASS = 10;
 let _draining = false;
 
 /**
+ * FR-L5-35: Promote pending autoTrigger dream events to the main event_queue.
+ * Called at the start of every drain pass so dream-origin events are processed
+ * before any lower-priority main-queue events.
+ */
+async function _promoteDreamEvents(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    // Claim up to 5 pending autoTrigger dream events per drain pass
+    const pending = await db
+      .select()
+      .from(dreamEventQueue)
+      .where(
+        and(
+          eq(dreamEventQueue.status, "queued"),
+          eq(dreamEventQueue.autoTrigger, true)
+        )
+      )
+      .orderBy(dreamEventQueue.createdAt)
+      .limit(5);
+    for (const item of pending) {
+      // Promote to main event_queue as dream_queue_processed event
+      await db.insert(eventQueue).values({
+        eventType: "dream_queue_processed",
+        payload: {
+          dreamEventId: item.id,
+          sessionId: item.sessionId,
+          dreamPriority: item.dreamPriority,
+          evidenceStrength: item.evidenceStrength,
+          dreamOrigin: true,
+          payload: item.payload,
+        },
+        status: "pending",
+        entryLayer: 5, // L5: Dream
+      });
+      // Mark as processed in dream_event_queue
+      await db
+        .update(dreamEventQueue)
+        .set({ status: "processed", processedAt: new Date() })
+        .where(eq(dreamEventQueue.id, item.id));
+      log.info(
+        `[EventBus] FR-L5-35: Promoted dream event ${item.id} (priority=${item.dreamPriority}, strength=${item.evidenceStrength}) to main queue`
+      );
+    }
+  } catch (err) {
+    // Non-fatal — dream queue promotion failure must not block main queue
+    log.warn("[EventBus] Dream event promotion failed (non-fatal):", errData(err));
+  }
+}
+
+/**
  * Run a single drain pass: claim and process up to MAX_DRAIN_PER_PASS pending
  * events. If more events remain after the pass, schedule another pass.
  *
@@ -151,11 +202,14 @@ let _draining = false;
 async function _drainPass(): Promise<void> {
   if (_draining) return; // another pass is already running
   _draining = true;
-
   let processed = 0;
   try {
     // Lazy-import to avoid circular dependency at module load time
     const { processEvent } = await import("./loopOrchestrator");
+
+    // FR-L5-35: Check dream_event_queue FIRST — promote autoTrigger events to
+    // the main event_queue before processing any main-queue events.
+    await _promoteDreamEvents();
 
     for (let i = 0; i < MAX_DRAIN_PER_PASS; i++) {
       const event = await claimNextEvent();
