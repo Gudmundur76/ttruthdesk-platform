@@ -310,6 +310,10 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html — inject semantic HTML before sending
+  // Guard: never serve the SPA shell for API routes — they must be handled by Express
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "API route not found" });
+  });
   app.use("*", (_req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
     try {
