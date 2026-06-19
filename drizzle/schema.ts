@@ -907,6 +907,19 @@ export const confidenceHistory = mysqlTable(
     trigger: varchar("trigger", { length: 64 }).notNull().default("initial"),
     /** Optional flags array explaining the score */
     flags: json("flags"),
+    // ── Dream State C4 recalibration fields (FR-L5-26) ──────────────────────
+    /** Which recalibration rule triggered this entry (R1-R4), null for non-dream entries */
+    ruleTriggered: varchar("ruleTriggered", { length: 4 }),
+    /** Dream session ID that produced this recalibration entry */
+    dreamSessionId: int("dreamSessionId"),
+    /** Confidence before recalibration */
+    oldConfidence: float("oldConfidence"),
+    /** Confidence after recalibration */
+    newConfidence: float("newConfidence"),
+    /** Evidence text that triggered the rule */
+    evidence: text("evidence"),
+    /** Whether the recalibration was applied to claims.confidence (requires autoApply=true) */
+    applied: boolean("applied").notNull().default(false),
     recordedAt: timestamp("recordedAt").defaultNow().notNull(),
   },
   t => ({
@@ -1323,6 +1336,14 @@ export const knowledgeGaps = mysqlTable(
     projectedClosureAt: timestamp("projectedClosureAt"),
     /** When evidence pursuit was last attempted */
     lastPursuedAt: timestamp("lastPursuedAt"),
+    /** Boost applied when this gap matches an active L2 directive (0.0 or 0.5 per FR-L3-06) */
+    directiveBoost: float("directiveBoost").notNull().default(0),
+    /** Position in the ranked list after the most recent ranking pass (FR-L3-08) */
+    rank: int("rank"),
+    /** Number of times this gap has been detected across scans (FR-L3-05 dedup) */
+    detectionCount: int("detectionCount").notNull().default(1),
+    /** Timestamp of the most recent detection (used for 24h dedup window) */
+    lastDetectedAt: timestamp("lastDetectedAt").defaultNow().notNull(),
     openedAt: timestamp("openedAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -1369,6 +1390,8 @@ export const frontierLog = mysqlTable(
       "gap_closed",
       "hypothesis_verified",
       "hypothesis_refuted",
+      "cycle_event",
+      "metric_report",
     ]).notNull(),
     /** ID of the knowledge_gap this action relates to (if any) */
     gapId: int("gapId"),
@@ -1566,14 +1589,66 @@ export const dreamSessions = mysqlTable(
     manualTrigger: boolean("manualTrigger").notNull().default(false),
     healthScoreAtEntry: int("healthScoreAtEntry"),
     entityCountAtEntry: int("entityCountAtEntry"),
+    // ── Build3 PRD additions (FR-L5-10 through FR-L5-18) ─────────────────────────
+    /** Maximum number of cycles for this session (default 5) */
+    maxCycles: int("maxCycles").notNull().default(5),
+    /** Number of coord_queue items pending when session started */
+    queuePendingAtStart: int("queuePendingAtStart").notNull().default(0),
+    /** Per-cycle structured reports as JSONB (C1-C5 results) */
+    perCycleReports: json("perCycleReports").$type<Record<string, unknown>[]>(),
+    /** Total DreamEvents published to dream_event_queue during this session */
+    eventsPublished: int("eventsPublished").notNull().default(0),
+    /** Highest risk level across all C5 simulation scenarios */
+    aggregateRiskLevel: varchar("aggregateRiskLevel", { length: 16 }),
+    /** Session lifecycle status */
+    status: varchar("status", { length: 16 }).notNull().default("running"),
+    /** Reason for abort if session was aborted */
+    abortReason: text("abortReason"),
   },
   t => ({
     startedAtIdx: index("ds_started_at_idx").on(t.startedAt),
     wokeAtIdx: index("ds_woke_at_idx").on(t.wokeAt),
+    statusIdx: index("ds_status_idx").on(t.status),
   })
 );
 export type DreamSession = typeof dreamSessions.$inferSelect;
 export type InsertDreamSession = typeof dreamSessions.$inferInsert;
+
+/**
+ * dream_event_queue — outbound events produced by the Dream State (L5).
+ * Each row represents a structured DreamEvent to be consumed by downstream layers.
+ * Separate from event_queue to avoid polluting the main loop with dream-origin events.
+ */
+export const dreamEventQueue = mysqlTable(
+  "dream_event_queue",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Dream session that produced this event */
+    sessionId: int("sessionId").notNull(),
+    /** Priority classification of this dream event */
+    dreamPriority: varchar("dreamPriority", { length: 16 }).notNull(),
+    /** Evidence strength that triggered this event (0.0–1.0) */
+    evidenceStrength: float("evidenceStrength").notNull().default(0),
+    /** Whether this event should auto-trigger downstream processing */
+    autoTrigger: boolean("autoTrigger").notNull().default(false),
+    /** Full structured payload of the dream event */
+    payload: json("payload").notNull(),
+    /** Processing status of this event */
+    status: varchar("status", { length: 16 }).notNull().default("queued"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    processedAt: timestamp("processedAt"),
+  },
+  t => ({
+    statusIdx: index("deq_status_idx").on(t.status),
+    sessionIdIdx: index("deq_session_id_idx").on(t.sessionId),
+    priorityStrengthIdx: index("deq_priority_strength_idx").on(
+      t.dreamPriority,
+      t.evidenceStrength
+    ),
+  })
+);
+export type DreamEventQueueItem = typeof dreamEventQueue.$inferSelect;
+export type InsertDreamEventQueueItem = typeof dreamEventQueue.$inferInsert;
 
 /**
  * event_queue — the central event bus for the autonomous loop.
@@ -1617,6 +1692,7 @@ export const eventQueue = mysqlTable(
       "dream_queue_processed",
       "l0_scan_completed",
       "l0_scan_failed",
+      "frontier_directive",
     ]).notNull(),
     payload: json("payload").$type<Record<string, unknown>>().notNull(),
     status: mysqlEnum("status", [

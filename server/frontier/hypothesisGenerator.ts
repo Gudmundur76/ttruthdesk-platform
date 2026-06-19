@@ -16,12 +16,19 @@
  *
  * The Frontier Engine NEVER writes to graph_entities, graphRelations,
  * claims, or verdicts. Hypotheses go to coord_queue only.
+ *
+ * FR-L3-19: LLM circuit breaker — if 3 consecutive LLM calls fail,
+ * Stage 4 is skipped until the cooldown expires.
  */
 
 import { getDb } from "../db";
 import { frontierLog, coordQueue } from "../../drizzle/schema";
 import { sql } from "drizzle-orm";
 import {} from "../_core/multiLLM";
+import { frontierCircuitBreaker } from "./circuitBreaker";
+import { logger } from "../logger";
+
+const log = logger("frontier/hypothesisGenerator");
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 async function getDbOrThrow() {
@@ -45,6 +52,8 @@ export interface HypothesisGenerationResult {
   hypothesesGenerated: number;
   queueItemsCreated: number;
   hypotheses: GeneratedHypothesis[];
+  /** True if Stage 4 was skipped because the circuit breaker is open */
+  skippedByCircuitBreaker: boolean;
 }
 
 // ─── Pattern 1: Homology Binding Hypothesis ───────────────────────────────────
@@ -132,8 +141,12 @@ async function detectHomologyHypotheses(): Promise<GeneratedHypothesis[]> {
         });
       }
     }
-  } catch {
-    // Non-fatal
+  } catch (err) {
+    // Non-fatal — record failure for circuit breaker
+    frontierCircuitBreaker.recordFailure();
+    log.warn("[HypothesisGenerator] Homology detection failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return hypotheses;
@@ -192,8 +205,12 @@ async function detectContradictionHypotheses(): Promise<GeneratedHypothesis[]> {
         ],
       });
     }
-  } catch {
-    // Non-fatal
+  } catch (err) {
+    // Non-fatal — record failure for circuit breaker
+    frontierCircuitBreaker.recordFailure();
+    log.warn("[HypothesisGenerator] Contradiction detection failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return hypotheses;
@@ -248,8 +265,17 @@ async function queueHypothesis(
       outcome: `Hypothesis queued as coord_queue item #${queueItemId} for verification`,
     });
 
+    // Record success for circuit breaker
+    frontierCircuitBreaker.recordSuccess();
     return queueItemId;
-  } catch {
+  } catch (_err) {
+    // Record failure for circuit breaker
+    const tripped = frontierCircuitBreaker.recordFailure();
+    if (tripped) {
+      log.warn("[HypothesisGenerator] Circuit breaker tripped — Stage 4 will be skipped next cycle", {
+        consecutiveFailures: frontierCircuitBreaker.consecutiveFailures,
+      });
+    }
     return null;
   }
 }
@@ -259,14 +285,36 @@ async function queueHypothesis(
 /**
  * Runs all hypothesis patterns and queues results for verification.
  * Called by the Frontier Engine orchestrator.
+ *
+ * FR-L3-19: If the circuit breaker is open, skips Stage 4 entirely and
+ * returns a result with skippedByCircuitBreaker=true.
  */
-export async function runHypothesisGenerator(): Promise<HypothesisGenerationResult> {
+export async function runHypothesisGenerator(
+  maxHypotheses = 5
+): Promise<HypothesisGenerationResult> {
+  // FR-L3-19: Check circuit breaker before running Stage 4
+  if (frontierCircuitBreaker.shouldSkip()) {
+    const state = frontierCircuitBreaker.getState();
+    log.warn("[HypothesisGenerator] Circuit breaker open — skipping Stage 4", {
+      consecutiveFailures: state.consecutiveFailures,
+      openedAt: state.openedAt,
+      cooldownMs: state.cooldownMs,
+    });
+    return {
+      hypothesesGenerated: 0,
+      queueItemsCreated: 0,
+      hypotheses: [],
+      skippedByCircuitBreaker: true,
+    };
+  }
+
   const [homologyHypotheses, contradictionHypotheses] = await Promise.all([
     detectHomologyHypotheses(),
     detectContradictionHypotheses(),
   ]);
 
-  const allHypotheses = [...homologyHypotheses, ...contradictionHypotheses];
+  // Apply maxHypotheses cap
+  const allHypotheses = [...homologyHypotheses, ...contradictionHypotheses].slice(0, maxHypotheses);
   let queueItemsCreated = 0;
 
   for (const hypothesis of allHypotheses) {
@@ -278,6 +326,7 @@ export async function runHypothesisGenerator(): Promise<HypothesisGenerationResu
     hypothesesGenerated: allHypotheses.length,
     queueItemsCreated,
     hypotheses: allHypotheses,
+    skippedByCircuitBreaker: false,
   };
 }
 

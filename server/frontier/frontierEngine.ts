@@ -32,7 +32,11 @@ import {
   getFrontierMetrics,
   type FrontierMetrics,
 } from "./uncertaintyTracker";
+import { directiveStore, type DirectiveEffect } from "./directiveStore";
+import { frontierCircuitBreaker } from "./circuitBreaker";
 import { logger, errData } from "../logger";
+import { getDb } from "../db";
+import { frontierLog } from "../../drizzle/schema";
 const log = logger("frontier/frontierEngine");
 
 
@@ -41,7 +45,7 @@ const log = logger("frontier/frontierEngine");
 export interface FrontierEngineRunResult {
   /** Timestamp of this run */
   runAt: Date;
-  /** Gap mapping results */
+  /** Gap mapping results (null if skipped by directive) */
   gapMapping: GapMapResult;
   /** Number of gaps scored by the ranker */
   gapsRanked: number;
@@ -55,6 +59,10 @@ export interface FrontierEngineRunResult {
   metrics: FrontierMetrics;
   /** Total wall time in ms */
   durationMs: number;
+  /** Build3: Directive effects applied this cycle */
+  directiveEffect: DirectiveEffect;
+  /** Build3: Number of directives consumed this cycle */
+  directivesConsumed: number;
 }
 
 // ─── Public: runFrontierEngine ────────────────────────────────────────────────
@@ -70,7 +78,28 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   const startTime = Date.now();
   log.info("[FrontierEngine] Starting full pipeline run...");
 
-  // Stage 1: Gap Mapping
+  // ── Build3: Read active directives at cycle start (FR-L3-26) ────────────────
+  const directiveEffect = directiveStore.applyDirectives();
+  const directivesConsumed = directiveStore.activeCount();
+
+  if (directivesConsumed > 0) {
+    log.info("[FrontierEngine] Directives active this cycle", {
+      count: directivesConsumed,
+      skippedMapping: directiveEffect.skippedMapping,
+      focusGapIds: directiveEffect.focusGapIds,
+      deepDiveEntityId: directiveEffect.deepDiveEntityId,
+      extraHypotheses: directiveEffect.extraHypotheses,
+    });
+  }
+
+  // Emit frontier.cycle.start (FR-L3-31)
+  await emitCycleEvent("frontier.cycle.start", {
+    directivesActive: directivesConsumed,
+    directiveEffect,
+    circuitBreakerOpen: frontierCircuitBreaker.isOpen,
+  }).catch(() => {});
+
+  // Stage 1: Gap Mapping (skipped if skip_mapping directive is active)
   let gapMapping: GapMapResult = {
     structural: 0,
     evidence: 0,
@@ -79,46 +108,64 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
     total: 0,
     newGapsCreated: 0,
   };
-  try {
-    gapMapping = await runGapMapper();
-    log.info(
-      `[FrontierEngine] Gap mapping: ${gapMapping.newGapsCreated} new gaps detected`
-    );
-  } catch (err) {
-    log.warn("[FrontierEngine] Gap mapping failed (non-fatal):", errData(err));
+  if (directiveEffect.skippedMapping) {
+    log.info("[FrontierEngine] Stage 1 (Gap Mapping) skipped by directive");
+  } else {
+    try {
+      gapMapping = await runGapMapper();
+      log.info(
+        `[FrontierEngine] Gap mapping: ${gapMapping.newGapsCreated} new gaps detected`
+      );
+    } catch (err) {
+      log.warn("[FrontierEngine] Gap mapping failed (non-fatal):", errData(err));
+    }
   }
 
-  // Stage 2: Gap Ranking
+  // Stage 2: Gap Ranking (with focus_gap directive boost)
   let gapsRanked = 0;
   try {
-    gapsRanked = await rankAllOpenGaps();
+    gapsRanked = await rankAllOpenGaps(directiveEffect.focusGapIds);
     log.info(`[FrontierEngine] Gap ranking: ${gapsRanked} gaps scored`);
   } catch (err) {
     log.warn("[FrontierEngine] Gap ranking failed (non-fatal):", errData(err));
   }
 
-  // Stage 3: Evidence Pursuit (top 5 gaps)
+  // Stage 3: Evidence Pursuit (deep_dive_entity or top 5 gaps)
   let pursuitResults: PursuitResult[] = [];
   try {
-    pursuitResults = await pursueTopGaps(5);
-    log.info(
-      `[FrontierEngine] Evidence pursuit: ${pursuitResults.length} gaps pursued`
-    );
+    if (directiveEffect.deepDiveEntityId) {
+      const entityIdNum = parseInt(directiveEffect.deepDiveEntityId, 10);
+      pursuitResults = await pursueTopGaps(10, isNaN(entityIdNum) ? undefined : entityIdNum);
+      log.info(
+        `[FrontierEngine] Deep-dive pursuit: ${pursuitResults.length} gaps for entity ${directiveEffect.deepDiveEntityId}`
+      );
+    } else {
+      pursuitResults = await pursueTopGaps(5);
+      log.info(
+        `[FrontierEngine] Evidence pursuit: ${pursuitResults.length} gaps pursued`
+      );
+    }
   } catch (err) {
     log.warn("[FrontierEngine] Evidence pursuit failed (non-fatal):", errData(err));
   }
 
-  // Stage 4: Hypothesis Generation
+  // Stage 4: Hypothesis Generation (circuit-breaker guarded)
+  const maxHypotheses = 5 + directiveEffect.extraHypotheses;
   let hypothesisGeneration: HypothesisGenerationResult = {
     hypothesesGenerated: 0,
     queueItemsCreated: 0,
     hypotheses: [],
+    skippedByCircuitBreaker: false,
   };
   try {
-    hypothesisGeneration = await runHypothesisGenerator();
-    log.info(
-      `[FrontierEngine] Hypothesis generation: ${hypothesisGeneration.hypothesesGenerated} hypotheses, ${hypothesisGeneration.queueItemsCreated} queued`
-    );
+    hypothesisGeneration = await runHypothesisGenerator(maxHypotheses);
+    if (hypothesisGeneration.skippedByCircuitBreaker) {
+      log.warn("[FrontierEngine] Stage 4 skipped by circuit breaker");
+    } else {
+      log.info(
+        `[FrontierEngine] Hypothesis generation: ${hypothesisGeneration.hypothesesGenerated} hypotheses, ${hypothesisGeneration.queueItemsCreated} queued`
+      );
+    }
   } catch (err) {
     log.warn(
       "[FrontierEngine] Hypothesis generation failed (non-fatal):",
@@ -156,6 +203,25 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
   }));
 
   const durationMs = Date.now() - startTime;
+
+  // ── Build3: Clear consumed directives (FR-L3-28) ─────────────────────────────────
+  directiveStore.clearConsumed();
+
+  // ── Build3: Write MetricReport to frontier_log (FR-L3-32) ─────────────────────────
+  await writeMetricReport({
+    gapMapping, gapsRanked, pursuitResults, hypothesisGeneration,
+    staleGapsMarked, metrics, durationMs, directiveEffect, directivesConsumed,
+  }).catch(() => {});
+
+  // Emit frontier.cycle.complete (FR-L3-31)
+  await emitCycleEvent("frontier.cycle.complete", {
+    durationMs,
+    gapsRanked,
+    hypothesesGenerated: hypothesisGeneration.hypothesesGenerated,
+    directivesConsumed,
+    circuitBreakerOpen: frontierCircuitBreaker.isOpen,
+  }).catch(() => {});
+
   log.info(`[FrontierEngine] Pipeline complete in ${durationMs}ms`);
 
   return {
@@ -167,7 +233,56 @@ export async function runFrontierEngine(): Promise<FrontierEngineRunResult> {
     staleGapsMarked,
     metrics,
     durationMs,
+    directiveEffect,
+    directivesConsumed,
   };
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────────────────────
+
+async function emitCycleEvent(
+  eventType: "frontier.cycle.start" | "frontier.cycle.complete",
+  payload: Record<string, unknown>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(frontierLog).values({
+    actionType: "cycle_event",
+    reasoning: { eventType, ...payload },
+    outcome: eventType,
+  });
+}
+
+async function writeMetricReport(data: {
+  gapMapping: GapMapResult;
+  gapsRanked: number;
+  pursuitResults: PursuitResult[];
+  hypothesisGeneration: HypothesisGenerationResult;
+  staleGapsMarked: number;
+  metrics: FrontierMetrics;
+  durationMs: number;
+  directiveEffect: DirectiveEffect;
+  directivesConsumed: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(frontierLog).values({
+    actionType: "metric_report",
+    reasoning: {
+      gapMapping: data.gapMapping,
+      gapsRanked: data.gapsRanked,
+      pursuitCount: data.pursuitResults.length,
+      hypothesesGenerated: data.hypothesisGeneration.hypothesesGenerated,
+      hypothesesQueued: data.hypothesisGeneration.queueItemsCreated,
+      skippedByCircuitBreaker: data.hypothesisGeneration.skippedByCircuitBreaker,
+      staleGapsMarked: data.staleGapsMarked,
+      durationMs: data.durationMs,
+      directivesConsumed: data.directivesConsumed,
+      directiveEffect: data.directiveEffect,
+      circuitBreakerState: frontierCircuitBreaker.getState(),
+    },
+    outcome: `Frontier cycle complete: ${data.gapMapping.newGapsCreated} new gaps, ${data.hypothesisGeneration.hypothesesGenerated} hypotheses in ${data.durationMs}ms`,
+  });
 }
 
 // ─── Re-exports for convenience ───────────────────────────────────────────────

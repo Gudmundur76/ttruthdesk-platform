@@ -1766,3 +1766,21 @@
 - [x] T064: Full test suite green — 3325 tests, 269 test files, all passing
 - [x] T065: Commit and push to origin/main
 - [x] T066: Update manus-persistent-drive with Phase 136 log entry
+
+## Build3: L3 Frontier Engine Hardening + L5 Dream State
+
+### L3 Phase 1-5: Frontier Engine
+- [ ] T001-T008: Schema migration + DirectiveStore
+- [ ] T009-T014: GapRanker PRD formula + detection_count
+- [ ] T015-T020: HypothesisGenerator circuit breaker
+- [ ] T021-T030: Directive-aware FrontierEngine (class-based)
+- [ ] T031-T038: MetricReporter + /health/frontier endpoint
+
+### L5 Phase 6-9: Dream State
+- [ ] T039-T048: Schema + DreamEvent types + dream_event_queue
+- [ ] T049-T057: Session hardening + eligibility gate + circuit breaker
+- [ ] T058-T075: Cycle hardening C1-C5
+- [ ] T076-T084: Wake protocol + dreamLayer.ts
+
+### Phase 10: CI Gate
+- [ ] T085-T092: Tests, TypeScript, lint, commit, push

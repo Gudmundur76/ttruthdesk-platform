@@ -185,13 +185,21 @@ export async function pursueGap(gap: typeof knowledgeGaps.$inferSelect): Promise
  * Pursues the top N highest-priority open gaps.
  * Called by the Frontier Engine orchestrator on each tick.
  */
-export async function pursueTopGaps(limit = 5): Promise<PursuitResult[]> {
+export async function pursueTopGaps(
+  limit = 5,
+  /** Build3: If set, only pursue gaps involving this entity (deep_dive_entity directive) */
+  entityId?: number
+): Promise<PursuitResult[]> {
   const db = await getDbOrThrow();
+
+  const whereClause = entityId
+    ? sql`status = 'open' AND (entityAId = ${entityId} OR entityBId = ${entityId})`
+    : eq(knowledgeGaps.status, "open");
 
   const topGaps = await db
     .select()
     .from(knowledgeGaps)
-    .where(eq(knowledgeGaps.status, "open"))
+    .where(whereClause)
     .orderBy(sql`priorityScore DESC`)
     .limit(limit);
 

@@ -372,6 +372,20 @@
       "when": 1781858934504,
       "tag": "0052_reflective_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "5",
+      "when": 1781864076722,
+      "tag": "0053_ambitious_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "5",
+      "when": 1781865066506,
+      "tag": "0054_nostalgic_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

@@ -121,3 +121,75 @@ describe("frontier/gapRanker — getTopGaps()", () => {
     await expect(getTopGaps(5)).rejects.toThrow("[FrontierEngine] Database not available");
   });
 });
+
+// ─── Build3: T009-T014 — DirectiveBoost tests ─────────────────────────────────
+
+describe("frontier/gapRanker — directiveBoost integration (T009-T014)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const baseGapWithBoost: GapScoringInput = {
+    id: 42,
+    gapType: "evidence",
+    contributingClaimCount: 3,
+    openedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+    entityAId: null,
+    entityBId: null,
+    directiveBoost: 0,
+  };
+
+  function makeDb2(executeResult: unknown[] = []) {
+    return {
+      execute: vi.fn().mockResolvedValue(executeResult),
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      then: undefined,
+    };
+  }
+
+  it("T010: directiveBoost=0 returns same score as no boost field", async () => {
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const r1 = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0 });
+    const r2 = await computePriorityScore({ ...baseGapWithBoost });
+    expect(r1.priorityScore).toBe(r2.priorityScore);
+  });
+
+  it("T009: directiveBoost>0 increases priorityScore", async () => {
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const noBoost = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0 });
+    const boosted = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0.3 });
+    expect(boosted.priorityScore).toBeGreaterThan(noBoost.priorityScore);
+  });
+
+  it("T012: focus_gap directive boost of 0.3 is reflected in components", async () => {
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const result = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0.3 });
+    expect(result.components.directiveBoost).toBe(0.3);
+  });
+
+  it("T011: higher directiveBoost produces higher score (prioritize_hypotheses)", async () => {
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const low = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0.1 });
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const high = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0.5 });
+    expect(high.priorityScore).toBeGreaterThan(low.priorityScore);
+  });
+
+  it("T013: directiveBoost is clamped to [0, 1]", async () => {
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const overBoost = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 2.5 });
+    expect(overBoost.components.directiveBoost).toBe(1.0);
+  });
+
+  it("T014: score is deterministic for the same input", async () => {
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const r1 = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0.2 });
+    mockGetDb.mockResolvedValue(makeDb2([{ cnt: 0 }]));
+    const r2 = await computePriorityScore({ ...baseGapWithBoost, directiveBoost: 0.2 });
+    expect(r1.priorityScore).toBe(r2.priorityScore);
+  });
+});

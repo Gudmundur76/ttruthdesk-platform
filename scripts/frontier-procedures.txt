@@ -1,0 +1,52 @@
+    /** Build3: /health/frontier — circuit breaker state + metrics snapshot (FR-L3-33) */
+    health: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      const { directiveStore } = await import("./frontier/directiveStore");
+      const { getFrontierMetrics } = await import("./frontier/frontierEngine");
+      const [cbState, metrics] = await Promise.all([
+        Promise.resolve(frontierCircuitBreaker.getState()),
+        getFrontierMetrics().catch(() => null),
+      ]);
+      return {
+        circuitBreaker: {
+          isOpen: cbState.isOpen,
+          consecutiveFailures: cbState.consecutiveFailures,
+          threshold: cbState.threshold,
+          openedAt: cbState.openedAt,
+          cooldownMs: cbState.cooldownMs,
+          willResetAt: cbState.openedAt
+            ? new Date(cbState.openedAt.getTime() + cbState.cooldownMs)
+            : null,
+        },
+        activeDirectives: directiveStore.activeCount(),
+        metrics,
+        checkedAt: new Date(),
+      };
+    }),
+    /** Build3: Add a directive to the DirectiveStore (FR-L3-21) */
+    addDirective: protectedProcedure
+      .input(
+        z.object({
+          type: z.enum(["focus_gap", "skip_mapping", "prioritize_hypotheses", "deep_dive_entity"]),
+          payload: z.record(z.unknown()).optional(),
+          ttlMs: z.number().int().min(1000).max(86400000).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { directiveStore } = await import("./frontier/directiveStore");
+        const id = directiveStore.add({
+          type: input.type as "focus_gap" | "skip_mapping" | "prioritize_hypotheses" | "deep_dive_entity",
+          payload: input.payload ?? {},
+          ttlMs: input.ttlMs,
+        });
+        return { id, activeCount: directiveStore.activeCount() };
+      }),
+    /** Build3: Reset the circuit breaker (admin override) */
+    resetCircuitBreaker: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      frontierCircuitBreaker.reset();
+      return { reset: true, state: frontierCircuitBreaker.getState() };
+    }),

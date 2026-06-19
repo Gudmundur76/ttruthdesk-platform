@@ -198,6 +198,11 @@ export const ROUTING_TABLE: Record<LoopEventType, RouteEntry> = {
     priority: 5,
     description: "L0 friction scan failed telemetry event",
   },
+  frontier_directive: {
+    layers: ["L3"],
+    priority: 3,
+    description: "Build3: L3 Frontier directive from Self-Prompt engine (FR-L3-23)",
+  },
 };
 
 /**

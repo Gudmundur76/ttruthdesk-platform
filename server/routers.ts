@@ -3812,6 +3812,67 @@ Respond in this exact structure:
           newStatus: input.resolution,
         };
       }),
+    /** Build3: /health/frontier — circuit breaker state + metrics snapshot (FR-L3-33) */
+    health: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      const { directiveStore } = await import("./frontier/directiveStore");
+      const { getFrontierMetrics } = await import("./frontier/frontierEngine");
+      const [cbState, metrics] = await Promise.all([
+        Promise.resolve(frontierCircuitBreaker.getState()),
+        getFrontierMetrics().catch(() => null),
+      ]);
+      return {
+        circuitBreaker: {
+          isOpen: cbState.isOpen,
+          consecutiveFailures: cbState.consecutiveFailures,
+          threshold: cbState.threshold,
+          openedAt: cbState.openedAt,
+          cooldownMs: cbState.cooldownMs,
+          willResetAt: cbState.openedAt
+            ? new Date(cbState.openedAt.getTime() + cbState.cooldownMs)
+            : null,
+        },
+        activeDirectives: directiveStore.activeCount(),
+        metrics,
+        checkedAt: new Date(),
+      };
+    }),
+    /** Build3: Add a directive to the DirectiveStore (FR-L3-21) */
+    addDirective: protectedProcedure
+      .input(
+        z.object({
+          type: z.enum(["focus_gap", "skip_mapping", "prioritize_hypotheses", "deep_dive_entity"]),
+          /** For focus_gap: the gap ID to focus on */
+          targetGapId: z.string().optional(),
+          /** For deep_dive_entity: the entity ID to deep-dive on */
+          targetEntityId: z.string().optional(),
+          /** TTL in seconds (default 3600 = 1 hour) */
+          ttlSeconds: z.number().int().min(1).max(86400).default(3600),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { directiveStore } = await import("./frontier/directiveStore");
+        const directiveId = `${input.type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        directiveStore.add({
+          directiveId,
+          type: input.type,
+          targetGapId: input.targetGapId,
+          targetEntityId: input.targetEntityId,
+          ttlSeconds: input.ttlSeconds,
+          createdAt: new Date(),
+        });
+        return { directiveId, activeCount: directiveStore.activeCount() };
+      }),
+    /** Build3: Reset the circuit breaker (admin override) */
+    resetCircuitBreaker: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      frontierCircuitBreaker.reset();
+      return { reset: true, state: frontierCircuitBreaker.getState() };
+    }),
+
   }),
 
   // ─── Override Audit Log ────────────────────────────────────────────────────

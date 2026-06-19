@@ -11,25 +11,34 @@
  *   C1. Graph Consolidation — structural cleanup
  *   C2. Latent Pattern Detection — cross-entity pattern mining
  *   C3. Topology Hypothesis Generation — graph-derived hypotheses
- *   C4. Confidence Recalibration — evidence-weighted score updates
- *   C5. Contradiction Simulation — stress-test scenarios
+ *   C4. Confidence Recalibration — evidence-weighted score updates (LLM-gated)
+ *   C5. Contradiction Simulation — stress-test scenarios (LLM-gated)
  *
- * The session is persisted to dream_sessions. On wake, the engine publishes
- * events back to the autonomous loop based on what it found.
+ * Build3 additions:
+ *   - Per-cycle budget: remaining_budget_ms / remaining_cycles (FR-L5-07)
+ *   - LLM circuit breaker: skip C4/C5 after 3 consecutive LLM failures (NFR-L5-03)
+ *   - Wake protocol: executeWakeProtocol() classifies results into DreamEvents (FR-L5-38)
+ *   - sessionId passed to C4 for confidence_history entries (FR-L5-26)
  */
 
 import { getDb } from "../db";
 import { dreamSessions } from "../../drizzle/schema";
 import { sql, desc, eq } from "drizzle-orm";
 import { runGraphConsolidation } from "./graphConsolidator";
+import type { ConsolidationResult } from "./graphConsolidator";
 import { runPatternDetection } from "./latentPatternDetector";
+import type { PatternDetectionResult } from "./latentPatternDetector";
 import { generateTopologyHypotheses } from "./topologyHypothesisGenerator";
+import type { HypothesisGenerationResult } from "./topologyHypothesisGenerator";
 import { runConfidenceRecalibration } from "./confidenceRecalibrator";
+import type { RecalibrationReport } from "./confidenceRecalibrator";
 import { runContradictionSimulation } from "./contradictionSimulator";
+import type { SimulationResult } from "./contradictionSimulator";
 import { publishEvent, getPendingEventCount } from "../autonomousLoop/eventBus";
+import { executeWakeProtocol } from "./dreamEventPublisher";
 import { logger, errData } from "../logger";
-const log = logger("dream/dreamEngine");
 
+const log = logger("dream/dreamEngine");
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
@@ -37,6 +46,55 @@ const DREAM_COOLDOWN_HOURS = 6;
 const DREAM_MIN_HEALTH = 40;
 const DREAM_MAX_CYCLES = 5;
 const DREAM_DURATION_CAP_MS = 5 * 60 * 1000; // 5 minutes max
+
+// ─── LLM Circuit Breaker (NFR-L5-03) ──────────────────────────────────────────
+
+/** Disable C4/C5 after this many consecutive LLM failures */
+const LLM_CIRCUIT_BREAKER_THRESHOLD = 3;
+let _llmConsecutiveFailures = 0;
+let _llmCircuitOpen = false;
+
+/** Record an LLM failure; open circuit after threshold */
+export function recordLLMFailure(): void {
+  _llmConsecutiveFailures++;
+  if (_llmConsecutiveFailures >= LLM_CIRCUIT_BREAKER_THRESHOLD) {
+    _llmCircuitOpen = true;
+    log.warn("[DreamEngine] LLM circuit breaker OPEN — C4/C5 disabled for this session", {
+      consecutiveFailures: _llmConsecutiveFailures,
+    });
+  }
+}
+
+/** Record an LLM success; reset circuit */
+export function recordLLMSuccess(): void {
+  _llmConsecutiveFailures = 0;
+  _llmCircuitOpen = false;
+}
+
+/** Check if LLM circuit is open (C4/C5 should be skipped) */
+export function isLLMCircuitOpen(): boolean {
+  return _llmCircuitOpen;
+}
+
+/** Reset circuit breaker state (called at session start) */
+export function resetLLMCircuitBreaker(): void {
+  _llmConsecutiveFailures = 0;
+  _llmCircuitOpen = false;
+}
+
+/**
+ * Compute per-cycle budget (FR-L5-07):
+ * remaining_budget_ms / remaining_cycles
+ */
+export function computeCycleBudget(
+  sessionStartedAt: number,
+  cycleNumber: number
+): number {
+  const elapsed = Date.now() - sessionStartedAt;
+  const remainingBudget = Math.max(0, DREAM_DURATION_CAP_MS - elapsed);
+  const remainingCycles = DREAM_MAX_CYCLES - cycleNumber + 1;
+  return Math.floor(remainingBudget / Math.max(remainingCycles, 1));
+}
 
 // ─── Entry Gate ────────────────────────────────────────────────────────────────
 
@@ -116,13 +174,19 @@ export interface DreamSessionResult {
   confidenceRecalibrations: number;
   simulatedScenarios: number;
   durationMs: number;
+  /** Wake protocol result — DreamEvents published to dream_event_queue */
+  wakeProtocolResult?: {
+    eventsPublished: number;
+    aggregateRiskLevel: "low" | "medium" | "high";
+    recommendedFollowUpActions: string[];
+  };
 }
 
 /**
  * Run a full Dream State session.
  * Returns the session summary.
  */
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runDreamSession(
   options: {
     healthScore?: number;
@@ -136,6 +200,9 @@ export async function runDreamSession(
   const startedAt = Date.now();
   let cyclesCompleted = 0;
   let reasonForWaking = "in_progress";
+
+  // Reset LLM circuit breaker at session start (NFR-L5-03)
+  resetLLMCircuitBreaker();
 
   // Create session row
   const [insertResult] = await db.insert(dreamSessions).values({
@@ -171,19 +238,31 @@ export async function runDreamSession(
     reason: string;
   }> = [];
 
+  // Cycle result holders for wake protocol (FR-L5-38)
+  let c1Result: ConsolidationResult | null = null;
+  let c2Result: PatternDetectionResult | null = null;
+  let c3Result: HypothesisGenerationResult | null = null;
+  let c4Result: RecalibrationReport | null = null;
+  let c5Result: SimulationResult | null = null;
+
   try {
     // ── Cycle 1: Graph Consolidation ────────────────────────────────────────
     if (Date.now() - startedAt < DREAM_DURATION_CAP_MS) {
+      const budget = computeCycleBudget(startedAt, 1);
+      log.info(`[DreamEngine] Starting C1 (budget: ${budget}ms)`);
       const consolidation = await runGraphConsolidation();
+      c1Result = consolidation;
       graphOptimizations = consolidation.totalOptimizations;
       cyclesCompleted++;
     }
 
     // ── Cycle 2: Latent Pattern Detection ───────────────────────────────────
-    let detectedPatterns: ReturnType<typeof runPatternDetection> extends Promise<infer T> ? T : never;
-    detectedPatterns = { patterns: [], totalFound: 0 };
+    let detectedPatterns: PatternDetectionResult = { patterns: [], totalFound: 0 };
     if (Date.now() - startedAt < DREAM_DURATION_CAP_MS) {
+      const budget = computeCycleBudget(startedAt, 2);
+      log.info(`[DreamEngine] Starting C2 (budget: ${budget}ms)`);
       detectedPatterns = await runPatternDetection();
+      c2Result = detectedPatterns;
       patternsFound = detectedPatterns.totalFound;
       patternLog.push(...detectedPatterns.patterns);
       cyclesCompleted++;
@@ -194,7 +273,6 @@ export async function runDreamSession(
       );
       if (criticalPatterns.length > 0) {
         reasonForWaking = "critical_pattern";
-        // Publish dream_pattern_detected event for each critical pattern
         for (const pattern of criticalPatterns) {
           await publishEvent("dream_pattern_detected", {
             sessionId,
@@ -213,40 +291,78 @@ export async function runDreamSession(
       Date.now() - startedAt < DREAM_DURATION_CAP_MS &&
       detectedPatterns.patterns.length > 0
     ) {
+      const budget = computeCycleBudget(startedAt, 3);
+      log.info(`[DreamEngine] Starting C3 (budget: ${budget}ms)`);
       const hypotheses = await generateTopologyHypotheses(detectedPatterns.patterns);
+      c3Result = hypotheses;
       hypothesesGenerated = hypotheses.hypothesesQueued;
       cyclesCompleted++;
     }
 
     // ── Cycle 4: Confidence Recalibration ────────────────────────────────────
+    // Skip if LLM circuit breaker is open (NFR-L5-03)
     if (
       reasonForWaking === "in_progress" &&
-      Date.now() - startedAt < DREAM_DURATION_CAP_MS
+      Date.now() - startedAt < DREAM_DURATION_CAP_MS &&
+      !isLLMCircuitOpen()
     ) {
-      const recalibration = await runConfidenceRecalibration(false);
-      confidenceRecalibrations = recalibration.totalRecalibrated;
-      recalibrationLog.push(...recalibration.entries);
-      cyclesCompleted++;
+      const budget = computeCycleBudget(startedAt, 4);
+      log.info(`[DreamEngine] Starting C4 (budget: ${budget}ms)`);
+      try {
+        // Pass sessionId and budget (FR-L5-26, FR-L5-07)
+        const recalibration = await runConfidenceRecalibration(false, sessionId, budget);
+        c4Result = recalibration;
+        confidenceRecalibrations = recalibration.totalRecalibrated;
+        recalibrationLog.push(
+          ...recalibration.entries.map(e => ({
+            claimId: e.claimId,
+            currentConfidence: e.oldConfidence,
+            suggestedConfidence: e.newConfidence,
+            reason: `${e.ruleTriggered}: ${e.evidence}`,
+          }))
+        );
+        cyclesCompleted++;
+        recordLLMSuccess();
 
-      // Publish confidence_review_needed if significant recalibrations found
-      if (recalibration.totalRecalibrated > 10) {
-        await publishEvent("confidence_review_needed", {
-          sessionId,
-          count: recalibration.totalRecalibrated,
-          topEntries: recalibration.entries.slice(0, 5),
-        }).catch(() => {});
+        if (recalibration.totalRecalibrated > 10) {
+          await publishEvent("confidence_review_needed", {
+            sessionId,
+            count: recalibration.totalRecalibrated,
+            topEntries: recalibration.entries.slice(0, 5),
+          }).catch(() => {});
+        }
+      } catch (c4Err) {
+        recordLLMFailure();
+        log.warn("[DreamEngine] C4 failed — LLM circuit breaker updated", { err: c4Err });
+        cyclesCompleted++;
       }
+    } else if (isLLMCircuitOpen()) {
+      log.warn("[DreamEngine] C4 skipped — LLM circuit breaker is open");
     }
 
     // ── Cycle 5: Contradiction Simulation ────────────────────────────────────
+    // Skip if LLM circuit breaker is open (NFR-L5-03)
     if (
       reasonForWaking === "in_progress" &&
-      Date.now() - startedAt < DREAM_DURATION_CAP_MS
+      Date.now() - startedAt < DREAM_DURATION_CAP_MS &&
+      !isLLMCircuitOpen()
     ) {
-      const simulation = await runContradictionSimulation();
-      simulatedScenarios = simulation.totalSimulated;
-      simulationLog.push(...simulation.scenarios);
-      cyclesCompleted++;
+      const budget = computeCycleBudget(startedAt, 5);
+      log.info(`[DreamEngine] Starting C5 (budget: ${budget}ms)`);
+      try {
+        const simulation = await runContradictionSimulation();
+        c5Result = simulation;
+        simulatedScenarios = simulation.totalSimulated;
+        simulationLog.push(...simulation.scenarios);
+        cyclesCompleted++;
+        recordLLMSuccess();
+      } catch (c5Err) {
+        recordLLMFailure();
+        log.warn("[DreamEngine] C5 failed — LLM circuit breaker updated", { err: c5Err });
+        cyclesCompleted++;
+      }
+    } else if (isLLMCircuitOpen()) {
+      log.warn("[DreamEngine] C5 skipped — LLM circuit breaker is open");
     }
 
     // Set final wake reason
@@ -286,6 +402,31 @@ export async function runDreamSession(
     })
     .where(eq(dreamSessions.id, sessionId));
 
+  // ── Wake Protocol (FR-L5-38): classify results into DreamEvents ─────────────
+  let wakeProtocolResult: DreamSessionResult["wakeProtocolResult"];
+  try {
+    const wakeResult = await executeWakeProtocol({
+      sessionId,
+      consolidation: c1Result,
+      patterns: c2Result,
+      hypotheses: c3Result,
+      recalibration: c4Result,
+      simulation: c5Result,
+    });
+    wakeProtocolResult = {
+      eventsPublished: wakeResult.eventsPublished.length,
+      aggregateRiskLevel: wakeResult.aggregateRiskLevel,
+      recommendedFollowUpActions: wakeResult.recommendedFollowUpActions,
+    };
+    log.info("[DreamEngine] Wake protocol complete", {
+      sessionId,
+      eventsPublished: wakeResult.eventsPublished.length,
+      aggregateRiskLevel: wakeResult.aggregateRiskLevel,
+    });
+  } catch (wakeErr) {
+    log.warn("[DreamEngine] Wake protocol failed", { err: wakeErr });
+  }
+
   // Publish dream_session_complete event
   await publishEvent("dream_session_complete", {
     sessionId,
@@ -308,6 +449,7 @@ export async function runDreamSession(
     confidenceRecalibrations,
     simulatedScenarios,
     durationMs,
+    wakeProtocolResult,
   };
 }
 

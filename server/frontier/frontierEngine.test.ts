@@ -110,3 +110,100 @@ describe("frontier/frontierEngine — runFrontierEngine()", () => {
     expect(result.gapsRanked).toBe(5); // other stages unaffected
   });
 });
+
+// ─── Build3: T021-T030 — Directive-aware orchestration tests ──────────────────
+
+import { directiveStore, type FrontierDirective } from "./directiveStore";
+import { frontierCircuitBreaker } from "./circuitBreaker";
+
+function makeDirective(overrides: Partial<FrontierDirective> = {}): FrontierDirective {
+  return {
+    directiveId: `d-${Math.random().toString(36).slice(2)}`,
+    type: "focus_gap",
+    ttlSeconds: 3600,
+    createdAt: new Date(),
+    ...overrides,
+  };
+}
+
+describe("frontier/frontierEngine — directive-aware orchestration (T021-T030)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    directiveStore.clearConsumed();
+    frontierCircuitBreaker.reset();
+    mockRunGapMapper.mockResolvedValue(defaultGapMapping);
+    mockRankAllOpenGaps.mockResolvedValue(5);
+    mockPursueTopGaps.mockResolvedValue([{ gapId: 1, status: "evidence_found" }]);
+    mockRunHypothesisGenerator.mockResolvedValue(defaultHypothesis);
+    mockMarkStaleGaps.mockResolvedValue(3);
+  });
+
+  it("T021: runFrontierEngine returns FrontierEngineRunResult with directiveEffect", async () => {
+    const result = await runFrontierEngine();
+    expect(result).toHaveProperty("directiveEffect");
+    expect(result).toHaveProperty("directivesConsumed");
+    expect(result.directiveEffect).toHaveProperty("skippedMapping");
+    expect(result.directiveEffect).toHaveProperty("focusGapIds");
+  });
+
+  it("T022: focus_gap directive adds gap ID to focusGapIds in directiveEffect", async () => {
+    directiveStore.add(makeDirective({ type: "focus_gap", targetGapId: "gap-77" }));
+    const result = await runFrontierEngine();
+    expect(result.directiveEffect.focusGapIds).toContain("gap-77");
+  });
+
+  it("T023: skip_mapping directive causes Stage 1 (gap mapping) to be skipped", async () => {
+    directiveStore.add(makeDirective({ type: "skip_mapping" }));
+    await runFrontierEngine();
+    expect(mockRunGapMapper).not.toHaveBeenCalled();
+  });
+
+  it("T024: prioritize_hypotheses directive increases extraHypotheses in directiveEffect", async () => {
+    directiveStore.add(makeDirective({ type: "prioritize_hypotheses" }));
+    const result = await runFrontierEngine();
+    expect(result.directiveEffect.extraHypotheses).toBeGreaterThan(0);
+  });
+
+  it("T025: deep_dive_entity directive sets deepDiveEntityId in directiveEffect", async () => {
+    directiveStore.add(makeDirective({ type: "deep_dive_entity", targetEntityId: "entity-55" }));
+    const result = await runFrontierEngine();
+    expect(result.directiveEffect.deepDiveEntityId).toBe("entity-55");
+  });
+
+  it("T026: directivesConsumed reflects the number of active directives", async () => {
+    directiveStore.add(makeDirective({ type: "focus_gap", targetGapId: "g1" }));
+    directiveStore.add(makeDirective({ type: "prioritize_hypotheses" }));
+    const result = await runFrontierEngine();
+    expect(result.directivesConsumed).toBe(2);
+  });
+
+  it("T027: directiveStore is cleared after cycle (clearConsumed called)", async () => {
+    directiveStore.add(makeDirective({ type: "focus_gap", targetGapId: "g1" }));
+    expect(directiveStore.activeCount()).toBe(1);
+    await runFrontierEngine();
+    expect(directiveStore.activeCount()).toBe(0);
+  });
+
+  it("T028: circuit breaker state is accessible via frontierCircuitBreaker.getState()", () => {
+    const state = frontierCircuitBreaker.getState();
+    expect(state).toHaveProperty("isOpen");
+    expect(state).toHaveProperty("consecutiveFailures");
+    expect(state).toHaveProperty("threshold");
+  });
+
+  it("T029: circuit breaker opens after recording failures at threshold", () => {
+    const threshold = frontierCircuitBreaker.getState().threshold;
+    for (let i = 0; i < threshold; i++) {
+      frontierCircuitBreaker.recordFailure();
+    }
+    expect(frontierCircuitBreaker.isOpen).toBe(true);
+  });
+
+  it("T030: circuit breaker resets after reset() call", () => {
+    frontierCircuitBreaker.recordFailure();
+    frontierCircuitBreaker.recordFailure();
+    frontierCircuitBreaker.reset();
+    expect(frontierCircuitBreaker.isOpen).toBe(false);
+    expect(frontierCircuitBreaker.getState().consecutiveFailures).toBe(0);
+  });
+});

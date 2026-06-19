@@ -234,3 +234,94 @@ describe("dreamEngine — getDreamSession()", () => {
     expect(result).toBeNull();
   });
 });
+
+// ─── Build3: T049-T058 — Per-cycle budget and LLM circuit breaker tests ───────
+
+import {
+  computeCycleBudget,
+  isLLMCircuitOpen,
+  recordLLMFailure,
+  recordLLMSuccess,
+  resetLLMCircuitBreaker,
+} from "./dreamEngine";
+
+describe("dreamEngine — computeCycleBudget (T049-T052)", () => {
+  it("T049: returns a positive number for a fresh session", () => {
+    const budget = computeCycleBudget(Date.now(), 1);
+    expect(budget).toBeGreaterThan(0);
+  });
+
+  it("T050: budget per cycle is remaining_budget / remaining_cycles (PRD FR-L5-07)", () => {
+    // With DREAM_MAX_CYCLES=5 and a fresh session:
+    // cycle 1: remainingBudget / 5 remaining cycles
+    // cycle 2: remainingBudget / 4 remaining cycles → larger per-cycle budget
+    // This is the PRD formula: each cycle gets its fair share of what's left
+    const start = Date.now();
+    const budget1 = computeCycleBudget(start, 1);
+    const budget2 = computeCycleBudget(start, 2);
+    // budget2 >= budget1 because fewer remaining cycles means more budget per cycle
+    expect(budget2).toBeGreaterThanOrEqual(budget1);
+  });
+
+  it("T051: budget is 0 when all cycles have been used", () => {
+    // Simulate a session that started 25 minutes ago (total budget is 20 min)
+    const longAgo = Date.now() - 25 * 60 * 1000;
+    const budget = computeCycleBudget(longAgo, 5);
+    expect(budget).toBe(0);
+  });
+
+  it("T052: budget is always non-negative (never returns negative)", () => {
+    const longAgo = Date.now() - 60 * 60 * 1000;
+    const budget = computeCycleBudget(longAgo, 1);
+    expect(budget).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("dreamEngine — LLM circuit breaker (T053-T058)", () => {
+  beforeEach(() => {
+    resetLLMCircuitBreaker();
+  });
+
+  it("T053: circuit starts closed (isLLMCircuitOpen = false)", () => {
+    expect(isLLMCircuitOpen()).toBe(false);
+  });
+
+  it("T054: recordLLMFailure increments failure count", () => {
+    recordLLMFailure();
+    // Circuit should still be closed after 1 failure (threshold is 3)
+    expect(isLLMCircuitOpen()).toBe(false);
+  });
+
+  it("T055: circuit opens after 3 consecutive failures", () => {
+    recordLLMFailure();
+    recordLLMFailure();
+    recordLLMFailure();
+    expect(isLLMCircuitOpen()).toBe(true);
+  });
+
+  it("T056: recordLLMSuccess resets failure count and closes circuit", () => {
+    recordLLMFailure();
+    recordLLMFailure();
+    recordLLMFailure();
+    expect(isLLMCircuitOpen()).toBe(true);
+    recordLLMSuccess();
+    expect(isLLMCircuitOpen()).toBe(false);
+  });
+
+  it("T057: resetLLMCircuitBreaker closes the circuit", () => {
+    recordLLMFailure();
+    recordLLMFailure();
+    recordLLMFailure();
+    expect(isLLMCircuitOpen()).toBe(true);
+    resetLLMCircuitBreaker();
+    expect(isLLMCircuitOpen()).toBe(false);
+  });
+
+  it("T058: circuit stays open after more failures once open", () => {
+    recordLLMFailure();
+    recordLLMFailure();
+    recordLLMFailure();
+    recordLLMFailure(); // 4th failure
+    expect(isLLMCircuitOpen()).toBe(true);
+  });
+});

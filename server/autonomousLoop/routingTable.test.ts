@@ -10,8 +10,8 @@ import {
 } from "./routingTable";
 
 describe("ROUTING_TABLE", () => {
-  it("contains all 33 LoopEventType entries", () => {
-    expect(Object.keys(ROUTING_TABLE)).toHaveLength(33);
+  it("contains all 34 LoopEventType entries", () => {
+    expect(Object.keys(ROUTING_TABLE)).toHaveLength(34);
   });
 
   it("every entry has at least one layer", () => {

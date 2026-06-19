@@ -76,7 +76,8 @@ export type LoopEventType =
   | "convergence_gate_opened"
   | "dream_queue_processed"
   | "l0_scan_completed"
-  | "l0_scan_failed";
+  | "l0_scan_failed"
+  | "frontier_directive";  // Build3: L3 directive from Self-Prompt engine (FR-L3-23)
 
 /** Entry layer for each event type (per the spec) */
 export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
@@ -113,6 +114,7 @@ export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
   dream_queue_processed: 5, // L5: Dream queue
   l0_scan_completed: 0, // L0: Friction scan completed telemetry
   l0_scan_failed: 0, // L0: Friction scan failed telemetry
+  frontier_directive: 3, // Build3: L3 Frontier directive (FR-L3-23)
 };
 
 export interface LoopEvent {

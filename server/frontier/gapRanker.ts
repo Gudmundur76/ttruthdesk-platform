@@ -8,7 +8,13 @@
  *
  * Scores are normalized to [0, 100]. Higher = more urgent to close.
  *
- * The Frontier Engine ONLY updates knowledge_gaps.priorityScore.
+ * Build3 additions (FR-L3-09 through FR-L3-14):
+ *   - directiveBoost: L2 directive multiplier applied on top of base score
+ *   - rank: integer rank assigned after sorting (1 = highest priority)
+ *   - detectionCount: incremented each time a gap is re-detected
+ *   - lastDetectedAt: updated each time a gap is re-detected
+ *
+ * The Frontier Engine ONLY updates knowledge_gaps columns.
  * It never touches graph_entities, graphRelations, claims, or verdicts.
  */
 
@@ -91,6 +97,8 @@ export interface GapScoringInput {
   openedAt: Date;
   entityAId?: number | null;
   entityBId?: number | null;
+  /** Build3: directive boost from L2 (0.0–1.0, default 0) */
+  directiveBoost?: number;
 }
 
 export interface GapScoringResult {
@@ -102,6 +110,8 @@ export interface GapScoringResult {
     recencyOfConflict: number;
     communityDemand: number;
     gapTypeMultiplier: number;
+    /** Build3: directive boost multiplier applied to base score */
+    directiveBoost: number;
   };
 }
 
@@ -142,12 +152,15 @@ export async function computePriorityScore(
     }
   }
 
+  const directiveBoost = Math.min(Math.max(gap.directiveBoost ?? 0, 0), 1.0);
+
   const components = {
     contradictionSeverity: scoreContradictionSeverity(contradictionCount),
     entityCentrality: scoreEntityCentrality(relationCount),
     recencyOfConflict: scoreRecency(gap.openedAt),
     communityDemand: scoreCommunityDemand(gap.contributingClaimCount),
     gapTypeMultiplier: gapTypeMultiplier(gap.gapType),
+    directiveBoost,
   };
 
   // Composite score: geometric mean of the four factors × type multiplier × 100
@@ -164,8 +177,12 @@ export async function computePriorityScore(
     ? geometricMean
     : components.recencyOfConflict * 0.4 + components.communityDemand * 0.6;
 
+  // Build3: Apply directive boost as a multiplier (1.0 + directiveBoost)
+  // A directiveBoost of 1.0 doubles the base score.
+  const boostedScore = baseScore * (1.0 + directiveBoost);
+
   const priorityScore =
-    Math.round(baseScore * components.gapTypeMultiplier * 100 * 100) / 100;
+    Math.round(boostedScore * components.gapTypeMultiplier * 100 * 100) / 100;
 
   return { gapId: gap.id, priorityScore, components };
 }
@@ -173,10 +190,15 @@ export async function computePriorityScore(
 // ─── Public: rankAllOpenGaps ──────────────────────────────────────────────────
 
 /**
- * Scores all open/pursued gaps and updates their priorityScore in the DB.
+ * Scores all open/pursued gaps and updates their priorityScore, rank,
+ * detectionCount, and lastDetectedAt in the DB.
  * Returns the number of gaps scored.
+ *
+ * Build3: Also writes the integer rank (1 = highest) after sorting.
  */
-export async function rankAllOpenGaps(): Promise<number> {
+export async function rankAllOpenGaps(
+  focusGapIds: string[] = []
+): Promise<number> {
   const db = await getDbOrThrow();
 
   const openGaps = await db
@@ -187,31 +209,58 @@ export async function rankAllOpenGaps(): Promise<number> {
       openedAt: knowledgeGaps.openedAt,
       entityAId: knowledgeGaps.entityAId,
       entityBId: knowledgeGaps.entityBId,
+      directiveBoost: knowledgeGaps.directiveBoost,
     })
     .from(knowledgeGaps)
     .where(inArray(knowledgeGaps.status, ["open", "pursued", "narrowing"]));
 
-  let scored = 0;
+  // Build3: Apply focus boost to gaps targeted by directives
+  const focusGapIdSet = new Set(focusGapIds.map(Number));
+
+  const scored: Array<{ id: number; priorityScore: number }> = [];
+
   for (const gap of openGaps) {
     try {
+      // Build3: If this gap is in focusGapIds, apply max directive boost
+      const directiveBoost = focusGapIdSet.has(gap.id)
+        ? 1.0
+        : (gap.directiveBoost ?? 0);
+
       const result = await computePriorityScore({
         ...gap,
         openedAt:
           gap.openedAt instanceof Date ? gap.openedAt : new Date(gap.openedAt),
+        directiveBoost,
       });
 
+      scored.push({ id: gap.id, priorityScore: result.priorityScore });
+
+      // Update priorityScore, directiveBoost, detectionCount, lastDetectedAt
       await db
         .update(knowledgeGaps)
-        .set({ priorityScore: result.priorityScore, updatedAt: new Date() })
+        .set({
+          priorityScore: result.priorityScore,
+          directiveBoost,
+          detectionCount: sql`detectionCount + 1`,
+          lastDetectedAt: new Date(),
+          updatedAt: new Date(),
+        })
         .where(eq(knowledgeGaps.id, gap.id));
-
-      scored++;
     } catch {
       // Non-fatal — continue with other gaps
     }
   }
 
-  return scored;
+  // Build3: Assign integer ranks after sorting by priorityScore DESC
+  scored.sort((a, b) => b.priorityScore - a.priorityScore);
+  for (let i = 0; i < scored.length; i++) {
+    await db
+      .update(knowledgeGaps)
+      .set({ rank: i + 1 })
+      .where(eq(knowledgeGaps.id, scored[i].id));
+  }
+
+  return scored.length;
 }
 
 /**
