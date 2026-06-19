@@ -174,4 +174,37 @@ describe("domainIngestJobHandler", () => {
     }
     vi.unstubAllGlobals();
   }, 30000);
+
+  it("returns 200 when Authorization header matches CRON_SECRET", async () => {
+    const envMod = await import("./_core/env");
+    (envMod.ENV as Record<string, unknown>).cronSecret = "ingest-46";
+    (envMod.ENV as Record<string, unknown>).forgeApiKey = "";
+    mockReq.headers = { authorization: "Bearer ingest-46" };
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ esearchresult: { idlist: [] } }),
+      text: () => Promise.resolve(""),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+    const { domainIngestJobHandler } = await import("./domainIngestScheduler");
+    const handlerPromise = domainIngestJobHandler(mockReq as Request, mockRes as Response);
+    await vi.runAllTimersAsync();
+    await handlerPromise;
+    expect(statusSpy).not.toHaveBeenCalledWith(401);
+    expect(jsonSpy).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+    (envMod.ENV as Record<string, unknown>).cronSecret = "";
+    (envMod.ENV as Record<string, unknown>).forgeApiKey = undefined;
+    vi.unstubAllGlobals();
+  }, 30000);
+
+  it("returns 401 when CRON_SECRET is set and token does not match", async () => {
+    const envMod = await import("./_core/env");
+    (envMod.ENV as Record<string, unknown>).cronSecret = "ingest-46";
+    (envMod.ENV as Record<string, unknown>).forgeApiKey = "";
+    mockReq.headers = { authorization: "Bearer wrong-token" };
+    const { domainIngestJobHandler } = await import("./domainIngestScheduler");
+    await domainIngestJobHandler(mockReq as Request, mockRes as Response);
+    expect(statusSpy).toHaveBeenCalledWith(401);
+    (envMod.ENV as Record<string, unknown>).cronSecret = "";
+    (envMod.ENV as Record<string, unknown>).forgeApiKey = undefined;
+  });
 });
