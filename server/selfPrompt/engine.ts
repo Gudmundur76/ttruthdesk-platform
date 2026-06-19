@@ -7,9 +7,10 @@
  *   1. Receive a triggering event
  *   2. Collect the current SystemState from the DB
  *   3. Run the LLM self-prompt to generate a prioritized action list
- *   4. Apply the convergence gate
+ *   4. Apply the convergence gate (applyConvergenceGate — may override LLM decision)
  *   5. Execute actions that pass the gate
- *   6. Log the full cycle to self_prompt_log
+ *   6. Publish frontier directives for any "frontier" actions
+ *   7. Log the full cycle to self_prompt_log
  *
  * Authority boundary:
  *   - Reads from: all tables (via stateCollector)
@@ -21,11 +22,15 @@
 import { collectSystemState, type SelfPromptEvent } from "./stateCollector";
 import { runSelfPrompt } from "./promptEngine";
 import { executeActions } from "./actionExecutor";
+import { applyConvergenceGate } from "./convergenceGate";
+import {
+  publishFrontierDirectives,
+  type FrontierDirectiveRequest,
+} from "./directivePublisher";
 import { getDb } from "../db";
 import { selfPromptLog } from "../../drizzle/schema";
 import { logger, errData } from "../logger";
 const log = logger("selfPrompt/engine");
-
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,74 +41,190 @@ export interface SelfPromptCycleResult {
   actionsGenerated: number;
   actionsExecuted: number;
   converged: boolean;
+  /** Whether the convergence gate overrode the LLM’s decision */
+  gateOverrode: boolean;
+  /** Human-readable reason from the convergence gate */
+  gateReason: string;
+  /** Number of frontier directives published this cycle */
+  directivesPublished: number;
   durationMs: number;
+  /** Set if the cycle failed with an unrecoverable error */
+  error?: string;
 }
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
 export async function runSelfPromptCycle(
-  event: SelfPromptEvent
+  event: SelfPromptEvent,
+  cycleCount = 0
 ): Promise<SelfPromptCycleResult> {
   const startMs = Date.now();
 
-  // 1. Collect system state
-  const state = await collectSystemState(event);
-
-  // 2. Run LLM self-prompt
-  const selfPrompt = await runSelfPrompt(state);
-
-  // 3. Apply convergence gate — filter out actions below threshold if converging
-  const actionsToExecute = selfPrompt.converge
-    ? [] // Converged: execute nothing
-    : selfPrompt.actions;
-
-  // 4. Execute actions
-  const executionResults = await executeActions(actionsToExecute);
-
-  const durationMs = Date.now() - startMs;
-
-  // 5. Log the cycle to self_prompt_log
-  let cycleId: number | null = null;
+  // ─── Global error boundary ───────────────────────────────────────────────────────────────
+  // Any unhandled throw inside the cycle is caught here so the caller always
+  // receives a structured result rather than an unhandled rejection.
   try {
-    const db = await getDb();
-    if (db) {
-      const insertResult = await db.insert(selfPromptLog).values({
-        eventType: event.type,
-        stateSnapshot: state as unknown as Record<string, unknown>,
-        reasoning: selfPrompt.reasoning,
-        actions: selfPrompt.actions as unknown as Array<
-          Record<string, unknown>
-        >,
-        converged: selfPrompt.converge,
-        actionCount: selfPrompt.actions.length,
-        executedCount: actionsToExecute.length,
-        executionResults: executionResults as unknown as Array<
-          Record<string, unknown>
-        >,
-        durationMs,
-        claimId: event.claimId ?? null,
-        documentId: event.documentId ?? null,
-        gapId: event.gapId ?? null,
-      });
-      cycleId = (insertResult as { insertId?: number }).insertId ?? null;
+    // 1. Collect system state
+    const state = await collectSystemState(event);
+
+    // 2. Run LLM self-prompt
+    const selfPrompt = await runSelfPrompt(state);
+
+    // 3. Apply convergence gate — may override the LLM’s convergence decision
+    const gateResult = await applyConvergenceGate({
+      llmConverged: selfPrompt.converge,
+      cycleCount,
+      openCriticalAlerts: state.metaHealth.criticalCount,
+      staleGapsWithNoDirective: state.graphSnapshot.highPriorityGapCount,
+    });
+
+    if (gateResult.overridden) {
+      log.info(
+        `[SelfPromptEngine] Convergence gate overrode LLM: ${gateResult.reason} ` +
+          `(llm=${selfPrompt.converge}, gate=${gateResult.converged})`
+      );
     }
+
+    // 4. Execute actions if gate allows
+    const actionsToExecute = gateResult.converged ? [] : selfPrompt.actions;
+    const executionResults = await executeActions(actionsToExecute);
+
+    // 5. Publish frontier directives for any "frontier" actions that succeeded
+    const frontierActions = actionsToExecute.filter(
+      a => a.action === "frontier"
+    );
+    let directivesPublished = 0;
+    let cycleId: number | null = null;
+
+    if (frontierActions.length > 0) {
+      // We need the cycleId first — attempt to log early so directives can reference it
+      try {
+        const db = await getDb();
+        if (db) {
+          const earlyInsert = await db.insert(selfPromptLog).values({
+            eventType: event.type,
+            stateSnapshot: state as unknown as Record<string, unknown>,
+            reasoning: selfPrompt.reasoning,
+            actions: selfPrompt.actions as unknown as Array<
+              Record<string, unknown>
+            >,
+            converged: gateResult.converged,
+            actionCount: selfPrompt.actions.length,
+            executedCount: actionsToExecute.length,
+            executionResults: executionResults as unknown as Array<
+              Record<string, unknown>
+            >,
+            durationMs: Date.now() - startMs,
+            claimId: event.claimId ?? null,
+            documentId: event.documentId ?? null,
+            gapId: event.gapId ?? null,
+          });
+          cycleId = (earlyInsert as { insertId?: number }).insertId ?? null;
+        }
+      } catch (err) {
+        log.error(
+          "[SelfPromptEngine] Failed to log cycle (pre-directive):",
+          errData(err)
+        );
+      }
+
+      const directiveRequests: FrontierDirectiveRequest[] = frontierActions.map(
+        a => ({
+          directiveType: "focus_gap" as const,
+          targetGapId: a.targetId > 0 ? a.targetId : undefined,
+          reason:
+            a.justification || a.reasoning || "Self-prompt frontier action",
+          confidence: a.expectedValue / 100,
+          ttlMinutes: 60,
+          issuedByCycleId: cycleId ?? undefined,
+        })
+      );
+
+      try {
+        const published = await publishFrontierDirectives(directiveRequests);
+        directivesPublished = published.length;
+        log.info(
+          `[SelfPromptEngine] Published ${directivesPublished} frontier directive(s)`
+        );
+      } catch (err) {
+        log.error(
+          "[SelfPromptEngine] Failed to publish frontier directives:",
+          errData(err)
+        );
+      }
+    }
+
+    const durationMs = Date.now() - startMs;
+
+    // 6. Log the cycle to self_prompt_log (skip if already logged above)
+    if (cycleId === null) {
+      try {
+        const db = await getDb();
+        if (db) {
+          const insertResult = await db.insert(selfPromptLog).values({
+            eventType: event.type,
+            stateSnapshot: state as unknown as Record<string, unknown>,
+            reasoning: selfPrompt.reasoning,
+            actions: selfPrompt.actions as unknown as Array<
+              Record<string, unknown>
+            >,
+            converged: gateResult.converged,
+            actionCount: selfPrompt.actions.length,
+            executedCount: actionsToExecute.length,
+            executionResults: executionResults as unknown as Array<
+              Record<string, unknown>
+            >,
+            durationMs,
+            claimId: event.claimId ?? null,
+            documentId: event.documentId ?? null,
+            gapId: event.gapId ?? null,
+          });
+          cycleId = (insertResult as { insertId?: number }).insertId ?? null;
+        }
+      } catch (err) {
+        log.error("[SelfPromptEngine] Failed to log cycle:", errData(err));
+      }
+    }
+
+    log.info(
+      `[SelfPromptEngine] Cycle complete: event=${event.type}, ` +
+        `actions=${selfPrompt.actions.length}, executed=${actionsToExecute.length}, ` +
+        `converged=${gateResult.converged}, gateOverrode=${gateResult.overridden}, ` +
+        `directives=${directivesPublished}, duration=${durationMs}ms`
+    );
+
+    return {
+      cycleId,
+      eventType: event.type,
+      reasoning: selfPrompt.reasoning,
+      actionsGenerated: selfPrompt.actions.length,
+      actionsExecuted: actionsToExecute.length,
+      converged: gateResult.converged,
+      gateOverrode: gateResult.overridden,
+      gateReason: gateResult.reason,
+      directivesPublished,
+      durationMs,
+    };
   } catch (err) {
-    log.error("[SelfPromptEngine] Failed to log cycle:", errData(err));
+    // Global error boundary: return a safe failure result rather than throwing
+    const durationMs = Date.now() - startMs;
+    const errorMsg = errData(err);
+    log.error(
+      `[SelfPromptEngine] Unhandled cycle error for event=${event.type}:`,
+      errorMsg
+    );
+    return {
+      cycleId: null,
+      eventType: event.type,
+      reasoning: `Cycle failed with unhandled error: ${String(err)}`,
+      actionsGenerated: 0,
+      actionsExecuted: 0,
+      converged: true, // Safe default: converge on error
+      gateOverrode: false,
+      gateReason: "error_boundary",
+      directivesPublished: 0,
+      durationMs,
+      error: String(err),
+    };
   }
-
-  log.info(
-    `[SelfPromptEngine] Cycle complete: event=${event.type}, ` +
-      `actions=${selfPrompt.actions.length}, executed=${actionsToExecute.length}, ` +
-      `converged=${selfPrompt.converge}, duration=${durationMs}ms`
-  );
-
-  return {
-    cycleId,
-    eventType: event.type,
-    reasoning: selfPrompt.reasoning,
-    actionsGenerated: selfPrompt.actions.length,
-    actionsExecuted: actionsToExecute.length,
-    converged: selfPrompt.converge,
-    durationMs,
-  };
 }

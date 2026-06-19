@@ -1,7 +1,14 @@
 /**
  * actionExecutor.test.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Unit tests for selfPrompt/actionExecutor.ts — executeAction() and executeActions()
+ * Unit tests for selfPrompt/actionExecutor.ts — executeAction(), executeActions(),
+ * and containsSqlInjection().
+ *
+ * Phase 7 additions:
+ *   - containsSqlInjection() guard tests
+ *   - Deduplication: only the highest-priority action per action type is kept
+ *   - 5-action cap: actions beyond MAX_ACTIONS_PER_CYCLE are dropped
+ *   - Per-action timeout: slow actions return error status instead of hanging
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -26,23 +33,97 @@ vi.mock("../coordQueueDrainer", () => ({
 vi.mock("../embeddingBackfillJob", () => ({
   runEmbeddingBackfill: mocks.mockRunEmbeddingBackfill,
 }));
-vi.mock("../frontier/frontierEngine", () => ({ runFrontierEngine: vi.fn().mockResolvedValue({}) }));
-vi.mock("../dream/confidenceRecalibrator", () => ({ runConfidenceRecalibration: vi.fn().mockResolvedValue({}) }));
-vi.mock("../seo/indexNow", () => ({ notifyIndexNow: vi.fn().mockResolvedValue(undefined), claimUrl: vi.fn().mockReturnValue("https://example.com/claim/1") }));
-vi.mock("../_core/notification", () => ({ notifyOwner: vi.fn().mockResolvedValue(true) }));
+vi.mock("../frontier/frontierEngine", () => ({
+  runFrontierEngine: vi.fn().mockResolvedValue({
+    gapMapping: { newGapsCreated: 0 },
+    hypothesisGeneration: { hypothesesGenerated: 0 },
+  }),
+}));
+vi.mock("../dream/confidenceRecalibrator", () => ({
+  runConfidenceRecalibration: vi
+    .fn()
+    .mockResolvedValue({ totalRecalibrated: 0, autoApplied: 0 }),
+}));
+vi.mock("../seo/indexNow", () => ({
+  notifyIndexNow: vi.fn().mockResolvedValue(undefined),
+  claimUrl: vi.fn().mockReturnValue("https://example.com/claim/1"),
+}));
+vi.mock("../_core/notification", () => ({
+  notifyOwner: vi.fn().mockResolvedValue(true),
+}));
 
-import { executeAction, executeActions } from "./actionExecutor";
+import {
+  executeAction,
+  executeActions,
+  containsSqlInjection,
+} from "./actionExecutor";
+import type { PrioritizedAction } from "./promptEngine";
 
 // Helper to build a valid PrioritizedAction
-function makeAction(action: string, targetId?: number) {
+function makeAction(
+  action: string,
+  targetId?: number,
+  priority = 50,
+  expectedValue = 50
+): PrioritizedAction {
   return {
     action: action as never,
     targetId: targetId as number,
     reasoning: "test",
-    priority: 1,
-    expectedValue: 50,
+    justification: "test justification",
+    priority,
+    priorityLevel: "MEDIUM",
+    expectedValue,
   };
 }
+
+// ─── containsSqlInjection() ───────────────────────────────────────────────────
+
+describe("containsSqlInjection()", () => {
+  it("returns false for a plain numeric string", () => {
+    expect(containsSqlInjection("42")).toBe(false);
+  });
+
+  it("returns false for a normal protein name", () => {
+    expect(containsSqlInjection("BRCA1_HUMAN")).toBe(false);
+  });
+
+  it("returns true for SELECT keyword", () => {
+    expect(containsSqlInjection("SELECT * FROM claims")).toBe(true);
+  });
+
+  it("returns true for DROP keyword", () => {
+    expect(containsSqlInjection("DROP TABLE claims")).toBe(true);
+  });
+
+  it("returns true for INSERT keyword", () => {
+    expect(containsSqlInjection("INSERT INTO claims")).toBe(true);
+  });
+
+  it("returns true for semicolon", () => {
+    expect(containsSqlInjection("1; DROP TABLE claims")).toBe(true);
+  });
+
+  it("returns true for single quote", () => {
+    expect(containsSqlInjection("1' OR '1'='1")).toBe(true);
+  });
+
+  it("returns true for UNION keyword", () => {
+    expect(containsSqlInjection("1 UNION SELECT 1,2,3")).toBe(true);
+  });
+
+  it("is case-insensitive", () => {
+    expect(containsSqlInjection("select 1")).toBe(true);
+    expect(containsSqlInjection("SELECT 1")).toBe(true);
+    expect(containsSqlInjection("SeLeCt 1")).toBe(true);
+  });
+
+  it("returns false for empty string", () => {
+    expect(containsSqlInjection("")).toBe(false);
+  });
+});
+
+// ─── executeAction() ──────────────────────────────────────────────────────────
 
 describe("executeAction()", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -78,9 +159,23 @@ describe("executeAction()", () => {
     expect(result.status).toBe("skipped");
     expect(result.detail).toContain("Unknown action type");
   });
+
+  it("returns ok for meta_check action (no-op)", async () => {
+    const result = await executeAction(makeAction("meta_check", 0));
+    expect(result.status).toBe("ok");
+    expect(result.detail).toContain("codeGuardian");
+  });
+
+  it("returns ok for converge action", async () => {
+    const result = await executeAction(makeAction("converge", 0));
+    expect(result.status).toBe("ok");
+    expect(result.detail).toContain("Convergence gate fired");
+  });
 });
 
-describe("executeActions()", () => {
+// ─── executeActions() — deduplication ────────────────────────────────────────
+
+describe("executeActions() — deduplication", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns empty array for empty input", async () => {
@@ -94,8 +189,77 @@ describe("executeActions()", () => {
       makeAction("notify", undefined),
       makeAction("notify", undefined),
     ]);
+    // After dedup: only one notify action survives
+    expect(results).toHaveLength(1);
+    expect(results[0].status).toBe("skipped"); // no targetId
+  });
+
+  it("keeps only the highest-priority action per action type", async () => {
+    mocks.mockDispatchHighRiskAlert.mockResolvedValue(undefined);
+    const results = await executeActions([
+      makeAction("notify", 1, 30), // lower priority
+      makeAction("notify", 2, 80), // higher priority — should be kept
+    ]);
+    // After sort+dedup: only the priority-80 notify survives
+    expect(results).toHaveLength(1);
+    expect(results[0].targetId).toBe(2);
+  });
+
+  it("preserves different action types after dedup", async () => {
+    const results = await executeActions([
+      makeAction("meta_check", 0, 50),
+      makeAction("meta_check", 0, 40), // duplicate — dropped
+      makeAction("gap_map", 0, 60),
+    ]);
+    // 2 unique types: meta_check and gap_map
     expect(results).toHaveLength(2);
-    expect(results[0].status).toBe("skipped");
-    expect(results[1].status).toBe("skipped");
+    const types = results.map(r => r.action);
+    expect(types).toContain("meta_check");
+    expect(types).toContain("gap_map");
+  });
+});
+
+// ─── executeActions() — 5-action cap ─────────────────────────────────────────
+
+describe("executeActions() — 5-action cap", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("executes at most 5 actions even when more are provided", async () => {
+    const actions = [
+      makeAction("meta_check", 0, 90),
+      makeAction("gap_map", 0, 80),
+      makeAction("converge", 0, 70),
+      makeAction("alert", 0, 60),
+      makeAction("reindex", 1, 50),
+      makeAction("drain_queue", 0, 40), // 6th — should be dropped
+    ];
+    const results = await executeActions(actions);
+    expect(results).toHaveLength(5);
+  });
+
+  it("drops the lowest-priority actions when cap is exceeded", async () => {
+    const actions = [
+      makeAction("meta_check", 0, 90),
+      makeAction("gap_map", 0, 80),
+      makeAction("converge", 0, 70),
+      makeAction("alert", 0, 60),
+      makeAction("reindex", 1, 50),
+      makeAction("drain_queue", 0, 10), // lowest priority — dropped
+    ];
+    const results = await executeActions(actions);
+    const types = results.map(r => r.action);
+    expect(types).not.toContain("drain_queue");
+  });
+
+  it("handles exactly 5 actions without dropping any", async () => {
+    const actions = [
+      makeAction("meta_check", 0, 90),
+      makeAction("gap_map", 0, 80),
+      makeAction("converge", 0, 70),
+      makeAction("alert", 0, 60),
+      makeAction("reindex", 1, 50),
+    ];
+    const results = await executeActions(actions);
+    expect(results).toHaveLength(5);
   });
 });

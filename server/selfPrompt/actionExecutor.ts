@@ -25,6 +25,50 @@ import { updateEntityPage } from "../wikiEngine";
 import { dispatchHighRiskAlert } from "../alertDispatcher";
 import { drainCoordQueue } from "../coordQueueDrainer";
 import { runConfidenceRecalibration } from "../dream/confidenceRecalibrator";
+import { logger } from "../logger";
+
+const log = logger("selfPrompt/actionExecutor");
+
+// ─── Constants ────────────────────────────────────────────────────────────────────
+
+/** Maximum number of actions executed per cycle. Actions beyond this cap are skipped. */
+const MAX_ACTIONS_PER_CYCLE = 5;
+
+/** Per-action execution timeout in milliseconds. Prevents a single slow action from blocking the cycle. */
+const ACTION_TIMEOUT_MS = 30_000;
+
+/**
+ * SQL injection guard: reject any targetId-derived string that contains
+ * SQL keywords or special characters that could be injected into raw queries.
+ * Note: Drizzle ORM uses parameterised queries, so this is a defence-in-depth
+ * measure for any code paths that interpolate targetId into strings.
+ */
+const SQL_INJECTION_PATTERN =
+  /\b(select|insert|update|delete|drop|alter|create|exec|execute|union|truncate|declare|cast|convert|xp_|sp_)\b|[;'"\\]/i;
+
+export function containsSqlInjection(value: string): boolean {
+  return SQL_INJECTION_PATTERN.test(value);
+}
+
+/**
+ * Wrap a promise with a timeout. Rejects with a descriptive error if the
+ * promise does not resolve within `ms` milliseconds.
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Action timed out after ${ms}ms: ${label}`)),
+        ms
+      )
+    ),
+  ]);
+}
 
 export interface ActionResult {
   action: string;
@@ -33,7 +77,7 @@ export interface ActionResult {
   detail: string;
 }
 
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function executeAction(
   action: PrioritizedAction
 ): Promise<ActionResult> {
@@ -274,9 +318,46 @@ export async function executeAction(
 export async function executeActions(
   actions: PrioritizedAction[]
 ): Promise<ActionResult[]> {
+  // 1. Sort by priority descending (highest first) — promptEngine already sorts,
+  //    but we re-sort here as a defensive measure in case callers bypass promptEngine.
+  const sorted = [...actions].sort((a, b) => b.priority - a.priority);
+
+  // 2. Deduplicate: keep only the highest-priority action per action type.
+  //    This prevents the LLM from queuing the same action type multiple times.
+  const seen = new Set<string>();
+  const deduped: PrioritizedAction[] = [];
+  for (const action of sorted) {
+    if (!seen.has(action.action)) {
+      seen.add(action.action);
+      deduped.push(action);
+    } else {
+      log.warn(
+        `[ActionExecutor] Duplicate action type '${action.action}' (targetId=${action.targetId}) skipped — already queued.`
+      );
+    }
+  }
+
+  // 3. Cap at MAX_ACTIONS_PER_CYCLE
+  const capped = deduped.slice(0, MAX_ACTIONS_PER_CYCLE);
+  if (deduped.length > MAX_ACTIONS_PER_CYCLE) {
+    log.warn(
+      `[ActionExecutor] ${deduped.length - MAX_ACTIONS_PER_CYCLE} action(s) beyond the ${MAX_ACTIONS_PER_CYCLE}-action cap were dropped.`
+    );
+  }
+
+  // 4. Execute sequentially with per-action timeout
   const results: ActionResult[] = [];
-  for (const action of actions) {
-    const result = await executeAction(action);
+  for (const action of capped) {
+    const result = await withTimeout(
+      executeAction(action),
+      ACTION_TIMEOUT_MS,
+      `${action.action}(targetId=${action.targetId})`
+    ).catch((err: unknown) => ({
+      action: action.action,
+      targetId: action.targetId,
+      status: "error" as const,
+      detail: `Timeout or unexpected error: ${String(err)}`,
+    }));
     results.push(result);
     // Non-fatal: continue even if an action errors
   }

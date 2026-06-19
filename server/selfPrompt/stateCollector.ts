@@ -17,8 +17,11 @@ import {
   knowledgeGaps,
   claims,
   webhookAlerts,
+  dreamSessions,
+  dreamStagingQueue,
+  frontierDirectives,
 } from "../../drizzle/schema";
-import { eq, count, and, gte, lte, lt, isNotNull } from "drizzle-orm";
+import { eq, count, and, gte, lte, lt, isNotNull, inArray } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +61,38 @@ export interface MetaHealthSnapshot {
   grade: string;
   criticalCount: number;
   warningCount: number;
+  /** Number of distinct drift-type checks in the last 24 h (schemaDrift, apiDrift, etc.) */
+  driftFindingCount: number;
+}
+
+/** Verdict distribution for the last 7 days — used to detect claim-quality trends. */
+export interface ClaimTrends {
+  /** Total claims with a verdict assigned in the last 7 days */
+  recentVerifiedCount: number;
+  /** Claims with a "Supported" or "Partially Supported" verdict in the last 7 days */
+  recentSupportedCount: number;
+  /** Claims with a "Contradicted" verdict in the last 7 days */
+  recentContradictedCount: number;
+  /** Claims with an "Ambiguous" or "Insufficient Evidence" verdict in the last 7 days */
+  recentAmbiguousCount: number;
+}
+
+/** Aggregated Dream Engine stats — used to detect dream health and throughput. */
+export interface DreamStats {
+  /** Total completed dream sessions (wokeAt IS NOT NULL) */
+  totalCompletedSessions: number;
+  /** Dream sessions started in the last 24 h */
+  recentSessionCount: number;
+  /** Pending items in the dream staging queue */
+  pendingStagingItems: number;
+}
+
+/** Frontier directive pipeline stats — used to detect directive backlog. */
+export interface DirectiveStats {
+  /** Directives currently in "pending" or "active" status */
+  activeDirectiveCount: number;
+  /** Directives created in the last 24 h */
+  recentDirectiveCount: number;
 }
 
 export interface SubscriptionSnapshot {
@@ -72,11 +107,17 @@ export interface SystemState {
   subscriptionSnapshot: SubscriptionSnapshot;
   staleEvidenceCount: number; // Claims with pdbEvidenceCheckedAt > 180 days ago
   lowConfidenceCount: number; // Claims with confidenceScore < 0.4
+  /** Verdict distribution for the last 7 days */
+  claimTrends: ClaimTrends;
+  /** Dream Engine aggregate stats */
+  dreamStats: DreamStats;
+  /** Frontier directive pipeline stats */
+  directiveStats: DirectiveStats;
 }
 
 // ─── State Collector ──────────────────────────────────────────────────────────
 
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function collectSystemState(
   event: SelfPromptEvent
 ): Promise<SystemState> {
@@ -93,12 +134,50 @@ export async function collectSystemState(
         highPriorityGapCount: 0,
       },
       queueSnapshot: { pendingItems: 0, failedItems: 0 },
-      metaHealth: { score: 100, grade: "A", criticalCount: 0, warningCount: 0 },
+      metaHealth: {
+        score: 100,
+        grade: "A",
+        criticalCount: 0,
+        warningCount: 0,
+        driftFindingCount: 0,
+      },
       subscriptionSnapshot: { activeWebhookCount: 0 },
       staleEvidenceCount: 0,
       lowConfidenceCount: 0,
+      claimTrends: {
+        recentVerifiedCount: 0,
+        recentSupportedCount: 0,
+        recentContradictedCount: 0,
+        recentAmbiguousCount: 0,
+      },
+      dreamStats: {
+        totalCompletedSessions: 0,
+        recentSessionCount: 0,
+        pendingStagingItems: 0,
+      },
+      directiveStats: {
+        activeDirectiveCount: 0,
+        recentDirectiveCount: 0,
+      },
     };
   }
+
+  const now = Date.now();
+  const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const staleThreshold = new Date(now - 180 * 24 * 60 * 60 * 1000);
+
+  const SUPPORTED_VERDICTS = ["Supported", "Partially Supported"] as const;
+  const CONTRADICTED_VERDICTS = ["Contradicted"] as const;
+  const AMBIGUOUS_VERDICTS = ["Ambiguous", "Insufficient Evidence"] as const;
+  const DRIFT_CHECK_TYPES = [
+    "schemaDrift",
+    "apiDrift",
+    "dependencyDrift",
+    "configDrift",
+    "disciplineDrift",
+    "testDrift",
+  ] as const;
 
   const [
     entityCountResult,
@@ -109,9 +188,19 @@ export async function collectSystemState(
     failedQueueResult,
     recentCriticalResult,
     recentWarningResult,
+    recentDriftResult,
     activeWebhookResult,
     staleEvidenceResult,
     lowConfidenceResult,
+    recentVerifiedResult,
+    recentSupportedResult,
+    recentContradictedResult,
+    recentAmbiguousResult,
+    totalDreamSessionsResult,
+    recentDreamSessionsResult,
+    pendingStagingResult,
+    activeDirectivesResult,
+    recentDirectivesResult,
   ] = await Promise.all([
     // Graph entity count
     db.select({ cnt: count() }).from(graphEntities),
@@ -152,10 +241,7 @@ export async function collectSystemState(
       .where(
         and(
           eq(metaAgentChecks.severity, "critical"),
-          gte(
-            metaAgentChecks.createdAt,
-            new Date(Date.now() - 24 * 60 * 60 * 1000)
-          )
+          gte(metaAgentChecks.createdAt, oneDayAgo)
         )
       ),
     // Recent warning meta-agent checks (last 24h)
@@ -165,10 +251,17 @@ export async function collectSystemState(
       .where(
         and(
           eq(metaAgentChecks.severity, "warning"),
-          gte(
-            metaAgentChecks.createdAt,
-            new Date(Date.now() - 24 * 60 * 60 * 1000)
-          )
+          gte(metaAgentChecks.createdAt, oneDayAgo)
+        )
+      ),
+    // Recent drift findings (last 24h) — schemaDrift, apiDrift, etc.
+    db
+      .select({ cnt: count() })
+      .from(metaAgentChecks)
+      .where(
+        and(
+          inArray(metaAgentChecks.checkType, [...DRIFT_CHECK_TYPES]),
+          gte(metaAgentChecks.createdAt, oneDayAgo)
         )
       ),
     // Active webhook subscriptions
@@ -183,10 +276,7 @@ export async function collectSystemState(
       .where(
         and(
           isNotNull(claims.pdbEvidenceCheckedAt),
-          lt(
-            claims.pdbEvidenceCheckedAt,
-            new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
-          )
+          lt(claims.pdbEvidenceCheckedAt, staleThreshold)
         )
       ),
     // Low confidence claims: confidenceScore < 0.4 and not null
@@ -196,6 +286,68 @@ export async function collectSystemState(
       .where(
         and(isNotNull(claims.confidenceScore), lte(claims.confidenceScore, 0.4))
       ),
+    // Claim trends: total verified in last 7 days
+    db
+      .select({ cnt: count() })
+      .from(claims)
+      .where(
+        and(isNotNull(claims.verdict), gte(claims.createdAt, sevenDaysAgo))
+      ),
+    // Claim trends: supported in last 7 days
+    db
+      .select({ cnt: count() })
+      .from(claims)
+      .where(
+        and(
+          inArray(claims.verdict, [...SUPPORTED_VERDICTS]),
+          gte(claims.createdAt, sevenDaysAgo)
+        )
+      ),
+    // Claim trends: contradicted in last 7 days
+    db
+      .select({ cnt: count() })
+      .from(claims)
+      .where(
+        and(
+          inArray(claims.verdict, [...CONTRADICTED_VERDICTS]),
+          gte(claims.createdAt, sevenDaysAgo)
+        )
+      ),
+    // Claim trends: ambiguous in last 7 days
+    db
+      .select({ cnt: count() })
+      .from(claims)
+      .where(
+        and(
+          inArray(claims.verdict, [...AMBIGUOUS_VERDICTS]),
+          gte(claims.createdAt, sevenDaysAgo)
+        )
+      ),
+    // Dream stats: total completed sessions
+    db
+      .select({ cnt: count() })
+      .from(dreamSessions)
+      .where(isNotNull(dreamSessions.wokeAt)),
+    // Dream stats: sessions in last 24h
+    db
+      .select({ cnt: count() })
+      .from(dreamSessions)
+      .where(gte(dreamSessions.startedAt, oneDayAgo)),
+    // Dream stats: pending staging queue items
+    db
+      .select({ cnt: count() })
+      .from(dreamStagingQueue)
+      .where(eq(dreamStagingQueue.status, "pending")),
+    // Directive stats: active directives (pending or active)
+    db
+      .select({ cnt: count() })
+      .from(frontierDirectives)
+      .where(inArray(frontierDirectives.status, ["pending", "active"])),
+    // Directive stats: directives created in last 24h
+    db
+      .select({ cnt: count() })
+      .from(frontierDirectives)
+      .where(gte(frontierDirectives.createdAt, oneDayAgo)),
   ]);
 
   const entityCount = entityCountResult[0]?.cnt ?? 0;
@@ -206,6 +358,7 @@ export async function collectSystemState(
   const failedItems = failedQueueResult[0]?.cnt ?? 0;
   const criticalCount = recentCriticalResult[0]?.cnt ?? 0;
   const warningCount = recentWarningResult[0]?.cnt ?? 0;
+  const driftFindingCount = Number(recentDriftResult[0]?.cnt ?? 0);
   const activeWebhookCount = activeWebhookResult[0]?.cnt ?? 0;
   const staleEvidenceCount = Number(staleEvidenceResult[0]?.cnt ?? 0);
   const lowConfidenceCount = Number(lowConfidenceResult[0]?.cnt ?? 0);
@@ -215,6 +368,7 @@ export async function collectSystemState(
   score -= criticalCount * 15;
   score -= warningCount * 5;
   score -= Math.min(failedItems * 2, 20); // cap at -20 for queue failures
+  score -= Math.min(driftFindingCount * 3, 15); // cap at -15 for drift findings
   score = Math.max(0, Math.min(100, score));
 
   const grade =
@@ -245,11 +399,27 @@ export async function collectSystemState(
       grade,
       criticalCount,
       warningCount,
+      driftFindingCount,
     },
     subscriptionSnapshot: {
       activeWebhookCount,
     },
     staleEvidenceCount,
     lowConfidenceCount,
+    claimTrends: {
+      recentVerifiedCount: Number(recentVerifiedResult[0]?.cnt ?? 0),
+      recentSupportedCount: Number(recentSupportedResult[0]?.cnt ?? 0),
+      recentContradictedCount: Number(recentContradictedResult[0]?.cnt ?? 0),
+      recentAmbiguousCount: Number(recentAmbiguousResult[0]?.cnt ?? 0),
+    },
+    dreamStats: {
+      totalCompletedSessions: Number(totalDreamSessionsResult[0]?.cnt ?? 0),
+      recentSessionCount: Number(recentDreamSessionsResult[0]?.cnt ?? 0),
+      pendingStagingItems: Number(pendingStagingResult[0]?.cnt ?? 0),
+    },
+    directiveStats: {
+      activeDirectiveCount: Number(activeDirectivesResult[0]?.cnt ?? 0),
+      recentDirectiveCount: Number(recentDirectivesResult[0]?.cnt ?? 0),
+    },
   };
 }
