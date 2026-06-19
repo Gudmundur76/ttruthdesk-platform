@@ -1,19 +1,18 @@
 /**
- * claimVerifier.ts — Local Model Claim Verifier
+ * claimVerifier.ts — Local Model Claim Verifier (Ollama backend)
  *
- * Wraps a locally-running llama.cpp inference server to provide claim
- * verification without calling the Claude API.
+ * Wraps the locally-running Ollama model (claim-verifier) to provide
+ * claim verification without calling the Claude API.
  *
- * PRD_SKILLOPT_AGENT2MODEL §3 — agent2model inference layer.
+ * MANUS_INSTRUCTIONS §3.2 — wire LocalClaimVerifier to Ollama endpoint.
  *
  * Architecture:
- *   - The local model is served by modelServer.ts (llama.cpp HTTP server)
- *   - This class sends HTTP requests to the local server
- *   - Falls back to "Insufficient Evidence" on any error (non-fatal)
- *   - The router in verificationRouter.ts decides when to use this vs. the
- *     orchestrated pipeline
+ *   - Ollama serves the claim-verifier model at http://localhost:11434
+ *   - This class sends POST /api/generate requests to Ollama
+ *   - Falls back gracefully if Ollama is not running (non-fatal)
+ *   - modelRouter.ts decides when to use this vs. the orchestrated pipeline
  *
- * Performance targets (PRD §5):
+ * Performance targets:
  *   - Latency p99: < 500ms
  *   - Cost per call: $0.0001 (compute only, no API fees)
  *   - Throughput: ~120 calls/minute
@@ -31,7 +30,8 @@ export type LocalVerdict =
   | "Partially Supported"
   | "Ambiguous"
   | "Insufficient Evidence"
-  | "Out of Scope";
+  | "Out of Scope"
+  | "Needs Expert Review";
 
 export interface LocalVerificationResult {
   verdict: LocalVerdict;
@@ -57,18 +57,17 @@ export interface LocalVerifierCapabilities {
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
-const DEFAULT_MODEL_SERVER_URL =
-  process.env.LOCAL_MODEL_SERVER_URL ?? "http://127.0.0.1:8080";
-const DEFAULT_MODEL_ID = process.env.LOCAL_MODEL_ID ?? "claim-verifier-v1-q4";
-const REQUEST_TIMEOUT_MS = 3000; // 3s timeout — if local model is slow, fall back
+/** Standard Ollama port — configurable via env for docker-compose */
+const OLLAMA_BASE_URL =
+  process.env.OLLAMA_URL ?? "http://localhost:11434";
+const DEFAULT_MODEL_NAME =
+  process.env.LOCAL_MODEL_ID ?? "claim-verifier";
+const REQUEST_TIMEOUT_MS = 3000; // 3s — if Ollama is slow, fall back
 
-/** Domains the distilled model covers (trained on calibration corpus) */
+/** Domains the local model covers (trained on calibration corpus) */
 const SUPPORTED_DOMAINS = [
   "structural_biology",
-  "clinical",
-  "economic",
-  "legal",
-  "environmental",
+  "clinical_medicine",
   "general",
 ];
 
@@ -76,33 +75,25 @@ const SUPPORTED_DOMAINS = [
 
 function buildVerificationPrompt(claimText: string, domain?: string): string {
   const domainHint = domain ? `Domain: ${domain}\n` : "";
-  return `You are a scientific claim verifier. Evaluate the following claim and return a structured verdict.
-
-${domainHint}Claim: ${claimText}
-
-Return a JSON object with exactly these fields:
-{
-  "verdict": one of ["Supported", "Contradicted", "Partially Supported", "Ambiguous", "Insufficient Evidence", "Out of Scope"],
-  "confidence": a float between 0.0 and 1.0,
-  "rationale": a single sentence explaining the verdict
-}
-
-Return ONLY the JSON object. No other text.`;
+  return (
+    `${domainHint}Claim: ${claimText}\n\n` +
+    `Verify the claim. Return a JSON object with verdict, confidence, reasoning, and sources.`
+  );
 }
 
 // ─── LocalClaimVerifier ────────────────────────────────────────────────────────
 
 export class LocalClaimVerifier {
-  private readonly serverUrl: string;
+  private readonly ollamaUrl: string;
   private readonly modelId: string;
 
-  constructor(serverUrl?: string, modelId?: string) {
-    this.serverUrl = serverUrl ?? DEFAULT_MODEL_SERVER_URL;
-    this.modelId = modelId ?? DEFAULT_MODEL_ID;
+  constructor(ollamaUrl?: string, modelId?: string) {
+    this.ollamaUrl = ollamaUrl ?? OLLAMA_BASE_URL;
+    this.modelId = modelId ?? DEFAULT_MODEL_NAME;
   }
 
   /**
-   * Verify a claim using the local model.
+   * Verify a claim using the local Ollama model.
    * Returns a fallback result on any error (non-fatal).
    */
   async verify(
@@ -113,10 +104,10 @@ export class LocalClaimVerifier {
 
     try {
       const prompt = buildVerificationPrompt(claimText, domain);
-      const response = await this.callModelServer(prompt);
+      const raw = await this.callOllama(prompt);
       const latencyMs = Date.now() - startMs;
 
-      const parsed = this.parseModelResponse(response);
+      const parsed = this.parseModelResponse(raw);
       if (!parsed) {
         log.warn(
           `[LocalClaimVerifier] Failed to parse model response for claim: ${claimText.slice(0, 60)}`
@@ -142,66 +133,85 @@ export class LocalClaimVerifier {
   }
 
   /**
-   * Check what domains the local model can handle.
-   * Also pings the model server to check availability.
+   * Check whether the local model is healthy and what domains it supports.
    */
   async getCapabilities(): Promise<LocalVerifierCapabilities> {
-    const available = await this.ping();
+    const available = await this.isHealthy();
     return {
       domains: available ? SUPPORTED_DOMAINS : [],
       available,
       modelId: this.modelId,
-      modelSizeMb: 400, // Q4_K_M quantization of 2-4B model
+      modelSizeMb: 3072, // Qwen2.5-Coder-1.5B ~3 GB
     };
   }
 
   /**
-   * Ping the model server to check if it is reachable.
+   * Alias for isHealthy() — backward compatibility.
    */
   async ping(): Promise<boolean> {
+    return this.isHealthy();
+  }
+
+  /**
+   * Returns true if Ollama is reachable and the model is loaded.
+   */
+  async isHealthy(): Promise<boolean> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1000);
-      const resp = await fetch(`${this.serverUrl}/health`, {
+      const resp = await fetch(`${this.ollamaUrl}/api/tags`, {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      return resp.ok;
+      if (!resp.ok) return false;
+      const data = (await resp.json()) as { models?: Array<{ name: string }> };
+      return (data.models ?? []).some((m) =>
+        m.name.startsWith(this.modelId)
+      );
     } catch {
       return false;
     }
   }
 
+  /**
+   * Check whether the local model supports the given domain.
+   */
+  supportsDomain(domain?: string): boolean {
+    if (!domain) return true; // "general" fallback
+    return SUPPORTED_DOMAINS.includes(domain);
+  }
+
   // ─── Private Helpers ─────────────────────────────────────────────────────────
 
-  private async callModelServer(prompt: string): Promise<string> {
+  /**
+   * Call Ollama /api/generate and return the model's response text.
+   * Per MANUS_INSTRUCTIONS §3.2.
+   */
+  private async callOllama(prompt: string): Promise<string> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-      // llama.cpp HTTP server API — compatible with OpenAI /v1/completions
-      const resp = await fetch(`${this.serverUrl}/v1/completions`, {
+      const resp = await fetch(`${this.ollamaUrl}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          model: this.modelId,
           prompt,
-          max_tokens: 200,
-          temperature: 0.1,
-          stop: ["\n\n", "```"],
+          stream: false,
+          format: "json",
         }),
         signal: controller.signal,
       });
 
       if (!resp.ok) {
         throw new Error(
-          `Model server returned ${resp.status}: ${await resp.text()}`
+          `Ollama returned ${resp.status}: ${await resp.text()}`
         );
       }
 
-      const data = (await resp.json()) as {
-        choices?: Array<{ text?: string }>;
-      };
-      return data?.choices?.[0]?.text?.trim() ?? "";
+      const data = (await resp.json()) as { response?: string };
+      return data?.response?.trim() ?? "";
     } finally {
       clearTimeout(timeoutId);
     }
@@ -211,13 +221,13 @@ export class LocalClaimVerifier {
     raw: string
   ): { verdict: LocalVerdict; confidence: number; rationale: string } | null {
     try {
-      // Extract JSON from the response (model may include preamble)
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return null;
 
       const parsed = JSON.parse(jsonMatch[0]) as {
         verdict?: string;
         confidence?: number;
+        reasoning?: string;
         rationale?: string;
       };
 
@@ -228,6 +238,7 @@ export class LocalClaimVerifier {
         "Ambiguous",
         "Insufficient Evidence",
         "Out of Scope",
+        "Needs Expert Review",
       ];
 
       const verdict = validVerdicts.includes(parsed.verdict as LocalVerdict)
@@ -241,8 +252,11 @@ export class LocalClaimVerifier {
           ? parsed.confidence
           : 0.5;
 
+      // Ollama model uses "reasoning" field per the Modelfile SYSTEM prompt
       const rationale =
-        typeof parsed.rationale === "string" && parsed.rationale.length > 0
+        typeof parsed.reasoning === "string" && parsed.reasoning.length > 0
+          ? parsed.reasoning
+          : typeof parsed.rationale === "string" && parsed.rationale.length > 0
           ? parsed.rationale
           : "Local model verdict.";
 

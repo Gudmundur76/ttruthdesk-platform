@@ -35,15 +35,11 @@ describe("LocalClaimVerifier.verify()", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        choices: [
-          {
-            text: JSON.stringify({
-              verdict: "Supported",
-              confidence: 0.92,
-              rationale: "PDB entry 1ABC confirms resolution of 2.1 angstroms.",
-            }),
-          },
-        ],
+        response: JSON.stringify({
+          verdict: "Supported",
+          confidence: 0.92,
+          reasoning: "PDB entry 1ABC confirms resolution of 2.1 angstroms.",
+        }),
       }),
     });
 
@@ -78,7 +74,7 @@ describe("LocalClaimVerifier.verify()", () => {
   it("returns fallback result when model server returns non-JSON", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ choices: [{ text: "not valid json at all" }] }),
+      json: async () => ({ response: "not valid json at all" }),
     });
 
     const verifier = new LocalClaimVerifier(
@@ -94,15 +90,11 @@ describe("LocalClaimVerifier.verify()", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        choices: [
-          {
-            text: JSON.stringify({
-              verdict: "Supported",
-              confidence: 1.5, // out of range
-              rationale: "Test.",
-            }),
-          },
-        ],
+        response: JSON.stringify({
+          verdict: "Supported",
+          confidence: 1.5, // out of range
+          reasoning: "Test.",
+        }),
       }),
     });
 
@@ -120,15 +112,11 @@ describe("LocalClaimVerifier.verify()", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        choices: [
-          {
-            text: JSON.stringify({
-              verdict: "UNKNOWN_VERDICT",
-              confidence: 0.7,
-              rationale: "Test.",
-            }),
-          },
-        ],
+        response: JSON.stringify({
+          verdict: "UNKNOWN_VERDICT",
+          confidence: 0.7,
+          reasoning: "Test.",
+        }),
       }),
     });
 
@@ -143,8 +131,11 @@ describe("LocalClaimVerifier.verify()", () => {
 });
 
 describe("LocalClaimVerifier.ping()", () => {
-  it("returns true when health endpoint responds ok", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true });
+  it("returns true when Ollama /api/tags responds ok with model listed", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ models: [{ name: "test-model:latest" }] }),
+    });
     const verifier = new LocalClaimVerifier(
       "http://127.0.0.1:8080",
       "test-model"
@@ -152,7 +143,7 @@ describe("LocalClaimVerifier.ping()", () => {
     expect(await verifier.ping()).toBe(true);
   });
 
-  it("returns false when health endpoint is unreachable", async () => {
+  it("returns false when Ollama /api/tags is unreachable", async () => {
     mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     const verifier = new LocalClaimVerifier(
       "http://127.0.0.1:8080",
@@ -161,7 +152,7 @@ describe("LocalClaimVerifier.ping()", () => {
     expect(await verifier.ping()).toBe(false);
   });
 
-  it("returns false when health endpoint returns non-ok status", async () => {
+  it("returns false when Ollama /api/tags returns non-ok status", async () => {
     mockFetch.mockResolvedValueOnce({ ok: false });
     const verifier = new LocalClaimVerifier(
       "http://127.0.0.1:8080",
@@ -173,7 +164,10 @@ describe("LocalClaimVerifier.ping()", () => {
 
 describe("LocalClaimVerifier.getCapabilities()", () => {
   it("returns available=true and domain list when server is up", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true }); // ping
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ models: [{ name: "test-model:latest" }] }),
+    }); // isHealthy
     const verifier = new LocalClaimVerifier(
       "http://127.0.0.1:8080",
       "test-model"
@@ -182,8 +176,8 @@ describe("LocalClaimVerifier.getCapabilities()", () => {
 
     expect(caps.available).toBe(true);
     expect(caps.domains).toContain("structural_biology");
-    expect(caps.domains).toContain("clinical");
-    expect(caps.modelSizeMb).toBe(400);
+    expect(caps.domains).toContain("clinical_medicine");
+    expect(caps.modelSizeMb).toBe(3072);
   });
 
   it("returns available=false and empty domains when server is down", async () => {
