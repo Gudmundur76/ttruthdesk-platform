@@ -37,6 +37,9 @@ const MAX_ACTIONS_PER_CYCLE = 5;
 /** Per-action execution timeout in milliseconds. Prevents a single slow action from blocking the cycle. */
 const ACTION_TIMEOUT_MS = 30_000;
 
+/** Total execution budget for all actions in a cycle. T047 */
+const TOTAL_CYCLE_TIMEOUT_MS = 30_000;
+
 /**
  * SQL injection guard: reject any targetId-derived string that contains
  * SQL keywords or special characters that could be injected into raw queries.
@@ -75,6 +78,10 @@ export interface ActionResult {
   targetId: number;
   status: "ok" | "skipped" | "error";
   detail: string;
+  /** Optional: name of the subsystem that handled this action. T048 */
+  delegatedTo?: string;
+  /** Execution duration in milliseconds. T048 */
+  durationMs?: number;
 }
 
 // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
@@ -345,12 +352,33 @@ export async function executeActions(
     );
   }
 
-  // 4. Execute sequentially with per-action timeout
+  // 4. Execute sequentially with per-action timeout and total cycle budget (T047/T048)
   const results: ActionResult[] = [];
+  const cycleStart = Date.now();
   for (const action of capped) {
+    const elapsed = Date.now() - cycleStart;
+    const remaining = TOTAL_CYCLE_TIMEOUT_MS - elapsed;
+    if (remaining <= 0) {
+      log.warn(
+        `[ActionExecutor] Total cycle timeout (${TOTAL_CYCLE_TIMEOUT_MS}ms) reached — skipping remaining ${capped.length - results.length} action(s).`
+      );
+      // Mark remaining actions as skipped
+      for (const skipped of capped.slice(results.length)) {
+        results.push({
+          action: skipped.action,
+          targetId: skipped.targetId,
+          status: "skipped",
+          detail: "Skipped: total cycle timeout reached",
+          durationMs: 0,
+        });
+      }
+      break;
+    }
+    const actionStart = Date.now();
+    const perActionMs = Math.min(ACTION_TIMEOUT_MS, remaining);
     const result = await withTimeout(
       executeAction(action),
-      ACTION_TIMEOUT_MS,
+      perActionMs,
       `${action.action}(targetId=${action.targetId})`
     ).catch((err: unknown) => ({
       action: action.action,
@@ -358,8 +386,31 @@ export async function executeActions(
       status: "error" as const,
       detail: `Timeout or unexpected error: ${String(err)}`,
     }));
-    results.push(result);
+    const actionDurationMs = Date.now() - actionStart;
+    results.push({
+      ...result,
+      durationMs: actionDurationMs,
+      delegatedTo: getDelegatedTo(action.action),
+    });
     // Non-fatal: continue even if an action errors
   }
   return results;
+}
+
+/** Map action types to their delegated subsystem name. T048 */
+function getDelegatedTo(actionType: string): string {
+  const map: Record<string, string> = {
+    notify: "alertDispatcher",
+    wiki_update: "wikiEngine",
+    frontier: "frontierEngine",
+    gap_map: "frontierEngine",
+    reindex: "indexNow",
+    alert: "notificationService",
+    meta_check: "codeGuardian",
+    drain_queue: "coordQueueDrainer",
+    reverify_stale: "pipelineQueue",
+    recalibrate_confidence: "confidenceRecalibrator",
+    converge: "selfPromptEngine",
+  };
+  return map[actionType] ?? "unknown";
 }

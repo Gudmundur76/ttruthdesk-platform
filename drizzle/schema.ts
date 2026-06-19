@@ -170,7 +170,9 @@ export const claims = mysqlTable(
     ]),
 
     // Phase 115: Citation graph enrichment flag — set to true when Stage 3.5 OC enrichment ran successfully
-    citationGraphEnriched: boolean("citationGraphEnriched").notNull().default(false),
+    citationGraphEnriched: boolean("citationGraphEnriched")
+      .notNull()
+      .default(false),
     // Review
     reviewedBy: int("reviewedBy"),
     reviewedAt: timestamp("reviewedAt"),
@@ -1424,6 +1426,18 @@ export const selfPromptLog = mysqlTable(
       json("executionResults").$type<Array<Record<string, unknown>>>(),
     /** Duration of the full cycle in milliseconds */
     durationMs: int("durationMs"),
+    /** Number of frontier directives issued this cycle (FR-L2-39) */
+    directivesIssued: int("directivesIssued").default(0),
+    /** Number of frontier directives consumed in last 7 days (FR-L2-39) */
+    directivesConsumed7d: int("directivesConsumed7d").default(0),
+    /** Raw LLM JSON response string for debugging (FR-L2-40) */
+    llmRawResponse: text("llmRawResponse"),
+    /** LLM call duration in milliseconds (FR-L2-41) */
+    llmResponseMs: int("llmResponseMs"),
+    /** Action execution duration in milliseconds (FR-L2-41) */
+    executionMs: int("executionMs"),
+    /** Total cycle duration including state collection (FR-L2-41) */
+    totalDurationMs: int("totalDurationMs"),
     /** Optional: claim ID that triggered this cycle */
     claimId: int("claimId"),
     /** Optional: document ID that triggered this cycle */
@@ -1601,6 +1615,8 @@ export const eventQueue = mysqlTable(
       "pipeline_stage_complete",
       "convergence_gate_opened",
       "dream_queue_processed",
+      "l0_scan_completed",
+      "l0_scan_failed",
     ]).notNull(),
     payload: json("payload").$type<Record<string, unknown>>().notNull(),
     status: mysqlEnum("status", [
@@ -2499,7 +2515,11 @@ export const pricingLeads = mysqlTable(
     name: varchar("name", { length: 255 }).notNull(),
     email: varchar("email", { length: 255 }).notNull(),
     organisation: varchar("organisation", { length: 255 }).notNull(),
-    tier: mysqlEnum("tier", ["starter", "diligence", "platform_pilot"]).notNull(),
+    tier: mysqlEnum("tier", [
+      "starter",
+      "diligence",
+      "platform_pilot",
+    ]).notNull(),
     useCase: text("useCase"),
     status: mysqlEnum("status", ["new", "contacted", "converted", "declined"])
       .default("new")
@@ -2516,7 +2536,6 @@ export const pricingLeads = mysqlTable(
 );
 export type PricingLead = typeof pricingLeads.$inferSelect;
 export type InsertPricingLead = typeof pricingLeads.$inferInsert;
-
 
 // ─── build1_foundation: Unified Orchestration Tables (Phase 138) ──────────────
 
@@ -2577,7 +2596,9 @@ export const frontierDirectives = mysqlTable(
     priority: int("priority").notNull().default(5),
     targetGapIds: json("targetGapIds").$type<string[]>().notNull(),
     maxIterations: int("maxIterations").notNull().default(10),
-    evidenceStrengthThreshold: float("evidenceStrengthThreshold").notNull().default(0.6),
+    evidenceStrengthThreshold: float("evidenceStrengthThreshold")
+      .notNull()
+      .default(0.6),
     status: mysqlEnum("status", [
       "pending",
       "active",
@@ -2628,3 +2649,40 @@ export const metaAgentAlerts = mysqlTable(
 );
 export type MetaAgentAlert = typeof metaAgentAlerts.$inferSelect;
 export type InsertMetaAgentAlert = typeof metaAgentAlerts.$inferInsert;
+
+/**
+ * preflight_cache — L0 Friction Engine result cache.
+ *
+ * Stores the SHA-256 hash of the sanitized+redacted input text alongside
+ * the full FrictionEngineResult JSON. Enables the frictionLayer circuit
+ * breaker to serve cached results when the LLM is unavailable (NFR-L0-02)
+ * and reduces cost for repeated identical inputs (NFR-L0-21).
+ *
+ * build2_decision Phase 2: Harden
+ */
+export const preflightCache = mysqlTable(
+  "preflight_cache",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** SHA-256 hex of sanitized + PII-redacted input text */
+    inputHash: varchar("inputHash", { length: 64 }).notNull().unique(),
+    /** Full FrictionEngineResult JSON (PII-redacted before storage, NFR-L0-31) */
+    result: json("result").$type<Record<string, unknown>>().notNull(),
+    /** Recommended action from the cached scan */
+    recommendedAction: varchar("recommendedAction", { length: 32 }).notNull(),
+    /** Number of times this cache entry has been served */
+    hitCount: int("hitCount").notNull().default(0),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    /** Cache entries expire after 7 days */
+    expiresAt: timestamp("expiresAt").notNull(),
+  },
+  t => ({
+    inputHashIdx: index("pc_input_hash_idx").on(t.inputHash),
+    expiresAtIdx: index("pc_expires_at_idx").on(t.expiresAt),
+    recommendedActionIdx: index("pc_recommended_action_idx").on(
+      t.recommendedAction
+    ),
+  })
+);
+export type PreflightCacheEntry = typeof preflightCache.$inferSelect;
+export type InsertPreflightCacheEntry = typeof preflightCache.$inferInsert;

@@ -179,3 +179,255 @@ describe("shouldConverge", () => {
     expect(shouldConverge([makeAction("drain_queue", 10)], 90)).toBe(true);
   });
 });
+// ─── T057: runSelfPrompt integration (mocked LLM) ────────────────────────────
+import { vi, beforeEach } from "vitest";
+
+const llmMocks = vi.hoisted(() => ({
+  mockInvokeLLM: vi.fn(),
+}));
+vi.mock("../_core/llm", () => ({ invokeLLM: llmMocks.mockInvokeLLM }));
+
+import { runSelfPrompt } from "./promptEngine";
+import type { SystemState } from "./stateCollector";
+
+function makeState(overrides: Partial<SystemState> = {}): SystemState {
+  return {
+    recentEvent: { type: "verdict_assigned", description: "test", claimId: 1 },
+    graphSnapshot: {
+      entityCount: 5,
+      contradictionCount: 1,
+      openGapCount: 2,
+      highPriorityGapCount: 0,
+    },
+    queueSnapshot: { pendingItems: 0, failedItems: 0 },
+    metaHealth: {
+      score: 90,
+      grade: "A",
+      criticalCount: 0,
+      warningCount: 0,
+      driftFindingCount: 0,
+    },
+    subscriptionSnapshot: { activeWebhookCount: 1 },
+    staleEvidenceCount: 0,
+    lowConfidenceCount: 0,
+    claimTrends: {
+      recentVerifiedCount: 3,
+      recentSupportedCount: 2,
+      recentContradictedCount: 0,
+      recentAmbiguousCount: 1,
+      confidenceTrend7d: 0,
+    },
+    frontierStats: {
+      gapAgeDistribution: {
+        bucket0to1d: 0,
+        bucket1to7d: 0,
+        bucket7to30d: 0,
+        bucket30dPlus: 0,
+      },
+      hypothesisVerificationRate7d: 0,
+    },
+    selfPromptStats: { frontierDirectiveHitRate7d: 0, cyclesLast24h: 3 },
+    activeDirectives: [],
+    dreamStats: {
+      totalCompletedSessions: 5,
+      recentSessionCount: 1,
+      pendingStagingItems: 0,
+      lastWakeAt: null,
+      sessionsLast30d: 2,
+    },
+    metaStats: { lastHealthScore: 90, openAlerts: 0, driftFlagsLast7d: 0 },
+    directiveStats: { activeDirectiveCount: 1, recentDirectiveCount: 2 },
+    ...overrides,
+  } as SystemState;
+}
+
+function makeLLMResponse(content: string) {
+  return { choices: [{ message: { content } }] };
+}
+
+describe("runSelfPrompt() — T057", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("T057: valid LLM response parsed correctly", async () => {
+    const validResponse = JSON.stringify({
+      reasoning: "System is healthy, queuing notify action.",
+      actions: [
+        {
+          priority: 75,
+          action: "notify",
+          targetId: 1,
+          reasoning: "Verdict ready",
+          justification: "User needs to know",
+          expectedValue: 40,
+        },
+      ],
+      converge: false,
+    });
+    llmMocks.mockInvokeLLM.mockResolvedValueOnce(
+      makeLLMResponse(validResponse)
+    );
+    const result = await runSelfPrompt(makeState());
+    expect(result.reasoning).toContain("System is healthy");
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0].action).toBe("notify");
+    expect(result.actions[0].priority).toBe(75);
+    expect(result.actions[0].priorityLevel).toBe("HIGH");
+    expect(result.converge).toBe(false);
+    expect(result.llmRawResponse).toBeDefined();
+    expect(result.llmResponseMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("T057: timeout fallback returns converged: true with empty actions", async () => {
+    const abortError = new Error("The operation was aborted");
+    abortError.name = "AbortError";
+    llmMocks.mockInvokeLLM.mockRejectedValueOnce(abortError);
+    const result = await runSelfPrompt(makeState());
+    expect(result.converge).toBe(true);
+    expect(result.actions).toHaveLength(0);
+    expect(result.reasoning).toContain("LLM call failed");
+  });
+
+  it("T057: schema violation fallback — missing required fields → converge: true", async () => {
+    const badResponse = JSON.stringify({ actions: [] });
+    llmMocks.mockInvokeLLM.mockResolvedValueOnce(makeLLMResponse(badResponse));
+    const result = await runSelfPrompt(makeState());
+    expect(result.converge).toBe(true);
+    expect(result.actions).toHaveLength(0);
+  });
+
+  it("T057: directives capped at MAX_DIRECTIVES_PER_CYCLE (3)", async () => {
+    const actions = [
+      {
+        priority: 90,
+        action: "frontier",
+        targetId: 1,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 50,
+      },
+      {
+        priority: 85,
+        action: "gap_map",
+        targetId: 2,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 50,
+      },
+      {
+        priority: 80,
+        action: "frontier",
+        targetId: 3,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 50,
+      },
+      {
+        priority: 75,
+        action: "frontier",
+        targetId: 4,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 50,
+      },
+      {
+        priority: 70,
+        action: "gap_map",
+        targetId: 5,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 50,
+      },
+    ];
+    llmMocks.mockInvokeLLM.mockResolvedValueOnce(
+      makeLLMResponse(
+        JSON.stringify({
+          reasoning: "Multiple frontier actions",
+          actions,
+          converge: false,
+        })
+      )
+    );
+    const result = await runSelfPrompt(makeState());
+    const directiveActions = result.actions.filter(
+      a => a.action === "frontier" || a.action === "gap_map"
+    );
+    expect(directiveActions.length).toBeLessThanOrEqual(3);
+  });
+
+  it("T057: oscillation history (directiveStats) is included in prompt state", async () => {
+    llmMocks.mockInvokeLLM.mockResolvedValueOnce(
+      makeLLMResponse(
+        JSON.stringify({
+          reasoning: "test",
+          actions: [],
+          converge: true,
+        })
+      )
+    );
+    const state = makeState({
+      directiveStats: { activeDirectiveCount: 5, recentDirectiveCount: 8 },
+    });
+    await runSelfPrompt(state);
+    const calledArgs = llmMocks.mockInvokeLLM.mock.calls[0][0];
+    const userContent = calledArgs.messages.find(
+      (m: { role: string }) => m.role === "user"
+    )?.content as string;
+    expect(userContent).toContain("5");
+    expect(userContent).toContain("8");
+  });
+
+  it("T057: malformed JSON fallback → converge: true", async () => {
+    llmMocks.mockInvokeLLM.mockResolvedValueOnce(
+      makeLLMResponse("{{invalid json}}")
+    );
+    const result = await runSelfPrompt(makeState());
+    expect(result.converge).toBe(true);
+    expect(result.actions).toHaveLength(0);
+  });
+
+  it("T057: actions sorted by priority descending", async () => {
+    const actions = [
+      {
+        priority: 30,
+        action: "meta_check",
+        targetId: 1,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 10,
+      },
+      {
+        priority: 90,
+        action: "notify",
+        targetId: 2,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 50,
+      },
+      {
+        priority: 60,
+        action: "alert",
+        targetId: 3,
+        reasoning: "r",
+        justification: "j",
+        expectedValue: 30,
+      },
+    ];
+    llmMocks.mockInvokeLLM.mockResolvedValueOnce(
+      makeLLMResponse(
+        JSON.stringify({
+          reasoning: "test",
+          actions,
+          converge: false,
+        })
+      )
+    );
+    const result = await runSelfPrompt(makeState());
+    if (result.actions.length >= 2) {
+      expect(result.actions[0].priority).toBeGreaterThanOrEqual(
+        result.actions[1].priority
+      );
+    }
+  });
+});

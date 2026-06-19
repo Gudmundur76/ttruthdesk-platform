@@ -351,6 +351,27 @@
       "when": 1781817588949,
       "tag": "0049_yielding_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1781822023673,
+      "tag": "0050_woozy_longshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "5",
+      "when": 1781822491809,
+      "tag": "0051_ambitious_iron_fist",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "5",
+      "when": 1781858934504,
+      "tag": "0052_reflective_james_howlett",
+      "breakpoints": true
     }
   ]
 }

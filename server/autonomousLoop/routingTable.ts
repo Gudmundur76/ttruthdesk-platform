@@ -94,7 +94,8 @@ export const ROUTING_TABLE: Record<LoopEventType, RouteEntry> = {
   dream_pattern_detected: {
     layers: ["L5", "L4"],
     priority: 5,
-    description: "Dream pattern detected — dream layer + meta-agent health check",
+    description:
+      "Dream pattern detected — dream layer + meta-agent health check",
   },
   confidence_review_needed: {
     layers: ["L2"],
@@ -109,7 +110,8 @@ export const ROUTING_TABLE: Record<LoopEventType, RouteEntry> = {
   source_version_changed: {
     layers: ["L1"],
     priority: 2,
-    description: "Source version changed — re-verify claims from changed source",
+    description:
+      "Source version changed — re-verify claims from changed source",
   },
   coverage_gap: {
     layers: ["L2", "L3"],
@@ -186,6 +188,16 @@ export const ROUTING_TABLE: Record<LoopEventType, RouteEntry> = {
     priority: 3,
     description: "Dream queue processed",
   },
+  l0_scan_completed: {
+    layers: ["L0"],
+    priority: 5,
+    description: "L0 friction scan completed telemetry event",
+  },
+  l0_scan_failed: {
+    layers: ["L0"],
+    priority: 5,
+    description: "L0 friction scan failed telemetry event",
+  },
 };
 
 /**
@@ -221,4 +233,3 @@ export function validateRoutingTable(): { valid: boolean; errors: string[] } {
   }
   return { valid: errors.length === 0, errors };
 }
-

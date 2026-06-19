@@ -59,6 +59,10 @@ export interface SelfPrompt {
   reasoning: string;
   actions: PrioritizedAction[];
   converge: boolean;
+  /** Raw LLM response string before parsing. T051 */
+  llmRawResponse?: string;
+  /** LLM call duration in ms. T051 */
+  llmResponseMs?: number;
 }
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
@@ -81,10 +85,17 @@ const SelfPromptResponseSchema = z.object({
 
 type RawSelfPromptResponse = z.infer<typeof SelfPromptResponseSchema>;
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+/** Max directives (frontier/gap_map) per cycle. T036 */
+export const MAX_DIRECTIVES_PER_CYCLE = 3;
+
+/** LLM timeout in ms. T034 */
+export const LLM_TIMEOUT_MS = 30_000;
+
 // ─── Convergence Gate ─────────────────────────────────────────────────────────
 // Per the paper: converge when highest expectedValue < 20 AND no user-facing
 // action is pending AND meta-agent health score > 80.
-
 const CONVERGENCE_VALUE_THRESHOLD = 20;
 const USER_FACING_ACTIONS: SelfPromptAction[] = [
   "notify",
@@ -287,58 +298,81 @@ function parseSelfPromptResponse(
 }
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
-
 export async function runSelfPrompt(state: SystemState): Promise<SelfPrompt> {
   const messages = buildSelfPromptMessages(state);
-
   try {
-    const response = await invokeLLM({
-      messages,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "self_prompt_response",
-          schema: {
-            type: "object",
-            properties: {
-              reasoning: { type: "string" },
-              actions: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    priority: { type: "number" },
-                    action: { type: "string" },
-                    targetId: { type: "number" },
-                    reasoning: { type: "string" },
-                    expectedValue: { type: "number" },
+    // T034: 30s AbortController timeout on the LLM call
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+    let response: Awaited<ReturnType<typeof invokeLLM>>;
+    const llmStart = Date.now();
+    try {
+      response = await invokeLLM({
+        messages,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "self_prompt_response",
+            schema: {
+              type: "object",
+              properties: {
+                reasoning: { type: "string" },
+                actions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      priority: { type: "number" },
+                      action: { type: "string" },
+                      targetId: { type: "number" },
+                      reasoning: { type: "string" },
+                      justification: { type: "string" },
+                      expectedValue: { type: "number" },
+                    },
+                    required: [
+                      "priority",
+                      "action",
+                      "targetId",
+                      "reasoning",
+                      "justification",
+                      "expectedValue",
+                    ],
+                    additionalProperties: false,
                   },
-                  required: [
-                    "priority",
-                    "action",
-                    "targetId",
-                    "reasoning",
-                    "expectedValue",
-                  ],
-                  additionalProperties: false,
                 },
+                converge: { type: "boolean" },
               },
-              converge: { type: "boolean" },
+              required: ["reasoning", "actions", "converge"],
+              additionalProperties: false,
             },
-            required: ["reasoning", "actions", "converge"],
-            additionalProperties: false,
-            // Note: justification is optional in the JSON schema to maintain backward compatibility
-            // but is validated by zod in parseSelfPromptResponse
           },
         },
-      },
-    });
-
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    const llmResponseMs = Date.now() - llmStart;
     const rawContent =
       typeof response?.choices?.[0]?.message?.content === "string"
         ? response.choices[0].message.content
         : "";
-    return parseSelfPromptResponse(rawContent, state.metaHealth.score);
+    const result = parseSelfPromptResponse(rawContent, state.metaHealth.score);
+    // T036: Cap directive actions (frontier/gap_map) at MAX_DIRECTIVES_PER_CYCLE
+    const directiveTypes: SelfPromptAction[] = ["frontier", "gap_map"];
+    let directiveCount = 0;
+    result.actions = result.actions.filter(a => {
+      if (directiveTypes.includes(a.action)) {
+        directiveCount++;
+        if (directiveCount > MAX_DIRECTIVES_PER_CYCLE) {
+          log.warn(
+            `[SelfPromptEngine] Directive cap reached — dropping ${a.action} action`
+          );
+          return false;
+        }
+      }
+      return true;
+    });
+    return { ...result, llmRawResponse: rawContent, llmResponseMs };
   } catch (err) {
     log.error("[SelfPromptEngine] LLM call failed:", errData(err));
     return {

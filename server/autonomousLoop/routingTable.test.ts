@@ -10,8 +10,8 @@ import {
 } from "./routingTable";
 
 describe("ROUTING_TABLE", () => {
-  it("contains all 31 LoopEventType entries", () => {
-    expect(Object.keys(ROUTING_TABLE)).toHaveLength(31);
+  it("contains all 33 LoopEventType entries", () => {
+    expect(Object.keys(ROUTING_TABLE)).toHaveLength(33);
   });
 
   it("every entry has at least one layer", () => {
@@ -22,7 +22,9 @@ describe("ROUTING_TABLE", () => {
 
   it("every entry has a valid priority (1-5)", () => {
     for (const [type, entry] of Object.entries(ROUTING_TABLE)) {
-      expect([1, 2, 3, 4, 5], `${type} has invalid priority`).toContain(entry.priority);
+      expect([1, 2, 3, 4, 5], `${type} has invalid priority`).toContain(
+        entry.priority
+      );
     }
   });
 

@@ -28,9 +28,40 @@ import {
   type FrontierDirectiveRequest,
 } from "./directivePublisher";
 import { getDb } from "../db";
-import { selfPromptLog } from "../../drizzle/schema";
+import { selfPromptLog, layerTelemetry } from "../../drizzle/schema";
 import { logger, errData } from "../logger";
+import { randomUUID } from "crypto";
 const log = logger("selfPrompt/engine");
+
+// ─── Telemetry Helper ───────────────────────────────────────────────────────────────
+
+/** Emit a telemetry row to layer_telemetry. Non-fatal — never throws. T052 */
+async function emitTelemetry(
+  eventType: "start" | "end" | "error",
+  correlationId: string,
+  opts?: {
+    durationMs?: number;
+    success?: boolean;
+    errorCode?: string;
+    meta?: Record<string, unknown>;
+  }
+): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(layerTelemetry).values({
+      layer: "L2_SELF_PROMPT",
+      eventType,
+      correlationId,
+      durationMs: opts?.durationMs,
+      success: opts?.success ?? true,
+      errorCode: opts?.errorCode,
+      metadataJson: opts?.meta,
+    });
+  } catch {
+    // Telemetry is non-fatal — never throw
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,13 +85,20 @@ export interface SelfPromptCycleResult {
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runSelfPromptCycle(
   event: SelfPromptEvent,
   cycleCount = 0
 ): Promise<SelfPromptCycleResult> {
   const startMs = Date.now();
+  const correlationId = randomUUID();
 
-  // ─── Global error boundary ───────────────────────────────────────────────────────────────
+  // T052: Emit telemetry at cycle start
+  void emitTelemetry("start", correlationId, {
+    meta: { eventType: event.type, cycleCount },
+  });
+
+  // ─── Global error boundary ───────────────────────────────────────────────────────────────────────────────────
   // Any unhandled throw inside the cycle is caught here so the caller always
   // receives a structured result rather than an unhandled rejection.
   try {
@@ -68,7 +106,9 @@ export async function runSelfPromptCycle(
     const state = await collectSystemState(event);
 
     // 2. Run LLM self-prompt
+    const promptStart = Date.now();
     const selfPrompt = await runSelfPrompt(state);
+    const llmResponseMs = selfPrompt.llmResponseMs ?? Date.now() - promptStart;
 
     // 3. Apply convergence gate — may override the LLM’s convergence decision
     const gateResult = await applyConvergenceGate({
@@ -87,7 +127,9 @@ export async function runSelfPromptCycle(
 
     // 4. Execute actions if gate allows
     const actionsToExecute = gateResult.converged ? [] : selfPrompt.actions;
+    const execStart = Date.now();
     const executionResults = await executeActions(actionsToExecute);
+    const executionMs = Date.now() - execStart;
 
     // 5. Publish frontier directives for any "frontier" actions that succeeded
     const frontierActions = actionsToExecute.filter(
@@ -118,6 +160,11 @@ export async function runSelfPromptCycle(
             claimId: event.claimId ?? null,
             documentId: event.documentId ?? null,
             gapId: event.gapId ?? null,
+            // T051: New columns (partial — directivesIssued updated after publish)
+            llmRawResponse: selfPrompt.llmRawResponse ?? null,
+            llmResponseMs: llmResponseMs,
+            executionMs: executionMs,
+            totalDurationMs: Date.now() - startMs,
           });
           cycleId = (earlyInsert as { insertId?: number }).insertId ?? null;
         }
@@ -156,6 +203,19 @@ export async function runSelfPromptCycle(
 
     const durationMs = Date.now() - startMs;
 
+    // T052: Emit telemetry at cycle end
+    void emitTelemetry("end", correlationId, {
+      durationMs,
+      success: true,
+      meta: {
+        eventType: event.type,
+        actionsGenerated: selfPrompt.actions.length,
+        actionsExecuted: actionsToExecute.length,
+        converged: gateResult.converged,
+        directivesPublished,
+      },
+    });
+
     // 6. Log the cycle to self_prompt_log (skip if already logged above)
     if (cycleId === null) {
       try {
@@ -178,6 +238,12 @@ export async function runSelfPromptCycle(
             claimId: event.claimId ?? null,
             documentId: event.documentId ?? null,
             gapId: event.gapId ?? null,
+            // T051: New columns
+            directivesIssued: directivesPublished,
+            llmRawResponse: selfPrompt.llmRawResponse ?? null,
+            llmResponseMs: llmResponseMs,
+            executionMs: executionMs,
+            totalDurationMs: durationMs,
           });
           cycleId = (insertResult as { insertId?: number }).insertId ?? null;
         }
@@ -213,6 +279,13 @@ export async function runSelfPromptCycle(
       `[SelfPromptEngine] Unhandled cycle error for event=${event.type}:`,
       errorMsg
     );
+    // T052: Emit error telemetry
+    void emitTelemetry("error", correlationId, {
+      durationMs,
+      success: false,
+      errorCode: "CYCLE_ERROR",
+      meta: { eventType: event.type, error: String(err) },
+    });
     return {
       cycleId: null,
       eventType: event.type,

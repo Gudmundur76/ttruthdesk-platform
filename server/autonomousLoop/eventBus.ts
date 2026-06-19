@@ -74,7 +74,9 @@ export type LoopEventType =
   | "layer_telemetry_recorded"
   | "pipeline_stage_complete"
   | "convergence_gate_opened"
-  | "dream_queue_processed";
+  | "dream_queue_processed"
+  | "l0_scan_completed"
+  | "l0_scan_failed";
 
 /** Entry layer for each event type (per the spec) */
 export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
@@ -109,6 +111,8 @@ export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
   pipeline_stage_complete: 1, // L1: Truth pipeline stage
   convergence_gate_opened: 2, // L2: Self-Prompt convergence
   dream_queue_processed: 5, // L5: Dream queue
+  l0_scan_completed: 0, // L0: Friction scan completed telemetry
+  l0_scan_failed: 0, // L0: Friction scan failed telemetry
 };
 
 export interface LoopEvent {
@@ -209,7 +213,10 @@ export async function publishEvent(
   try {
     validateEventPayload(eventType as ExtendedLoopEventType, payload);
   } catch (err) {
-    log.error("publishEvent: schema validation failed", { eventType, err: errData(err as Error) });
+    log.error("publishEvent: schema validation failed", {
+      eventType,
+      err: errData(err as Error),
+    });
     throw err;
   }
 
@@ -243,7 +250,9 @@ export async function publishEvent(
  * Extract the TypedEventEnvelope from a LoopEvent payload.
  * Returns undefined if the event was published before build1_foundation.
  */
-export function extractEnvelope(event: LoopEvent): TypedEventEnvelope | undefined {
+export function extractEnvelope(
+  event: LoopEvent
+): TypedEventEnvelope | undefined {
   const env = event.payload?.__envelope;
   if (!env || typeof env !== "object") return undefined;
   return env as TypedEventEnvelope;

@@ -345,3 +345,119 @@ describe("runSelfPromptCycle()", () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+// ─── T061: llmResponseMs, llmRawResponse, telemetry ──────────────────────────
+describe("runSelfPromptCycle() — T061: llmResponseMs, llmRawResponse, telemetry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mockCollectSystemState.mockResolvedValue(mockState);
+    mocks.mockRunSelfPrompt.mockResolvedValue({
+      reasoning: "T061 test reasoning",
+      actions: [],
+      converge: false,
+      llmResponseMs: 250,
+      llmRawResponse:
+        '{"reasoning":"T061 test reasoning","actions":[],"converge":false}',
+    });
+    mocks.mockApplyConvergenceGate.mockResolvedValue({
+      converged: false,
+      reason: "llm_not_converged",
+      overridden: false,
+    });
+    mocks.mockExecuteActions.mockResolvedValue([]);
+    mocks.mockPublishFrontierDirectives.mockResolvedValue([]);
+
+    // DB mock that captures insert values
+    const db = {
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockResolvedValue([{ insertId: 99 }]),
+    };
+    mocks.mockGetDb.mockResolvedValue(db);
+  });
+
+  it("T061: cycle completes successfully when llmResponseMs is provided", async () => {
+    const result = await runSelfPromptCycle(baseEvent);
+    expect(result.error).toBeUndefined();
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("T061: cycle completes when llmRawResponse is provided", async () => {
+    const result = await runSelfPromptCycle(baseEvent);
+    expect(result.reasoning).toBe("T061 test reasoning");
+  });
+
+  it("T061: cycle completes when llmResponseMs is undefined (uses fallback)", async () => {
+    mocks.mockRunSelfPrompt.mockResolvedValue({
+      reasoning: "No timing",
+      actions: [],
+      converge: false,
+      llmResponseMs: undefined,
+      llmRawResponse: null,
+    });
+    const result = await runSelfPromptCycle(baseEvent);
+    expect(result.error).toBeUndefined();
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("T061: DB insert is called with llmResponseMs and llmRawResponse", async () => {
+    const insertValues = vi.fn().mockResolvedValue([{ insertId: 99 }]);
+    const db = {
+      insert: vi.fn().mockReturnValue({ values: insertValues }),
+    };
+    mocks.mockGetDb.mockResolvedValue(db);
+
+    await runSelfPromptCycle(baseEvent);
+
+    // DB insert is called multiple times:
+    //   1st call: layerTelemetry (start event) — does NOT have llmResponseMs
+    //   2nd call: selfPromptLog (main cycle log row) — HAS llmResponseMs
+    // Find the selfPromptLog insert by looking for llmResponseMs in any call.
+    expect(db.insert).toHaveBeenCalled();
+    const allInsertCalls: Record<string, unknown>[] =
+      insertValues.mock.calls.map(
+        (c: unknown[]) => c[0] as Record<string, unknown>
+      );
+    const selfPromptLogCall = allInsertCalls.find(c => "llmResponseMs" in c);
+    expect(selfPromptLogCall).toBeDefined();
+    if (selfPromptLogCall) {
+      expect(selfPromptLogCall).toHaveProperty("llmResponseMs");
+      expect(selfPromptLogCall).toHaveProperty("llmRawResponse");
+    }
+  });
+
+  it("T061: emitTelemetry is called at cycle start (DB insert for layerTelemetry)", async () => {
+    // emitTelemetry fires as void — we just verify the cycle doesn't throw
+    // and returns a valid result even when telemetry DB insert is called
+    const result = await runSelfPromptCycle(baseEvent);
+    expect(result.eventType).toBe("verdict_assigned");
+  });
+
+  it("T061: cycle result has cycleId when DB insert succeeds", async () => {
+    const result = await runSelfPromptCycle(baseEvent);
+    // cycleId should be set from the DB insertId
+    expect(result.cycleId).toBeDefined();
+  });
+
+  it("T061: cycleId is null when DB is unavailable", async () => {
+    mocks.mockGetDb.mockResolvedValue(null);
+    const result = await runSelfPromptCycle(baseEvent);
+    expect(result.cycleId).toBeNull();
+  });
+
+  it("T061: cycle handles large llmRawResponse without error", async () => {
+    const largeResponse = JSON.stringify({
+      reasoning: "x".repeat(10000),
+      actions: [],
+      converge: false,
+    });
+    mocks.mockRunSelfPrompt.mockResolvedValue({
+      reasoning: "Large response",
+      actions: [],
+      converge: false,
+      llmRawResponse: largeResponse,
+      llmResponseMs: 1500,
+    });
+    const result = await runSelfPromptCycle(baseEvent);
+    expect(result.error).toBeUndefined();
+  });
+});
