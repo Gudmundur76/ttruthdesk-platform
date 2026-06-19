@@ -42,7 +42,12 @@ export type SelfPromptAction =
   | "meta_check"
   | "drain_queue" // Drain pending coord_queue items through the analysis pipeline
   | "reverify_stale" // Re-verify claims whose PDB evidence is >180 days old
-  | "recalibrate_confidence"; // Run confidence recalibration on low-confidence claims (<0.4)
+  | "recalibrate_confidence" // Run confidence recalibration on low-confidence claims (<0.4)
+  | "wiki_edit" // Edit a specific wiki entity page with new content
+  | "alert_dispatch" // Dispatch a structured alert for a specific claim
+  | "graph_suggest" // Suggest a new concept graph entity from an existing entity
+  | "ingest_request" // Request a domain ingest run (fire-and-forget)
+  | "update_claim"; // Update a claim's verdict rationale based on new evidence
 
 export interface PrioritizedAction {
   priority: number; // 1–100

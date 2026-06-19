@@ -360,3 +360,145 @@ describe("executeActions() — T060: 30s total cycle cap", () => {
     }
   });
 });
+
+// ─── Build 4: 5 new action types ─────────────────────────────────────────────
+describe("Build 4 — new action types (wiki_edit, alert_dispatch, graph_suggest, ingest_request, update_claim)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mockGetDb.mockResolvedValue(null);
+    mocks.mockDispatchHighRiskAlert.mockResolvedValue(undefined);
+    mocks.mockUpdateEntityPage.mockResolvedValue(undefined);
+  });
+
+  it("wiki_edit: returns skipped when targetId is 0", async () => {
+    const result = await executeAction(makeAction("wiki_edit", 0));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("No targetId");
+  });
+
+  it("wiki_edit: returns skipped when DB unavailable", async () => {
+    const result = await executeAction(makeAction("wiki_edit", 42));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("DB unavailable");
+  });
+
+  it("wiki_edit: returns ok when entity found and wiki updated", async () => {
+    const mockDb = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([
+        {
+          id: 42,
+          canonicalName: "Test Protein",
+          entityType: "protein",
+          firstSeenDocumentId: 1,
+        },
+      ]),
+    };
+    mocks.mockGetDb.mockResolvedValue(mockDb);
+    const result = await executeAction(makeAction("wiki_edit", 42));
+    expect(result.status).toBe("ok");
+    expect(result.detail).toContain("42");
+    expect(mocks.mockUpdateEntityPage).toHaveBeenCalledOnce();
+  });
+
+  it("alert_dispatch: returns skipped when targetId is 0", async () => {
+    const result = await executeAction(makeAction("alert_dispatch", 0));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("No targetId");
+  });
+
+  it("alert_dispatch: returns skipped when DB unavailable", async () => {
+    const result = await executeAction(makeAction("alert_dispatch", 10));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("DB unavailable");
+  });
+
+  it("alert_dispatch: dispatches alert when claim found", async () => {
+    const mockDb = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([
+        {
+          id: 10,
+          claimText: "Test claim",
+          documentId: 1,
+          verdict: "Contradicted",
+          confidenceScore: 0.3,
+        },
+      ]),
+    };
+    mocks.mockGetDb.mockResolvedValue(mockDb);
+    const result = await executeAction(makeAction("alert_dispatch", 10));
+    expect(result.status).toBe("ok");
+    expect(mocks.mockDispatchHighRiskAlert).toHaveBeenCalledOnce();
+    // contradictionProbability should be derived from verdict + confidenceScore
+    const callArgs = mocks.mockDispatchHighRiskAlert.mock.calls[0][0];
+    expect(callArgs.contradictionProbability).toBeGreaterThan(0);
+  });
+
+  it("graph_suggest: returns skipped when targetId is 0", async () => {
+    const result = await executeAction(makeAction("graph_suggest", 0));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("No targetId");
+  });
+
+  it("graph_suggest: returns skipped when DB unavailable", async () => {
+    const result = await executeAction(makeAction("graph_suggest", 5));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("DB unavailable");
+  });
+
+  it("ingest_request: returns ok immediately (fire-and-forget)", async () => {
+    const result = await executeAction(makeAction("ingest_request", 0));
+    expect(result.status).toBe("ok");
+    expect(result.detail).toContain("fire-and-forget");
+  });
+
+  it("update_claim: returns skipped when targetId is 0", async () => {
+    const result = await executeAction(makeAction("update_claim", 0));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("No targetId");
+  });
+
+  it("update_claim: returns skipped when DB unavailable", async () => {
+    const result = await executeAction(makeAction("update_claim", 7));
+    expect(result.status).toBe("skipped");
+    expect(result.detail).toContain("DB unavailable");
+  });
+});
+
+// ─── Build 4: getDelegatedTo map for new action types ────────────────────────
+describe("Build 4 — getDelegatedTo for new action types", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mockGetDb.mockResolvedValue(null);
+  });
+
+  it("wiki_edit has delegatedTo = wikiEngine", async () => {
+    const results = await executeActions([makeAction("wiki_edit", 0)]);
+    expect(results[0].delegatedTo).toBe("wikiEngine");
+  });
+
+  it("alert_dispatch has delegatedTo = alertDispatcher", async () => {
+    const results = await executeActions([makeAction("alert_dispatch", 0)]);
+    expect(results[0].delegatedTo).toBe("alertDispatcher");
+  });
+
+  it("graph_suggest has delegatedTo = graphEngine", async () => {
+    const results = await executeActions([makeAction("graph_suggest", 0)]);
+    expect(results[0].delegatedTo).toBe("graphEngine");
+  });
+
+  it("ingest_request has delegatedTo = domainIngestScheduler", async () => {
+    const results = await executeActions([makeAction("ingest_request", 0)]);
+    expect(results[0].delegatedTo).toBe("domainIngestScheduler");
+  });
+
+  it("update_claim has delegatedTo = claimVerifier", async () => {
+    const results = await executeActions([makeAction("update_claim", 0)]);
+    expect(results[0].delegatedTo).toBe("claimVerifier");
+  });
+});

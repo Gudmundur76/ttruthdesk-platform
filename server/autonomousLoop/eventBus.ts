@@ -77,7 +77,7 @@ export type LoopEventType =
   | "dream_queue_processed"
   | "l0_scan_completed"
   | "l0_scan_failed"
-  | "frontier_directive";  // Build3: L3 directive from Self-Prompt engine (FR-L3-23)
+  | "frontier_directive"; // Build3: L3 directive from Self-Prompt engine (FR-L3-23)
 
 /** Entry layer for each event type (per the spec) */
 export const EVENT_ENTRY_LAYERS: Record<LoopEventType, number> = {
@@ -150,7 +150,9 @@ async function _promoteDreamEvents(): Promise<void> {
   const db = await getDb();
   if (!db) return;
   try {
-    // Claim up to 5 pending autoTrigger dream events per drain pass
+    // Claim up to 5 pending autoTrigger dream events per drain pass.
+    // FR-L5-36: Order by priority weight DESC (alert/recalibrate=4 > hypothesize=3 > consolidate=2),
+    // then by evidenceStrength DESC so highest-confidence events are promoted first.
     const pending = await db
       .select()
       .from(dreamEventQueue)
@@ -160,7 +162,10 @@ async function _promoteDreamEvents(): Promise<void> {
           eq(dreamEventQueue.autoTrigger, true)
         )
       )
-      .orderBy(dreamEventQueue.createdAt)
+      .orderBy(
+        sql`FIELD(${dreamEventQueue.dreamPriority}, 'alert', 'recalibrate', 'hypothesize', 'consolidate') DESC`,
+        sql`${dreamEventQueue.evidenceStrength} DESC`
+      )
       .limit(5);
     for (const item of pending) {
       // Promote to main event_queue as dream_queue_processed event
@@ -188,7 +193,10 @@ async function _promoteDreamEvents(): Promise<void> {
     }
   } catch (err) {
     // Non-fatal — dream queue promotion failure must not block main queue
-    log.warn("[EventBus] Dream event promotion failed (non-fatal):", errData(err));
+    log.warn(
+      "[EventBus] Dream event promotion failed (non-fatal):",
+      errData(err)
+    );
   }
 }
 

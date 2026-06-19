@@ -25,6 +25,8 @@ import { updateEntityPage } from "../wikiEngine";
 import { dispatchHighRiskAlert } from "../alertDispatcher";
 import { drainCoordQueue } from "../coordQueueDrainer";
 import { runConfidenceRecalibration } from "../dream/confidenceRecalibrator";
+import { upsertGraphEntity, updateClaimVerdict } from "../db";
+import { runDomainIngest } from "../domainIngestScheduler";
 import { logger } from "../logger";
 
 const log = logger("selfPrompt/actionExecutor");
@@ -294,6 +296,217 @@ export async function executeAction(
         }
       }
 
+      case "wiki_edit": {
+        // Edit a specific wiki page — more targeted than wiki_update
+        if (!targetId)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "No targetId",
+          };
+        const dbWe = await getDb();
+        if (!dbWe)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "DB unavailable",
+          };
+        const [entWe] = await dbWe
+          .select()
+          .from(graphEntities)
+          .where(eq(graphEntities.id, targetId))
+          .limit(1);
+        if (!entWe)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: `Entity ${targetId} not found`,
+          };
+        const slugWe = entWe.canonicalName.toLowerCase().replace(/\s+/g, "_");
+        const contentWe =
+          `## ${entWe.canonicalName}\n\n` +
+          `**Entity type:** ${entWe.entityType}\n\n` +
+          `*Last edited by Self-Prompting Engine — ${new Date().toISOString()}*\n\n` +
+          `> ${reasoning.slice(0, 300)}`;
+        await updateEntityPage(
+          slugWe,
+          entWe.canonicalName,
+          "entity",
+          contentWe,
+          "structural_biology"
+        );
+        return {
+          action: actionType,
+          targetId,
+          status: "ok",
+          detail: `Wiki page edited for entity ${targetId} (${entWe.canonicalName})`,
+        };
+      }
+
+      case "alert_dispatch": {
+        // Dispatch a structured alert for a specific claim
+        if (!targetId)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "No targetId",
+          };
+        const dbAd = await getDb();
+        if (!dbAd)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "DB unavailable",
+          };
+        const [claimAd] = await dbAd
+          .select()
+          .from(claims)
+          .where(eq(claims.id, targetId))
+          .limit(1);
+        if (!claimAd)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: `Claim ${targetId} not found`,
+          };
+        await dispatchHighRiskAlert({
+          claimId: claimAd.id,
+          claimText: claimAd.claimText,
+          documentId: claimAd.documentId ?? 0,
+          documentTitle: `Document ${claimAd.documentId ?? "unknown"}`,
+          verdict: claimAd.verdict ?? "unverified",
+          // claims table doesn't have contradictionProbability; derive from verdict + confidenceScore
+          contradictionProbability:
+            claimAd.verdict === "Contradicted"
+              ? 1 - (claimAd.confidenceScore ?? 0.5)
+              : 0,
+          confidenceScore: claimAd.confidenceScore,
+          reportUrl: `https://protein-desk-k2qhayqr.manus.space/claims/${claimAd.id}`,
+        });
+        return {
+          action: actionType,
+          targetId,
+          status: "ok",
+          detail: `Alert dispatched for claim ${targetId} (verdict: ${claimAd.verdict ?? "unverified"})`,
+        };
+      }
+
+      case "graph_suggest": {
+        // Suggest a new concept graph entity derived from an existing entity
+        if (!targetId)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "No targetId",
+          };
+        const dbGs = await getDb();
+        if (!dbGs)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "DB unavailable",
+          };
+        const [srcEnt] = await dbGs
+          .select()
+          .from(graphEntities)
+          .where(eq(graphEntities.id, targetId))
+          .limit(1);
+        if (!srcEnt)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: `Source entity ${targetId} not found`,
+          };
+        const suggestedName = `${srcEnt.canonicalName} [L2-suggested]`;
+        const newEnt = await upsertGraphEntity({
+          entityType: "concept",
+          canonicalName: suggestedName,
+          firstSeenDocumentId: srcEnt.firstSeenDocumentId ?? undefined,
+          metadata: {
+            suggestedBy: "selfPromptEngine",
+            sourceEntityId: targetId,
+            reasoning: reasoning.slice(0, 200),
+            suggestedAt: new Date().toISOString(),
+          },
+        });
+        return {
+          action: actionType,
+          targetId,
+          status: "ok",
+          detail: `Graph entity suggested: "${suggestedName}" (id: ${newEnt.id}) from entity ${targetId}`,
+        };
+      }
+
+      case "ingest_request": {
+        // Request a domain ingest run — fire-and-forget
+        void runDomainIngest()
+          .then(results => {
+            const total = results.reduce((s, r) => s + r.submitted, 0);
+            log.info(
+              `[ingest_request] Async ingest completed: ${total} papers submitted`
+            );
+          })
+          .catch(err => {
+            log.warn(`[ingest_request] Async ingest failed: ${String(err)}`);
+          });
+        return {
+          action: actionType,
+          targetId,
+          status: "ok",
+          detail: `Domain ingest requested (fire-and-forget): ${reasoning.slice(0, 80)}`,
+        };
+      }
+
+      case "update_claim": {
+        // Update a claim's verdict rationale based on new evidence
+        if (!targetId)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "No targetId",
+          };
+        const dbUc = await getDb();
+        if (!dbUc)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: "DB unavailable",
+          };
+        const [claimUc] = await dbUc
+          .select()
+          .from(claims)
+          .where(eq(claims.id, targetId))
+          .limit(1);
+        if (!claimUc)
+          return {
+            action: actionType,
+            targetId,
+            status: "skipped",
+            detail: `Claim ${targetId} not found`,
+          };
+        await updateClaimVerdict(targetId, {
+          verdictRationale: `[L2 Self-Prompt update] ${reasoning.slice(0, 500)}`,
+          verdictMethod: "override", // L2 Self-Prompting Engine update
+        });
+        return {
+          action: actionType,
+          targetId,
+          status: "ok",
+          detail: `Claim ${targetId} verdict rationale updated by Self-Prompting Engine`,
+        };
+      }
+
       case "converge": {
         return {
           action: actionType,
@@ -402,14 +615,19 @@ function getDelegatedTo(actionType: string): string {
   const map: Record<string, string> = {
     notify: "alertDispatcher",
     wiki_update: "wikiEngine",
+    wiki_edit: "wikiEngine",
     frontier: "frontierEngine",
     gap_map: "frontierEngine",
     reindex: "indexNow",
     alert: "notificationService",
+    alert_dispatch: "alertDispatcher",
     meta_check: "codeGuardian",
     drain_queue: "coordQueueDrainer",
     reverify_stale: "pipelineQueue",
     recalibrate_confidence: "confidenceRecalibrator",
+    graph_suggest: "graphEngine",
+    ingest_request: "domainIngestScheduler",
+    update_claim: "claimVerifier",
     converge: "selfPromptEngine",
   };
   return map[actionType] ?? "unknown";

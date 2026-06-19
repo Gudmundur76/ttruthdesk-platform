@@ -386,6 +386,13 @@
       "when": 1781865066506,
       "tag": "0054_nostalgic_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "5",
+      "when": 1781874783460,
+      "tag": "0055_loud_xorn",
+      "breakpoints": true
     }
   ]
 }

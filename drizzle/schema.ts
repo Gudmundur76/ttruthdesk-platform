@@ -2762,3 +2762,174 @@ export const preflightCache = mysqlTable(
 );
 export type PreflightCacheEntry = typeof preflightCache.$inferSelect;
 export type InsertPreflightCacheEntry = typeof preflightCache.$inferInsert;
+
+// ─── Build 4: Missing Telemetry & L0 Detail Tables ───────────────────────────
+
+/**
+ * event_log — Central event log for audit trail and replay.
+ * Captures every event processed by the autonomous loop with its outcome.
+ * Build 4 — closes DB audit gap (event_log MISSING).
+ */
+export const eventLog = mysqlTable(
+  "event_log",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** The event_queue row that was processed */
+    eventQueueId: int("eventQueueId"),
+    /** Event type (mirrors event_queue.eventType) */
+    eventType: varchar("eventType", { length: 64 }).notNull(),
+    /** Layer that processed this event (0=L0, 1=L1, …, 5=L5) */
+    processedByLayer: int("processedByLayer"),
+    /** Final outcome of processing */
+    outcome: mysqlEnum("outcome", [
+      "success",
+      "skipped",
+      "error",
+      "timeout",
+    ]).notNull(),
+    /** Processing duration in milliseconds */
+    durationMs: int("durationMs"),
+    /** Error message if outcome=error */
+    errorMessage: text("errorMessage"),
+    /** Snapshot of the event payload at processing time */
+    payloadSnapshot: json("payloadSnapshot"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    elEventTypeIdx: index("el_event_type_idx").on(t.eventType),
+    elOutcomeIdx: index("el_outcome_idx").on(t.outcome),
+    elCreatedAtIdx: index("el_created_at_idx").on(t.createdAt),
+    elEventQueueIdIdx: index("el_event_queue_id_idx").on(t.eventQueueId),
+  })
+);
+export type EventLogEntry = typeof eventLog.$inferSelect;
+export type InsertEventLogEntry = typeof eventLog.$inferInsert;
+
+/**
+ * convergence_states — Snapshots of convergence decisions.
+ * Records each time shouldConverge() evaluates, enabling trend analysis.
+ * Build 4 — closes DB audit gap (convergence_states MISSING).
+ */
+export const convergenceStates = mysqlTable(
+  "convergence_states",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Whether the convergence gate fired */
+    converged: boolean("converged").notNull(),
+    /** Number of pending events at evaluation time */
+    pendingEvents: int("pendingEvents").notNull().default(0),
+    /** Number of active directives at evaluation time */
+    activeDirectives: int("activeDirectives").notNull().default(0),
+    /** Cycle number within the current loop run */
+    cycleNumber: int("cycleNumber"),
+    /** Reason string explaining the convergence decision */
+    reason: varchar("reason", { length: 512 }),
+    /** Health score at the time of evaluation */
+    healthScore: float("healthScore"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    csConvergedIdx: index("cs_converged_idx").on(t.converged),
+    csCreatedAtIdx: index("cs_created_at_idx").on(t.createdAt),
+  })
+);
+export type ConvergenceState = typeof convergenceStates.$inferSelect;
+export type InsertConvergenceState = typeof convergenceStates.$inferInsert;
+
+/**
+ * preflight_scans — L0 Friction Engine scan records.
+ * Persists each runPreflightScan() invocation for audit and analytics.
+ * Build 4 — closes DB audit gap (preflight_scans MISSING).
+ */
+export const preflightScans = mysqlTable(
+  "preflight_scans",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** SHA-256 hash of the sanitized input text */
+    inputHash: varchar("inputHash", { length: 64 }).notNull(),
+    /** Recommended action from the scan */
+    recommendedAction: varchar("recommendedAction", { length: 32 }).notNull(),
+    /** Overall friction score (0.0–1.0) */
+    frictionScore: float("frictionScore"),
+    /** Whether the result was served from cache */
+    cacheHit: boolean("cacheHit").notNull().default(false),
+    /** Processing duration in milliseconds */
+    durationMs: int("durationMs"),
+    /** Number of assumptions extracted */
+    assumptionCount: int("assumptionCount").notNull().default(0),
+    /** Number of constraints extracted */
+    constraintCount: int("constraintCount").notNull().default(0),
+    /** The reframed prompt produced by the scan */
+    reframedPrompt: text("reframedPrompt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    psInputHashIdx: index("ps_input_hash_idx").on(t.inputHash),
+    psRecommendedActionIdx: index("ps_recommended_action_idx").on(
+      t.recommendedAction
+    ),
+    psCreatedAtIdx: index("ps_created_at_idx").on(t.createdAt),
+  })
+);
+export type PreflightScan = typeof preflightScans.$inferSelect;
+export type InsertPreflightScan = typeof preflightScans.$inferInsert;
+
+/**
+ * preflight_assumptions — L0 assumption detail records.
+ * One row per assumption extracted by the Friction Engine.
+ * Build 4 — closes DB audit gap (preflight_assumptions MISSING).
+ */
+export const preflightAssumptions = mysqlTable(
+  "preflight_assumptions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** The preflight_scans row this assumption belongs to */
+    scanId: int("scanId").notNull(),
+    /** Assumption type: factual, strategic, emotional, market, technical, scientific, operational */
+    assumptionType: varchar("assumptionType", { length: 32 }).notNull(),
+    /** The assumption text */
+    assumptionText: text("assumptionText").notNull(),
+    /** Confidence that this is a real assumption (0.0–1.0) */
+    confidence: float("confidence"),
+    /** Whether this assumption was flagged as high-risk */
+    highRisk: boolean("highRisk").notNull().default(false),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    paScanIdIdx: index("pa_scan_id_idx").on(t.scanId),
+    paAssumptionTypeIdx: index("pa_assumption_type_idx").on(t.assumptionType),
+  })
+);
+export type PreflightAssumption = typeof preflightAssumptions.$inferSelect;
+export type InsertPreflightAssumption =
+  typeof preflightAssumptions.$inferInsert;
+
+/**
+ * preflight_constraints — L0 constraint detail records.
+ * One row per constraint extracted by the Friction Engine.
+ * Build 4 — closes DB audit gap (preflight_constraints MISSING).
+ */
+export const preflightConstraints = mysqlTable(
+  "preflight_constraints",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** The preflight_scans row this constraint belongs to */
+    scanId: int("scanId").notNull(),
+    /** Constraint type: hard, soft, assumption, preference, unknown */
+    constraintType: varchar("constraintType", { length: 32 }).notNull(),
+    /** The constraint text */
+    constraintText: text("constraintText").notNull(),
+    /** Whether this is a hard constraint (cannot be violated) */
+    isHard: boolean("isHard").notNull().default(false),
+    /** Confidence that this is a real constraint (0.0–1.0) */
+    confidence: float("confidence"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    pc2ScanIdIdx: index("pc2_scan_id_idx").on(t.scanId),
+    pc2ConstraintTypeIdx: index("pc2_constraint_type_idx").on(t.constraintType),
+  })
+);
+export type PreflightConstraint = typeof preflightConstraints.$inferSelect;
+export type InsertPreflightConstraint =
+  typeof preflightConstraints.$inferInsert;
