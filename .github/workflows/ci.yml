@@ -146,6 +146,9 @@ jobs:
           BUILT_IN_FORGE_API_KEY: ${{ secrets.BUILT_IN_FORGE_API_KEY }}
           BUILT_IN_FORGE_API_URL: ${{ secrets.BUILT_IN_FORGE_API_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # env.ts validates JWT_SECRET at import time (db.ts → env.ts); provide a
+          # placeholder so the startup guard passes — calibration never issues JWTs.
+          JWT_SECRET: ci-calibration-placeholder
         run: pnpm calibrate:adapters:ci
         # FR-CAL-10: calibration runs in CI to catch prompt regression before merge
 
