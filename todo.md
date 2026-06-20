@@ -1770,6 +1770,7 @@
 ## Build3: L3 Frontier Engine Hardening + L5 Dream State
 
 ### L3 Phase 1-5: Frontier Engine
+
 - [ ] T001-T008: Schema migration + DirectiveStore
 - [ ] T009-T014: GapRanker PRD formula + detection_count
 - [ ] T015-T020: HypothesisGenerator circuit breaker
@@ -1777,19 +1778,24 @@
 - [ ] T031-T038: MetricReporter + /health/frontier endpoint
 
 ### L5 Phase 6-9: Dream State
+
 - [ ] T039-T048: Schema + DreamEvent types + dream_event_queue
 - [ ] T049-T057: Session hardening + eligibility gate + circuit breaker
 - [ ] T058-T075: Cycle hardening C1-C5
 - [ ] T076-T084: Wake protocol + dreamLayer.ts
 
 ### Phase 10: CI Gate
-- [ ] T085-T092: Tests, TypeScript, lint, commit, push
+
+- [x] T085-T092: Tests, TypeScript, lint, commit, push
 
 ---
+
 ## PRD_SKILLOPT_AGENT2MODEL: SkillOpt + Agent-to-Model Distillation
+
 **Goal:** Build the SkillOpt prompt optimization loop, inference module (local model serving), training scripts, and CI workflow per PRD_SKILLOPT_AGENT2MODEL.
 
 ### SkillOpt Module (server/skillopt/)
+
 - [x] Create `scorer.ts` — F1/precision/recall/accuracy scoring with `computeMetrics()` and `meetsTarget()`
 - [x] Create `groundTruthLoader.ts` — loads calibration data as ground truth examples from JSONL
 - [x] Create `candidateGenerator.ts` — generates N prompt variant candidates via LLM (invokeMultiLLM)
@@ -1797,17 +1803,20 @@
 - [x] Create `skillopt.test.ts` — 19 unit tests for all SkillOpt components
 
 ### Inference Module (server/inference/)
+
 - [x] Create `claimVerifier.ts` — `LocalClaimVerifier` wrapper for distilled model HTTP endpoint
 - [x] Create `modelServer.ts` — Express HTTP server around `LocalClaimVerifier` for local model serving
 - [x] Create `mcpServerLocal.ts` — 3 MCP tool handlers: `toolVerifyClaimLocal`, `toolVerifyClaimsBatchLocal`, `toolModelCapabilities`
 - [x] Create `inference.test.ts` — 31 unit tests for inference module
 
 ### Training Scripts (scripts/)
+
 - [x] Create `convert_to_agent2model_format.py` — converts corpus.jsonl to agent2model training format with filtering
 - [x] Create `evaluate_model.py` — evaluates distilled model vs orchestrated pipeline, outputs metrics report
 - [x] Create `export_training_corpus.sh` — exports verified claims from registry to corpus.jsonl
 
 ### Modified Files
+
 - [x] `package.json` — added `skillopt:run`, `model:serve`, `model:train`, `corpus:export`, `model:evaluate` scripts
 - [x] `server/mcpServer.ts` — added 3 local model tools (tool count 12→15, fingerprint updated)
 - [x] `server/mcpServer.test.ts` — updated tool count/fingerprint assertions, added inference mock
@@ -1815,6 +1824,7 @@
 - [x] `.github/workflows/skillopt.yml` — CI workflow: TypeScript + unit tests + Python validation + shell lint
 
 ### Gate Results
+
 - [x] TypeScript: 0 errors
 - [x] ESLint: 0 warnings
 - [x] Tests: 3544/3544 passed (277 test files)
@@ -1822,23 +1832,28 @@
 - [x] Update manus-persistent-drive with Phase 145 log entry
 
 ---
+
 ## Phase 137 — AlphaFold Adapter + UniProt wiring (complete)
+
 - [x] alphafoldAdapter.ts — AlphaFold DB pLDDT confidence scores
 - [x] alphafoldAdapter.test.ts — 18 unit tests
 - [x] analysisPipeline.ts — wire AlphaFold for structural_biology / protein_biochemistry claims
 - [x] analysisPipeline.ts — wire sourcePaperAdapter PMID enrichment
 
 ## Phase 138 — Source Paper Adapter + paper_embeddings (complete)
+
 - [x] sourcePaperAdapter.ts — PMC full-text semantic similarity via embeddings
 - [x] sourcePaperAdapter.test.ts — 22 unit tests
 - [x] drizzle/schema.ts — paper_embeddings table
 - [x] migration 0059 applied — paper_embeddings table in DB
 
 ## Build3 T001-T038 — Frontier Engine hardening (complete)
+
 - [x] apiV2Router.ts — GET /api/v2/health/frontier endpoint (MetricReporter)
 - [x] frontierCircuitBreaker.getState() wired into /health/frontier response
 
 ## Build3 T039-T092 — Dream State (complete)
+
 - [x] dreamLayer.ts — L5 adapter (dream_cycle_started / dream_pattern_detected → runDreamSession)
 - [x] Null-safe sessionResult handling
 - [x] Wake protocol integration via wakeProtocolResult
