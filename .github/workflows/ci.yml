@@ -118,11 +118,17 @@ jobs:
         # stubs are advisory — reports overdue stubs but does not fail the build
 
   # ── Adapter Calibration CI (FR-CAL-10) ──────────────────────────────────
+  # NOTE: Calibration requires live LLM credentials (Forge API) which are not
+  # available on push/PR runners. Run manually via workflow_dispatch or locally
+  # with: pnpm calibrate:adapters
   calibrate-adapters:
     name: Adapter Calibration
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: quality
+    # Only run when triggered manually (workflow_dispatch) — calibration needs
+    # live Forge API credentials that are not available in push/PR environments.
+    if: github.event_name == 'workflow_dispatch'
     continue-on-error: true  # Calibration regression is a warning, not a blocker
 
     steps:
