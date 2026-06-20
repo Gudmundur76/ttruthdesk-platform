@@ -61,6 +61,7 @@ import { detailedHealthHandler } from "../detailedHealthRoute";
 import { ingestionAlertHandler } from "../ingestionAlertJob";
 import { domainIngestJobHandler } from "../domainIngestScheduler";
 import { registerCitationSearchRoute } from "../citationSearchRoute";
+import { registerTelemetrySummaryRoute } from "../telemetrySummaryRoute";
 import { buildOrigin } from "../buildOrigin";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -1885,6 +1886,8 @@ async function startServer() {
   registerBatchVerifyRoute(app);
   // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
   registerExternalPublicRoutes(app);
+  // self-direct integration: /api/telemetry/summary — verification.completed event feed
+  registerTelemetrySummaryRoute(app);
 
   // ─── Public stats endpoint — used by citation.is /status page ───────────────
   // Returns aggregate corpus stats without exposing internal pipeline details.

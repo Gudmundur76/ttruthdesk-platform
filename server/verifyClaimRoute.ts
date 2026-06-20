@@ -61,6 +61,8 @@ import { logger, errData } from "./logger";
 import { fireVerdictWebhook, buildVerdictPayload } from "./verdictWebhookRoute";
 import { decomposeQuestion, buildPubMedQuery } from "./questionDecomposer";
 import { classifyClaims, getPrimaryRoute } from "./domainClassifier";
+import { verificationEventStore } from "./verificationEventStore";
+import { randomUUID } from "crypto";
 const log = logger("verifyClaimRoute");
 
 // ─── NCBI E-utilities adapter (Sprint 25 Phase 3 — replaces EuropePMC) ──────
@@ -540,6 +542,19 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
     // ── Step 4b: Feed the self-improving SLM flywheel (fire-and-forget) ──
     // POST the verdict event to cognitive-loop-framework /cognitive/ingest.
     // Non-blocking — if the cognitive loop is down, verification still succeeds.
+
+    // ── Step 4c: Emit verification.completed for self-direct polling ──────────
+    // Non-blocking push into the in-memory ring buffer.
+    // self-direct polls /api/telemetry/summary to read these events.
+    verificationEventStore.push({
+      inputId:
+        registryClaimId !== null ? String(registryClaimId) : randomUUID(),
+      verdict: bestVerdictResult!.verdict,
+      adapter: vertical ?? "general",
+      confidence: VERDICT_CONFIDENCE[bestVerdictResult!.verdict] ?? 0.5,
+      timestamp: processedAt,
+    });
+
     fireVerdictWebhook(
       buildVerdictPayload({
         claimId: registryClaimId !== null ? String(registryClaimId) : null,
