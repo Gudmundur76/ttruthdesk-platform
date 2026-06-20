@@ -24,6 +24,7 @@ import { registerLlmsRoute } from "../llmsRoute";
 import { registerSitemapRoute } from "../sitemapRoute";
 import { registerVerifyClaimRoute } from "../verifyClaimRoute";
 import { registerAnswerRoute } from "../answerRoute";
+import { registerTelemetryRoutes } from "../telemetryEndpoint";
 import { registerStreamVerifyRoute } from "../streamVerifyRoute";
 import { registerProvenanceRoute } from "../epistemicProvenance";
 import { registerFindSimilarRoute } from "../findSimilarRoute";
@@ -1842,6 +1843,8 @@ async function startServer() {
   registerVerifyClaimRoute(app);
   // Public question-to-claim answer endpoint (Phase 110)
   registerAnswerRoute(app);
+  // Telemetry summary + events endpoints (WIRE_IT.md — self-direct integration)
+  registerTelemetryRoutes(app);
   // SSE streaming verification endpoint (Phase 114)
   registerStreamVerifyRoute(app);
   // Perplexity-style citation search — full-adapter live pipeline (Sprint 29)
