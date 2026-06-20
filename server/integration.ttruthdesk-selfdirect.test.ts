@@ -29,7 +29,7 @@ const SELF_DIRECT = "/home/ubuntu/self-direct/src";
 
 async function loadTelemetryPoller() {
   const mod = await import(`${SELF_DIRECT}/watcher/telemetryPoller.js`);
-  return mod.TelemetryPoller as typeof import("/home/ubuntu/self-direct/src/watcher/telemetryPoller.js").TelemetryPoller;
+  return mod.TelemetryPoller as any; // self-direct is a sibling repo; not present in this sandbox
 }
 
 async function loadWatcherDeps() {
