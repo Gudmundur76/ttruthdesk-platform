@@ -242,9 +242,11 @@ async function handleTelemetryEvents(req: Request, res: Response): Promise<void>
 // ─── Register ─────────────────────────────────────────────────────────────────
 
 export function registerTelemetryRoutes(app: Express): void {
-  app.get("/api/telemetry/summary", handleTelemetrySummary);
-  app.get("/api/telemetry/events", handleTelemetryEvents);
+  // /api/telemetry/summary is owned by telemetrySummaryRoute.ts (self-direct contract)
+  // These endpoints expose the DB-backed analytics view on separate paths
+  app.get("/api/telemetry/analytics", handleTelemetrySummary);
+  app.get("/api/telemetry/events-log", handleTelemetryEvents);
   log.info(
-    "[telemetryEndpoint] registered /api/telemetry/summary and /api/telemetry/events"
+    "[telemetryEndpoint] registered /api/telemetry/analytics and /api/telemetry/events-log"
   );
 }

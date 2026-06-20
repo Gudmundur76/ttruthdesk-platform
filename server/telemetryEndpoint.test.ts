@@ -98,7 +98,7 @@ describe("checkRateLimit()", () => {
   });
 });
 
-// ─── GET /api/telemetry/summary ───────────────────────────────────────────────
+// ─── GET /api/telemetry/analytics ──────────────────────────────────────────────
 
 describe("handleTelemetrySummary()", () => {
   beforeEach(() => {
@@ -113,7 +113,7 @@ describe("handleTelemetrySummary()", () => {
     registerTelemetryRoutes(app);
     // Extract the summary handler
     const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/summary"
+      (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
     const req = makeReq();
     const res = makeRes();
@@ -134,7 +134,7 @@ describe("handleTelemetrySummary()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/summary"
+      (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
     const req = makeReq();
@@ -166,7 +166,7 @@ describe("handleTelemetrySummary()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/summary"
+      (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
     const ip = "99.99.99.99";
@@ -195,7 +195,7 @@ describe("handleTelemetrySummary()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/summary"
+      (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
     const req = makeReq({ socket: { remoteAddress: "11.11.11.11" } });
@@ -206,7 +206,7 @@ describe("handleTelemetrySummary()", () => {
   });
 });
 
-// ─── GET /api/telemetry/events ────────────────────────────────────────────────
+// ─── GET /api/telemetry/events-log ──────────────────────────────────────────────
 
 describe("handleTelemetryEvents()", () => {
   beforeEach(() => {
@@ -220,7 +220,7 @@ describe("handleTelemetryEvents()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     const eventsHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/events"
+      (c: unknown[]) => c[0] === "/api/telemetry/events-log"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
     const req = makeReq();
     const res = makeRes();
@@ -243,7 +243,7 @@ describe("handleTelemetryEvents()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     const eventsHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/events"
+      (c: unknown[]) => c[0] === "/api/telemetry/events-log"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
     const req = makeReq();
@@ -270,7 +270,7 @@ describe("handleTelemetryEvents()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     const eventsHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/events"
+      (c: unknown[]) => c[0] === "/api/telemetry/events-log"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
     const req = makeReq({ query: { limit: "9999" } });
@@ -294,7 +294,7 @@ describe("handleTelemetryEvents()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     const eventsHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "/api/telemetry/events"
+      (c: unknown[]) => c[0] === "/api/telemetry/events-log"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
     const req = makeReq({ socket: { remoteAddress: "22.22.22.22" } });
@@ -308,7 +308,7 @@ describe("handleTelemetryEvents()", () => {
 // ─── registerTelemetryRoutes ──────────────────────────────────────────────────
 
 describe("registerTelemetryRoutes()", () => {
-  it("registers both /api/telemetry/summary and /api/telemetry/events", async () => {
+  it("registers both /api/telemetry/analytics and /api/telemetry/events-log", async () => {
     vi.resetModules();
     const { registerTelemetryRoutes } = await import("./telemetryEndpoint");
     const app = { get: vi.fn() } as unknown as import("express").Express;
@@ -316,7 +316,7 @@ describe("registerTelemetryRoutes()", () => {
     const registeredPaths = (app.get as ReturnType<typeof vi.fn>).mock.calls.map(
       (c: unknown[]) => c[0]
     );
-    expect(registeredPaths).toContain("/api/telemetry/summary");
-    expect(registeredPaths).toContain("/api/telemetry/events");
+    expect(registeredPaths).toContain("/api/telemetry/analytics");
+    expect(registeredPaths).toContain("/api/telemetry/events-log");
   });
 });
