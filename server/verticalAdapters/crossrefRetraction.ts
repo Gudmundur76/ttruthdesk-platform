@@ -51,7 +51,7 @@ export function extractDoisFromText(text: string): string[] {
 // ─── Crossref retraction check ────────────────────────────────────────────────
 
 const CROSSREF_BASE = "https://api.crossref.org/works";
-const POLITE_MAILTO = "citation@ttruthdesk.claims";
+const POLITE_MAILTO = "citation@citation.manus.space";
 
 async function checkCrossrefRetraction(doi: string): Promise<RetractionStatus> {
   const url = `${CROSSREF_BASE}/${encodeURIComponent(doi)}?mailto=${POLITE_MAILTO}`;

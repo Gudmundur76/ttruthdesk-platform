@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SESSION-START BOOTSTRAP — Protein Truth Desk / ttruthdesk.claims
+# SESSION-START BOOTSTRAP — Protein Truth Desk / citation.manus.space
 # =============================================================================
 # MANDATORY: Run this as the FIRST action in every new Manus session.
 # Never make claims about environment state before running this script.
@@ -119,7 +119,7 @@ fi
 # 7. Deployed version vs internal HEAD
 # ------------------------------------------------------------
 echo ""
-echo "--- 7. Deployment status (ttruthdesk.claims) ---"
+echo "--- 7. Deployment status (citation.manus.space) ---"
 if [ -n "${MANUS_API_KEY:-}" ]; then
   DEPLOY_STATUS=$(curl -sf "https://api.manus.ai/v2/website.status?website_id=5R5rZPYgTj2s3EMJSc7MVm" \
     -H "x-manus-api-key: $MANUS_API_KEY" 2>/dev/null || echo '{"error":"request failed"}')
@@ -152,7 +152,7 @@ fi
 echo ""
 echo "============================================================"
 echo "  VERIFICATION COMPLETE"
-echo "  Website:     https://ttruthdesk.claims"
+echo "  Website:     https://citation.manus.space"
 echo "  Website ID:  5R5rZPYgTj2s3EMJSc7MVm"
 echo "  Backend:     https://github.com/Gudmundur76/ttruthdesk-platform"
 echo "  Memory:      https://github.com/Gudmundur76/manus-persistent-drive"

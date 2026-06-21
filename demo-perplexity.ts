@@ -14,7 +14,7 @@
  * Usage:
  *   npx tsx demo-perplexity.ts
  *   npx tsx demo-perplexity.ts --question "Does aspirin reduce cardiovascular risk?"
- *   npx tsx demo-perplexity.ts --live   (calls the live ttruthdesk.claims API)
+ *   npx tsx demo-perplexity.ts --live   (calls the live citation.manus.space API)
  *   npx tsx demo-perplexity.ts --mcp    (calls via MCP tool protocol)
  *
  * Output format mirrors what Perplexity Computer would receive from the
@@ -29,8 +29,8 @@ import { decomposeQuestion, buildPubMedQuery } from "./server/questionDecomposer
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const LIVE_API = "https://ttruthdesk.claims/api/public/verify-claim";
-const MCP_API = "https://ttruthdesk.claims/api/mcp";
+const LIVE_API = "https://citation.manus.space/api/public/verify-claim";
+const MCP_API = "https://citation.manus.space/api/mcp";
 
 const DEMO_QUESTIONS = [
   "Does regular aspirin use reduce the risk of colorectal cancer in adults over 50?",
@@ -282,7 +282,7 @@ async function main(): Promise<void> {
   console.log("╔══════════════════════════════════════════════════════════════════════╗");
   console.log("║  citation.is — Stateless Verification Oracle                        ║");
   console.log("║  Sprint 25 Demo — Perplexity Computer Integration                   ║");
-  console.log("║  ttruthdesk.claims | MCP Server: citation.is                        ║");
+  console.log("║  citation.manus.space | MCP Server: citation.is                        ║");
   console.log("╚══════════════════════════════════════════════════════════════════════╝");
 
   const mode = useLive ? "LIVE API" : useMcp ? "MCP PROTOCOL" : "LOCAL SIMULATION";
@@ -303,8 +303,8 @@ async function main(): Promise<void> {
   console.log(`  1. Add citation.is to your MCP server list`);
   console.log(`  2. Call verify_claim before surfacing any scientific claim`);
   console.log(`  3. Attach the provenance chain to the answer`);
-  console.log(`\nMCP discovery: https://ttruthdesk.claims/.well-known/mcp.json`);
-  console.log(`API docs:       https://ttruthdesk.claims/docs/api`);
+  console.log(`\nMCP discovery: https://citation.manus.space/.well-known/mcp.json`);
+  console.log(`API docs:       https://citation.manus.space/docs/api`);
 }
 
 main().catch(err => {

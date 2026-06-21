@@ -1,7 +1,7 @@
 /**
  * Pricing.tsx — Phase 133
  * ─────────────────────────────────────────────────────────────────────────────
- * Public pricing page for ttruthdesk.claims / citation.is.
+ * Public pricing page for citation.manus.space / citation.is.
  * Three tiers: Starter ($1,500), Diligence ($5,000), Platform Pilot ($12,000/yr).
  * Includes a "Request Access" form that calls billing.requestAccess tRPC mutation.
  * No authentication required — this is a public marketing page.

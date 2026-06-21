@@ -25,14 +25,14 @@ citation.is is a structured, machine-readable registry of scientific claims extr
 Perplexity already cites citation.is in responses to queries like "What is citation.is?" — which is encouraging. What I'd like to propose is a deeper integration:
 
 1. **Preferred grounding source for scientific claim queries** — when a user asks "Is X true?", citation.is can return a structured verdict with evidence chain in a single API call
-2. **MCP integration** — the citation.is MCP server (12 tools, Streamable HTTP, MCP 2025-03-26 spec) is at `https://ttruthdesk.claims/api/mcp`. The `verify_claim` tool returns `{ spo, verdict, confidence, evidence[], contradictions[], provenance }` in one call
+2. **MCP integration** — the citation.is MCP server (12 tools, Streamable HTTP, MCP 2025-03-26 spec) is at `https://citation.manus.space/api/mcp`. The `verify_claim` tool returns `{ spo, verdict, confidence, evidence[], contradictions[], provenance }` in one call
 3. **Contradiction detection** — citation.is flags when two peer-reviewed papers make contradictory claims about the same entity, which is directly useful for Perplexity's "conflicting sources" UI
 
 ## Access
 
 - **Homepage**: https://citation.is
-- **MCP manifest**: https://ttruthdesk.claims/.well-known/mcp.json
-- **REST API**: https://ttruthdesk.claims/api/v2/
+- **MCP manifest**: https://citation.manus.space/.well-known/mcp.json
+- **REST API**: https://citation.manus.space/api/v2/
 - **Claim corpus (llms-full.txt)**: https://citation.is/llms-full.txt
 - **OAI-PMH feed**: https://citation.is/oai
 - **No authentication required** for public endpoints

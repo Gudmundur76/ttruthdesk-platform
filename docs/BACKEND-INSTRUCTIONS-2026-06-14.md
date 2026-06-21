@@ -2,7 +2,7 @@
 
 **Prepared:** 2026-06-14 · Based on Fourth Pass Test Report + live API inspection  
 **Repo:** https://github.com/Gudmundur76/ttruthdesk-platform  
-**Live backend:** https://ttruthdesk.claims  
+**Live backend:** https://citation.manus.space  
 **Frontend (citation.is):** https://citation.is
 
 ---
@@ -27,7 +27,7 @@
 ### Observed behaviour
 
 ```
-curl --max-time 8 https://ttruthdesk.claims/mcp
+curl --max-time 8 https://citation.manus.space/mcp
 # → 0 bytes received, operation timed out
 ```
 
@@ -80,7 +80,7 @@ Two header changes are also required:
 ### Verification
 
 ```bash
-curl -N --max-time 5 https://ttruthdesk.claims/mcp
+curl -N --max-time 5 https://citation.manus.space/mcp
 # Should immediately print:
 # data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05",...}}
 # data: {"jsonrpc":"2.0","method":"notifications/tools/list_changed",...}
@@ -245,7 +245,7 @@ Duplicate claims inflate the registry count, waste verification compute, and deg
 The test report stated this was unconfirmed. It is **working correctly**:
 
 ```bash
-curl -X POST https://ttruthdesk.claims/api/public/verify-claim \
+curl -X POST https://citation.manus.space/api/public/verify-claim \
   -H "Content-Type: application/json" \
   -d '{"claim":"Vitamin C reduces duration of common cold symptoms"}'
 

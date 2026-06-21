@@ -9,7 +9,7 @@ import type { Request } from "express";
  *
  * @example
  *   buildOrigin(req, "http://localhost:3000")
- *   // → "https://ttruthdesk.claims"  (in production behind a reverse proxy)
+ *   // → "https://citation.manus.space"  (in production behind a reverse proxy)
  *   // → "http://localhost:3000"       (in development, no proxy headers)
  */
 export function buildOrigin(req: Request, fallback: string): string {

@@ -11,7 +11,7 @@ The fastest integration path is via the citation.is MCP server. Any MCP-compatib
 ### MCP endpoint
 
 ```
-https://ttruthdesk.claims/api/mcp
+https://citation.manus.space/api/mcp
 ```
 
 **Protocol:** Streamable HTTP (MCP 2025-03-26 spec)  
@@ -43,7 +43,7 @@ def verify_claim(claim_text: str) -> dict:
     Returns: { spo, verdict, confidence, evidence, contradictions, provenance }
     """
     resp = requests.post(
-        "https://ttruthdesk.claims/api/verify",
+        "https://citation.manus.space/api/verify",
         json={
             "claim": claim_text,
             "include_evidence": True,
@@ -71,7 +71,7 @@ for ev in result.get("evidence", []):
 ```python
 import requests, json
 
-MCP_URL = "https://ttruthdesk.claims/api/mcp"
+MCP_URL = "https://citation.manus.space/api/mcp"
 
 def mcp_call(tool_name: str, args: dict) -> dict:
     payload = {
@@ -116,7 +116,7 @@ class VerifyClaimInput(BaseModel):
 
 def _verify_claim(claim: str, include_evidence: bool = True) -> str:
     resp = requests.post(
-        "https://ttruthdesk.claims/api/verify",
+        "https://citation.manus.space/api/verify",
         json={"claim": claim, "include_evidence": include_evidence},
         timeout=30,
     )
@@ -182,7 +182,7 @@ CITATION_TOOL = {
 def handle_tool_call(tool_call) -> str:
     args = json.loads(tool_call.function.arguments)
     resp = requests.post(
-        "https://ttruthdesk.claims/api/verify",
+        "https://citation.manus.space/api/verify",
         json=args,
         timeout=30,
     )
@@ -251,7 +251,7 @@ if response.choices[0].message.tool_calls:
 
 - **Homepage**: https://citation.is
 - **API docs**: https://citation.is/developers
-- **MCP manifest**: https://ttruthdesk.claims/.well-known/mcp.json
-- **REST API v2**: https://ttruthdesk.claims/api/v2/
+- **MCP manifest**: https://citation.manus.space/.well-known/mcp.json
+- **REST API v2**: https://citation.manus.space/api/v2/
 - **Claim corpus**: https://citation.is/llms-full.txt
 - **License**: CC BY 4.0

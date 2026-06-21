@@ -1,6 +1,6 @@
 /**
  * TopNav.tsx — Admin-only minimal header
- * ttruthdesk.claims is an internal tool. No public marketing links.
+ * citation.manus.space is an internal tool. No public marketing links.
  */
 import { useAuth } from "@/_core/hooks/useAuth";
 import { openSignInDialog } from "@/const";

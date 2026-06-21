@@ -1,6 +1,6 @@
 # Production Migration Runbook: Sprint 1 & 2 Schema Changes
 
-This runbook outlines the steps to safely apply the `0046_sprint1_sprint2_tables.sql` migration to the production `ttruthdesk.claims` database.
+This runbook outlines the steps to safely apply the `0046_sprint1_sprint2_tables.sql` migration to the production `citation.manus.space` database.
 
 ## 1. Pre-Migration Checklist
 

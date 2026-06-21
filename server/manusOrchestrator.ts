@@ -470,7 +470,7 @@ export function buildDevRepairPrompt(opts: DevRepairOptions): string {
   return `# Autonomous Adapter Repair Task
 
 ## Context
-The ttruthdesk.claims autonomous loop has detected a critical failure in the **${opts.adapterName}** adapter.
+The citation.manus.space autonomous loop has detected a critical failure in the **${opts.adapterName}** adapter.
 System health score: ${opts.healthScore}/100 (critical threshold: 30).
 
 ## Error Log

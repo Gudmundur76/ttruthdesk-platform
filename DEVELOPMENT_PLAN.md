@@ -1,4 +1,4 @@
-# Development Plan — citation.is + ttruthdesk.claims
+# Development Plan — citation.is + citation.manus.space
 
 **Prepared:** June 11, 2026  
 **Author:** Manus AI  
@@ -14,9 +14,9 @@ The product is a two-repository system with a clean separation of concerns.
 | Layer | Repository | Domain | Technology |
 |---|---|---|---|
 | **Public Frontend** | `citation-desk` | `citation.is` | React 19 + Vite + Tailwind v4 + CopilotKit + TanStack Query |
-| **Backend Engine** | `protein-truth-desk` | `ttruthdesk.claims` | Express + tRPC + Drizzle ORM + MySQL + 14 heartbeat cron jobs |
+| **Backend Engine** | `protein-truth-desk` | `citation.manus.space` | Express + tRPC + Drizzle ORM + MySQL + 14 heartbeat cron jobs |
 
-The frontend calls the backend exclusively through the public tRPC API at `https://ttruthdesk.claims/api/trpc`. No auth is required for public procedures. The backend handles all claim extraction, database validation, composite truth scoring, knowledge graph maintenance, and the autonomous re-evaluation loop. The frontend's role is to make that engine's output visible, searchable, and commercially accessible to the world.
+The frontend calls the backend exclusively through the public tRPC API at `https://citation.manus.space/api/trpc`. No auth is required for public procedures. The backend handles all claim extraction, database validation, composite truth scoring, knowledge graph maintenance, and the autonomous re-evaluation loop. The frontend's role is to make that engine's output visible, searchable, and commercially accessible to the world.
 
 The CopilotKit AI assistant is already wired: `CitationCopilot.tsx` feeds live stats, vertical data, and leaderboard rankings into the assistant's context via `useCopilotReadable`, and `server.ts` runs a `ManusLLMAgent` on port 3001 that proxies to the LLM. The assistant answers questions about the knowledge base in real time.
 
@@ -24,7 +24,7 @@ The CopilotKit AI assistant is already wired: `CitationCopilot.tsx` feeds live s
 
 ## 2. What Is Already Built
 
-### 2.1 Backend Engine (ttruthdesk.claims) — Phase 108 Complete
+### 2.1 Backend Engine (citation.manus.space) — Phase 108 Complete
 
 The engine is production-quality. The 8-stage analysis pipeline, 14 autonomous heartbeat cron jobs, 55-table knowledge graph, contradiction detection engine, composite truth scoring, citation chain analysis, and the full admin intelligence layer are all complete and tested.
 
@@ -100,7 +100,7 @@ Wire the existing `paypalCheckout.ts` backend to tRPC procedures (`payment.creat
 **Phase C8 — Onboarding Flow** (`/welcome`) — 2–3 days  
 After a user submits their first audit request, redirect them to a three-step onboarding: (1) what happens next (pipeline explanation with timeline), (2) how to read the report when it arrives, (3) how to explore the knowledge graph. This reduces time-to-value and sets expectations correctly.
 
-### 3.3 Backend Hardening — ttruthdesk.claims
+### 3.3 Backend Hardening — citation.manus.space
 
 **Phase 109 — Score History Backfill Job** — 1–2 days  
 A one-time scheduled job that backfills `claim_score_history` from existing `claims.compositeTruthScore` values so the composite truth timeline sparkline is populated for all claims verified before Phase 108 was deployed.

@@ -8,7 +8,7 @@
 
 ---
 
-You are the citation.is build agent. You work on the `protein-truth-desk` project (`ttruthdesk.claims` backend, `citation.is` frontend). Read this completely before writing any code.
+You are the citation.is build agent. You work on the `protein-truth-desk` project (`citation.manus.space` backend, `citation.is` frontend). Read this completely before writing any code.
 
 ---
 
@@ -39,7 +39,7 @@ bash /home/ubuntu/protein-truth-desk/scripts/session-start.sh
 Call `webdev_save_checkpoint` with description:
 `Sprint 40: domain-aware claim extraction + migration 0049 (claimType varchar64) + buildOrigin Devin fix + CRON_SECRET middleware + llm_provider_quality camelCase fix + MCP SSE tests`
 
-**Step 2 — Publish to ttruthdesk.claims:**
+**Step 2 — Publish to citation.manus.space:**
 
 ```bash
 curl -s -X POST "https://api.manus.ai/v2/website.publish" \
@@ -61,7 +61,7 @@ curl -s "https://api.manus.ai/v2/website.status?website_id=5R5rZPYgTj2s3EMJSc7MV
 
 ## Project Identity
 
-- **Website:** https://ttruthdesk.claims (also https://www.ttruthdesk.claims)
+- **Website:** https://citation.manus.space (also https://www.citation.manus.space)
 - **Website ID:** `5R5rZPYgTj2s3EMJSc7MVm`
 - **Manus webdev project:** `protein-truth-desk` at `/home/ubuntu/protein-truth-desk`
 - **Backend GitHub:** https://github.com/Gudmundur76/ttruthdesk-platform (private)
@@ -119,13 +119,13 @@ You are building a **stateless verification oracle for AI outputs**. The product
 ## Domain Architecture
 
 - `citation.is` — public product, the search UI
-- `ttruthdesk.claims` — canonical backend API base URL (DO NOT use `api.citation.is` — it does not exist)
+- `citation.manus.space` — canonical backend API base URL (DO NOT use `api.citation.is` — it does not exist)
 - `notus.is` — separate agent workspace, calls the same backend (post-launch)
 
 ## Agent Stack
 
 - **Goose 1.37.0** — ACP server on port 3284, ttruthdesk MCP registered as HTTP extension
-- **ttruthdesk MCP** — live at `https://ttruthdesk.claims/api/mcp` — tools: `verify_claim`, `search_claims`, `list_verticals`, `get_corpus_stats`
+- **ttruthdesk MCP** — live at `https://citation.manus.space/api/mcp` — tools: `verify_claim`, `search_claims`, `list_verticals`, `get_corpus_stats`
 - **Pipedream** — external automation and integrations (no n8n)
 - **Spec Kit** — loop engineering discipline (read → verify → test → implement → commit → log)
 - **Memory repo** — `https://github.com/Gudmundur76/manus-persistent-drive` — MANDATORY at every session start and end

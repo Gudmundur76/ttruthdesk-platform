@@ -1,6 +1,6 @@
 /**
  * Home.tsx — Admin redirect
- * ttruthdesk.claims is an internal admin tool. Root redirects to /dashboard.
+ * citation.manus.space is an internal admin tool. Root redirects to /dashboard.
  */
 import { Redirect } from "wouter";
 

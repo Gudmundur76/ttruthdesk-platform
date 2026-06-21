@@ -82,10 +82,10 @@ python3 /home/ubuntu/manus-persistent-drive/scripts/memory.py read sprint_state
 
 This restores corpus density, CI state, domain density, and last commit SHAs from the previous sprint. If the file is missing, re-clone `Gudmundur76/manus-persistent-drive`.
 
-### Step 2 — Verify ttruthdesk.claims/api/mcp is live
+### Step 2 — Verify citation.manus.space/api/mcp is live
 
 ```bash
-curl -s -X POST https://ttruthdesk.claims/api/mcp \
+curl -s -X POST https://citation.manus.space/api/mcp \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_claim","arguments":{"id":1}}}' \
   --max-time 10
@@ -96,7 +96,7 @@ Expected: JSON with `claimText`, `verdict`, `confidence`. If this returns HTML o
 ### Step 3 — Check production stats
 
 ```bash
-curl -s https://ttruthdesk.claims/api/public/stats
+curl -s https://citation.manus.space/api/public/stats
 ```
 
 Compare `totalClaims` against the value stored in Letta memory. If it grew, the autonomous ingest loop is healthy. Record the delta.
@@ -107,7 +107,7 @@ Compare `totalClaims` against the value stored in Letta memory. If it grew, the 
 agentgateway -f infra/agentgateway/config.yaml &
 ```
 
-All MCP traffic must route through the gateway so calls are observable and logged. The config proxies `ttruthdesk.claims/api/mcp` via TLS.
+All MCP traffic must route through the gateway so calls are observable and logged. The config proxies `citation.manus.space/api/mcp` via TLS.
 
 ### Step 5 — Write sprint results to Letta memory (end of sprint)
 
@@ -126,7 +126,7 @@ Then commit and push `manus-persistent-drive` so the memory persists across sand
 
 ## Deployment
 
-The production server at `ttruthdesk.claims` is a Manus webdev deployment. Code changes pushed to `main` are **not** automatically deployed — the webdev project must be republished from the Manus UI. After every sprint that changes server routes or adds new API endpoints, the webdev project must be republished before the new endpoints are live.
+The production server at `citation.manus.space` is a Manus webdev deployment. Code changes pushed to `main` are **not** automatically deployed — the webdev project must be republished from the Manus UI. After every sprint that changes server routes or adds new API endpoints, the webdev project must be republished before the new endpoints are live.
 
 ## Domain Ingest Scheduler
 

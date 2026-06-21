@@ -1,6 +1,6 @@
 # agentgateway v1.2.1 — citation.is MCP proxy
-# SSE endpoint: https://ttruthdesk.claims/mcp (returns text/event-stream)
-# JSON-RPC endpoint: https://ttruthdesk.claims/api/mcp (returns application/json)
+# SSE endpoint: https://citation.manus.space/mcp (returns text/event-stream)
+# JSON-RPC endpoint: https://citation.manus.space/api/mcp (returns application/json)
 binds:
 - port: 3000
   listeners:
@@ -10,12 +10,12 @@ binds:
           targets:
           - name: citation-is-mcp
             sse:
-              host: ttruthdesk.claims
+              host: citation.manus.space
               port: 443
               path: /mcp
             policies:
               backendTLS:
-                hostname: ttruthdesk.claims
+                hostname: citation.manus.space
       policies:
         cors:
           allowOrigins:

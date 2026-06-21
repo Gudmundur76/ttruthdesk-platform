@@ -107,7 +107,7 @@ async function startServer() {
     );
     next();
   });
-  // ── No-index: ttruthdesk.claims is an internal admin tool ─────────────────
+  // ── No-index: citation.manus.space is an internal admin tool ─────────────────
   app.use((_req, res, next) => {
     res.setHeader("X-Robots-Tag", "noindex, nofollow");
     next();
@@ -884,7 +884,7 @@ async function startServer() {
         "Cache-Control": "public, max-age=3600",
       })
       .send(
-        "# ttruthdesk.claims — internal admin tool\nUser-agent: *\nDisallow: /\n"
+        "# citation.manus.space — internal admin tool\nUser-agent: *\nDisallow: /\n"
       );
   });
 

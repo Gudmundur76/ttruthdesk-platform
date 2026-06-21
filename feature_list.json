@@ -6595,7 +6595,7 @@
       "id": "phase-84-remove-payment-ui-domain-rename-008",
       "category": "frontend",
       "phase": "Phase 84: Remove Payment UI + Domain Rename",
-      "description": "Rename ttruthdesk.claims \u2192 truthdesk.claims in all 15 files (92 occurrences total)",
+      "description": "Rename citation.manus.space \u2192 truthdesk.claims in all 15 files (92 occurrences total)",
       "passes": true,
       "notes": ""
     },
@@ -9387,7 +9387,7 @@
       "id": "data-quality-fixes-001",
       "category": "quality",
       "phase": "Data Quality Fixes",
-      "description": "Fix RSS <link> and <guid> to point to citation.is not ttruthdesk.claims",
+      "description": "Fix RSS <link> and <guid> to point to citation.is not citation.manus.space",
       "passes": true,
       "notes": ""
     },

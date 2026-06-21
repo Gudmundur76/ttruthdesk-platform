@@ -3,11 +3,11 @@
  * Version: 1.0.0
  * Size target: <8KB minified
  *
- * Calls ttruthdesk.claims public API from any static site.
+ * Calls citation.manus.space public API from any static site.
  * Zero dependencies. Zero server required on the host site.
  *
  * Usage:
- *   <script src="https://ttruthdesk.claims/embed/sdk.js"></script>
+ *   <script src="https://citation.manus.space/embed/sdk.js"></script>
  *   <div id="truth-desk-widget" data-vertical="structural_biology" data-theme="dark"></div>
  *
  * Or programmatic:
@@ -16,7 +16,7 @@
 (function (global) {
   "use strict";
 
-  var API_BASE = "https://ttruthdesk.claims";
+  var API_BASE = "https://citation.manus.space";
   var VERSION = "1.0.0";
 
   // ─── Verdict colour map ───────────────────────────────────────────────────
@@ -198,7 +198,7 @@
       "</div>" +
       '<div class="td-result-area"></div>' +
       '<div class="td-recent-area"></div>' +
-      '<div class="td-powered"><a href="https://ttruthdesk.claims" target="_blank" rel="noopener">Powered by Truth Desk</a></div>' +
+      '<div class="td-powered"><a href="https://citation.manus.space" target="_blank" rel="noopener">Powered by Truth Desk</a></div>' +
       "</div>";
 
     var input = container.querySelector(".td-input");
