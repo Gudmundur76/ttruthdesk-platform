@@ -29,6 +29,7 @@ import "./plantBasedProtein";
 import "./sportsNutritionRct";
 import "./uniprotVertical";
 import "./clinicalTrialsVertical";
+import "./hivProtease"; // HIV-1 protease inhibitor vertical — novus.is integration (2026-06-21)
 
 // ── Domain-agnostic adapters (approved 2026-06-13) ───────────────────────────
 // These make the engine verifiable across ALL academic disciplines.

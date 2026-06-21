@@ -137,6 +137,26 @@ export const VERTICAL_FEED_CONFIGS: VerticalFeedConfig[] = [
     ],
     maxResultsPerQuery: 60,
   },
+  // ── HIV Protease vertical (novus.is integration, 2026-06-21) ─────────────────
+  {
+    domainKey: "hiv_protease",
+    displayName: "HIV-1 Protease Inhibitors",
+    meshQueries: [
+      // Core HIV protease inhibitor literature
+      '"HIV Protease Inhibitors"[MeSH Terms] AND free full text[sb]',
+      '"HIV Protease"[MeSH Terms] AND "Drug Resistance, Viral"[MeSH Terms] AND free full text[sb]',
+      // Structural biology of HIV PI
+      '"HIV Protease"[MeSH Terms] AND "Crystallography, X-Ray"[MeSH Terms] AND free full text[sb]',
+      '"Darunavir"[Supplementary Concept] AND free full text[sb]',
+      '"Lopinavir"[MeSH Terms] AND free full text[sb]',
+      // Antiretroviral therapy
+      '"Anti-Retroviral Agents"[MeSH Terms] AND "HIV-1"[MeSH Terms] AND free full text[sb]',
+      // Computational drug discovery for HIV PI
+      '"HIV Protease"[MeSH Terms] AND "Drug Design"[MeSH Terms] AND free full text[sb]',
+      '"Molecular Docking Simulation"[MeSH Terms] AND "HIV Protease Inhibitors"[MeSH Terms] AND free full text[sb]',
+    ],
+    maxResultsPerQuery: 50,
+  },
 ];
 
 /** Look up a feed config by vertical domain key. Returns undefined if not found. */
