@@ -25,7 +25,7 @@ import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./t
 
 // ─── HIV-1 Protease Constants ─────────────────────────────────────────────────
 
-const HIV_PROTEASE_UNIPROT = "P03367"; // HIV-1 protease polyprotein
+const _HIV_PROTEASE_UNIPROT = "P03367"; // HIV-1 protease polyprotein (reserved for future UniProt lookup)
 const HIV_PROTEASE_CHEMBL_TARGET = "CHEMBL2094253"; // ChEMBL target ID
 
 /** Known PDB co-crystal structures of HIV-1 protease with approved inhibitors */
@@ -200,25 +200,28 @@ function scoreHivPiRelevance(claimText: string): number {
 
 const hivProteaseAdapter: VerticalAdapter = {
   domainKey: "hiv_protease",
+  displayName: "HIV-1 Protease Inhibitor Verification",
+  description:
+    "Verifies claims about HIV-1 protease inhibitors against PDB co-crystal structures, ChEMBL bioactivity data, and PubMed literature.",
+  claimExtractorPrompt: `
+Extract claims about HIV-1 protease inhibitors, antiretroviral drugs, or HIV protease structure.
+Focus on specific drug names (e.g. darunavir, ritonavir), PDB IDs, or IC50/Ki values.
+Return the key claim as a concise statement.
+`,
+  discoverySearchTerms: [
+    "HIV protease inhibitor binding",
+    "antiretroviral drug HIV-1 protease",
+    "HIV PI PDB crystal structure",
+  ],
 
-  canHandle(claimText: string): boolean {
+  async lookupEvidence(params): Promise<EvidenceResult> {
+    const { claimText } = params;
     const lower = claimText.toLowerCase();
-    return (
-      lower.includes("hiv") ||
-      lower.includes("protease inhibitor") ||
-      lower.includes("antiretroviral") ||
-      APPROVED_HIV_PI_NAMES.some(name => lower.includes(name)) ||
-      Object.keys(HIV_PI_PDB_STRUCTURES).some(id => lower.includes(id.toLowerCase()))
-    );
-  },
-
-  async verify(claimText: string): Promise<EvidenceResult[]> {
     const results: EvidenceResult[] = [];
-    const lower = claimText.toLowerCase();
 
     // 1. Check for PDB IDs in claim text
     const pdbIdRe = /\b([1-9][A-Z0-9]{3})\b/gi;
-    const pdbMatches = [...claimText.matchAll(pdbIdRe)];
+    const pdbMatches = Array.from(claimText.matchAll(pdbIdRe));
     for (const match of pdbMatches.slice(0, 3)) {
       const pdbId = match[1].toUpperCase();
       if (HIV_PI_PDB_STRUCTURES[pdbId]) {
@@ -236,11 +239,10 @@ const hivProteaseAdapter: VerticalAdapter = {
       }
     }
 
-    // 3. If no specific compound found but claim is HIV PI-related,
-    //    return a relevance-scored result using known ground truth
+    // 3. If no specific compound found, return relevance-scored result
     if (results.length === 0) {
       const relevance = scoreHivPiRelevance(claimText);
-      results.push({
+      return {
         found: relevance > 0.3,
         sourceId: `hiv_protease:general`,
         sourceUrl: `https://www.rcsb.org/search?request=%7B%22query%22%3A%7B%22type%22%3A%22terminal%22%2C%22service%22%3A%22text%22%2C%22parameters%22%3A%7B%22value%22%3A%22HIV+protease%22%7D%7D%7D`,
@@ -255,10 +257,13 @@ const hivProteaseAdapter: VerticalAdapter = {
           `${Object.keys(HIV_PI_PDB_STRUCTURES).length} known co-crystal PDB structures`,
           `${APPROVED_HIV_PI_NAMES.length} approved HIV PIs in reference set`,
         ],
-      });
+      };
     }
 
-    return results;
+    // Return the highest-confidence result
+    return results.reduce((best, r) =>
+      r.confidenceScore > best.confidenceScore ? r : best
+    );
   },
 };
 
