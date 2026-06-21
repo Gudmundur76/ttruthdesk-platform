@@ -59,10 +59,10 @@ describe("verificationEventStore", () => {
   });
 
   it("getSummary returns lastVerifiedAt from most recent event", () => {
-    const ts = "2026-06-20T10:00:00.000Z";
-    verificationEventStore.push(
-      makeEvent({ timestamp: "2026-06-20T09:00:00.000Z" })
-    );
+    // Use relative timestamps so the test never falls outside the 24h window.
+    const earlier = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h ago
+    const ts = new Date(Date.now() - 30 * 60 * 1000).toISOString();      // 30m ago
+    verificationEventStore.push(makeEvent({ timestamp: earlier }));
     verificationEventStore.push(makeEvent({ timestamp: ts }));
     const summary = verificationEventStore.getSummary();
     expect(summary.lastVerifiedAt).toBe(ts);
