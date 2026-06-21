@@ -68,7 +68,9 @@ describe("checkRateLimit()", () => {
   });
 
   it("allows up to RATE_LIMIT_MAX requests in a window", async () => {
-    const { checkRateLimit, RATE_LIMIT_MAX } = await import("./telemetryEndpoint");
+    const { checkRateLimit, RATE_LIMIT_MAX } = await import(
+      "./telemetryEndpoint"
+    );
     const ip = "10.0.0.2";
     for (let i = 0; i < RATE_LIMIT_MAX - 1; i++) {
       expect(checkRateLimit(ip).allowed).toBe(true);
@@ -76,7 +78,9 @@ describe("checkRateLimit()", () => {
   });
 
   it("blocks requests after RATE_LIMIT_MAX is exceeded", async () => {
-    const { checkRateLimit, RATE_LIMIT_MAX } = await import("./telemetryEndpoint");
+    const { checkRateLimit, RATE_LIMIT_MAX } = await import(
+      "./telemetryEndpoint"
+    );
     const ip = "10.0.0.3";
     for (let i = 0; i < RATE_LIMIT_MAX; i++) {
       checkRateLimit(ip);
@@ -87,7 +91,9 @@ describe("checkRateLimit()", () => {
   });
 
   it("treats different IPs independently", async () => {
-    const { checkRateLimit, RATE_LIMIT_MAX } = await import("./telemetryEndpoint");
+    const { checkRateLimit, RATE_LIMIT_MAX } = await import(
+      "./telemetryEndpoint"
+    );
     const ipA = "10.0.1.1";
     const ipB = "10.0.1.2";
     // Exhaust ipA
@@ -98,7 +104,7 @@ describe("checkRateLimit()", () => {
   });
 });
 
-// ─── GET /api/telemetry/analytics ──────────────────────────────────────────────
+// ─── GET /api/telemetry/summary ───────────────────────────────────────────────
 
 describe("handleTelemetrySummary()", () => {
   beforeEach(() => {
@@ -112,7 +118,9 @@ describe("handleTelemetrySummary()", () => {
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
     // Extract the summary handler
-    const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
+    const summaryHandler = (
+      app.get as ReturnType<typeof vi.fn>
+    ).mock.calls.find(
       (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
     const req = makeReq();
@@ -133,7 +141,9 @@ describe("handleTelemetrySummary()", () => {
     const { registerTelemetryRoutes } = await import("./telemetryEndpoint");
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
-    const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
+    const summaryHandler = (
+      app.get as ReturnType<typeof vi.fn>
+    ).mock.calls.find(
       (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
@@ -165,7 +175,9 @@ describe("handleTelemetrySummary()", () => {
     );
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
-    const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
+    const summaryHandler = (
+      app.get as ReturnType<typeof vi.fn>
+    ).mock.calls.find(
       (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
@@ -194,7 +206,9 @@ describe("handleTelemetrySummary()", () => {
     const { registerTelemetryRoutes } = await import("./telemetryEndpoint");
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
-    const summaryHandler = (app.get as ReturnType<typeof vi.fn>).mock.calls.find(
+    const summaryHandler = (
+      app.get as ReturnType<typeof vi.fn>
+    ).mock.calls.find(
       (c: unknown[]) => c[0] === "/api/telemetry/analytics"
     )?.[1] as (req: unknown, res: unknown) => Promise<void>;
 
@@ -206,7 +220,7 @@ describe("handleTelemetrySummary()", () => {
   });
 });
 
-// ─── GET /api/telemetry/events-log ──────────────────────────────────────────────
+// ─── GET /api/telemetry/events ────────────────────────────────────────────────
 
 describe("handleTelemetryEvents()", () => {
   beforeEach(() => {
@@ -308,14 +322,14 @@ describe("handleTelemetryEvents()", () => {
 // ─── registerTelemetryRoutes ──────────────────────────────────────────────────
 
 describe("registerTelemetryRoutes()", () => {
-  it("registers both /api/telemetry/analytics and /api/telemetry/events-log", async () => {
+  it("registers both /api/telemetry/summary and /api/telemetry/events", async () => {
     vi.resetModules();
     const { registerTelemetryRoutes } = await import("./telemetryEndpoint");
     const app = { get: vi.fn() } as unknown as import("express").Express;
     registerTelemetryRoutes(app);
-    const registeredPaths = (app.get as ReturnType<typeof vi.fn>).mock.calls.map(
-      (c: unknown[]) => c[0]
-    );
+    const registeredPaths = (
+      app.get as ReturnType<typeof vi.fn>
+    ).mock.calls.map((c: unknown[]) => c[0]);
     expect(registeredPaths).toContain("/api/telemetry/analytics");
     expect(registeredPaths).toContain("/api/telemetry/events-log");
   });

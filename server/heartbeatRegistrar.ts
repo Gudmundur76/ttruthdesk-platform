@@ -79,91 +79,91 @@ export const REGISTERED_CRON_JOBS: RegisteredCronJob[] = [
   },
   {
     name: "domain-ingest-6h",
-    taskUid: "PrRB8eBgFuH2XA4QowVNAY",
+    taskUid: "UwL3QmYbjsPo7FcGvLdvEX",
     cron: "0 0 */6 * * *",
     path: "/api/scheduled/domain-ingest",
     description:
       "Sprint 14 domain ingest: autonomous PubMed ingest for 5 scientific domains " +
       "(biology, medicine, chemistry, physics, climate). 3 targeted queries per domain, " +
       "400ms rate-limiting. Grows claim density toward 50-pair SLM training threshold.",
-    registeredAt: "2026-06-15T10:26:12Z",
+    registeredAt: "2026-06-21T20:21:04Z",
   },
   // ── Weekly ─────────────────────────────────────────────────────────────────
   {
     name: "contradiction-scan",
-    taskUid: "a6oNML4AmNbtxP3eT5HYbi",
+    taskUid: "cabGs6AYFdmJkWbcCoLZY8",
     cron: "0 0 0 * * 1",
     path: "/api/scheduled/contradiction-scan",
     description:
       "Weekly contradiction detection (Phase 107): traverses semantic_similar edges in graph_claim_edges and flags claim pairs with opposing composite truth labels. Persists findings to contradiction_alerts idempotently.",
-    registeredAt: "2026-06-11T17:27:00Z",
+    registeredAt: "2026-06-21T20:22:04Z",
   },
 
   // ── Daily ──────────────────────────────────────────────────────────────────
   {
     name: "discovery-loop-daily",
-    taskUid: "HJNZAnv3s94nW5UX62NAYY",
+    taskUid: "8zutBb7ALstaRneURCfQUq",
     cron: "0 0 8 * * *",
     path: "/api/scheduled/discovery-loop",
     description: "Daily multi-source structural biology discovery",
-    registeredAt: "2026-06-02T13:16:12Z",
+    registeredAt: "2026-06-21T20:21:54Z",
   },
   {
     name: "pmc-feed-nightly",
-    taskUid: "h2QAmaESjsBDZJo7NTsya4",
+    taskUid: "8KZcJgzfnDoLMUx2hGzUEv",
     cron: "0 0 1 * * *",
     path: "/api/scheduled/pmc-feed",
     description:
       "Nightly PMC OA bulk feed: queries PubMed for each vertical's MeSH terms, fetches abstracts + full-text, filters by signal density, deduplicates, queues new papers through the audit pipeline",
-    registeredAt: "2026-06-07T03:08:54Z",
+    registeredAt: "2026-06-21T20:21:26Z",
   },
   {
     name: "quality-pass-nightly",
-    taskUid: "kEgPRbBMwrf2oCWKtdHm4w",
+    taskUid: "c4Bc6DsqoM94zshwQCJLSm",
     cron: "0 0 2 * * *",
     path: "/api/scheduled/quality-pass",
     description:
       "Nightly quality pass: re-processes draft-tier documents with Kimi K2, upgrades qualityTier to verified. Runs after pmc-feed-nightly (01:00 UTC) to catch newly ingested papers.",
-    registeredAt: "2026-06-07T03:09:01Z",
+    registeredAt: "2026-06-21T20:21:36Z",
   },
   {
     name: "swarm-tick-daily",
-    taskUid: "AoNAhprxvnq4yvosxr2j4q",
+    taskUid: "aDwUNqnMUu5K2TMABusY4H",
     cron: "0 0 3 * * *",
     path: "/api/scheduled/swarm-tick",
     description:
       "Daily meta-agent swarm tick: Agent 7 (codeGuardianAgent) runs code drift, stub ledger, pipeline invariants, and health score; all agents persist findings to meta_agent_checks",
-    registeredAt: "2026-06-06T22:09:46Z",
+    registeredAt: "2026-06-21T20:21:46Z",
   },
 
   // ── Phase 109: Source Version Agent (daily 03:30 UTC) ───────────────
   {
     name: "source-version-agent",
-    taskUid: "J7qa6QT6eCCfEXeMXeHXac",
+    taskUid: "V8Fb9vuAs77ZQJumPpQ5DK",
     cron: "0 30 3 * * *",
     path: "/api/scheduled/source-version-agent",
     description:
       "Daily source version tracking (Phase 109): polls approved sources, computes hash, detects changes, queues affected claims for re-evaluation. Runs at 03:30 UTC.",
-    registeredAt: "2026-06-13T13:06:00Z",
+    registeredAt: "2026-06-21T20:21:54Z",
   },
 
   // ── Weekly ─────────────────────────────────────────────────────────────────
   {
     name: "pubmed-decode-weekly",
-    taskUid: "5Zy2k7Dt2ot6wK376ekNES",
+    taskUid: "JZfnUdnBk6Ax5B8hmpxKrb",
     cron: "0 0 6 * * 1",
     path: "/api/scheduled/pubmed-ingest",
     description: "Weekly deCODE Genetics PubMed scan",
-    registeredAt: "2026-06-02T13:16:04Z",
+    registeredAt: "2026-06-21T20:22:04Z",
   },
   {
     name: "wiki-engine-lint-weekly",
-    taskUid: "XfobFAegPui3QapN7k49tq",
+    taskUid: "HisG4paUtsy8Nk2zrhkJoh",
     cron: "0 0 2 * * 0",
     path: "/api/scheduled/wiki-engine-lint",
     description:
       "Weekly wiki knowledge-layer lint: detect contradictions, orphan pages, stale claims, missing cross-refs, then rebuild the index",
-    registeredAt: "2026-06-06T20:30:55Z",
+    registeredAt: "2026-06-21T20:22:07Z",
   },
 ];
 

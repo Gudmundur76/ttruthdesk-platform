@@ -69,7 +69,7 @@ export function createEnvelope(
 
 export const DocumentSubmittedPayload = z.object({
   documentId: z.number().int().positive(),
-  userId: z.number().int().positive(),
+  userId: z.number().int().positive().optional(),
   verticalDomain: z.string().optional(),
 });
 
@@ -77,7 +77,24 @@ export const PaperDiscoveredPayload = z.object({
   pmid: z.string().optional(),
   doi: z.string().optional(),
   title: z.string(),
-  source: z.enum(["pubmed", "biorxiv", "pdb_linked"]).optional(),
+  source: z
+    .enum([
+      "pubmed",
+      "biorxiv",
+      "pdb_linked",
+      "crossref",
+      "uniprot",
+      "pdb",
+      "rcsb",
+      "chembl",
+      "openalex",
+      "semantic_scholar",
+      "arxiv",
+      "europepmc",
+      "ncbi",
+      "domain-ingest",
+    ])
+    .optional(),
   autoIngestedPaperId: z.number().int().positive().optional(),
 });
 
@@ -192,7 +209,11 @@ export const FrontierDirectivePayload = z.object({
   priority: z.number().int().min(1).max(10).default(5),
   targetGapIds: z.array(z.string()),
   maxIterations: z.number().int().positive().default(10),
-  evidenceStrengthThreshold: z.number().min(0).max(1).default(0.6 as number),
+  evidenceStrengthThreshold: z
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.6 as number),
 });
 
 export const FrontierCompletePayload = z.object({
@@ -206,7 +227,11 @@ export const FrontierCompletePayload = z.object({
 export const DreamSessionRequestPayload = z.object({
   requestId: z.string().uuid(),
   evidenceIds: z.array(z.string().or(z.number())),
-  minEvidenceStrength: z.number().min(0).max(1).default(0.7 as number),
+  minEvidenceStrength: z
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.7 as number),
   scheduledFor: z.string().optional(), // ISO 8601
 });
 
@@ -253,8 +278,10 @@ export type ExtendedLoopEventType =
   | "dream_session_approved"
   | "dream_complete";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const EVENT_PAYLOAD_SCHEMAS: Record<ExtendedLoopEventType, z.ZodType<any>> = {
+export const EVENT_PAYLOAD_SCHEMAS: Record<
+  ExtendedLoopEventType,
+  z.ZodType<any> // eslint-disable-line @typescript-eslint/no-explicit-any
+> = {
   document_submitted: DocumentSubmittedPayload,
   paper_discovered: PaperDiscoveredPayload,
   source_data_changed: SourceDataChangedPayload,

@@ -127,7 +127,7 @@ describe("requireJobTaskUid", () => {
 
   it("returns the correct taskUid for pmc-feed-nightly", () => {
     const uid = requireJobTaskUid("pmc-feed-nightly");
-    expect(uid).toBe("h2QAmaESjsBDZJo7NTsya4");
+    expect(uid).toBe("8KZcJgzfnDoLMUx2hGzUEv");
   });
 
   it("throws for an unknown job name", () => {
