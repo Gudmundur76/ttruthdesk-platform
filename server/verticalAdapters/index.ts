@@ -30,6 +30,7 @@ import "./sportsNutritionRct";
 import "./uniprotVertical";
 import "./clinicalTrialsVertical";
 import "./hivProtease"; // HIV-1 protease inhibitor vertical — novus.is integration (2026-06-21)
+import "./molecularDiscovery"; // ASI-Evolve molecular discovery engine — QUANTUM_DUAL tier (2026-06-22)
 
 // ── Domain-agnostic adapters (approved 2026-06-13) ───────────────────────────
 // These make the engine verifiable across ALL academic disciplines.

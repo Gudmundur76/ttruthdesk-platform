@@ -86,4 +86,10 @@ export const ENV = {
   // OR CRON_SECRET (sandbox / external callers) — whichever is non-empty and matches.
   // This allows Manus to trigger the 5-domain PubMed ingest on demand from the sandbox.
   cronSecret: process.env.CRON_SECRET ?? "",
+  // ASI-Evolve molecular discovery engine integration
+  // Set ASI_EVOLVE_URL to the deployed asi-evolve-discovery-engine base URL.
+  // e.g. https://hivprotease-eq9ltmms.manus.space
+  // When set, the molecularDiscovery vertical adapter fetches top candidates and
+  // emits them to citation.is as QUANTUM_DUAL-tier verified claims.
+  asiEvolveUrl: process.env.ASI_EVOLVE_URL ?? "https://hivprotease-eq9ltmms.manus.space",
 };
