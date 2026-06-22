@@ -150,7 +150,7 @@ function matchScore(candidate: AsiEvolveCandidate, claimText: string): number {
 /**
  * Emit a verified molecular candidate to citation.is via POST /api/public/verify-claim.
  *
- * Returns the permanent citation.is URL if the claim was accepted, or null on failure.
+ * Returns the permanent citation.manus.space URL if the claim was accepted, or null on failure.
  * The returned URL is stored back in the asi-evolve Cognition Store via the
  * /api/candidates/{cycle_id}/citation-id endpoint (Phase 4 bridge).
  */

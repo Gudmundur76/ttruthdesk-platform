@@ -90,6 +90,7 @@ export const ENV = {
   // Set ASI_EVOLVE_URL to the deployed asi-evolve-discovery-engine base URL.
   // e.g. https://hivprotease-eq9ltmms.manus.space
   // When set, the molecularDiscovery vertical adapter fetches top candidates and
-  // emits them to citation.is as QUANTUM_DUAL-tier verified claims.
+  // emits them to citation.manus.space as QUANTUM_DUAL-tier verified claims.
+  // citation.manus.space is the canonical public URL for this ttruthdesk deployment.
   asiEvolveUrl: process.env.ASI_EVOLVE_URL ?? "https://hivprotease-eq9ltmms.manus.space",
 };
