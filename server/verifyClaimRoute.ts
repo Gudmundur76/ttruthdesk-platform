@@ -94,7 +94,7 @@ async function persistVerifiedClaim(opts: {
       documentId,
       claimText: opts.claimText,
       claimType: opts.claimType,
-      verdict: opts.verdict as any,
+      verdict: opts.verdict as "Supported" | "Contradicted" | "Partially Supported" | "Ambiguous" | "Insufficient Evidence" | "Out of Scope" | "Needs Expert Review",
       verdictRationale: opts.verdictRationale,
       confidenceScore: opts.confidenceScore,
       proteinName: opts.proteinName ?? undefined,
