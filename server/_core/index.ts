@@ -1315,6 +1315,19 @@ async function startServer() {
     "/api/webhook",
     express.raw({ type: "application/json", limit: "1mb" })
   );
+  // self-direct raw body capture (MUST be before global express.json so rawBody is populated)
+  app.post(
+    "/api/self-direct/spec-ready",
+    express.raw({ type: "application/json", limit: "1mb" }),
+    (req: express.Request & { rawBody?: string }, _res, next) => {
+      const raw = (req.body as Buffer)?.toString("utf8") ?? "";
+      req.rawBody = raw;
+      // express.raw() consumes the stream; parse manually so req.body is a JS object
+      try { req.body = JSON.parse(raw); } catch { req.body = {}; }
+      next();
+    },
+    (req, res) => void handleSpecReady(req, res)
+  );
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "10mb" }));
@@ -1878,16 +1891,7 @@ async function startServer() {
   registerEmbedRoutes(app);
   // Hostinger inbound signed webhook — receives events from all Hostinger-hosted sites
   registerHostingerWebhookRoute(app);
-  // self-direct inbound webhook — spec proposals and human YES/NO decisions
-  app.post(
-    "/api/self-direct/spec-ready",
-    express.raw({ type: "application/json", limit: "1mb" }),
-    (req: express.Request & { rawBody?: string }, _res, next) => {
-      req.rawBody = (req.body as Buffer)?.toString("utf8") ?? "";
-      express.json({ limit: "1mb" })(req, _res, next);
-    },
-    (req, res) => void handleSpecReady(req, res)
-  );
+  // self-direct decision endpoint (spec-ready is registered before global json middleware above)
   app.post(
     "/api/self-direct/decision",
     (req, res) => void handleDecision(req, res)
