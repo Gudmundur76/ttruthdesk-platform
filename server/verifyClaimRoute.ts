@@ -55,7 +55,60 @@ import type { EvidenceResult } from "./verticalAdapters/types";
 import "./verticalAdapters"; // ensure all adapters are registered
 import { translateQueryToClaims } from "./_queryTranslator";
 import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
-import { findClaimByText, getContradictionsForClaim } from "./db";
+import { findClaimByText, getContradictionsForClaim, createDocument, insertClaims } from "./db";
+
+// ─── System user ID (mirrors agentIngestionEndpoint.ts) ──────────────────────
+const SYSTEM_USER_ID = 1;
+
+/**
+ * Persist a verified claim to the database and return its new row ID.
+ *
+ * Creates a synthetic "agent" document to satisfy the NOT NULL documentId
+ * foreign key, then inserts the claim with the full verdict payload.
+ * Returns null if the DB is unavailable or the insert fails — the caller
+ * should treat this as non-fatal and still return the verification result.
+ */
+async function persistVerifiedClaim(opts: {
+  claimText: string;
+  claimType: string;
+  verdict: string;
+  verdictRationale: string;
+  confidenceScore: number;
+  proteinName: string | null;
+  pdbId: string | null;
+  vertical: string | null;
+}): Promise<number | null> {
+  try {
+    const documentId = await createDocument({
+      userId: SYSTEM_USER_ID,
+      title: opts.claimText.slice(0, 512),
+      sourceType: "paste",
+      rawText: opts.claimText,
+      status: "complete",
+      verticalDomain: opts.vertical ?? "general",
+      llmProvider: "verify-claim-agent",
+      qualityTier: "verified",
+      needsReview: false,
+    });
+    await insertClaims([{
+      documentId,
+      claimText: opts.claimText,
+      claimType: opts.claimType,
+      verdict: opts.verdict as any,
+      verdictRationale: opts.verdictRationale,
+      confidenceScore: opts.confidenceScore,
+      proteinName: opts.proteinName ?? undefined,
+      pdbId: opts.pdbId ?? undefined,
+      verdictMethod: "confidence_threshold",
+    }]);
+    // Retrieve the newly inserted claim ID
+    const saved = await findClaimByText(opts.claimText).catch(() => null);
+    return saved?.id ?? null;
+  } catch {
+    // Non-fatal — verification result is still returned without a claimId
+    return null;
+  }
+}
 import { extractSpoTriple } from "./spoExtractor";
 import { logger, errData } from "./logger";
 import { fireVerdictWebhook, buildVerdictPayload } from "./verdictWebhookRoute";
@@ -583,6 +636,23 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       signalDensity
     );
 
+    // ── Step 5: Persist claim to database if not already in registry ─────────────
+    // Ensures every verified claim gets a permanent claimId and citation URL.
+    // Fire-and-forget for new claims; uses existing registryClaimId for known ones.
+    let finalClaimId: number | null = registryClaimId;
+    if (registryClaimId === null) {
+      finalClaimId = await persistVerifiedClaim({
+        claimText,
+        claimType: primaryClaimType,
+        verdict: bestVerdictResult!.verdict,
+        verdictRationale: bestVerdictResult!.rationale,
+        confidenceScore,
+        proteinName: primaryProteinName,
+        pdbId: primaryPdbId,
+        vertical,
+      });
+    }
+
     res.json({
       ok: true,
       claim: claimText,
@@ -596,8 +666,8 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       signalDensity,
       confidenceScore,
       claimText,
-      // Sprint 12: surface registry ID when claim is already known
-      claimId: registryClaimId,
+      // Sprint 12 + persist fix: always return claimId (new or existing)
+      claimId: finalClaimId,
       // Sprint 21: SPO triple — normalized subject–predicate–object (Perplexity Doc 1 + Doc 3)
       spo: spoTriple
         ? {
