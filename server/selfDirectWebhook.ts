@@ -6,24 +6,29 @@
  * POST /api/self-direct/spec-ready
  *   - Verifies HMAC-SHA256 signature (x-self-direct-signature: sha256=<hex>)
  *   - Stores the spec in self_direct_specs table
- *   - Calls notifyOwner() so the spec appears in the Manus chat session
+ *   - Calls notifyOwner() so the spec appears in the Manus chat session as a YES/NO prompt
  *
  * POST /api/self-direct/decision
  *   - Accepts { specId, decision: "approve" | "reject" }
  *   - Updates the spec status in the DB
- *   - Calls the self-direct CLI via HTTP to advance the state machine
+ *   - Executes `pnpm --prefix /home/ubuntu/self-direct meta:apply <specId>` on approve
+ *   - Notifies owner of the outcome
  *
  * Both endpoints are public (no session cookie required) but are protected
- * by the HMAC secret for spec-ready and by the CRON_SECRET for decision.
+ * by the HMAC secret for spec-ready and by the CRON_SECRET/webhookSecret for decision.
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
+import { exec } from "child_process";
+import { promisify } from "util";
 import type { Request, Response } from "express";
 import { getDb } from "./db";
 import { selfDirectSpecs } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
+
+const execAsync = promisify(exec);
 
 // ─── HMAC verification ────────────────────────────────────────────────────────
 
@@ -58,7 +63,6 @@ export async function handleSpecReady(
 
   // Accept both the self-direct NotificationPayload shape and the direct spec shape
   const payload = req.body as {
-    // NotificationPayload fields (from self-direct notifier)
     type?: string;
     title?: string;
     body?: string;
@@ -69,7 +73,6 @@ export async function handleSpecReady(
     afterRate?: number;
     delta?: number;
     timestamp?: string;
-    // Direct spec fields (for manual / test calls)
     summary?: string;
     spec?: unknown;
     beforeF1?: number;
@@ -79,21 +82,16 @@ export async function handleSpecReady(
   const specId = payload.specId;
   const adapterId = payload.adapterId;
   const title = payload.title;
-  // Map NotificationPayload.body → summary, or use summary directly
   const summary = payload.summary ?? payload.body;
-  // Store the full payload as the spec JSON when no explicit spec field
   const spec = payload.spec ?? payload;
   const beforeF1 = payload.beforeF1 ?? payload.beforeRate;
   const afterF1Predicted = payload.afterF1Predicted ?? payload.afterRate;
 
   if (!specId || !adapterId || !title || !summary) {
-    res
-      .status(400)
-      .json({
-        ok: false,
-        error:
-          "Missing required fields: specId, adapterId, title, summary (or body)",
-      });
+    res.status(400).json({
+      ok: false,
+      error: "Missing required fields: specId, adapterId, title, summary (or body)",
+    });
     return;
   }
 
@@ -130,18 +128,19 @@ export async function handleSpecReady(
   // Build the notification that appears in the Manus chat session
   const f1Line =
     beforeF1 != null && afterF1Predicted != null
-      ? `\nF1: ${(beforeF1 * 100).toFixed(1)}% → predicted ${(afterF1Predicted * 100).toFixed(1)}% after fix`
+      ? `\n📊 F1: ${(beforeF1 * 100).toFixed(1)}% → predicted ${(afterF1Predicted * 100).toFixed(1)}% after fix`
       : "";
 
   const notifContent =
-    `**Adapter:** ${adapterId}${f1Line}\n\n` +
-    `${summary}\n\n` +
+    `🔧 **Adapter:** \`${adapterId}\`${f1Line}\n\n` +
+    `**What self-direct proposes:**\n${summary}\n\n` +
     `**Spec ID:** \`${specId}\`\n\n` +
-    `Reply **YES** to apply this fix or **NO** to reject it.\n` +
-    `(I will call \`POST /api/self-direct/decision\` on your behalf.)`;
+    `---\n` +
+    `Reply **YES** to apply this fix automatically, or **NO** to reject it.\n` +
+    `I will act on your reply immediately.`;
 
   await notifyOwner({
-    title: `self-direct: Fix spec ready — ${title}`,
+    title: `🤖 self-direct: Fix ready — ${title}`,
     content: notifContent,
   }).catch((err: unknown) => {
     console.warn("[selfDirectWebhook] notifyOwner failed:", err);
@@ -158,9 +157,7 @@ export async function handleDecision(
 ): Promise<void> {
   // Accept CRON_SECRET or selfDirectWebhookSecret as bearer token
   const auth = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
-  const validTokens = [ENV.cronSecret, ENV.selfDirectWebhookSecret].filter(
-    Boolean
-  );
+  const validTokens = [ENV.cronSecret, ENV.selfDirectWebhookSecret].filter(Boolean);
   if (!validTokens.some(t => t === auth)) {
     res.status(401).json({ ok: false, error: "Unauthorized" });
     return;
@@ -172,12 +169,10 @@ export async function handleDecision(
   };
 
   if (!specId || (decision !== "approve" && decision !== "reject")) {
-    res
-      .status(400)
-      .json({
-        ok: false,
-        error: "Required: specId, decision ('approve'|'reject')",
-      });
+    res.status(400).json({
+      ok: false,
+      error: "Required: specId, decision ('approve'|'reject')",
+    });
     return;
   }
 
@@ -198,18 +193,58 @@ export async function handleDecision(
     return;
   }
 
-  // Notify owner of the decision outcome
+  // Execute the self-direct CLI to apply or reject the spec
+  const cliCmd =
+    decision === "approve"
+      ? `pnpm --prefix /home/ubuntu/self-direct meta:apply ${specId}`
+      : `pnpm --prefix /home/ubuntu/self-direct meta:reject ${specId}`;
+
+  let cliOutput = "";
+  try {
+    const { stdout, stderr } = await execAsync(cliCmd, { timeout: 60_000 });
+    cliOutput = (stdout + stderr).trim().slice(0, 500);
+    console.log(`[selfDirectWebhook] CLI ${decision}: ${cliOutput}`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[selfDirectWebhook] CLI ${decision} failed: ${msg}`);
+    cliOutput = `CLI error: ${msg.slice(0, 200)}`;
+  }
+
+  // Notify owner of the outcome
   const verb = decision === "approve" ? "approved ✅" : "rejected ❌";
+  const outcomeDetail =
+    decision === "approve"
+      ? `Fix is being applied. self-direct will monitor and report back.\n\n\`\`\`\n${cliOutput}\n\`\`\``
+      : `No changes made. self-direct continues watching.`;
+
   await notifyOwner({
-    title: `self-direct: Spec ${verb}`,
-    content:
-      `Spec \`${specId}\` has been **${verb}**.\n\n` +
-      (decision === "approve"
-        ? "self-direct will now apply the fix and report back when monitoring confirms improvement."
-        : "No changes will be made. self-direct continues watching."),
+    title: `self-direct: Spec ${verb} — ${specId}`,
+    content: `Spec \`${specId}\` has been **${verb}**.\n\n${outcomeDetail}`,
   }).catch((err: unknown) => {
     console.warn("[selfDirectWebhook] notifyOwner (decision) failed:", err);
   });
 
-  res.json({ ok: true, specId, status });
+  res.json({ ok: true, specId, status, cliOutput });
+}
+
+// ─── Helper: list pending specs (used by tRPC router) ────────────────────────
+
+export async function getPendingSpecs() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(selfDirectSpecs)
+    .where(eq(selfDirectSpecs.status, "pending_review"))
+    .orderBy(selfDirectSpecs.createdAt);
+}
+
+export async function getAllSpecs(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(selfDirectSpecs)
+    .orderBy(selfDirectSpecs.createdAt)
+    .limit(limit);
 }

@@ -876,6 +876,23 @@ function AdminContent() {
         </a>
       </div>
 
+      {/* Self-Direct */}
+      <div className="bg-white rounded-xl border border-yellow-200 p-6 shadow-sm">
+        <h2 className="font-semibold text-slate-900 mb-2">🤖 Self-Direct</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Autonomous adapter improvement loop. Polls citation.manus.space every
+          5 minutes, detects adapters with declining F1 scores, generates fix
+          specs, and notifies you in chat for YES/NO approval. Approved fixes
+          are applied automatically.
+        </p>
+        <a
+          href="/admin/self-direct"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black text-sm font-medium rounded-md transition-colors"
+        >
+          Review Pending Specs
+        </a>
+      </div>
+
       {/* Inverse Prompt Architecture */}
       <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
         <h2 className="font-semibold text-slate-900 mb-2">

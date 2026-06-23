@@ -61,6 +61,8 @@ const EvidenceTimeline = lazy(() => import("@/pages/EvidenceTimeline"));
 const VerticalLeaderboard = lazy(() => import("@/pages/VerticalLeaderboard"));
 const WebhookDeliveryLog = lazy(() => import("@/pages/WebhookDeliveryLog"));
 const Frontier = lazy(() => import("@/pages/Frontier"));
+const QuantumJobs = lazy(() => import("@/pages/QuantumJobs"));
+const SelfDirectAdmin = lazy(() => import("@/pages/SelfDirectAdmin"));
 const SelfPromptDashboard = lazy(() => import("@/pages/SelfPromptDashboard"));
 const InversePromptDashboard = lazy(
   () => import("@/pages/InversePromptDashboard")
@@ -70,7 +72,6 @@ const AutonomousLoopDashboard = lazy(
 );
 const OverridesDashboard = lazy(() => import("@/pages/OverridesDashboard"));
 const DreamDashboard = lazy(() => import("@/pages/DreamDashboard"));
-const QuantumJobs = lazy(() => import("@/pages/QuantumJobs"));
 const SourceWhitelist = lazy(() => import("@/pages/SourceWhitelist"));
 const AdminCrons = lazy(() => import("@/pages/AdminCrons"));
 const AdminVerticals = lazy(() => import("@/pages/AdminVerticals"));
@@ -134,6 +135,8 @@ function Router() {
         <Route path="/leaderboard" component={VerticalLeaderboard} />
         <Route path="/admin/webhooks" component={WebhookDeliveryLog} />
         <Route path="/admin/frontier" component={Frontier} />
+        <Route path="/admin/quantum-jobs" component={QuantumJobs} />
+        <Route path="/admin/self-direct" component={SelfDirectAdmin} />
         <Route path="/admin/self-prompt" component={SelfPromptDashboard} />
         <Route
           path="/admin/inverse-prompt"
@@ -142,7 +145,6 @@ function Router() {
         <Route path="/admin/loop" component={AutonomousLoopDashboard} />
         <Route path="/admin/overrides" component={OverridesDashboard} />
         <Route path="/admin/dream" component={DreamDashboard} />
-        <Route path="/admin/quantum-jobs" component={QuantumJobs} />
         <Route path="/admin/sources" component={SourceWhitelist} />
         <Route path="/admin/crons" component={AdminCrons} />
         <Route path="/admin/contradictions" component={AdminContradictions} />

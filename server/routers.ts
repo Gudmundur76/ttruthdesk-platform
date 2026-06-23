@@ -42,6 +42,7 @@ import { checkAuditLimit } from "./academicDomains";
 import { getEmailUserById, incrementEmailUserAuditCount } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { runAnalysisPipeline } from "./analysisPipeline";
+import { inferDomainFromText } from "./domainInference";
 import { storagePut } from "./storage";
 import { translateQueryToClaims } from "./_queryTranslator";
 import { verdictForClaim } from "./pdbAdapter";
@@ -147,12 +148,13 @@ export const appRouter = router({
             }
           }
         }
+        const inferredDomain = input.verticalDomain ?? inferDomainFromText(input.text);
         const docId = await createDocument({
           userId: ctx.user.id,
           title: input.title,
           sourceType: "paste",
           rawText: input.text,
-          verticalDomain: input.verticalDomain ?? "structural_biology",
+          verticalDomain: inferredDomain,
           preflightResult: input.preflightResult ?? null,
         });
         // Increment audit count for email users
@@ -207,6 +209,7 @@ export const appRouter = router({
             }
           }
         }
+        const inferredDomain = input.verticalDomain ?? inferDomainFromText(input.rawText);
         const docId = await createDocument({
           userId: ctx.user.id,
           title: input.title,
@@ -215,7 +218,7 @@ export const appRouter = router({
           storageKey: input.storageKey,
           storageUrl: input.storageUrl,
           rawText: input.rawText,
-          verticalDomain: input.verticalDomain ?? "structural_biology",
+          verticalDomain: inferredDomain,
           preflightResult: input.preflightResult ?? null,
         });
         // Increment audit count for email users
@@ -1495,6 +1498,87 @@ Respond in this exact structure:
           "Backfill running in background. Check server logs or Telegram for progress.",
       };
     }),
+
+    /**
+     * Re-infer verticalDomain for all documents that were processed under
+     * 'structural_biology' (the old hard-coded default) and re-run the
+     * analysis pipeline so their claims get proper evidence lookup.
+     * Returns { queued, skipped } immediately; processing runs in background.
+     * Pass dryRun: true to preview which documents would be re-processed.
+     */
+    backfillDomains: protectedProcedure
+      .input(
+        z.object({
+          dryRun: z.boolean().optional().default(false),
+          limit: z.number().min(1).max(500).optional().default(100),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { ENV } = await import("./_core/env");
+        if (ctx.user.role !== "admin" && ctx.user.openId !== ENV.ownerOpenId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Owner or admin access required",
+          });
+        }
+        const { getAllCompletedDocuments, updateDocumentStatus, getDb } = await import("./db");
+        const docs = await getAllCompletedDocuments(input.limit);
+        // Only re-process documents whose domain was the old hard-coded default
+        const targets = docs.filter(
+          d =>
+            d.verticalDomain === "structural_biology" ||
+            d.verticalDomain === null ||
+            d.verticalDomain === undefined
+        );
+        if (input.dryRun) {
+          return {
+            queued: 0,
+            skipped: docs.length - targets.length,
+            wouldProcess: targets.map(d => ({
+              id: d.id,
+              title: d.title,
+              currentDomain: d.verticalDomain ?? "(null)",
+              inferredDomain: inferDomainFromText(
+                (d.title ?? "") + " " + (d.rawText ?? "")
+              ),
+            })),
+          };
+        }
+        // Fire-and-forget: update domain + re-run pipeline for each target
+        let queued = 0;
+        for (const doc of targets) {
+          if (!doc.rawText) continue;
+          const newDomain = inferDomainFromText(
+            (doc.title ?? "") + " " + doc.rawText
+          );
+          if (newDomain === "structural_biology") continue; // still structural — skip
+          // Update domain and reset status to pending
+          await updateDocumentStatus(doc.id, "pending");
+          const drizzle = await getDb();
+          if (drizzle) {
+            const { documents } = await import("../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await drizzle
+              .update(documents)
+              .set({ verticalDomain: newDomain })
+              .where(eq(documents.id, doc.id));
+          }
+          // Re-run the full pipeline with the corrected domain
+          runAnalysisPipeline(
+            doc.id,
+            doc.rawText,
+            doc.userId ?? ctx.user.id
+          ).catch(err =>
+            log.error(`[backfillDomains] Pipeline error for doc ${doc.id}:`, err)
+          );
+          queued++;
+        }
+        return {
+          queued,
+          skipped: docs.length - targets.length,
+          wouldProcess: [],
+        };
+      }),
 
     /**
      * Returns how many completed documents have been wiki-compiled vs. pending.
@@ -3290,6 +3374,44 @@ Respond in this exact structure:
         };
       }),
 
+    /** Quantum provenance for a single claim — reads citation_edges.quantumProvenance */
+    getQuantumProvenance: publicProcedure
+      .input(z.object({ claimId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { eq } = await import("drizzle-orm");
+        const { citationEdges } = await import("../drizzle/schema");
+        const db = await getDb();
+        if (!db) return { claimId: input.claimId, edges: [] };
+        const rows = await db
+          .select({
+            id: citationEdges.id,
+            hopNumber: citationEdges.hopNumber,
+            targetPmid: citationEdges.targetPmid,
+            targetTitle: citationEdges.targetTitle,
+            quantumProvenance: citationEdges.quantumProvenance,
+          })
+          .from(citationEdges)
+          .where(eq(citationEdges.originalClaimId, input.claimId));
+        return {
+          claimId: input.claimId,
+          edges: rows.map((row) => ({
+            id: row.id,
+            hopNumber: row.hopNumber,
+            targetPmid: row.targetPmid ?? null,
+            targetTitle: row.targetTitle ?? null,
+            quantumProvenance: (row.quantumProvenance ?? null) as {
+              vqe_score?: number;
+              vqe_hardware?: string;
+              gbs_similarity?: number;
+              gbs_hardware?: string;
+              provenance_type?: string;
+              provenance_status?: string;
+            } | null,
+          })),
+        };
+      }),
+
     /** Record a manual provenance event (admin only) */
     recordManualStep: protectedProcedure
       .input(
@@ -3815,9 +3937,7 @@ Respond in this exact structure:
     /** Build3: /health/frontier — circuit breaker state + metrics snapshot (FR-L3-33) */
     health: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      const { frontierCircuitBreaker } = await import(
-        "./frontier/circuitBreaker"
-      );
+      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
       const { directiveStore } = await import("./frontier/directiveStore");
       const { getFrontierMetrics } = await import("./frontier/frontierEngine");
       const [cbState, metrics] = await Promise.all([
@@ -3844,12 +3964,7 @@ Respond in this exact structure:
     addDirective: protectedProcedure
       .input(
         z.object({
-          type: z.enum([
-            "focus_gap",
-            "skip_mapping",
-            "prioritize_hypotheses",
-            "deep_dive_entity",
-          ]),
+          type: z.enum(["focus_gap", "skip_mapping", "prioritize_hypotheses", "deep_dive_entity"]),
           /** For focus_gap: the gap ID to focus on */
           targetGapId: z.string().optional(),
           /** For deep_dive_entity: the entity ID to deep-dive on */
@@ -3859,8 +3974,7 @@ Respond in this exact structure:
         })
       )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin")
-          throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { directiveStore } = await import("./frontier/directiveStore");
         const directiveId = `${input.type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         directiveStore.add({
@@ -3877,12 +3991,11 @@ Respond in this exact structure:
     /** Build3: Reset the circuit breaker (admin override) */
     resetCircuitBreaker: protectedProcedure.mutation(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      const { frontierCircuitBreaker } = await import(
-        "./frontier/circuitBreaker"
-      );
+      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
       frontierCircuitBreaker.reset();
       return { reset: true, state: frontierCircuitBreaker.getState() };
     }),
+
   }),
 
   // ─── Override Audit Log ────────────────────────────────────────────────────
@@ -5091,28 +5204,113 @@ Respond in this exact structure:
   questions: questionRouter,
   // --- Pricing / Billing (Phase 133) ---
   billing: billingRouter,
-  // ─── Quantum VQE Jobs — WuKong Hardware (Phase 140) ──────────────────────────
+  // ─── Quantum VQE Jobs (admin) ────────────────────────────────────────────────────────────────────────────────────────────
   quantumJobs: router({
+    /** List all quantum VQE jobs — admin only */
     list: protectedProcedure
-      .input(z.object({ limit: z.number().min(1).max(100).default(50) }))
+      .input(
+        z.object({
+          status: z.enum(["pending", "computing", "done", "failed", "all"]).default("all"),
+          limit: z.number().int().min(1).max(200).default(50),
+          offset: z.number().int().min(0).default(0),
+        })
+      )
       .query(async ({ input }) => {
         const { getDb } = await import("./db");
+        const { desc, eq } = await import("drizzle-orm");
         const { quantumVqeJobs } = await import("../drizzle/schema");
-        const { desc } = await import("drizzle-orm");
         const db = await getDb();
-        if (!db) return [];
-        return db
-          .select()
-          .from(quantumVqeJobs)
-          .orderBy(desc(quantumVqeJobs.submittedAt))
-          .limit(input.limit);
+        if (!db) return { jobs: [], total: 0 };
+        const baseQuery = db.select().from(quantumVqeJobs);
+        const rows = await (input.status === "all"
+          ? baseQuery.orderBy(desc(quantumVqeJobs.submittedAt)).limit(input.limit).offset(input.offset)
+          : baseQuery
+              .where(eq(quantumVqeJobs.status, input.status as "pending" | "computing" | "done" | "failed"))
+              .orderBy(desc(quantumVqeJobs.submittedAt))
+              .limit(input.limit)
+              .offset(input.offset));
+        const countRows = await (input.status === "all"
+          ? db.select({ count: quantumVqeJobs.id }).from(quantumVqeJobs)
+          : db.select({ count: quantumVqeJobs.id }).from(quantumVqeJobs).where(eq(quantumVqeJobs.status, input.status as "pending" | "computing" | "done" | "failed")));
+        return { jobs: rows, total: countRows.length };
       }),
+    /** Manually trigger the VQE poller (admin) */
     triggerPoll: protectedProcedure.mutation(async () => {
-      const { runQuantumVqePoller } = await import(
-        "./quantum/quantumVqePoller"
-      );
-      return runQuantumVqePoller();
+      const { runQuantumVqePoller } = await import("./quantum/quantumVqePoller");
+      const result = await runQuantumVqePoller();
+      return result;
     }),
+  }),
+
+  // ─── Self-Direct spec management ──────────────────────────────────────────
+  selfDirect: router({
+    /** List all specs (admin only) */
+    listSpecs: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+      .query(async ({ input }) => {
+        const { getAllSpecs } = await import("./selfDirectWebhook");
+        return getAllSpecs(input?.limit ?? 50);
+      }),
+
+    /** List only pending specs */
+    listPending: protectedProcedure.query(async () => {
+      const { getPendingSpecs } = await import("./selfDirectWebhook");
+      return getPendingSpecs();
+    }),
+
+    /** Approve or reject a spec — triggers self-direct CLI */
+    decide: protectedProcedure
+      .input(z.object({
+        specId: z.string().min(1),
+        decision: z.enum(["approve", "reject"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+        }
+        const { getDb } = await import("./db");
+        const { selfDirectSpecs } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const { exec } = await import("child_process");
+        const { promisify } = await import("util");
+        const execAsync = promisify(exec);
+
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+        const status = input.decision === "approve" ? "approved" : "rejected";
+        const result = await db
+          .update(selfDirectSpecs)
+          .set({ status, decidedAt: new Date() })
+          .where(eq(selfDirectSpecs.specId, input.specId));
+
+        if (!result[0] || result[0].affectedRows === 0) {
+          throw new TRPCError({ code: "NOT_FOUND", message: `Spec ${input.specId} not found` });
+        }
+
+        const cliCmd = input.decision === "approve"
+          ? `pnpm --prefix /home/ubuntu/self-direct meta:apply ${input.specId}`
+          : `pnpm --prefix /home/ubuntu/self-direct meta:reject ${input.specId}`;
+
+        let cliOutput = "";
+        try {
+          const { stdout, stderr } = await execAsync(cliCmd, { timeout: 60_000 });
+          cliOutput = (stdout + stderr).trim().slice(0, 500);
+        } catch (err: unknown) {
+          cliOutput = `CLI error: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200);
+        }
+
+        const verb = input.decision === "approve" ? "approved ✅" : "rejected ❌";
+        await notifyOwner({
+          title: `self-direct: Spec ${verb} — ${input.specId}`,
+          content: `Spec \`${input.specId}\` has been **${verb}** via admin UI.\n\n` +
+            (input.decision === "approve"
+              ? `Fix is being applied.\n\n\`\`\`\n${cliOutput}\n\`\`\``
+              : "No changes made. self-direct continues watching."),
+        }).catch(() => {});
+
+        return { ok: true, specId: input.specId, status, cliOutput };
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;
