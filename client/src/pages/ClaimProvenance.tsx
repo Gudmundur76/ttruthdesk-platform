@@ -57,7 +57,7 @@ import { trpc } from "@/lib/trpc";
 function QuantumProvenancePanel({ claimId }: { claimId: number }) {
   const { data, isLoading } = trpc.quantumJobs.list.useQuery({ limit: 10 });
   // Filter to jobs linked to this claim's citation edges
-  const jobs = data?.filter(j => j.citationEdgeId === claimId) ?? [];
+  const jobs = (data?.jobs ?? []).filter((j: { citationEdgeId: number | null }) => j.citationEdgeId === claimId);
 
   if (isLoading)
     return <Skeleton className="h-20 w-full rounded-xl bg-slate-800" />;

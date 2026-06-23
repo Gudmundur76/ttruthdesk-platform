@@ -94,8 +94,8 @@ export default function QuantumJobs() {
     onError: err => toast.error(`Poll failed: ${err.message}`),
   });
 
-  // data is a flat array; apply client-side status filter
-  const allJobs = data ?? [];
+  // data is { jobs: [], total: number } — extract the array
+  const allJobs = data?.jobs ?? [];
   const jobs =
     statusFilter === "all"
       ? allJobs
