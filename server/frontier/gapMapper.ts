@@ -374,3 +374,81 @@ export async function detectEvidenceGapForDocument(
     return null;
   }
 }
+
+// ─── QUANTUM_DUAL Trust Tier ──────────────────────────────────────────────────
+export const TRUST_TIER = {
+  STANDARD: "standard",
+  QUANTUM_DUAL: "quantum-dual",
+  QUANTUM_READY: "quantum-ready",
+  QUANTUM_SINGLE: "quantum-single",
+} as const;
+
+export type TrustTier = (typeof TRUST_TIER)[keyof typeof TRUST_TIER];
+
+export function deriveTrustTier(
+  provenanceType: "quantum-dual" | "quantum-single" | "classical",
+  provenanceStatus:
+    | "quantum-hardware"
+    | "quantum-architecture"
+    | "classical" = "quantum-architecture"
+): TrustTier {
+  if (provenanceType === "quantum-dual") {
+    if (provenanceStatus === "quantum-hardware") return TRUST_TIER.QUANTUM_DUAL;
+    return TRUST_TIER.QUANTUM_READY;
+  }
+  if (provenanceType === "quantum-single") return TRUST_TIER.QUANTUM_SINGLE;
+  return TRUST_TIER.STANDARD;
+}
+
+export async function detectQuantumProvenanceGapForDocument(
+  documentId: number,
+  claimId: number,
+  provenanceType: "quantum-dual" | "quantum-single" | "classical",
+  vqeScore: number,
+  gbsSimilarity: number,
+  claimSample?: string
+): Promise<number | null> {
+  const tier = deriveTrustTier(provenanceType);
+  const description = `Document #${documentId} claim #${claimId} has ${tier} quantum provenance (VQE=${vqeScore.toFixed(3)}, GBS=${gbsSimilarity.toFixed(3)})${claimSample ? `. Sample: "${claimSample.slice(0, 150)}"` : ""}`;
+  try {
+    const existing = await (
+      await getDbOrThrow()
+    ).execute(sql`
+      SELECT id FROM knowledge_gaps
+      WHERE description LIKE ${`Document #${documentId} claim #${claimId}%`}
+        AND gapType = 'quantum_provenance'
+        AND status IN ('open', 'pursued', 'narrowing')
+      LIMIT 1
+    `);
+    const rows = existing[0] as unknown as Array<{ id: number }>;
+    if (rows.length > 0) return rows[0].id;
+    const [inserted] = await (await getDbOrThrow())
+      .insert(knowledgeGaps)
+      .values({
+        gapType: "quantum_provenance" as never,
+        description,
+        contributingClaimCount: 1,
+        detectionSource: "quantum_pipeline_trigger",
+        status: "open",
+        priorityScore: tier === TRUST_TIER.QUANTUM_DUAL ? 0.9 : 0.6,
+      });
+    const gapId = (inserted as unknown as { insertId: number }).insertId;
+    await (await getDbOrThrow()).insert(frontierLog).values({
+      actionType: "gap_detected",
+      gapId,
+      reasoning: {
+        trigger: "quantum_provenance",
+        documentId,
+        claimId,
+        tier,
+        vqeScore,
+        gbsSimilarity,
+        claimSample: claimSample?.slice(0, 150),
+      },
+      outcome: `Quantum provenance gap created (${tier})`,
+    });
+    return gapId;
+  } catch {
+    return null;
+  }
+}

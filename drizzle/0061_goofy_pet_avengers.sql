@@ -1,0 +1,1 @@
+ALTER TABLE `frontier_log` MODIFY COLUMN `actionType` enum('gap_detected','hypothesis_queued','search_expanded','priority_adjusted','gap_closed','hypothesis_verified','hypothesis_refuted','cycle_event','metric_report','quantum_dual_contradiction') NOT NULL;

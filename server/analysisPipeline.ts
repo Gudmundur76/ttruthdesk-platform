@@ -109,7 +109,11 @@ export async function runAnalysisPipeline(
     const extractionDomain: string =
       ((docForDomain as Record<string, unknown>)?.verticalDomain as string) ??
       "structural_biology";
-    const extracted = await extractClaims(rawText, options?.providerOverride, extractionDomain);
+    const extracted = await extractClaims(
+      rawText,
+      options?.providerOverride,
+      extractionDomain
+    );
     // 2. Insert claims into DB
     const claimInserts = extracted.map(c => ({
       documentId,
@@ -226,7 +230,8 @@ export async function runAnalysisPipeline(
             if (sbAdapter) {
               const evidence = await sbAdapter.lookupEvidence({
                 claimText: claim.claimText,
-                extractedValue: claim.extractedValue ?? claim.proteinName ?? null,
+                extractedValue:
+                  claim.extractedValue ?? claim.proteinName ?? null,
               });
               const completeness = checkAdapterCompleteness({
                 found: evidence.found,
@@ -255,7 +260,8 @@ export async function runAnalysisPipeline(
               });
               result = nameResult ?? {
                 verdict: "Insufficient Evidence",
-                rationale: "No structural biology adapter available and protein name not found in PDB.",
+                rationale:
+                  "No structural biology adapter available and protein name not found in PDB.",
                 evidenceUrl: null,
                 evidenceRaw: null,
               };
@@ -476,6 +482,65 @@ export async function runAnalysisPipeline(
                   e
                 )
               );
+          }
+          // ── Quantum Provenance: Frontier Gap + Dream Layer Routing ───────
+          // When a claim has quantum provenance (from molecularDiscovery adapter),
+          // trigger the quantum gap detector and (for Contradicted quantum-dual
+          // claims) route to the dream layer for priority re-verification.
+          const evidenceRawObj = result.evidenceRaw as Record<
+            string,
+            unknown
+          > | null;
+          const qProvenanceType = evidenceRawObj?.provenance_type as
+            | string
+            | undefined;
+          const qVqeScore = evidenceRawObj?.pic50_vqe as number | undefined;
+          const qGbsSimilarity = evidenceRawObj?.similarity_search as
+            | number
+            | undefined;
+          if (
+            (qProvenanceType === "quantum-dual" ||
+              qProvenanceType === "quantum-single") &&
+            qVqeScore != null &&
+            qGbsSimilarity != null
+          ) {
+            import("./frontier/gapMapper")
+              .then(({ detectQuantumProvenanceGapForDocument }) =>
+                detectQuantumProvenanceGapForDocument(
+                  documentId,
+                  claim.id,
+                  qProvenanceType as "quantum-dual" | "quantum-single",
+                  qVqeScore,
+                  qGbsSimilarity,
+                  claim.claimText
+                )
+              )
+              .catch(e =>
+                log.warn(
+                  "[QuantumProvenance] Gap trigger failed (non-fatal):",
+                  e
+                )
+              );
+            if (
+              auditedVerdict === "Contradicted" &&
+              qProvenanceType === "quantum-dual"
+            ) {
+              import("./dream/contradictionSimulator")
+                .then(({ routeQuantumDualContradiction }) =>
+                  routeQuantumDualContradiction(
+                    claim.id,
+                    documentId,
+                    qVqeScore,
+                    qGbsSimilarity
+                  )
+                )
+                .catch(e =>
+                  log.warn(
+                    "[DreamLayer] Quantum dual contradiction routing failed (non-fatal):",
+                    e
+                  )
+                );
+            }
           }
         })
       );
@@ -842,7 +907,9 @@ export async function runAnalysisPipeline(
               ocCitationScore = ocResult.citationAuthorityScore;
               ocIsRetracted = ocResult.isRetracted;
               ocCitationCount = ocResult.citationCount ?? null;
-              ocSelfCitationFraction = (ocResult as { selfCitationFraction?: number | null }).selfCitationFraction ?? null;
+              ocSelfCitationFraction =
+                (ocResult as { selfCitationFraction?: number | null })
+                  .selfCitationFraction ?? null;
               // Phase 115: mark claim as citation-graph-enriched
               await setCitationGraphEnriched(claim.id);
             }

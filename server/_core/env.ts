@@ -92,5 +92,9 @@ export const ENV = {
   // When set, the molecularDiscovery vertical adapter fetches top candidates and
   // emits them to citation.manus.space as QUANTUM_DUAL-tier verified claims.
   // citation.manus.space is the canonical public URL for this ttruthdesk deployment.
-  asiEvolveUrl: process.env.ASI_EVOLVE_URL ?? "https://hivprotease-eq9ltmms.manus.space",
+  asiEvolveUrl:
+    process.env.ASI_EVOLVE_URL ?? "https://hivprotease-eq9ltmms.manus.space",
+  // OriginQ Cloud API key for WuKong VQE hardware job submission
+  // Set ORIGINQ_API_KEY to the key from qcloud.originqc.com.cn
+  originqApiKey: process.env.ORIGINQ_API_KEY ?? "",
 };

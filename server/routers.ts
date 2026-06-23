@@ -3815,7 +3815,9 @@ Respond in this exact structure:
     /** Build3: /health/frontier — circuit breaker state + metrics snapshot (FR-L3-33) */
     health: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      const { frontierCircuitBreaker } = await import(
+        "./frontier/circuitBreaker"
+      );
       const { directiveStore } = await import("./frontier/directiveStore");
       const { getFrontierMetrics } = await import("./frontier/frontierEngine");
       const [cbState, metrics] = await Promise.all([
@@ -3842,7 +3844,12 @@ Respond in this exact structure:
     addDirective: protectedProcedure
       .input(
         z.object({
-          type: z.enum(["focus_gap", "skip_mapping", "prioritize_hypotheses", "deep_dive_entity"]),
+          type: z.enum([
+            "focus_gap",
+            "skip_mapping",
+            "prioritize_hypotheses",
+            "deep_dive_entity",
+          ]),
           /** For focus_gap: the gap ID to focus on */
           targetGapId: z.string().optional(),
           /** For deep_dive_entity: the entity ID to deep-dive on */
@@ -3852,7 +3859,8 @@ Respond in this exact structure:
         })
       )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { directiveStore } = await import("./frontier/directiveStore");
         const directiveId = `${input.type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         directiveStore.add({
@@ -3869,11 +3877,12 @@ Respond in this exact structure:
     /** Build3: Reset the circuit breaker (admin override) */
     resetCircuitBreaker: protectedProcedure.mutation(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      const { frontierCircuitBreaker } = await import(
+        "./frontier/circuitBreaker"
+      );
       frontierCircuitBreaker.reset();
       return { reset: true, state: frontierCircuitBreaker.getState() };
     }),
-
   }),
 
   // ─── Override Audit Log ────────────────────────────────────────────────────
@@ -5082,5 +5091,28 @@ Respond in this exact structure:
   questions: questionRouter,
   // --- Pricing / Billing (Phase 133) ---
   billing: billingRouter,
+  // ─── Quantum VQE Jobs — WuKong Hardware (Phase 140) ──────────────────────────
+  quantumJobs: router({
+    list: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(100).default(50) }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { quantumVqeJobs } = await import("../drizzle/schema");
+        const { desc } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) return [];
+        return db
+          .select()
+          .from(quantumVqeJobs)
+          .orderBy(desc(quantumVqeJobs.submittedAt))
+          .limit(input.limit);
+      }),
+    triggerPoll: protectedProcedure.mutation(async () => {
+      const { runQuantumVqePoller } = await import(
+        "./quantum/quantumVqePoller"
+      );
+      return runQuantumVqePoller();
+    }),
+  }),
 });
 export type AppRouter = typeof appRouter;

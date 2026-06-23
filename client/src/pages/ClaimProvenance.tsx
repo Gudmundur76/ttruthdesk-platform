@@ -49,8 +49,62 @@ import {
   Edit3,
   Download,
   Bot,
+  Cpu,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+
+// ─── Quantum Provenance Panel ────────────────────────────────────────────────
+function QuantumProvenancePanel({ claimId }: { claimId: number }) {
+  const { data, isLoading } = trpc.quantumJobs.list.useQuery({ limit: 10 });
+  // Filter to jobs linked to this claim's citation edges
+  const jobs = data?.filter(j => j.citationEdgeId === claimId) ?? [];
+
+  if (isLoading)
+    return <Skeleton className="h-20 w-full rounded-xl bg-slate-800" />;
+  if (jobs.length === 0) return null;
+
+  return (
+    <Card className="bg-slate-900/60 border-slate-700 mb-6">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+          <Cpu className="w-4 h-4 text-violet-400" />
+          Quantum Hardware Provenance
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {jobs.map(job => {
+          const isHardware = job.status === "done";
+          return (
+            <div
+              key={job.id}
+              className="flex items-center justify-between text-xs"
+            >
+              <div className="flex items-center gap-2">
+                {isHardware ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 animate-pulse font-semibold">
+                    <Cpu className="w-3 h-3" /> QUANTUM-DUAL
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
+                    <Cpu className="w-3 h-3" /> QUANTUM-READY
+                  </span>
+                )}
+                <span className="text-slate-400 font-mono">{job.backend}</span>
+              </div>
+              <div className="text-slate-400">
+                {job.vqeEnergyHartree != null ? (
+                  <span>{Number(job.vqeEnergyHartree).toFixed(6)} Ha</span>
+                ) : (
+                  <span className="text-slate-600">{job.status}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Step metadata ────────────────────────────────────────────────────────────
 type ProvenanceStep =
@@ -63,7 +117,13 @@ type ProvenanceStep =
 
 const STEP_META: Record<
   ProvenanceStep,
-  { label: string; icon: React.ReactNode; color: string; bg: string; border: string }
+  {
+    label: string;
+    icon: React.ReactNode;
+    color: string;
+    bg: string;
+    border: string;
+  }
 > = {
   extraction: {
     label: "Extraction",
@@ -110,13 +170,15 @@ const STEP_META: Record<
 };
 
 function getStepMeta(step: string) {
-  return STEP_META[step as ProvenanceStep] ?? {
-    label: step,
-    icon: <GitBranch className="w-4 h-4" />,
-    color: "text-slate-400",
-    bg: "bg-slate-500/10",
-    border: "border-slate-500/30",
-  };
+  return (
+    STEP_META[step as ProvenanceStep] ?? {
+      label: step,
+      icon: <GitBranch className="w-4 h-4" />,
+      color: "text-slate-400",
+      bg: "bg-slate-500/10",
+      border: "border-slate-500/30",
+    }
+  );
 }
 
 // ─── Snapshot viewer ──────────────────────────────────────────────────────────
@@ -133,7 +195,11 @@ function SnapshotPanel({
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
         <button className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors mt-2">
-          {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          {open ? (
+            <ChevronDown className="w-3 h-3" />
+          ) : (
+            <ChevronRight className="w-3 h-3" />
+          )}
           {label}
         </button>
       </CollapsibleTrigger>
@@ -187,7 +253,9 @@ function TimelineEvent({
       <div className={`pb-6 flex-1 min-w-0 ${isLast ? "" : ""}`}>
         {/* Header row */}
         <div className="flex flex-wrap items-center gap-2 mb-1">
-          <span className={`font-semibold text-sm ${meta.color}`}>{meta.label}</span>
+          <span className={`font-semibold text-sm ${meta.color}`}>
+            {meta.label}
+          </span>
           {event.success ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           ) : (
@@ -257,7 +325,9 @@ function SummaryCard({ summary }: { summary: ProvenanceSummary }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Narrative */}
-        <p className="text-slate-200 text-sm leading-relaxed">{summary.narrative}</p>
+        <p className="text-slate-200 text-sm leading-relaxed">
+          {summary.narrative}
+        </p>
 
         <Separator className="bg-slate-800" />
 
@@ -268,15 +338,21 @@ function SummaryCard({ summary }: { summary: ProvenanceSummary }) {
             <p className="text-xs text-slate-500">Total Steps</p>
           </div>
           <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-center">
-            <p className="text-xl font-bold text-emerald-400">{summary.successfulSteps}</p>
+            <p className="text-xl font-bold text-emerald-400">
+              {summary.successfulSteps}
+            </p>
             <p className="text-xs text-slate-500">Successful</p>
           </div>
           <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-center">
-            <p className="text-xl font-bold text-rose-400">{summary.failedSteps}</p>
+            <p className="text-xl font-bold text-rose-400">
+              {summary.failedSteps}
+            </p>
             <p className="text-xs text-slate-500">Failed</p>
           </div>
           <div className="rounded-lg bg-slate-800/60 px-3 py-2 text-center">
-            <p className="text-xl font-bold text-white">{summary.actors.length}</p>
+            <p className="text-xl font-bold text-white">
+              {summary.actors.length}
+            </p>
             <p className="text-xs text-slate-500">Actors</p>
           </div>
         </div>
@@ -286,7 +362,7 @@ function SummaryCard({ summary }: { summary: ProvenanceSummary }) {
           <div>
             <p className="text-xs text-slate-500 mb-2">Steps completed</p>
             <div className="flex flex-wrap gap-2">
-              {summary.stepsCompleted.map((s) => {
+              {summary.stepsCompleted.map(s => {
                 const m = getStepMeta(s);
                 return (
                   <Badge
@@ -306,9 +382,11 @@ function SummaryCard({ summary }: { summary: ProvenanceSummary }) {
         {/* Steps missing */}
         {summary.stepsMissing.length > 0 && (
           <div>
-            <p className="text-xs text-slate-500 mb-2">Steps not yet recorded</p>
+            <p className="text-xs text-slate-500 mb-2">
+              Steps not yet recorded
+            </p>
             <div className="flex flex-wrap gap-2">
-              {summary.stepsMissing.map((s) => {
+              {summary.stepsMissing.map(s => {
                 const m = getStepMeta(s);
                 return (
                   <Badge
@@ -368,7 +446,9 @@ export default function ClaimProvenance() {
         <div className="max-w-3xl mx-auto px-4 py-16 text-center">
           <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
           <h1 className="text-2xl font-bold mb-2">Invalid Claim ID</h1>
-          <p className="text-slate-400">Please provide a valid numeric claim ID in the URL.</p>
+          <p className="text-slate-400">
+            Please provide a valid numeric claim ID in the URL.
+          </p>
         </div>
       </div>
     );
@@ -394,8 +474,8 @@ export default function ClaimProvenance() {
             <h1 className="text-2xl font-bold text-white">Provenance Chain</h1>
           </div>
           <p className="text-slate-400 text-sm">
-            Full audit trail for Claim #{claimId} — every pipeline step that produced or
-            modified this claim's verdict.
+            Full audit trail for Claim #{claimId} — every pipeline step that
+            produced or modified this claim's verdict.
           </p>
         </div>
 
@@ -421,22 +501,28 @@ export default function ClaimProvenance() {
         {/* Data */}
         {data && (
           <>
+            {/* Quantum Provenance Badge */}
+            <QuantumProvenancePanel claimId={claimId} />
             {/* Summary */}
             <SummaryCard summary={data.summary} />
 
             {/* Timeline */}
             <div className="mb-2">
               <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">
-                Event Timeline ({data.chain.length} event{data.chain.length !== 1 ? "s" : ""})
+                Event Timeline ({data.chain.length} event
+                {data.chain.length !== 1 ? "s" : ""})
               </h2>
 
               {data.chain.length === 0 ? (
                 <Card className="bg-slate-900/40 border-slate-700">
                   <CardContent className="flex flex-col items-center py-12 text-center">
                     <GitBranch className="w-10 h-10 text-slate-600 mb-3" />
-                    <p className="text-slate-400 font-medium">No provenance events recorded</p>
+                    <p className="text-slate-400 font-medium">
+                      No provenance events recorded
+                    </p>
                     <p className="text-slate-600 text-sm mt-1">
-                      This claim has not yet been processed through the instrumented pipeline.
+                      This claim has not yet been processed through the
+                      instrumented pipeline.
                     </p>
                   </CardContent>
                 </Card>

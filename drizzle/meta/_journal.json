@@ -421,6 +421,20 @@
       "when": 1781906114146,
       "tag": "0059_cultured_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1782184513749,
+      "tag": "0060_stiff_raza",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "5",
+      "when": 1782185181782,
+      "tag": "0061_goofy_pet_avengers",
+      "breakpoints": true
     }
   ]
 }

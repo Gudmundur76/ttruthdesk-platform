@@ -83,6 +83,8 @@ function gapTypeMultiplier(gapType: string): number {
       return 0.4; // Lower — isolated but not wrong
     case "hypothesis":
       return 0.7; // Medium-high — testable prediction
+    case "quantum_provenance":
+      return 0.75; // Between QUANTUM_DUAL (0.9) and QUANTUM_SINGLE (0.6) — hardware-scored provenance
     default:
       return 0.5;
   }

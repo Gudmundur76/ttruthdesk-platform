@@ -51,6 +51,7 @@ import {
   BookMarked,
   Terminal,
   Sparkles,
+  Cpu,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -79,6 +80,7 @@ const menuItems = [
   { icon: Telescope, label: "Frontier Engine", path: "/admin/frontier" },
   { icon: RefreshCw, label: "Autonomous Loop", path: "/admin/loop" },
   { icon: Moon, label: "Dream State", path: "/admin/dream" },
+  { icon: Cpu, label: "Quantum Jobs", path: "/admin/quantum-jobs" },
   { icon: ShieldCheck, label: "Override Audit", path: "/admin/overrides" },
   { icon: Database, label: "Source Whitelist", path: "/admin/sources" },
   { icon: Rocket, label: "Deployments", path: "/admin/deployments" },

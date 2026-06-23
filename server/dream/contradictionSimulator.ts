@@ -59,7 +59,7 @@ export async function runContradictionSimulation(): Promise<SimulationResult> {
       ORDER BY c.confidenceScore DESC
       LIMIT 1
     `);
-    const topClaims = (clusterRows as unknown) as Array<{
+    const topClaims = clusterRows as unknown as Array<{
       id: number;
       claimText: string;
       confidenceScore: number;
@@ -89,7 +89,9 @@ export async function runContradictionSimulation(): Promise<SimulationResult> {
         const rawContent = llmResp?.choices?.[0]?.message?.content;
         const content = typeof rawContent === "string" ? rawContent : null;
         if (content) recommendation = content;
-      } catch { /* LLM unavailable — use default */ }
+      } catch {
+        /* LLM unavailable — use default */
+      }
 
       scenarios.push({
         scenario: `Retraction of top-confidence claim (ID: ${topClaim.id}, confidence: ${topClaim.confidenceScore})`,
@@ -98,7 +100,9 @@ export async function runContradictionSimulation(): Promise<SimulationResult> {
         recommendation,
       });
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   // ── S2: Key entity removal impact ─────────────────────────────────────────
   try {
@@ -111,7 +115,7 @@ export async function runContradictionSimulation(): Promise<SimulationResult> {
       ORDER BY edge_count DESC
       LIMIT 1
     `);
-    const topEntities = (entityRows as unknown) as Array<{
+    const topEntities = entityRows as unknown as Array<{
       id: number;
       canonicalName: string;
       edge_count: number;
@@ -126,7 +130,9 @@ export async function runContradictionSimulation(): Promise<SimulationResult> {
         recommendation: `Removing ${topEntity.canonicalName} would orphan ${topEntity.edge_count} relations. Consider adding a redundant anchor entity or ensuring all relations have alternative evidence paths.`,
       });
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   // ── S3: Source coverage loss ──────────────────────────────────────────────
   try {
@@ -138,7 +144,7 @@ export async function runContradictionSimulation(): Promise<SimulationResult> {
       ORDER BY claim_count DESC
       LIMIT 1
     `);
-    const topSources = (sourceRows as unknown) as Array<{
+    const topSources = sourceRows as unknown as Array<{
       sourceType: string;
       claim_count: number;
     }>;
@@ -152,7 +158,48 @@ export async function runContradictionSimulation(): Promise<SimulationResult> {
         recommendation: `${topSource.claim_count} claims rely on ${topSource.sourceType}. Ensure fallback sources are configured and monitoring alerts are active for this source.`,
       });
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   return { scenarios, totalSimulated: scenarios.length };
+}
+
+// ─── Quantum Dual Contradiction Router ───────────────────────────────────────
+/**
+ * Routes a QUANTUM_DUAL claim that returned "Contradicted" verdict to the
+ * dream layer for priority re-verification. Logs a quantum_dual_contradiction
+ * entry to frontier_log for tracking.
+ *
+ * This is a NEW branch — it does NOT modify runContradictionSimulation.
+ * Called by analysisPipeline when provenance_type === "quantum-dual" AND
+ * verdict === "Contradicted".
+ */
+export async function routeQuantumDualContradiction(
+  claimId: number,
+  documentId: number,
+  vqeScore: number,
+  gbsSimilarity: number
+): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { frontierLog } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(frontierLog).values({
+      actionType: "quantum_dual_contradiction",
+      reasoning: {
+        claimId,
+        documentId,
+        vqeScore,
+        gbsSimilarity,
+        trigger: "quantum_dual_contradicted_verdict",
+        priority: "high",
+      },
+      outcome:
+        "QUANTUM_DUAL claim with Contradicted verdict flagged for dream-layer re-verification",
+    });
+  } catch {
+    // Non-fatal — dream layer routing is best-effort
+  }
 }

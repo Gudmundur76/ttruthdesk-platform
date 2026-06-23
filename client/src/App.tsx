@@ -70,6 +70,7 @@ const AutonomousLoopDashboard = lazy(
 );
 const OverridesDashboard = lazy(() => import("@/pages/OverridesDashboard"));
 const DreamDashboard = lazy(() => import("@/pages/DreamDashboard"));
+const QuantumJobs = lazy(() => import("@/pages/QuantumJobs"));
 const SourceWhitelist = lazy(() => import("@/pages/SourceWhitelist"));
 const AdminCrons = lazy(() => import("@/pages/AdminCrons"));
 const AdminVerticals = lazy(() => import("@/pages/AdminVerticals"));
@@ -141,6 +142,7 @@ function Router() {
         <Route path="/admin/loop" component={AutonomousLoopDashboard} />
         <Route path="/admin/overrides" component={OverridesDashboard} />
         <Route path="/admin/dream" component={DreamDashboard} />
+        <Route path="/admin/quantum-jobs" component={QuantumJobs} />
         <Route path="/admin/sources" component={SourceWhitelist} />
         <Route path="/admin/crons" component={AdminCrons} />
         <Route path="/admin/contradictions" component={AdminContradictions} />

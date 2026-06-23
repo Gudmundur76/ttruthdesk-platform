@@ -1298,6 +1298,7 @@ export const knowledgeGaps = mysqlTable(
       "contradiction",
       "temporal",
       "hypothesis",
+      "quantum_provenance",
     ]).notNull(),
     /**
      * Priority score: contradictionSeverity × entityCentrality × recencyOfConflict × communityDemand
@@ -1397,6 +1398,7 @@ export const frontierLog = mysqlTable(
       "hypothesis_refuted",
       "cycle_event",
       "metric_report",
+      "quantum_dual_contradiction",
     ]).notNull(),
     /** ID of the knowledge_gap this action relates to (if any) */
     gapId: int("gapId"),
@@ -2968,7 +2970,7 @@ export const adapterCalibrationRuns = mysqlTable(
     errorCount: int("errorCount").notNull().default(0),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
-  (t) => ({
+  t => ({
     runAdapterIdx: index("run_adapter_idx").on(t.runId, t.adapterId),
   })
 );
@@ -2983,11 +2985,13 @@ export const adapterPromptVersions = mysqlTable(
     adapterId: varchar("adapterId", { length: 128 }).notNull(),
     version: int("version").notNull().default(1),
     promptText: text("promptText").notNull(),
-    failureGroup: varchar("failureGroup", { length: 4 }).notNull().default("G4"),
+    failureGroup: varchar("failureGroup", { length: 4 })
+      .notNull()
+      .default("G4"),
     isActive: boolean("isActive").notNull().default(true),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
-  (t) => ({
+  t => ({
     adapterActiveIdx: index("adapter_active_idx").on(t.adapterId, t.isActive),
   })
 );
@@ -3016,9 +3020,52 @@ export const paperEmbeddings = mysqlTable(
       .default("text-embedding-3-small"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
-  (t) => ({
+  t => ({
     pmidIdx: index("paper_embeddings_pmid_idx").on(t.pmid),
   })
 );
 export type PaperEmbedding = typeof paperEmbeddings.$inferSelect;
 export type InsertPaperEmbedding = typeof paperEmbeddings.$inferInsert;
+
+// ─── Quantum VQE Jobs (Phase: Quantum Provenance) ────────────────────────────
+/**
+ * quantum_vqe_jobs — tracks async WuKong hardware VQE jobs submitted via
+ * vqeScorer.py. Each row represents one molecule→hardware job. The heartbeat
+ * poller (every 5 min) polls pending jobs and upgrades citation_edges
+ * quantumProvenance.provenance_status to "quantum-hardware" when FINISHED.
+ */
+export const quantumVqeJobs = mysqlTable(
+  "quantum_vqe_jobs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** OriginQ Cloud job ID returned by vqeScorer.py --mode submit */
+    jobId: varchar("jobId", { length: 128 }).notNull().unique(),
+    /** citation_edges row this job enriches */
+    citationEdgeId: int("citationEdgeId"),
+    /** SMILES string of the molecule submitted for VQE */
+    smiles: varchar("smiles", { length: 1024 }),
+    /** WuKong backend used (e.g. WK_C180_2) */
+    backend: varchar("backend", { length: 64 }).notNull().default("WK_C180_2"),
+    /** Number of measurement shots */
+    shots: int("shots").notNull().default(1000),
+    /** Job lifecycle status */
+    status: mysqlEnum("status", ["pending", "computing", "done", "failed"])
+      .notNull()
+      .default("pending"),
+    /** Ground-state energy in Hartree (null until job completes) */
+    vqeEnergyHartree: float("vqeEnergyHartree"),
+    /** Raw result JSON from the hardware */
+    resultRaw: json("resultRaw"),
+    /** Error message if status = failed */
+    errorMessage: text("errorMessage"),
+    submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+  },
+  t => ({
+    jobIdIdx: index("qvj_job_id_idx").on(t.jobId),
+    statusIdx: index("qvj_status_idx").on(t.status),
+    edgeIdx: index("qvj_edge_idx").on(t.citationEdgeId),
+  })
+);
+export type QuantumVqeJob = typeof quantumVqeJobs.$inferSelect;
+export type InsertQuantumVqeJob = typeof quantumVqeJobs.$inferInsert;

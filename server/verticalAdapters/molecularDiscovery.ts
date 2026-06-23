@@ -26,7 +26,11 @@
  *   Set ASI_EVOLVE_URL in environment to override the default.
  */
 
-import { registerVertical, type VerticalAdapter, type EvidenceResult } from "./types";
+import {
+  registerVertical,
+  type VerticalAdapter,
+  type EvidenceResult,
+} from "./types";
 import { ENV } from "../_core/env";
 import { logger } from "../logger";
 
@@ -61,10 +65,10 @@ interface AsiEvolveTopResponse {
 const CONFIDENCE_QUANTUM_DUAL = 0.95;
 
 /** Confidence floor for QUANTUM_SIM candidates (local VQE simulation). */
-const CONFIDENCE_QUANTUM_SIM = 0.80;
+const CONFIDENCE_QUANTUM_SIM = 0.8;
 
 /** Confidence floor for classical-only candidates (no quantum scoring). */
-const CONFIDENCE_CLASSICAL = 0.70;
+const CONFIDENCE_CLASSICAL = 0.7;
 
 /** Timeout for asi-evolve API calls (ms). */
 const FETCH_TIMEOUT_MS = 8000;
@@ -90,7 +94,9 @@ async function fetchTopCandidates(n = 20): Promise<AsiEvolveCandidate[]> {
     clearTimeout(timer);
 
     if (!res.ok) {
-      log.warn(`[molecularDiscovery] asi-evolve /top returned HTTP ${res.status}`);
+      log.warn(
+        `[molecularDiscovery] asi-evolve /top returned HTTP ${res.status}`
+      );
       return [];
     }
 
@@ -127,16 +133,29 @@ function matchScore(candidate: AsiEvolveCandidate, claimText: string): number {
   if (lower.includes(strategy)) score += 3;
 
   // Lesson keywords
-  const lessonWords = candidate.lesson.toLowerCase().split(/\s+/).filter(w => w.length > 5);
+  const lessonWords = candidate.lesson
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 5);
   for (const word of lessonWords.slice(0, 10)) {
     if (lower.includes(word)) score += 1;
   }
 
   // Molecular discovery / HIV protease context
   const contextKeywords = [
-    "hiv protease", "hiv-1 protease", "protease inhibitor", "binding affinity",
-    "molecular discovery", "drug candidate", "pic50", "vqe", "quantum",
-    "affinity", "inhibitor", "smiles", "fingerprint",
+    "hiv protease",
+    "hiv-1 protease",
+    "protease inhibitor",
+    "binding affinity",
+    "molecular discovery",
+    "drug candidate",
+    "pic50",
+    "vqe",
+    "quantum",
+    "affinity",
+    "inhibitor",
+    "smiles",
+    "fingerprint",
   ];
   for (const kw of contextKeywords) {
     if (lower.includes(kw)) score += 2;
@@ -166,9 +185,10 @@ export async function emitMolecularCitationRecord(
         ? "Quantum-simulated (local VQE)"
         : "Classical ML prediction";
 
-  const pic50Text = candidate.pic50_vqe != null
-    ? ` pIC50 (VQE) = ${candidate.pic50_vqe.toFixed(3)}.`
-    : "";
+  const pic50Text =
+    candidate.pic50_vqe != null
+      ? ` pIC50 (VQE) = ${candidate.pic50_vqe.toFixed(3)}.`
+      : "";
 
   const claimText =
     `HIV-1 protease inhibitor candidate (SMILES: ${candidate.smiles}) ` +
@@ -201,7 +221,10 @@ export async function emitMolecularCitationRecord(
       return null;
     }
 
-    const data = (await res.json()) as { claimId?: number | null; ok?: boolean };
+    const data = (await res.json()) as {
+      claimId?: number | null;
+      ok?: boolean;
+    };
     if (data.claimId != null) {
       const permanentUrl = `${siteOrigin}/claim/${data.claimId}`;
       log.info(
@@ -301,8 +324,11 @@ Return the key claim as a concise statement including any numerical values.
     let tierLabel: string;
 
     if (provenanceStatus === "QUANTUM_DUAL") {
-      confidenceScore = CONFIDENCE_QUANTUM_DUAL +
-        (bestCandidate.confidence != null ? bestCandidate.confidence * 0.04 : 0);
+      confidenceScore =
+        CONFIDENCE_QUANTUM_DUAL +
+        (bestCandidate.confidence != null
+          ? bestCandidate.confidence * 0.04
+          : 0);
       tierLabel = `QUANTUM_DUAL — ${bestCandidate.quantum_hardware ?? "multi-backend"}`;
     } else if (provenanceStatus === "QUANTUM_SIM") {
       confidenceScore = CONFIDENCE_QUANTUM_SIM;
@@ -315,13 +341,15 @@ Return the key claim as a concise statement including any numerical values.
     // Cap at 0.99
     confidenceScore = Math.min(confidenceScore, 0.99);
 
-    const pic50Flag = bestCandidate.pic50_vqe != null
-      ? `pIC50 (VQE) = ${bestCandidate.pic50_vqe.toFixed(3)}`
-      : null;
+    const pic50Flag =
+      bestCandidate.pic50_vqe != null
+        ? `pIC50 (VQE) = ${bestCandidate.pic50_vqe.toFixed(3)}`
+        : null;
 
-    const citationFlag = bestCandidate.citation_ids.length > 0
-      ? `citation.is: ${bestCandidate.citation_ids[0]}`
-      : null;
+    const citationFlag =
+      bestCandidate.citation_ids.length > 0
+        ? `citation.is: ${bestCandidate.citation_ids[0]}`
+        : null;
 
     return {
       found: true,
@@ -346,7 +374,9 @@ Return the key claim as a concise statement including any numerical values.
       confidenceFlags: [
         `Trust tier: ${tierLabel}`,
         `Predicted affinity: ${bestCandidate.predicted_affinity_nm.toFixed(2)} nM`,
-        bestCandidate.is_best_so_far ? "Best candidate discovered so far" : null,
+        bestCandidate.is_best_so_far
+          ? "Best candidate discovered so far"
+          : null,
         pic50Flag,
         `Strategy: ${bestCandidate.proposed_strategy}`,
         citationFlag,
@@ -356,3 +386,85 @@ Return the key claim as a concise statement including any numerical values.
 };
 
 registerVertical(molecularDiscoveryAdapter);
+
+// ─── Quantum Provenance Helpers ───────────────────────────────────────────────
+/**
+ * Maps the raw provenance_status string from asi-evolve to the canonical
+ * three-value enum used by the trust tier system.
+ *
+ * "QUANTUM_DUAL" from asi-evolve → "quantum-architecture" initially.
+ * Upgrades to "quantum-hardware" only after a real WuKong job completes.
+ */
+export function deriveProvenanceStatus(
+  rawStatus: string | null | undefined
+): "quantum-hardware" | "quantum-architecture" | "classical" {
+  if (!rawStatus) return "classical";
+  const s = rawStatus.toUpperCase();
+  if (s === "QUANTUM_DUAL" || s === "QUANTUM_SIM")
+    return "quantum-architecture";
+  return "classical";
+}
+
+/**
+ * Submits a VQE job to WuKong hardware for a given SMILES string.
+ * Fire-and-forget: stores the job_id in quantum_vqe_jobs for polling.
+ * Only called when provenance_status === "quantum-architecture" (not yet confirmed by hardware).
+ *
+ * Integration note:
+ *   - Uses vqeScorer.py --mode submit via child_process.spawn
+ *   - Requires ORIGINQ_API_KEY in ENV
+ *   - WuKong backend: WK_C180_2 (180-qubit superconducting, Origin Quantum)
+ *   - Jiuzhang 4.0 GBS integration: pending research access from USTC / Jiuzhang Quantum Technology Co. Ltd.
+ *     Contact: Pan Jianwei group, USTC. When available, add --backend jiuzhang_4 to vqeScorer.py.
+ */
+export async function submitVqeJobForSmiles(
+  smiles: string,
+  citationEdgeId: number
+): Promise<string | null> {
+  if (!ENV.originqApiKey) return null;
+  try {
+    const { spawn } = await import("child_process");
+    const path = await import("path");
+    const { getDb } = await import("../db");
+    const { quantumVqeJobs } = await import("../../drizzle/schema");
+    const scriptPath = path.join(__dirname, "../quantum/vqeScorer.py");
+    const result = await new Promise<string>((resolve, reject) => {
+      const proc = spawn(
+        "python3",
+        [
+          scriptPath,
+          "--mode",
+          "submit",
+          "--smiles",
+          smiles,
+          "--api-key",
+          ENV.originqApiKey,
+        ],
+        {
+          timeout: 15000,
+        }
+      );
+      let stdout = "";
+      proc.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+      proc.on("close", (code: number) =>
+        code === 0 ? resolve(stdout.trim()) : reject(new Error(`exit ${code}`))
+      );
+    });
+    const parsed = JSON.parse(result) as { job_id?: string; error?: string };
+    if (!parsed.job_id) return null;
+    const db = await getDb();
+    if (db) {
+      await db.insert(quantumVqeJobs).values({
+        jobId: parsed.job_id,
+        smiles,
+        citationEdgeId,
+        backend: "WK_C180_2",
+        status: "pending",
+        shots: 1024,
+      });
+    }
+    return parsed.job_id;
+  } catch {
+    return null;
+  }
+}
