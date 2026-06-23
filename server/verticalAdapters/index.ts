@@ -91,4 +91,12 @@ import "./openfda_adverse"; // OpenFDA adverse events — FAERS drug safety repo
 import "./nice";            // NICE Evidence — UK clinical guidelines and appraisals
 import "./who_iris";        // WHO IRIS — WHO technical reports and guidelines
 import "./embase";          // EMBASE — European biomedical literature (via Europe PMC)
+// ── Sprint 38: Tier 1 public database expansion ─────────────────────────────
+import "./rcsb_pdb";              // RCSB PDB — experimental 3D protein structures
+import "./clinicaltrials_results"; // ClinicalTrials.gov Results — posted outcome data
+import "./retraction_watch";       // Retraction Watch — 50,000+ retractions (negative signal)
+import "./openfda_maude";          // OpenFDA MAUDE — medical device adverse events
+import "./ncbi_gene";              // NCBI Gene — gene function, expression, pathways
+import "./dbsnp";                  // dbSNP — 1B+ genetic variants with population frequency
+import "./omim";                   // OMIM — gene-disease associations for Mendelian disorders
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)
