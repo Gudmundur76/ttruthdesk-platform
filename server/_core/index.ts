@@ -57,6 +57,7 @@ import { runWikiLint } from "../wikiLinter";
 import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
 import { registerHostingerWebhookRoute } from "../hostingerWebhook";
+import { handleSpecReady, handleDecision } from "../selfDirectWebhook";
 import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 import { detailedHealthHandler } from "../detailedHealthRoute";
 import { ingestionAlertHandler } from "../ingestionAlertJob";
@@ -1877,6 +1878,20 @@ async function startServer() {
   registerEmbedRoutes(app);
   // Hostinger inbound signed webhook — receives events from all Hostinger-hosted sites
   registerHostingerWebhookRoute(app);
+  // self-direct inbound webhook — spec proposals and human YES/NO decisions
+  app.post(
+    "/api/self-direct/spec-ready",
+    express.raw({ type: "application/json", limit: "1mb" }),
+    (req: express.Request & { rawBody?: string }, _res, next) => {
+      req.rawBody = (req.body as Buffer)?.toString("utf8") ?? "";
+      express.json({ limit: "1mb" })(req, _res, next);
+    },
+    (req, res) => void handleSpecReady(req, res)
+  );
+  app.post(
+    "/api/self-direct/decision",
+    (req, res) => void handleDecision(req, res)
+  );
   // Public translate-and-search REST API — natural language → cited evidence
   registerTranslateAndSearchApi(app);
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);

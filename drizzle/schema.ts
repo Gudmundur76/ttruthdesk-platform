@@ -3069,3 +3069,31 @@ export const quantumVqeJobs = mysqlTable(
 );
 export type QuantumVqeJob = typeof quantumVqeJobs.$inferSelect;
 export type InsertQuantumVqeJob = typeof quantumVqeJobs.$inferInsert;
+
+// ── self-direct spec inbox ────────────────────────────────────────────────────
+// Stores fix specs proposed by the self-direct watcher.
+// Each spec awaits a human YES/NO decision before any code change is applied.
+export const selfDirectSpecs = mysqlTable(
+  "self_direct_specs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    specId: varchar("specId", { length: 64 }).notNull().unique(),
+    adapterId: varchar("adapterId", { length: 128 }).notNull(),
+    title: varchar("title", { length: 512 }).notNull(),
+    summary: text("summary").notNull(),
+    specJson: json("specJson").notNull(),
+    beforeF1: float("beforeF1"),
+    afterF1Predicted: float("afterF1Predicted"),
+    status: mysqlEnum("status", ["pending_review", "approved", "rejected"])
+      .notNull()
+      .default("pending_review"),
+    decidedAt: timestamp("decidedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    specIdIdx: index("sds_spec_id_idx").on(t.specId),
+    statusIdx: index("sds_status_idx").on(t.status),
+  })
+);
+export type SelfDirectSpec = typeof selfDirectSpecs.$inferSelect;
+export type InsertSelfDirectSpec = typeof selfDirectSpecs.$inferInsert;

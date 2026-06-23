@@ -97,4 +97,8 @@ export const ENV = {
   // OriginQ Cloud API key for WuKong VQE hardware job submission
   // Set ORIGINQ_API_KEY to the key from qcloud.originqc.com.cn
   originqApiKey: process.env.ORIGINQ_API_KEY ?? "",
+  // self-direct inbound webhook HMAC secret.
+  // Shared with self-direct's NOTIFIER_WEBHOOK_SECRET env var.
+  // POST /api/self-direct/spec-ready requires x-self-direct-signature: sha256=<HMAC-SHA256(body, secret)>
+  selfDirectWebhookSecret: process.env.SELF_DIRECT_WEBHOOK_SECRET ?? "",
 };

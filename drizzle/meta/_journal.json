@@ -435,6 +435,13 @@
       "when": 1782185181782,
       "tag": "0061_goofy_pet_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "5",
+      "when": 1782216014064,
+      "tag": "0062_goofy_baron_zemo",
+      "breakpoints": true
     }
   ]
 }
