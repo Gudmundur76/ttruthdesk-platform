@@ -414,6 +414,8 @@ export async function updateClaimVerdict(
     // Phase 103: composite truth signal
     compositeTruthScore?: number | null;
     compositeTruthLabel?: string | null;
+    // Phase NIM: NVIDIA Nemotron chain-of-thought reasoning
+    modelReasoning?: string | null;
   }
 ) {
   const db = await getDb();
@@ -448,6 +450,7 @@ export async function updateClaimVerdict(
   if (passageStartChar !== undefined)
     setData.passageStartChar = passageStartChar;
   if (passageEndChar !== undefined) setData.passageEndChar = passageEndChar;
+  if (update.modelReasoning !== undefined) setData.modelReasoning = update.modelReasoning;
   if (update.misrepresentationType !== undefined)
     setData.misrepresentationType = update.misrepresentationType;
   if (update.compositeTruthScore !== undefined)

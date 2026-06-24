@@ -294,7 +294,7 @@ export const autoIngestedPapers = mysqlTable(
   "auto_ingested_papers",
   {
     id: int("id").autoincrement().primaryKey(),
-    pmid: varchar("pmid", { length: 32 }).notNull().unique(),
+    pmid: varchar("pmid", { length: 128 }).notNull().unique(),
     doi: varchar("doi", { length: 512 }),
     title: varchar("title", { length: 1024 }).notNull(),
     authors: text("authors"),
