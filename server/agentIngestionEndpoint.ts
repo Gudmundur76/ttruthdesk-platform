@@ -42,7 +42,6 @@ import { ENV } from "./_core/env";
 import { logger, errData } from "./logger";
 const log = logger("agentIngestionEndpoint");
 
-
 // ─── Concurrency semaphore ────────────────────────────────────────────────────
 
 let activeIngestions = 0;
@@ -52,15 +51,17 @@ const MAX_CONCURRENT_INGESTIONS = 10;
 
 const ExtractedClaimSchema = z.object({
   claimText: z.string().min(10).max(2000),
-  claimType: z.enum([
-    "pdb_id",
-    "protein_name",
-    "experimental_method",
-    "resolution",
-    "organism",
-    "ligand",
-    "general_molecular",
-  ]).default("general_molecular"),
+  claimType: z
+    .enum([
+      "pdb_id",
+      "protein_name",
+      "experimental_method",
+      "resolution",
+      "organism",
+      "ligand",
+      "general_molecular",
+    ])
+    .default("general_molecular"),
   extractedValue: z.string().max(512).optional(),
   pdbId: z.string().max(16).optional(),
   proteinName: z.string().max(512).optional(),
@@ -96,11 +97,13 @@ const IngestionPayloadSchema = z.object({
   /** Extracted claims from the paper */
   claims: z.array(ExtractedClaimSchema).min(0).max(200),
   /** Agent processing metadata */
-  agentMeta: z.object({
-    processingTimeMs: z.number().optional(),
-    llmModel: z.string().optional(),
-    extractionMethod: z.string().optional(),
-  }).optional(),
+  agentMeta: z
+    .object({
+      processingTimeMs: z.number().optional(),
+      llmModel: z.string().optional(),
+      extractionMethod: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type IngestionPayload = z.infer<typeof IngestionPayloadSchema>;
@@ -111,15 +114,27 @@ const SYSTEM_USER_ID = 1;
 
 // ─── Verdict mapping from agent strings ──────────────────────────────────────
 
-function normaliseVerdict(raw: string | undefined): "Supported" | "Contradicted" | "Partially Supported" | "Ambiguous" | "Insufficient Evidence" | "Out of Scope" | "Needs Expert Review" {
+function normaliseVerdict(
+  raw: string | undefined
+):
+  | "Supported"
+  | "Contradicted"
+  | "Partially Supported"
+  | "Ambiguous"
+  | "Insufficient Evidence"
+  | "Out of Scope"
+  | "Needs Expert Review" {
   if (!raw) return "Insufficient Evidence";
   const lower = raw.toLowerCase();
   if (lower.includes("support")) return "Supported";
-  if (lower.includes("contradict") || lower.includes("refut")) return "Contradicted";
+  if (lower.includes("contradict") || lower.includes("refut"))
+    return "Contradicted";
   if (lower.includes("partial")) return "Partially Supported";
-  if (lower.includes("ambig") || lower.includes("inconclus")) return "Ambiguous";
+  if (lower.includes("ambig") || lower.includes("inconclus"))
+    return "Ambiguous";
   if (lower.includes("scope")) return "Out of Scope";
-  if (lower.includes("expert") || lower.includes("review")) return "Needs Expert Review";
+  if (lower.includes("expert") || lower.includes("review"))
+    return "Needs Expert Review";
   return "Insufficient Evidence";
 }
 
@@ -128,7 +143,15 @@ function normaliseVerdict(raw: string | undefined): "Supported" | "Contradicted"
 async function extractAndUpsertEntities(
   documentId: number,
   vertical: string,
-  claims: Array<{ id: number; claimText: string; proteinName?: string | null; organism?: string | null; pdbId?: string | null; ligand?: string | null; verdict?: string | null }>
+  claims: Array<{
+    id: number;
+    claimText: string;
+    proteinName?: string | null;
+    organism?: string | null;
+    pdbId?: string | null;
+    ligand?: string | null;
+    verdict?: string | null;
+  }>
 ): Promise<void> {
   for (const claim of claims) {
     // Protein entities
@@ -181,7 +204,10 @@ async function extractAndUpsertEntities(
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
-export async function agentIngestionHandler(req: Request, res: Response): Promise<void> {
+export async function agentIngestionHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
   // ── Auth (timing-safe comparison to prevent timing-oracle attacks) ─────────
   const coordApiKey = ENV.coordApiKey;
   const providedKey = req.headers["x-coord-key"] as string | undefined;
@@ -190,8 +216,12 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     return;
   }
   const { createHash, timingSafeEqual } = await import("crypto");
-  const expected = Buffer.from(createHash("sha256").update(coordApiKey).digest());
-  const provided = Buffer.from(createHash("sha256").update(providedKey).digest());
+  const expected = Buffer.from(
+    createHash("sha256").update(coordApiKey).digest()
+  );
+  const provided = Buffer.from(
+    createHash("sha256").update(providedKey).digest()
+  );
   if (!timingSafeEqual(expected, provided)) {
     res.status(401).json({ ok: false, error: "Unauthorized" });
     return;
@@ -199,7 +229,10 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
 
   // ── Concurrency cap ───────────────────────────────────────────────────────
   if (activeIngestions >= MAX_CONCURRENT_INGESTIONS) {
-    res.status(429).json({ ok: false, error: "Too many concurrent ingestions — retry in 30s" });
+    res.status(429).json({
+      ok: false,
+      error: "Too many concurrent ingestions — retry in 30s",
+    });
     return;
   }
 
@@ -229,7 +262,12 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     const [queueItem] = await db
       .select()
       .from(coordQueue)
-      .where(and(eq(coordQueue.id, payload.queueItemId), eq(coordQueue.status, "claimed")))
+      .where(
+        and(
+          eq(coordQueue.id, payload.queueItemId),
+          eq(coordQueue.status, "claimed")
+        )
+      )
       .limit(1);
 
     if (!queueItem) {
@@ -241,7 +279,8 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     }
 
     // ── Create document record ────────────────────────────────────────────
-    const rawText = payload.paper.fullText ?? payload.paper.abstract ?? payload.paper.title;
+    const rawText =
+      payload.paper.fullText ?? payload.paper.abstract ?? payload.paper.title;
     const documentId = await createDocument({
       userId: SYSTEM_USER_ID,
       title: payload.paper.title,
@@ -256,18 +295,21 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
 
     // ── Insert claims ─────────────────────────────────────────────────────
     if (payload.claims.length > 0) {
+      // Normalize all claims to the same set of fields so Drizzle ORM
+      // batch-insert does not produce mismatched column counts when some
+      // claims have optional fields (pdbId, proteinName, etc.) and others do not.
       await insertClaims(
-        payload.claims.map((c) => ({
+        payload.claims.map(c => ({
           documentId,
           claimText: c.claimText,
-          claimType: c.claimType,
-          extractedValue: c.extractedValue,
-          pdbId: c.pdbId,
-          proteinName: c.proteinName,
-          experimentalMethod: c.experimentalMethod,
-          resolution: c.resolution,
-          organism: c.organism,
-          ligand: c.ligand,
+          claimType: c.claimType ?? "general_molecular",
+          extractedValue: c.extractedValue ?? null,
+          pdbId: c.pdbId ?? null,
+          proteinName: c.proteinName ?? null,
+          experimentalMethod: c.experimentalMethod ?? null,
+          resolution: c.resolution ?? undefined,
+          organism: c.organism ?? null,
+          ligand: c.ligand ?? null,
         })) as never
       );
     }
@@ -284,7 +326,7 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     for (let i = 0; i < insertedClaims.length; i += EVIDENCE_CONCURRENCY) {
       const batch = insertedClaims.slice(i, i + EVIDENCE_CONCURRENCY);
       await Promise.allSettled(
-        batch.map(async (claim) => {
+        batch.map(async claim => {
           try {
             // Use vertical adapter if available, otherwise use agent's pre-computed verdict
             if (adapter) {
@@ -294,15 +336,19 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
               });
 
               // Map confidence score to verdict
-              let verdict: ReturnType<typeof normaliseVerdict> = "Insufficient Evidence";
-              if (evidence.confidenceScore >= 0.80) verdict = "Supported";
-              else if (evidence.confidenceScore >= 0.60) verdict = "Partially Supported";
-              else if (evidence.confidenceScore >= 0.40) verdict = "Ambiguous";
+              let verdict: ReturnType<typeof normaliseVerdict> =
+                "Insufficient Evidence";
+              if (evidence.confidenceScore >= 0.8) verdict = "Supported";
+              else if (evidence.confidenceScore >= 0.6)
+                verdict = "Partially Supported";
+              else if (evidence.confidenceScore >= 0.4) verdict = "Ambiguous";
               else verdict = "Insufficient Evidence";
 
               await updateClaimVerdict(claim.id, {
                 verdict,
-                verdictRationale: evidence.confidenceFlags?.join("; ") ?? "Automated evidence lookup",
+                verdictRationale:
+                  evidence.confidenceFlags?.join("; ") ??
+                  "Automated evidence lookup",
                 pdbEvidenceUrl: evidence.sourceUrl ?? undefined,
                 pdbEvidenceRaw: evidence.evidenceRaw ?? undefined,
                 pdbEvidenceCheckedAt: new Date(),
@@ -320,7 +366,10 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
               }
             }
           } catch (claimErr) {
-            log.warn(`[AgentIngestion] Claim ${claim.id} evidence lookup failed:`, errData(claimErr));
+            log.warn(
+              `[AgentIngestion] Claim ${claim.id} evidence lookup failed:`,
+              errData(claimErr)
+            );
           }
         })
       );
@@ -331,8 +380,15 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
 
     // ── Extract graph entities ────────────────────────────────────────────
     const finalClaims = await getClaimsByDocument(documentId);
-    await extractAndUpsertEntities(documentId, payload.vertical, finalClaims).catch((err) => {
-      log.warn("[AgentIngestion] Graph entity extraction failed:", errData(err));
+    await extractAndUpsertEntities(
+      documentId,
+      payload.vertical,
+      finalClaims
+    ).catch(err => {
+      log.warn(
+        "[AgentIngestion] Graph entity extraction failed:",
+        errData(err)
+      );
     });
 
     // ── Mark queue item complete ──────────────────────────────────────────
@@ -354,7 +410,7 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     const processingMs = Date.now() - startMs;
     log.info(
       `[AgentIngestion] Ingested queueItem=${payload.queueItemId} vertical=${payload.vertical} ` +
-      `claims=${payload.claims.length} documentId=${documentId} in ${processingMs}ms`
+        `claims=${payload.claims.length} documentId=${documentId} in ${processingMs}ms`
     );
 
     res.json({
@@ -366,8 +422,13 @@ export async function agentIngestionHandler(req: Request, res: Response): Promis
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    log.error("[AgentIngestion] Fatal error:", errData(error));
-    res.status(500).json({ ok: false, error });
+    const errWithCause = err as { cause?: unknown };
+    const cause = errWithCause?.cause;
+    const causeMsg =
+      cause instanceof Error ? cause.message : String(cause ?? "");
+    log.error("[AgentIngestion] Fatal error:", errData(err));
+    if (causeMsg) log.error("[AgentIngestion] Cause:", { cause: causeMsg });
+    res.status(500).json({ ok: false, error, cause: causeMsg || undefined });
   } finally {
     activeIngestions--;
   }
