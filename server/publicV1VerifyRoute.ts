@@ -18,7 +18,8 @@
  * Response shape (matches citationVerifierClient.ts contract):
  *   { "verdict": "Supported" | "Contradicted" | "Ambiguous",
  *     "confidenceScore": 0.0–1.0,
- *     "sources": ["pubmed:12345678", "pdb:1ABC"] }
+ *     "sources": ["pubmed:12345678", "pdb:1ABC"],
+ *     "citedPmids": ["12345678"] }  // Sprint 41: raw PMID array for evidence graph
  *
  * Error handling (matches client expectations):
  *   401 → missing/invalid token
@@ -60,6 +61,11 @@ function buildSources(
   }
   if (pdbId) sources.push(`pdb:${pdbId}`);
   return sources;
+}
+
+/** Extract raw PMID strings for the evidence graph (Sprint 41). */
+function buildCitedPmids(pubmedResults: Array<{ pmid?: string | null }>): string[] {
+  return pubmedResults.flatMap(p => (p.pmid ? [p.pmid] : []));
 }
 
 // ─── Auth + input guards (extracted to reduce cyclomatic complexity) ─────────
@@ -162,6 +168,7 @@ async function handleV1Verify(req: Request, res: Response): Promise<void> {
     verdict: normaliseVerdict(rawVerdict),
     confidenceScore,
     sources: buildSources(pubmedResults, pdbId),
+    citedPmids: buildCitedPmids(pubmedResults),
     _internal: {
       rawVerdict,
       vertical,
