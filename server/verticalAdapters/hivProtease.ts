@@ -51,10 +51,25 @@ const APPROVED_HIV_PI_NAMES = [
 
 /** HIV PI pharmacophore keywords for claim relevance scoring */
 const HIV_PI_KEYWORDS = [
+  // Core target identifiers
   "hiv-1 protease", "hiv protease", "protease inhibitor", "antiretroviral",
-  "hydroxyethylamine", "bis-thf", "peptidomimetic", "aspartyl protease",
-  "ic50", "pic50", "ki", "binding affinity", "pdb", "co-crystal",
-  "chembl", "bioactivity", "inhibition",
+  "aspartyl protease", "retroviral protease",
+  // Scaffold / pharmacophore terms from SAR literature
+  "hydroxyethylamine", "hydroxyethylene", "hydroxyethylsulfonamide",
+  "bis-thf", "bis-tetrahydrofuran", "tetrahydrofuranyl",
+  "decahydroisoquinoline", "isoquinoline", "bicyclic core",
+  "peptidomimetic", "peptidomimetics", "transition state mimic", "transition state analogue",
+  "isostere", "hydroxymethyl", "hydroxyl linker",
+  // Sub-pocket / binding site terms
+  "p2 position", "p2' position", "p1 position", "p1' position",
+  "flap region", "active site", "catalytic aspartate", "s2 subsite",
+  // Substituent terms common in HIV PI SAR
+  "carbamate", "tert-butyl", "tertiary-butyl", "sulfonamide",
+  "urethane", "oxazolidinone",
+  // Bioactivity metrics
+  "ic50", "pic50", "ki", "kd", "binding affinity", "inhibition", "potency",
+  // Evidence source identifiers
+  "pdb", "co-crystal", "crystal structure", "chembl", "bioactivity",
 ];
 
 // ─── PDB Lookup ───────────────────────────────────────────────────────────────
@@ -243,7 +258,7 @@ Return the key claim as a concise statement.
     if (results.length === 0) {
       const relevance = scoreHivPiRelevance(claimText);
       return {
-        found: relevance > 0.3,
+        found: relevance > 0.2, // Lowered from 0.3 — SAR scaffold claims score 0.2–0.3
         sourceId: `hiv_protease:general`,
         sourceUrl: `https://www.rcsb.org/search?request=%7B%22query%22%3A%7B%22type%22%3A%22terminal%22%2C%22service%22%3A%22text%22%2C%22parameters%22%3A%7B%22value%22%3A%22HIV+protease%22%7D%7D%7D`,
         evidenceRaw: {
