@@ -41,6 +41,12 @@ const PUBMED_SEARCH_TERMS = [
   // deCODE Genetics and Icelandic research (priority seeding)
   "deCODE genetics[Affiliation] AND open access[Filter]",
   "Stefansson K[Author] AND protein[Title/Abstract]",
+  // HIV-1 protease inhibitor SAR literature (Sprint 40 — hiv_protease vertical)
+  "HIV-1 Protease Inhibitors[MeSH] AND structure-activity[Title/Abstract] AND open access[Filter]",
+  "HIV Protease Inhibitors[MeSH] AND darunavir[Title/Abstract]",
+  "Anti-HIV Agents[MeSH] AND protease inhibitor[Title/Abstract] AND open access[Filter]",
+  "decahydroisoquinoline HIV protease[Title/Abstract]",
+  "hydroxyethylamine isostere HIV-1 protease[Title/Abstract]",
 ];
 
 async function fetchPubMedCandidates(
