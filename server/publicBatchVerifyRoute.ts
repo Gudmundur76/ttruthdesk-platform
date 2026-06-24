@@ -256,7 +256,17 @@ async function processSingleClaim(
   const processedAt = new Date().toISOString();
   try {
     const signalDensity = computeSignalDensity(claimText);
-    const extracted = await extractClaims(claimText);
+    // Guard against transient LLM failures (e.g. 500/503 from free model pool).
+    // On failure, fall through to the PubMed path instead of aborting the claim.
+    let extracted: Awaited<ReturnType<typeof extractClaims>> = [];
+    try {
+      extracted = await extractClaims(claimText);
+    } catch (llmErr) {
+      log.warn(
+        `[BatchVerify] Claim ${index}: extractClaims LLM error — falling back to PubMed`,
+        llmErr as Record<string, unknown>
+      );
+    }
 
     let pubmedResults: PubMedResult[] = [];
     let verdictResult: VerdictResult | null = null;

@@ -66,7 +66,7 @@ const HIV_PI_KEYWORDS = [
   "flap region", "active site", "catalytic aspartate", "s2 subsite",
   "s2 sub-site", "s1 sub-site", "s1' sub-site", "s2' sub-site",
   // Substituent terms common in HIV PI SAR
-  "carbamate", "tert-butyl", "tertiary-butyl", "sulfonamide",
+  "carbamate", "tert-butyl", "tertiary-butyl", "tertiary-butyl carbamate", "sulfonamide",
   "urethane", "oxazolidinone",
   // UCB1 convergence scaffold: bicyclic core + hydroxyethylamine isostere + P2-tert-butyl
   "bicyclic core inhibitor", "bicyclic scaffold", "bicyclic hiv",
