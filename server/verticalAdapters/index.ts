@@ -29,8 +29,6 @@ import "./plantBasedProtein";
 import "./sportsNutritionRct";
 import "./uniprotVertical";
 import "./clinicalTrialsVertical";
-import "./hivProtease"; // HIV-1 protease inhibitor vertical — novus.is integration (2026-06-21)
-import "./molecularDiscovery"; // ASI-Evolve molecular discovery engine — QUANTUM_DUAL tier (2026-06-22)
 
 // ── Domain-agnostic adapters (approved 2026-06-13) ───────────────────────────
 // These make the engine verifiable across ALL academic disciplines.
@@ -91,12 +89,7 @@ import "./openfda_adverse"; // OpenFDA adverse events — FAERS drug safety repo
 import "./nice";            // NICE Evidence — UK clinical guidelines and appraisals
 import "./who_iris";        // WHO IRIS — WHO technical reports and guidelines
 import "./embase";          // EMBASE — European biomedical literature (via Europe PMC)
-// ── Sprint 38: Tier 1 public database expansion ─────────────────────────────
-import "./rcsb_pdb";              // RCSB PDB — experimental 3D protein structures
-import "./clinicaltrials_results"; // ClinicalTrials.gov Results — posted outcome data
-import "./retraction_watch";       // Retraction Watch — 50,000+ retractions (negative signal)
-import "./openfda_maude";          // OpenFDA MAUDE — medical device adverse events
-import "./ncbi_gene";              // NCBI Gene — gene function, expression, pathways
-import "./dbsnp";                  // dbSNP — 1B+ genetic variants with population frequency
-import "./omim";                   // OMIM — gene-disease associations for Mendelian disorders
+import "./molecularDiscovery"; // ASI-Evolve — dual quantum provenance (WuKong + Jiuzhang 4.0)
+import "./omim";              // OMIM — gene-disease associations for Mendelian disorders (Sprint 38)
+import "./hivProtease";       // HIV Protease — PDB co-crystals, ChEMBL, PubMed HIV PI literature (Sprint 39)
 import "./genericSource"; // URL/DOI fallback — must be last (lowest priority)

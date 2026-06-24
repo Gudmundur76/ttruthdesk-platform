@@ -49,6 +49,7 @@ import { registerClaimHistoryRoute } from "../claimHistoryRoute";
 import { registerClaimProvenanceRoute } from "../claimProvenanceRoute";
 import { registerBatchVerifyRoute } from "../batchVerifyRoute";
 import { registerPublicBatchVerifyRoute } from "../publicBatchVerifyRoute";
+import { registerPublicDecomposeClaimRoute } from "../publicDecomposeClaimRoute";
 import { registerExternalPublicRoutes } from "../externalPublicRouter";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
@@ -150,6 +151,8 @@ async function startServer() {
         "- POST /api/public/batch-verify — verify up to 50 claims in one request (rate-limited 10 req/min)",
         "  - Optional body field: concurrency (1-5, default 5) to throttle parallelism",
         "  - NDJSON streaming: send Accept: application/x-ndjson to receive results line-by-line as they complete",
+        "- POST /api/public/decompose-claim — split a compound claim into atomic verifiable sub-claims (Sprint 39)",
+        "  - Returns verifiable:true/false flag per sub-claim (false = predicted/computed value, skip before batch-verify)",
         "- GET /.well-known/mcp.json — MCP tool card",
         "- GET /llms.txt — AI instructions",
         "- GET /sitemap.xml — all public report URLs (4,000+ claim URLs)",
@@ -1962,6 +1965,7 @@ async function startServer() {
   registerClaimProvenanceRoute(app);
   registerBatchVerifyRoute(app);
   registerPublicBatchVerifyRoute(app); // POST /api/public/batch-verify — agent-callable batch claim verification
+  registerPublicDecomposeClaimRoute(app); // POST /api/public/decompose-claim — Sprint 39
   // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
   registerExternalPublicRoutes(app);
   // self-direct integration: /api/telemetry/summary — verification.completed event feed

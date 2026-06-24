@@ -112,6 +112,10 @@ For each claim, extract the PDB ID if mentioned, the protein name, the method, a
     "antibody structure PDB[Title/Abstract] AND open access[Filter]",
     "deCODE genetics[Affiliation] AND open access[Filter]",
     "Stefansson K[Author] AND protein[Title/Abstract]",
+    // HIV protease MeSH terms (Sprint 39 — notus.is retrieval tuning)
+    "HIV Protease Inhibitors[MeSH] AND structure activity relationship[Title/Abstract]",
+    "Protease Inhibitors[MeSH] AND HIV-1[Title/Abstract] AND open access[Filter]",
+    "Anti-HIV Agents[MeSH] AND binding affinity[Title/Abstract] AND open access[Filter]",
   ],
 };
 

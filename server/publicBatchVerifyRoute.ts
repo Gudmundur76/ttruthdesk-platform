@@ -210,11 +210,24 @@ async function tryPubMedFallback(
   return { pubmedResults, verdictResult };
 }
 
+/**
+ * Compute a calibrated confidence score.
+ *
+ * Zero-citation penalty (Sprint 39): if pubmedCount === 0 AND the verdict is
+ * "Supported" or "Partially Supported", cap confidence at 0.65 to prevent
+ * overconfident verdicts that cite no evidence.
+ */
 function computeConfidence(verdict: string, pubmedCount: number, signalDensity: number): number {
   const base = VERDICT_CONFIDENCE[verdict] ?? 0.5;
   const pubmedBoost = Math.min(pubmedCount * 0.04, 0.2);
   const signalBoost = Math.min((signalDensity / 60) * 0.1, 0.1);
-  return Math.round(Math.min(base + pubmedBoost + signalBoost, 0.99) * 100) / 100;
+  const raw = Math.min(base + pubmedBoost + signalBoost, 0.99);
+  // Zero-citation penalty: cap at 0.65 when no PubMed evidence backs the verdict
+  const zeroCitationCap =
+    pubmedCount === 0 && (verdict === "Supported" || verdict === "Partially Supported")
+      ? 0.65
+      : 0.99;
+  return Math.round(Math.min(raw, zeroCitationCap) * 100) / 100;
 }
 
 // ─── ClaimResult type ─────────────────────────────────────────────────────────
@@ -226,6 +239,8 @@ export type ClaimResult = {
   rationale: string;
   confidence: number;
   evidenceUrl: string | null;
+  /** PMIDs of the PubMed papers that back this verdict (empty array = no citations). */
+  citedPmids: string[];
   pubmedResults: PubMedResult[];
   processedAt: string;
   error: string | null;
@@ -257,6 +272,15 @@ async function processSingleClaim(
     }
 
     const confidence = computeConfidence(verdictResult.verdict, pubmedResults.length, signalDensity);
+    const slicedPubmed = pubmedResults.slice(0, 3).map(p => ({
+      pmid: p.pmid,
+      title: p.title,
+      abstractSnippet: p.abstractSnippet ?? "",
+      journal: p.journal ?? null,
+      year: p.year ?? null,
+      citationUrl: p.citationUrl,
+    })) as unknown as PubMedResult[];
+    const citedPmids = slicedPubmed.map(p => (p as unknown as { pmid: string }).pmid).filter(Boolean);
 
     return {
       index,
@@ -265,14 +289,8 @@ async function processSingleClaim(
       rationale: verdictResult.rationale,
       confidence,
       evidenceUrl: verdictResult.evidenceUrl ?? null,
-      pubmedResults: pubmedResults.slice(0, 3).map(p => ({
-        pmid: p.pmid,
-        title: p.title,
-        abstractSnippet: p.abstractSnippet ?? "",
-        journal: p.journal ?? null,
-        year: p.year ?? null,
-        citationUrl: p.citationUrl,
-      })) as unknown as PubMedResult[],
+      citedPmids,
+      pubmedResults: slicedPubmed,
       processedAt,
       error: null,
     };
@@ -285,6 +303,7 @@ async function processSingleClaim(
       rationale: "Verification failed due to an internal error.",
       confidence: 0,
       evidenceUrl: null,
+      citedPmids: [],
       pubmedResults: [],
       processedAt,
       error: "Internal error",
@@ -406,6 +425,7 @@ async function handleBatchVerify(req: Request, res: Response): Promise<void> {
         rationale: c.error!,
         confidence: 0,
         evidenceUrl: null,
+        citedPmids: [],
         pubmedResults: [],
         processedAt: new Date().toISOString(),
         error: c.error,
