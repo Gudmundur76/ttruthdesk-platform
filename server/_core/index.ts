@@ -48,6 +48,7 @@ import { agentIngestionHandler } from "../agentIngestionEndpoint";
 import { registerClaimHistoryRoute } from "../claimHistoryRoute";
 import { registerClaimProvenanceRoute } from "../claimProvenanceRoute";
 import { registerBatchVerifyRoute } from "../batchVerifyRoute";
+import { registerPublicBatchVerifyRoute } from "../publicBatchVerifyRoute";
 import { registerExternalPublicRoutes } from "../externalPublicRouter";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
@@ -1906,6 +1907,7 @@ async function startServer() {
   registerClaimHistoryRoute(app);
   registerClaimProvenanceRoute(app);
   registerBatchVerifyRoute(app);
+  registerPublicBatchVerifyRoute(app); // POST /api/public/batch-verify — agent-callable batch claim verification
   // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
   registerExternalPublicRoutes(app);
   // self-direct integration: /api/telemetry/summary — verification.completed event feed

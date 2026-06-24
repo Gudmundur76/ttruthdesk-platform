@@ -55,67 +55,13 @@ import type { EvidenceResult } from "./verticalAdapters/types";
 import "./verticalAdapters"; // ensure all adapters are registered
 import { translateQueryToClaims } from "./_queryTranslator";
 import { triggerAutonomousIngest, type PubMedResult } from "./autonomousIngest";
-import { findClaimByText, getContradictionsForClaim, createDocument, insertClaims } from "./db";
-
-// ─── System user ID (mirrors agentIngestionEndpoint.ts) ──────────────────────
-const SYSTEM_USER_ID = 1;
-
-/**
- * Persist a verified claim to the database and return its new row ID.
- *
- * Creates a synthetic "agent" document to satisfy the NOT NULL documentId
- * foreign key, then inserts the claim with the full verdict payload.
- * Returns null if the DB is unavailable or the insert fails — the caller
- * should treat this as non-fatal and still return the verification result.
- */
-async function persistVerifiedClaim(opts: {
-  claimText: string;
-  claimType: string;
-  verdict: string;
-  verdictRationale: string;
-  confidenceScore: number;
-  proteinName: string | null;
-  pdbId: string | null;
-  vertical: string | null;
-}): Promise<number | null> {
-  try {
-    const documentId = await createDocument({
-      userId: SYSTEM_USER_ID,
-      title: opts.claimText.slice(0, 512),
-      sourceType: "paste",
-      rawText: opts.claimText,
-      status: "complete",
-      verticalDomain: opts.vertical ?? "general",
-      llmProvider: "verify-claim-agent",
-      qualityTier: "verified",
-      needsReview: false,
-    });
-    await insertClaims([{
-      documentId,
-      claimText: opts.claimText,
-      claimType: opts.claimType,
-      verdict: opts.verdict as "Supported" | "Contradicted" | "Partially Supported" | "Ambiguous" | "Insufficient Evidence" | "Out of Scope" | "Needs Expert Review",
-      verdictRationale: opts.verdictRationale,
-      confidenceScore: opts.confidenceScore,
-      proteinName: opts.proteinName ?? undefined,
-      pdbId: opts.pdbId ?? undefined,
-      verdictMethod: "confidence_threshold",
-    }]);
-    // Retrieve the newly inserted claim ID
-    const saved = await findClaimByText(opts.claimText).catch(() => null);
-    return saved?.id ?? null;
-  } catch {
-    // Non-fatal — verification result is still returned without a claimId
-    return null;
-  }
-}
+import { findClaimByText, getContradictionsForClaim } from "./db";
 import { extractSpoTriple } from "./spoExtractor";
 import { logger, errData } from "./logger";
+import { verificationEventStore } from "./verificationEventStore";
 import { fireVerdictWebhook, buildVerdictPayload } from "./verdictWebhookRoute";
 import { decomposeQuestion, buildPubMedQuery } from "./questionDecomposer";
 import { classifyClaims, getPrimaryRoute } from "./domainClassifier";
-import { verificationEventStore } from "./verificationEventStore";
-import { randomUUID } from "crypto";
 const log = logger("verifyClaimRoute");
 
 // ─── NCBI E-utilities adapter (Sprint 25 Phase 3 — replaces EuropePMC) ──────
@@ -372,13 +318,29 @@ setInterval(
   5 * 60 * 1000
 );
 
+// ─── CORS allowlist ──────────────────────────────────────────────────────────
+
+const ALLOWED_ORIGINS = new Set([
+  "https://notus.is",
+  "https://citation.manus.space",
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
+
+function setCorsHeaders(req: Request, res: Response): void {
+  const origin = req.headers.origin ?? "";
+  const allowed = ALLOWED_ORIGINS.has(origin) ? origin : "https://citation.manus.space";
+  res.setHeader("Access-Control-Allow-Origin", allowed);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line complexity
 async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  setCorsHeaders(req, res);
 
   if (req.method === "OPTIONS") {
     res.status(204).end();
@@ -592,22 +554,28 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       });
     }
 
+    // ── Step 4a: Push into in-memory telemetry store (self-direct polling) ──
+    verificationEventStore.push({
+      inputId: registryClaimId !== null ? String(registryClaimId) : claimText.slice(0, 64),
+      verdict: bestVerdictResult!.verdict,
+      adapter: vertical ?? "pubmed",
+      confidence: (
+        {
+          Supported: 0.9,
+          "Partially Supported": 0.65,
+          Ambiguous: 0.4,
+          "Needs Expert Review": 0.3,
+          "Insufficient Evidence": 0.1,
+          Contradicted: 0.05,
+          "Out of Scope": 0.05,
+        } as Record<string, number>
+      )[bestVerdictResult!.verdict] ?? 0.5,
+      timestamp: new Date().toISOString(),
+    });
+
     // ── Step 4b: Feed the self-improving SLM flywheel (fire-and-forget) ──
     // POST the verdict event to cognitive-loop-framework /cognitive/ingest.
     // Non-blocking — if the cognitive loop is down, verification still succeeds.
-
-    // ── Step 4c: Emit verification.completed for self-direct polling ──────────
-    // Non-blocking push into the in-memory ring buffer.
-    // self-direct polls /api/telemetry/summary to read these events.
-    verificationEventStore.push({
-      inputId:
-        registryClaimId !== null ? String(registryClaimId) : randomUUID(),
-      verdict: bestVerdictResult!.verdict,
-      adapter: vertical ?? "general",
-      confidence: VERDICT_CONFIDENCE[bestVerdictResult!.verdict] ?? 0.5,
-      timestamp: processedAt,
-    });
-
     fireVerdictWebhook(
       buildVerdictPayload({
         claimId: registryClaimId !== null ? String(registryClaimId) : null,
@@ -636,23 +604,6 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       signalDensity
     );
 
-    // ── Step 5: Persist claim to database if not already in registry ─────────────
-    // Ensures every verified claim gets a permanent claimId and citation URL.
-    // Fire-and-forget for new claims; uses existing registryClaimId for known ones.
-    let finalClaimId: number | null = registryClaimId;
-    if (registryClaimId === null) {
-      finalClaimId = await persistVerifiedClaim({
-        claimText,
-        claimType: primaryClaimType,
-        verdict: bestVerdictResult!.verdict,
-        verdictRationale: bestVerdictResult!.rationale,
-        confidenceScore,
-        proteinName: primaryProteinName,
-        pdbId: primaryPdbId,
-        vertical,
-      });
-    }
-
     res.json({
       ok: true,
       claim: claimText,
@@ -666,8 +617,8 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       signalDensity,
       confidenceScore,
       claimText,
-      // Sprint 12 + persist fix: always return claimId (new or existing)
-      claimId: finalClaimId,
+      // Sprint 12: surface registry ID when claim is already known
+      claimId: registryClaimId,
       // Sprint 21: SPO triple — normalized subject–predicate–object (Perplexity Doc 1 + Doc 3)
       spo: spoTriple
         ? {
@@ -715,12 +666,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
 
 export function registerVerifyClaimRoute(app: Express): void {
   app.options("/api/public/verify-claim", (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization"
-    );
+    setCorsHeaders(req, res);
     res.status(204).end();
   });
   app.post("/api/public/verify-claim", handleVerifyClaim);

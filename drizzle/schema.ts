@@ -125,6 +125,8 @@ export const claims = mysqlTable(
       "Needs Expert Review",
     ]),
     verdictRationale: text("verdictRationale"),
+    // Nemotron chain-of-thought reasoning (stored when LLM_PROVIDER=nvidia_nim)
+    modelReasoning: text("modelReasoning"),
     // PDB evidence
     pdbEvidenceRaw: json("pdbEvidenceRaw"),
     pdbEvidenceUrl: varchar("pdbEvidenceUrl", { length: 2048 }),
