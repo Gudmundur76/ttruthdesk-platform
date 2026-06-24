@@ -202,8 +202,64 @@ async function extractAndUpsertEntities(
   }
 }
 
-// ─── Main handler ─────────────────────────────────────────────────────────────
+// ─── Evidence lookup helper (extracted to reduce handler complexity) ──────────
+async function runEvidenceLookup(
+  insertedClaims: Awaited<ReturnType<typeof getClaimsByDocument>>,
+  adapter: ReturnType<typeof getVertical>,
+  agentClaims: IngestionPayload["claims"]
+): Promise<void> {
+  const EVIDENCE_CONCURRENCY = 6;
+  for (let i = 0; i < insertedClaims.length; i += EVIDENCE_CONCURRENCY) {
+    const batch = insertedClaims.slice(i, i + EVIDENCE_CONCURRENCY);
+    await Promise.allSettled(
+      batch.map(async claim => {
+        try {
+          if (adapter) {
+            const evidence = await adapter.lookupEvidence({
+              claimText: claim.claimText,
+              extractedValue: claim.extractedValue ?? null,
+            });
+            let verdict: ReturnType<typeof normaliseVerdict> =
+              "Insufficient Evidence";
+            if (evidence.confidenceScore >= 0.8) verdict = "Supported";
+            else if (evidence.confidenceScore >= 0.6)
+              verdict = "Partially Supported";
+            else if (evidence.confidenceScore >= 0.4) verdict = "Ambiguous";
+            else verdict = "Insufficient Evidence";
+            await updateClaimVerdict(claim.id, {
+              verdict,
+              verdictRationale:
+                evidence.confidenceFlags?.join("; ") ??
+                "Automated evidence lookup",
+              pdbEvidenceUrl: evidence.sourceUrl ?? undefined,
+              pdbEvidenceRaw: evidence.evidenceRaw ?? undefined,
+              pdbEvidenceCheckedAt: new Date(),
+            });
+          } else {
+            const agentClaim = agentClaims[i];
+            if (agentClaim?.agentVerdict) {
+              await updateClaimVerdict(claim.id, {
+                verdict: normaliseVerdict(agentClaim.agentVerdict),
+                verdictRationale: `Agent verdict (${
+                  agentClaim.agentConfidence?.toFixed(2) ?? "n/a"
+                } confidence)`,
+                pdbEvidenceUrl: agentClaim.agentEvidenceUrl,
+                pdbEvidenceCheckedAt: new Date(),
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn(
+            `[AgentIngestion] Claim ${claim.id} evidence lookup failed:`,
+            errData(claimErr)
+          );
+        }
+      })
+    );
+  }
+}
 
+// ─── Main handler ─────────────────────────────────────────────────────────────
 export async function agentIngestionHandler(
   req: Request,
   res: Response
@@ -321,59 +377,7 @@ export async function agentIngestionHandler(
     // ── Get inserted claims and run vertical adapter evidence lookup ───────
     const insertedClaims = await getClaimsByDocument(documentId);
     const adapter = getVertical(payload.vertical);
-
-    const EVIDENCE_CONCURRENCY = 6;
-    for (let i = 0; i < insertedClaims.length; i += EVIDENCE_CONCURRENCY) {
-      const batch = insertedClaims.slice(i, i + EVIDENCE_CONCURRENCY);
-      await Promise.allSettled(
-        batch.map(async claim => {
-          try {
-            // Use vertical adapter if available, otherwise use agent's pre-computed verdict
-            if (adapter) {
-              const evidence = await adapter.lookupEvidence({
-                claimText: claim.claimText,
-                extractedValue: claim.extractedValue ?? null,
-              });
-
-              // Map confidence score to verdict
-              let verdict: ReturnType<typeof normaliseVerdict> =
-                "Insufficient Evidence";
-              if (evidence.confidenceScore >= 0.8) verdict = "Supported";
-              else if (evidence.confidenceScore >= 0.6)
-                verdict = "Partially Supported";
-              else if (evidence.confidenceScore >= 0.4) verdict = "Ambiguous";
-              else verdict = "Insufficient Evidence";
-
-              await updateClaimVerdict(claim.id, {
-                verdict,
-                verdictRationale:
-                  evidence.confidenceFlags?.join("; ") ??
-                  "Automated evidence lookup",
-                pdbEvidenceUrl: evidence.sourceUrl ?? undefined,
-                pdbEvidenceRaw: evidence.evidenceRaw ?? undefined,
-                pdbEvidenceCheckedAt: new Date(),
-              });
-            } else {
-              // No adapter — use agent's pre-computed verdict if provided
-              const agentClaim = payload.claims[i];
-              if (agentClaim?.agentVerdict) {
-                await updateClaimVerdict(claim.id, {
-                  verdict: normaliseVerdict(agentClaim.agentVerdict),
-                  verdictRationale: `Agent verdict (${agentClaim.agentConfidence?.toFixed(2) ?? "n/a"} confidence)`,
-                  pdbEvidenceUrl: agentClaim.agentEvidenceUrl,
-                  pdbEvidenceCheckedAt: new Date(),
-                });
-              }
-            }
-          } catch (claimErr) {
-            log.warn(
-              `[AgentIngestion] Claim ${claim.id} evidence lookup failed:`,
-              errData(claimErr)
-            );
-          }
-        })
-      );
-    }
+    await runEvidenceLookup(insertedClaims, adapter, payload.claims);
 
     // ── Mark document complete ────────────────────────────────────────────
     await updateDocumentStatus(documentId, "complete");
