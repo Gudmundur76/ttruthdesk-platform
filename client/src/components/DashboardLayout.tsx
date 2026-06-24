@@ -51,7 +51,7 @@ import {
   BookMarked,
   Terminal,
   Sparkles,
-  Cpu,
+  FlaskConical,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -80,7 +80,7 @@ const menuItems = [
   { icon: Telescope, label: "Frontier Engine", path: "/admin/frontier" },
   { icon: RefreshCw, label: "Autonomous Loop", path: "/admin/loop" },
   { icon: Moon, label: "Dream State", path: "/admin/dream" },
-  { icon: Cpu, label: "Quantum Jobs", path: "/admin/quantum-jobs" },
+  { icon: Zap, label: "Quantum Jobs", path: "/admin/quantum-jobs" },
   { icon: ShieldCheck, label: "Override Audit", path: "/admin/overrides" },
   { icon: Database, label: "Source Whitelist", path: "/admin/sources" },
   { icon: Rocket, label: "Deployments", path: "/admin/deployments" },
@@ -88,6 +88,7 @@ const menuItems = [
   { icon: Code2, label: "Embed Generator", path: "/admin/embed" },
   { icon: Layers, label: "Vertical Mgmt", path: "/admin/vertical-mgmt" },
   { icon: Terminal, label: "Harness", path: "/admin/harness" },
+  { icon: FlaskConical, label: "Self-Direct", path: "/admin/self-direct" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

@@ -147,6 +147,7 @@ async function startServer() {
         "  - Headers: X-Total-Count, X-Total-Pages, X-Page, X-Page-Size",
         "- GET /api/public/claims.json — most recent 200 verified claims (legacy)",
         "- POST /api/public/verify-claim — verify a single claim",
+        "- POST /api/public/batch-verify — verify up to 50 claims in one request (concurrency 5, rate-limited 10 req/min)",
         "- GET /.well-known/mcp.json — MCP tool card",
         "- GET /llms.txt — AI instructions",
         "- GET /sitemap.xml — all public report URLs (4,000+ claim URLs)",
@@ -636,6 +637,73 @@ async function startServer() {
               "failed",
             ],
           },
+        },
+      },
+    },
+    {
+      name: "batch_verify",
+      description:
+        "Verify up to 50 scientific claims in a single request. Executes all verifications in parallel (concurrency 5). Returns an array of verdict objects in the same order as the input claims. Rate-limited to 10 req/min per IP. Ideal for bulk document grounding, fact-checking pipelines, and RAG post-processing.",
+      endpoint: `${SITE_ORIGIN}/api/public/batch-verify`,
+      method: "POST",
+      input_schema: {
+        type: "object",
+        properties: {
+          claims: {
+            type: "array",
+            maxItems: 50,
+            items: {
+              type: "object",
+              properties: {
+                claim: {
+                  type: "string",
+                  description: "The scientific claim text to verify",
+                },
+                domain: {
+                  type: "string",
+                  description:
+                    "Optional research domain (e.g. sports_nutrition, structural_biology)",
+                },
+              },
+              required: ["claim"],
+            },
+            description: "Array of 1-50 claim objects to verify",
+          },
+        },
+        required: ["claims"],
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          results: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                claim: { type: "string" },
+                verdict: {
+                  type: "string",
+                  enum: [
+                    "Supported",
+                    "Contradicted",
+                    "Ambiguous",
+                    "Insufficient Evidence",
+                    "Out of Scope",
+                    "Needs Expert Review",
+                  ],
+                },
+                confidenceScore: { type: "number" },
+                rationale: { type: "string" },
+                evidenceUrl: { type: "string" },
+                error: {
+                  type: "string",
+                  description: "Present only if this individual claim failed",
+                },
+              },
+            },
+          },
+          total: { type: "integer" },
+          durationMs: { type: "integer" },
         },
       },
     },
@@ -1324,7 +1392,11 @@ async function startServer() {
       const raw = (req.body as Buffer)?.toString("utf8") ?? "";
       req.rawBody = raw;
       // express.raw() consumes the stream; parse manually so req.body is a JS object
-      try { req.body = JSON.parse(raw); } catch { req.body = {}; }
+      try {
+        req.body = JSON.parse(raw);
+      } catch {
+        req.body = {};
+      }
       next();
     },
     (req, res) => void handleSpecReady(req, res)

@@ -93,6 +93,17 @@ export const PaperDiscoveredPayload = z.object({
       "europepmc",
       "ncbi",
       "domain-ingest",
+      // Internal pipeline sources
+      "autonomousIngest",
+      "copilot_pubmed",
+      "copilot_uniprot",
+      "copilot_query",
+      "dream_session",
+      "dream_state",
+      "dream_staging_approved",
+      "frontier_hypothesis",
+      "self_prompt_cron",
+      "cron",
     ])
     .optional(),
   autoIngestedPaperId: z.number().int().positive().optional(),
@@ -280,7 +291,7 @@ export type ExtendedLoopEventType =
 
 export const EVENT_PAYLOAD_SCHEMAS: Record<
   ExtendedLoopEventType,
-  z.ZodType<any> // eslint-disable-line @typescript-eslint/no-explicit-any
+  z.ZodType<unknown>
 > = {
   document_submitted: DocumentSubmittedPayload,
   paper_discovered: PaperDiscoveredPayload,
