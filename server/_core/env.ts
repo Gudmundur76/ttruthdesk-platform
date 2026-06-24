@@ -106,4 +106,9 @@ export const ENV = {
   // Shared with self-direct's NOTIFIER_WEBHOOK_SECRET env var.
   // POST /api/self-direct/spec-ready requires x-self-direct-signature: sha256=<HMAC-SHA256(body, secret)>
   selfDirectWebhookSecret: process.env.SELF_DIRECT_WEBHOOK_SECRET ?? "",
+  // Bearer token for the cognitive-loop-framework POST /v1/verify endpoint.
+  // Set CITATION_API_KEY to any strong random secret (e.g. openssl rand -hex 32);
+  // share it with the cognitive-loop-framework CITATION_API_KEY env var.
+  // If unset, the /v1/verify endpoint returns 503 Service Unavailable.
+  citationApiKey: process.env.CITATION_API_KEY ?? "",
 };

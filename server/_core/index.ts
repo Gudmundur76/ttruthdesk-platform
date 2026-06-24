@@ -50,6 +50,7 @@ import { registerClaimProvenanceRoute } from "../claimProvenanceRoute";
 import { registerBatchVerifyRoute } from "../batchVerifyRoute";
 import { registerPublicBatchVerifyRoute } from "../publicBatchVerifyRoute";
 import { registerPublicDecomposeClaimRoute } from "../publicDecomposeClaimRoute";
+import { registerV1VerifyRoute } from "../publicV1VerifyRoute"; // cognitive-loop-framework integration
 import { registerExternalPublicRoutes } from "../externalPublicRouter";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
@@ -153,6 +154,8 @@ async function startServer() {
         "  - NDJSON streaming: send Accept: application/x-ndjson to receive results line-by-line as they complete",
         "- POST /api/public/decompose-claim — split a compound claim into atomic verifiable sub-claims (Sprint 39)",
         "  - Returns verifiable:true/false flag per sub-claim (false = predicted/computed value, skip before batch-verify)",
+        "- POST /v1/verify — cognitive-loop-framework integration (Bearer token auth via CITATION_API_KEY)",
+        "  - Accepts { claim, context } body; returns { verdict, confidenceScore, sources } in cognitive-loop-framework contract shape",
         "- GET /.well-known/mcp.json — MCP tool card",
         "- GET /llms.txt — AI instructions",
         "- GET /sitemap.xml — all public report URLs (4,000+ claim URLs)",
@@ -693,6 +696,30 @@ async function startServer() {
           },
           total: { type: "integer" },
           durationMs: { type: "integer" },
+        },
+      },
+    },
+    {
+      name: "v1_verify",
+      description:
+        "Verify a molecular entity claim (SMILES, DNA/protein sequence, gene name, or natural language) for the cognitive-loop-framework. Requires Bearer token auth via Authorization: Bearer <CITATION_API_KEY> header. Returns verdict (Supported|Contradicted|Ambiguous), confidenceScore (0-1), and sources array (pubmed:PMID, pdb:PDBID). Pass context=molecular_evolution for SMILES/sequence claims to route to the hiv_protease vertical.",
+      endpoint: `${SITE_ORIGIN}/v1/verify`,
+      method: "POST",
+      authentication: { type: "bearer", env_var: "CITATION_API_KEY" },
+      input_schema: {
+        type: "object",
+        properties: {
+          claim: { type: "string", description: "Molecular entity or scientific claim to verify" },
+          context: { type: "string", description: "Optional context hint (e.g. molecular_evolution)" },
+        },
+        required: ["claim"],
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          verdict: { type: "string", enum: ["Supported", "Contradicted", "Ambiguous"] },
+          confidenceScore: { type: "number", minimum: 0, maximum: 1 },
+          sources: { type: "array", items: { type: "string" }, description: "e.g. ['pubmed:12345678', 'pdb:1ABC']" },
         },
       },
     },
@@ -1966,6 +1993,7 @@ async function startServer() {
   registerBatchVerifyRoute(app);
   registerPublicBatchVerifyRoute(app); // POST /api/public/batch-verify — agent-callable batch claim verification
   registerPublicDecomposeClaimRoute(app); // POST /api/public/decompose-claim — Sprint 39
+  registerV1VerifyRoute(app); // POST /v1/verify — cognitive-loop-framework integration
   // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
   registerExternalPublicRoutes(app);
   // self-direct integration: /api/telemetry/summary — verification.completed event feed
