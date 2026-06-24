@@ -60,12 +60,18 @@ const HIV_PI_KEYWORDS = [
   "decahydroisoquinoline", "isoquinoline", "bicyclic core",
   "peptidomimetic", "peptidomimetics", "transition state mimic", "transition state analogue",
   "isostere", "hydroxymethyl", "hydroxyl linker",
-  // Sub-pocket / binding site terms
+  // Sub-pocket / binding site terms — expanded for UCB1 convergence scaffold
   "p2 position", "p2' position", "p1 position", "p1' position",
+  "p2 sub-pocket", "p2 subpocket", "p2 tert-butyl", "tert-butyl p2",
   "flap region", "active site", "catalytic aspartate", "s2 subsite",
+  "s2 sub-site", "s1 sub-site", "s1' sub-site", "s2' sub-site",
   // Substituent terms common in HIV PI SAR
   "carbamate", "tert-butyl", "tertiary-butyl", "sulfonamide",
   "urethane", "oxazolidinone",
+  // UCB1 convergence scaffold: bicyclic core + hydroxyethylamine isostere + P2-tert-butyl
+  "bicyclic core inhibitor", "bicyclic scaffold", "bicyclic hiv",
+  "hydroxyethylamine isostere", "hea isostere",
+  "p2 tert-butyl carbamate", "tert-butyloxycarbonyl", "boc group",
   // Bioactivity metrics
   "ic50", "pic50", "ki", "kd", "binding affinity", "inhibition", "potency",
   // Evidence source identifiers
