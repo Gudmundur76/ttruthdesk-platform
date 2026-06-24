@@ -147,7 +147,9 @@ async function startServer() {
         "  - Headers: X-Total-Count, X-Total-Pages, X-Page, X-Page-Size",
         "- GET /api/public/claims.json — most recent 200 verified claims (legacy)",
         "- POST /api/public/verify-claim — verify a single claim",
-        "- POST /api/public/batch-verify — verify up to 50 claims in one request (concurrency 5, rate-limited 10 req/min)",
+        "- POST /api/public/batch-verify — verify up to 50 claims in one request (rate-limited 10 req/min)",
+        "  - Optional body field: concurrency (1-5, default 5) to throttle parallelism",
+        "  - NDJSON streaming: send Accept: application/x-ndjson to receive results line-by-line as they complete",
         "- GET /.well-known/mcp.json — MCP tool card",
         "- GET /llms.txt — AI instructions",
         "- GET /sitemap.xml — all public report URLs (4,000+ claim URLs)",
@@ -643,7 +645,7 @@ async function startServer() {
     {
       name: "batch_verify",
       description:
-        "Verify up to 50 scientific claims in a single request. Executes all verifications in parallel (concurrency 5). Returns an array of verdict objects in the same order as the input claims. Rate-limited to 10 req/min per IP. Ideal for bulk document grounding, fact-checking pipelines, and RAG post-processing.",
+        "Verify up to 50 scientific claims in a single request. Executes verifications in parallel (default concurrency=5, adjustable 1-5 via request body). Returns an array of verdict objects in input order. Supports NDJSON streaming: send Accept: application/x-ndjson to receive each result as a newline-delimited JSON line as soon as it completes, followed by a summary line {done:true,...}. Rate-limited to 10 req/min per IP. Ideal for bulk document grounding, fact-checking pipelines, and RAG post-processing.",
       endpoint: `${SITE_ORIGIN}/api/public/batch-verify`,
       method: "POST",
       input_schema: {
@@ -652,22 +654,19 @@ async function startServer() {
           claims: {
             type: "array",
             maxItems: 50,
-            items: {
-              type: "object",
-              properties: {
-                claim: {
-                  type: "string",
-                  description: "The scientific claim text to verify",
-                },
-                domain: {
-                  type: "string",
-                  description:
-                    "Optional research domain (e.g. sports_nutrition, structural_biology)",
-                },
-              },
-              required: ["claim"],
-            },
-            description: "Array of 1-50 claim objects to verify",
+            items: { type: "string", description: "A scientific claim text to verify" },
+            description: "Array of 1-50 claim strings to verify",
+          },
+          concurrency: {
+            type: "integer",
+            minimum: 1,
+            maximum: 5,
+            default: 5,
+            description: "Number of claims to process in parallel (1-5). Lower values reduce peak load on the free model pool.",
+          },
+          vertical: {
+            type: "string",
+            description: "Optional research domain hint (e.g. structural_biology, sports_nutrition, clinical_trial).",
           },
         },
         required: ["claims"],
@@ -681,24 +680,11 @@ async function startServer() {
               type: "object",
               properties: {
                 claim: { type: "string" },
-                verdict: {
-                  type: "string",
-                  enum: [
-                    "Supported",
-                    "Contradicted",
-                    "Ambiguous",
-                    "Insufficient Evidence",
-                    "Out of Scope",
-                    "Needs Expert Review",
-                  ],
-                },
+                verdict: { type: "string", enum: ["Supported", "Contradicted", "Ambiguous", "Insufficient Evidence", "Out of Scope", "Needs Expert Review"] },
                 confidenceScore: { type: "number" },
                 rationale: { type: "string" },
                 evidenceUrl: { type: "string" },
-                error: {
-                  type: "string",
-                  description: "Present only if this individual claim failed",
-                },
+                error: { type: "string", description: "Present only if this individual claim failed" },
               },
             },
           },
@@ -1392,11 +1378,7 @@ async function startServer() {
       const raw = (req.body as Buffer)?.toString("utf8") ?? "";
       req.rawBody = raw;
       // express.raw() consumes the stream; parse manually so req.body is a JS object
-      try {
-        req.body = JSON.parse(raw);
-      } catch {
-        req.body = {};
-      }
+      try { req.body = JSON.parse(raw); } catch { req.body = {}; }
       next();
     },
     (req, res) => void handleSpecReady(req, res)

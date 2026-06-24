@@ -4,27 +4,45 @@
  * POST /api/public/batch-verify
  *
  * Agent-callable, unauthenticated batch claim verification endpoint.
- * Accepts up to 50 claim strings and runs them in parallel (concurrency = 5).
+ * Accepts up to 50 claim strings and runs them in parallel.
  *
  * Request body:
- *   { "claims": string[], "vertical"?: string }
+ *   {
+ *     "claims": string[],
+ *     "vertical"?: string,
+ *     "concurrency"?: number   // 1–5, default 5. Lower values reduce peak load.
+ *   }
  *
- * Response:
+ * Response modes
+ * ──────────────
+ * Buffered JSON (default):
+ *   Content-Type: application/json
  *   {
  *     "ok": true,
  *     "total": number,
- *     "results": Array<{
- *       "index": number,
- *       "claim": string,
- *       "verdict": string,
- *       "rationale": string,
- *       "confidence": number,
- *       "evidenceUrl": string | null,
- *       "pubmedResults": PubMedResult[],
- *       "processedAt": string,
- *       "error": string | null
- *     }>,
- *     "processedAt": string
+ *     "results": Array<ClaimResult>,
+ *     "processedAt": string,
+ *     "apiVersion": "1.1"
+ *   }
+ *
+ * NDJSON streaming (send Accept: application/x-ndjson):
+ *   Content-Type: application/x-ndjson
+ *   Transfer-Encoding: chunked
+ *   Each line is a JSON-encoded ClaimResult, emitted as soon as it completes.
+ *   The final line is a summary object:
+ *     { "done": true, "total": number, "processedAt": string, "apiVersion": "1.1" }
+ *
+ * ClaimResult shape:
+ *   {
+ *     "index": number,
+ *     "claim": string,
+ *     "verdict": string,
+ *     "rationale": string,
+ *     "confidence": number,
+ *     "evidenceUrl": string | null,
+ *     "pubmedResults": PubMedResult[],
+ *     "processedAt": string,
+ *     "error": string | null
  *   }
  *
  * Rate limiting: 10 batch requests per IP per minute (each batch counts as 1).
@@ -47,11 +65,13 @@ const log = logger("publicBatchVerifyRoute");
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_CLAIMS = 50;
-const CONCURRENCY = 5;
+const DEFAULT_CONCURRENCY = 5;
+const MAX_CONCURRENCY = 5;
 const BATCH_RATE_LIMIT = 10; // requests per minute per IP
 const WINDOW_MS = 60 * 1000;
+const API_VERSION = "1.1";
 
-// ─── CORS allowlist (same as verify-claim) ────────────────────────────────────
+// ─── CORS allowlist ───────────────────────────────────────────────────────────
 
 const ALLOWED_ORIGINS = new Set([
   "https://notus.is",
@@ -66,7 +86,7 @@ function setCorsHeaders(req: Request, res: Response): void {
   res.setHeader("Access-Control-Allow-Origin", allowed);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
 }
 
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
@@ -98,7 +118,7 @@ setInterval(
   5 * 60 * 1000
 );
 
-// ─── Verdict helpers (mirrors verify-claim logic) ─────────────────────────────
+// ─── Verdict helpers ──────────────────────────────────────────────────────────
 
 const VERDICT_CONFIDENCE: Record<string, number> = {
   Supported: 0.9,
@@ -136,7 +156,7 @@ function verdictFromPubMed(papers: PubMedResult[], claimText: string): VerdictRe
   };
 }
 
-// ─── Sub-helpers to keep processSingleClaim complexity ≤ 20 ─────────────────
+// ─── Sub-helpers ──────────────────────────────────────────────────────────────
 
 async function tryVerticalEvidence(
   claimText: string,
@@ -197,13 +217,9 @@ function computeConfidence(verdict: string, pubmedCount: number, signalDensity: 
   return Math.round(Math.min(base + pubmedBoost + signalBoost, 0.99) * 100) / 100;
 }
 
-// ─── Single claim processor ───────────────────────────────────────────────────
+// ─── ClaimResult type ─────────────────────────────────────────────────────────
 
-async function processSingleClaim(
-  claimText: string,
-  vertical: string | null,
-  index: number
-): Promise<{
+export type ClaimResult = {
   index: number;
   claim: string;
   verdict: string;
@@ -213,7 +229,15 @@ async function processSingleClaim(
   pubmedResults: PubMedResult[];
   processedAt: string;
   error: string | null;
-}> {
+};
+
+// ─── Single claim processor ───────────────────────────────────────────────────
+
+async function processSingleClaim(
+  claimText: string,
+  vertical: string | null,
+  index: number
+): Promise<ClaimResult> {
   const processedAt = new Date().toISOString();
   try {
     const signalDensity = computeSignalDensity(claimText);
@@ -268,11 +292,17 @@ async function processSingleClaim(
   }
 }
 
-// ─── Concurrency pool ─────────────────────────────────────────────────────────
+// ─── Concurrency pool (streaming-aware) ──────────────────────────────────────
 
+/**
+ * Runs tasks with bounded concurrency.
+ * When `onResult` is provided each result is forwarded immediately as it
+ * resolves (NDJSON streaming mode). The returned array preserves input order.
+ */
 async function runWithConcurrency<T>(
   tasks: Array<() => Promise<T>>,
-  concurrency: number
+  concurrency: number,
+  onResult?: (result: T) => void
 ): Promise<T[]> {
   const results: T[] = new Array(tasks.length);
   let nextIndex = 0;
@@ -280,13 +310,28 @@ async function runWithConcurrency<T>(
   async function worker(): Promise<void> {
     while (nextIndex < tasks.length) {
       const i = nextIndex++;
-      results[i] = await tasks[i]();
+      const result = await tasks[i]();
+      results[i] = result;
+      onResult?.(result);
     }
   }
 
   const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, worker);
   await Promise.all(workers);
   return results;
+}
+
+// ─── Request parsing helpers ──────────────────────────────────────────────────
+
+function parseConcurrency(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_CONCURRENCY;
+  return Math.min(Math.floor(n), MAX_CONCURRENCY);
+}
+
+function wantsNdjson(req: Request): boolean {
+  const accept = (req.headers.accept ?? "").toLowerCase();
+  return accept.includes("application/x-ndjson");
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -314,13 +359,16 @@ async function handleBatchVerify(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { claims, vertical = null } = req.body ?? {};
+  const { claims, vertical = null, concurrency: rawConcurrency } = req.body ?? {};
 
   if (!Array.isArray(claims) || claims.length === 0) {
     res.status(400).json({
       ok: false,
       error: "Request body must include a non-empty 'claims' array of strings.",
-      example: { claims: ["Salmon contains omega-3 fatty acids.", "Protein X inhibits enzyme Y."] },
+      example: {
+        claims: ["Salmon contains omega-3 fatty acids.", "Protein X inhibits enzyme Y."],
+        concurrency: 3,
+      },
     });
     return;
   }
@@ -333,7 +381,9 @@ async function handleBatchVerify(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const concurrency = parseConcurrency(rawConcurrency);
   const processedAt = new Date().toISOString();
+  const streaming = wantsNdjson(req);
 
   // Validate each claim
   const validatedClaims: Array<{ text: string; error: string | null }> = claims.map(c => {
@@ -346,17 +396,17 @@ async function handleBatchVerify(req: Request, res: Response): Promise<void> {
     return { text: c.trim(), error: null };
   });
 
-  // Build tasks for valid claims only
+  // Build tasks
   const tasks = validatedClaims.map((c, i) => {
     if (c.error) {
-      return async () => ({
+      return async (): Promise<ClaimResult> => ({
         index: i,
         claim: c.text,
-        verdict: "Insufficient Evidence" as const,
+        verdict: "Insufficient Evidence",
         rationale: c.error!,
         confidence: 0,
         evidenceUrl: null,
-        pubmedResults: [] as PubMedResult[],
+        pubmedResults: [],
         processedAt: new Date().toISOString(),
         error: c.error,
       });
@@ -364,15 +414,41 @@ async function handleBatchVerify(req: Request, res: Response): Promise<void> {
     return () => processSingleClaim(c.text, vertical as string | null, i);
   });
 
-  const results = await runWithConcurrency(tasks, CONCURRENCY);
+  if (streaming) {
+    // ── NDJSON streaming mode ─────────────────────────────────────────────────
+    res.setHeader("Content-Type", "application/x-ndjson");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.status(200);
 
-  res.json({
-    ok: true,
-    total: results.length,
-    results,
-    processedAt,
-    apiVersion: "1.0",
-  });
+    await runWithConcurrency(tasks, concurrency, (result) => {
+      res.write(JSON.stringify(result) + "\n");
+    });
+
+    // Final summary line
+    res.write(
+      JSON.stringify({ done: true, total: tasks.length, processedAt, apiVersion: API_VERSION }) + "\n"
+    );
+    res.end();
+  } else {
+    // ── Buffered JSON mode (default) ──────────────────────────────────────────
+    const results = await runWithConcurrency(tasks, concurrency);
+
+    res.json({
+      ok: true,
+      total: results.length,
+      results,
+      processedAt,
+      apiVersion: API_VERSION,
+    });
+  }
+}
+
+// ─── Test helpers ───────────────────────────────────────────────────────────
+
+/** Reset the rate-limit map between tests. Not for production use. */
+export function _resetRateLimitForTesting(): void {
+  rateLimitMap.clear();
 }
 
 // ─── Registration ─────────────────────────────────────────────────────────────
