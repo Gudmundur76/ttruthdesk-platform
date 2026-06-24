@@ -136,6 +136,67 @@ function verdictFromPubMed(papers: PubMedResult[], claimText: string): VerdictRe
   };
 }
 
+// ─── Sub-helpers to keep processSingleClaim complexity ≤ 20 ─────────────────
+
+async function tryVerticalEvidence(
+  claimText: string,
+  extractedValue: string | null,
+  vertical: string | null
+): Promise<VerdictResult | null> {
+  const adapter = getVertical(vertical as string);
+  if (!adapter) return null;
+  const evidence = await adapter.lookupEvidence({ claimText, extractedValue });
+  if (!evidence.found || evidence.confidenceScore < 0.6) return null;
+  return {
+    verdict: evidence.confidenceScore >= 0.85 ? "Supported" : "Partially Supported",
+    rationale: `Source: ${evidence.sourceId ?? evidence.sourceUrl ?? "unknown"} (confidence ${(evidence.confidenceScore * 100).toFixed(0)}%).`,
+    evidenceUrl: evidence.sourceUrl,
+    evidenceRaw: evidence.evidenceRaw as never,
+  };
+}
+
+async function tryStructuredVerdict(
+  primaryClaim: Awaited<ReturnType<typeof extractClaims>>[number],
+  vertical: string | null
+): Promise<VerdictResult | null> {
+  const vertResult = await tryVerticalEvidence(
+    primaryClaim.claimText,
+    primaryClaim.extractedValue ?? null,
+    vertical
+  );
+  if (vertResult) return vertResult;
+  return verdictForClaim({
+    claimType: primaryClaim.claimType,
+    pdbId: primaryClaim.pdbId ?? null,
+    proteinName: primaryClaim.proteinName ?? null,
+    experimentalMethod: primaryClaim.experimentalMethod ?? null,
+    resolution: primaryClaim.resolution ?? null,
+    organism: primaryClaim.organism ?? null,
+    ligand: primaryClaim.ligand ?? null,
+  });
+}
+
+async function tryPubMedFallback(
+  claimText: string
+): Promise<{ pubmedResults: PubMedResult[]; verdictResult: VerdictResult }> {
+  const translated = await translateQueryToClaims(claimText);
+  const searchQuery = translated.length > 0 ? translated[0].claimText : claimText;
+  const rawResults = await fetchNcbiResults(searchQuery, claimText, 5);
+  const pubmedResults = rawResults.slice(0, 5);
+  const verdictResult = verdictFromPubMed(pubmedResults, claimText);
+  if (pubmedResults.length > 0) {
+    triggerAutonomousIngest({ query: claimText, pubmedResults, uniprotEntries: [] });
+  }
+  return { pubmedResults, verdictResult };
+}
+
+function computeConfidence(verdict: string, pubmedCount: number, signalDensity: number): number {
+  const base = VERDICT_CONFIDENCE[verdict] ?? 0.5;
+  const pubmedBoost = Math.min(pubmedCount * 0.04, 0.2);
+  const signalBoost = Math.min((signalDensity / 60) * 0.1, 0.1);
+  return Math.round(Math.min(base + pubmedBoost + signalBoost, 0.99) * 100) / 100;
+}
+
 // ─── Single claim processor ───────────────────────────────────────────────────
 
 async function processSingleClaim(
@@ -162,54 +223,16 @@ async function processSingleClaim(
     let verdictResult: VerdictResult | null = null;
 
     if (extracted && extracted.length > 0) {
-      const primaryClaim = extracted[0];
-      const adapter = getVertical(vertical as string);
-      if (adapter) {
-        const evidence = await adapter.lookupEvidence({
-          claimText: primaryClaim.claimText,
-          extractedValue: primaryClaim.extractedValue ?? null,
-        });
-        if (evidence.found && evidence.confidenceScore >= 0.6) {
-          verdictResult = {
-            verdict: evidence.confidenceScore >= 0.85 ? "Supported" : "Partially Supported",
-            rationale: `Source: ${evidence.sourceId ?? evidence.sourceUrl ?? "unknown"} (confidence ${(evidence.confidenceScore * 100).toFixed(0)}%).`,
-            evidenceUrl: evidence.sourceUrl,
-            evidenceRaw: evidence.evidenceRaw as never,
-          };
-        }
-      }
-      if (!verdictResult) {
-        verdictResult = await verdictForClaim({
-          claimType: primaryClaim.claimType,
-          pdbId: primaryClaim.pdbId ?? null,
-          proteinName: primaryClaim.proteinName ?? null,
-          experimentalMethod: primaryClaim.experimentalMethod ?? null,
-          resolution: primaryClaim.resolution ?? null,
-          organism: primaryClaim.organism ?? null,
-          ligand: primaryClaim.ligand ?? null,
-        });
-      }
+      verdictResult = await tryStructuredVerdict(extracted[0], vertical);
     }
 
     if (!verdictResult || verdictResult.verdict === "Insufficient Evidence") {
-      // Natural language path: translate then search PubMed
-      const translated = await translateQueryToClaims(claimText);
-      const searchQuery = translated.length > 0 ? translated[0].claimText : claimText;
-      const rawResults = await fetchNcbiResults(searchQuery, claimText, 5);
-      pubmedResults = rawResults.slice(0, 5);
-      verdictResult = verdictFromPubMed(pubmedResults, claimText);
-
-      if (pubmedResults.length > 0) {
-        triggerAutonomousIngest({ query: claimText, pubmedResults, uniprotEntries: [] });
-      }
+      const fallback = await tryPubMedFallback(claimText);
+      pubmedResults = fallback.pubmedResults;
+      verdictResult = fallback.verdictResult;
     }
 
-    const confidence = (() => {
-      const base = VERDICT_CONFIDENCE[verdictResult.verdict] ?? 0.5;
-      const pubmedBoost = Math.min(pubmedResults.length * 0.04, 0.2);
-      const signalBoost = Math.min((signalDensity / 60) * 0.1, 0.1);
-      return Math.round(Math.min(base + pubmedBoost + signalBoost, 0.99) * 100) / 100;
-    })();
+    const confidence = computeConfidence(verdictResult.verdict, pubmedResults.length, signalDensity);
 
     return {
       index,
