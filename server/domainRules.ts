@@ -14,6 +14,35 @@ export interface DomainRule {
 }
 
 export const DOMAIN_RULES: DomainRule[] = [
+  // ── HIV-1 Protease (must come before structural_biology to take priority) ──
+  {
+    domain: "hiv_protease",
+    patterns: [
+      /\b(hiv-?1\s+protease|hiv\s+protease\s+inhibitor|antiretroviral|darunavir|ritonavir|saquinavir|indinavir|lopinavir|atazanavir|tipranavir|amprenavir|fosamprenavir|nelfinavir|decahydroisoquinoline|hydroxyethylamine\s+isostere|bis-thf|peptidomimetic|hiv\s+pi\b|hiv\s+protease\s+active\s+site|p2\s+position|p2'\s+position|transition\s+state\s+mimic|hydroxyl\s+linker|carbamate\s+substituent|aspartyl\s+protease\s+inhibitor)\b/i,
+    ],
+    routes: [
+      {
+        sourceId: "rcsb_pdb",
+        confidence: 0.97,
+        reason: "HIV-1 protease co-crystal structures are ground truth in RCSB PDB",
+      },
+      {
+        sourceId: "chembl",
+        confidence: 0.93,
+        reason: "ChEMBL bioactivity data for HIV-1 protease (CHEMBL2094253)",
+      },
+      {
+        sourceId: "pubmed",
+        confidence: 0.88,
+        reason: "HIV PI SAR literature — Darunavir/Amprenavir series",
+      },
+      {
+        sourceId: "europe_pmc",
+        confidence: 0.80,
+        reason: "Europe PMC full-text HIV protease inhibitor papers",
+      },
+    ],
+  },
   // ── Structural Biology ────────────────────────────────────────────────────
   {
     domain: "structural_biology",

@@ -75,6 +75,7 @@ export type SourceId =
   | "usgs";
 
 export type DomainLabel =
+  | "hiv_protease"
   | "structural_biology"
   | "protein_biochemistry"
   | "clinical_trial"
