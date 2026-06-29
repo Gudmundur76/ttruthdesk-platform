@@ -76,6 +76,9 @@ import {
 import { setCitationGraphEnriched } from "./db";
 import { logger, errData } from "./logger";
 import { ENV } from "./_core/env";
+import { fetchPriorContext } from "./mrAgentClient";
+import { checkMrAgentContradiction } from "./mrAgentContradictionCheck";
+import { exportHighConfidenceVerdict } from "./trainingExporter";
 const log = logger("analysisPipeline");
 
 // MRAgent CTC citation memory — singleton, non-blocking
@@ -114,10 +117,31 @@ export async function runAnalysisPipeline(
     const extractionDomain: string =
       ((docForDomain as Record<string, unknown>)?.verticalDomain as string) ??
       "structural_biology";
+    // ── Pre-flight: MRAgent context injection ──────────────────────────────
+    // Fetch prior verification context from the evolva-mragent memory server.
+    // Non-blocking: if the server is unavailable, priorContext is null and
+    // extractClaims falls back to the standard system prompt.
+    let priorContext: string | null = null;
+    if (ENV.mrAgentEnabled) {
+      try {
+        priorContext = await fetchPriorContext(rawText);
+        if (priorContext) {
+          log.info(
+            `[MRAgent] Pre-flight context injected (${priorContext.length} chars)`
+          );
+        }
+      } catch (e) {
+        log.warn(
+          "[MRAgent] Pre-flight context fetch failed (non-fatal)",
+          errData(e)
+        );
+      }
+    }
     const extracted = await extractClaims(
       rawText,
       options?.providerOverride,
-      extractionDomain
+      extractionDomain,
+      priorContext ?? undefined
     );
     // 2. Insert claims into DB
     const claimInserts = extracted.map(c => ({
@@ -563,12 +587,42 @@ export async function runAnalysisPipeline(
                 augmentWithHallOumi(claim.id, claim.claimText, result)
               )
               .catch(e =>
-                log.warn(
-                  "[HallOumi] Augmentation failed (non-fatal):",
-                  e
-                )
+                log.warn("[HallOumi] Augmentation failed (non-fatal):", e)
               );
           }
+          // ── MRAgent: Real-time contradiction check ──────────────────────
+          // Complements the weekly graph-based contradictionDetector.ts scan.
+          // Checks episodic memory for similar claims with opposing verdicts.
+          // Non-blocking — failures are silently logged.
+          if (ENV.mrAgentEnabled) {
+            checkMrAgentContradiction(claim.id, claim.claimText, auditedVerdict)
+              .then(flag => {
+                if (flag.detected) {
+                  log.warn(
+                    `[MRAgent] Contradiction detected for claim ${claim.id}: ` +
+                      `new="${flag.newVerdict}" vs stored="${flag.storedVerdict}" ` +
+                      `(score=${flag.similarityScore?.toFixed(3)})`
+                  );
+                }
+              })
+              .catch(e =>
+                log.warn("[MRAgent] Contradiction check failed (non-fatal):", e)
+              );
+          }
+          // ── Autopilot training export ────────────────────────────────────
+          // Export high-confidence verdicts to MRAgent episodic memory and
+          // the CLF training corpus for the Oumi LoRA fine-tuning pipeline.
+          // Non-blocking — failures are silently logged.
+          exportHighConfidenceVerdict({
+            claimId: claim.id,
+            claimText: claim.claimText,
+            verdict: auditedVerdict,
+            confidenceScore: decision?.decisionConfidence ?? 0,
+            citation: result.evidenceUrl ?? "",
+            domain: verticalDomain,
+          }).catch(e =>
+            log.warn("[TrainingExporter] Export failed (non-fatal):", e)
+          );
         })
       );
       // Log any individual claim failures without aborting the whole document

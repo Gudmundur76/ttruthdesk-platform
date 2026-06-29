@@ -39,11 +39,15 @@ export interface ExtractedClaim {
  * @param providerOverride - Optional LLM provider override
  * @param domain - Domain label from DomainLabel type (e.g. "clinical_trial", "energy")
  *                 Defaults to "structural_biology" for backwards compatibility.
+ * @param priorContext - Optional prior verification context from MRAgent memory server.
+ *                       When provided, it is prepended to the system prompt so the LLM
+ *                       can use past verification results to improve claim extraction.
  */
 export async function extractClaims(
   documentText: string,
   providerOverride?: string,
   domain = "structural_biology",
+  priorContext?: string
 ): Promise<ExtractedClaim[]> {
   const config = getDomainExtractorConfig(domain);
 
@@ -74,7 +78,12 @@ export async function extractClaims(
   const response = await invokeMultiLLM(
     {
       messages: [
-        { role: "system", content: config.systemPrompt },
+        {
+          role: "system",
+          content: priorContext
+            ? `${config.systemPrompt}\n\n--- PRIOR VERIFICATION CONTEXT ---\n${priorContext}\n--- END PRIOR CONTEXT ---`
+            : config.systemPrompt,
+        },
         {
           role: "user",
           content: `${config.userPrefix}\n\n${truncated}`,
@@ -105,11 +114,13 @@ export async function extractClaims(
       },
     },
     "draft",
-    providerOverride,
+    providerOverride
   );
 
   try {
-    const content = response.choices?.[0]?.message?.content as string | undefined;
+    const content = response.choices?.[0]?.message?.content as
+      | string
+      | undefined;
     if (!content) return [];
     const parsed = JSON.parse(content) as { claims?: unknown[] };
     const rawClaims = parsed.claims ?? [];
@@ -117,7 +128,8 @@ export async function extractClaims(
   } catch {
     // Fallback: try to parse raw JSON array
     try {
-      const content = (response.choices?.[0]?.message?.content ?? "[]") as string;
+      const content = (response.choices?.[0]?.message?.content ??
+        "[]") as string;
       const arr = JSON.parse(content) as unknown[];
       return Array.isArray(arr) ? arr.map(normaliseRawClaim) : [];
     } catch {
@@ -142,7 +154,10 @@ function normaliseRawClaim(raw: unknown): ExtractedClaim {
     // Legacy structural biology fields — populated when present
     pdbId: typeof rest.pdbId === "string" ? rest.pdbId : null,
     proteinName: typeof rest.proteinName === "string" ? rest.proteinName : null,
-    experimentalMethod: typeof rest.experimentalMethod === "string" ? rest.experimentalMethod : null,
+    experimentalMethod:
+      typeof rest.experimentalMethod === "string"
+        ? rest.experimentalMethod
+        : null,
     resolution: typeof rest.resolution === "number" ? rest.resolution : null,
     organism: typeof rest.organism === "string" ? rest.organism : null,
     ligand: typeof rest.ligand === "string" ? rest.ligand : null,

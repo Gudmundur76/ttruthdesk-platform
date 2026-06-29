@@ -133,4 +133,17 @@ export const ENV = {
   hallOumiEnabled: process.env.HALLOUMI_ENABLED === "true",
   hallOumiUrl: process.env.HALLOUMI_URL ?? "http://localhost:8001",
   hallOumiModel: process.env.HALLOUMI_MODEL ?? "halloumi-8b",
+  // MRAgent memory server (evolva-mragent Strands HTTP server)
+  // Set MR_AGENT_ENABLED=true and MR_AGENT_URL=http://<host>:8002
+  // to enable pre-flight context injection and contradiction detection.
+  // Start the server: evolva-mragent/scripts/start-agent-server.sh
+  mrAgentEnabled: process.env.MR_AGENT_ENABLED === "true",
+  mrAgentUrl: process.env.MR_AGENT_URL ?? "http://localhost:8002",
+  // Autopilot training export — minimum confidence to include a verdict
+  // in the CLF training corpus (default 0.85)
+  trainingExportMinConfidence: parseFloat(
+    process.env.TRAINING_EXPORT_MIN_CONFIDENCE ?? "0.85"
+  ),
+  // Path to the CLF corpus JSONL file (on the same machine as ttruthdesk)
+  clfCorpusPath: process.env.CLF_CORPUS_PATH ?? "",
 };
