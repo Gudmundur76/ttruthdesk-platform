@@ -1958,6 +1958,39 @@ async function startServer() {
   app.get("/api/v2/health/detailed", detailedHealthHandler);
   // Ingestion alert heartbeat (Phase 129)
   app.post("/api/scheduled/ingestion-alerts", ingestionAlertHandler);
+
+  // SkillOpt — prompt optimisation loop (weekly, Sunday 02:00 UTC)
+  app.post(
+    "/api/scheduled/skillopt",
+    requireCronOrAdmin,
+    async (_req, res) => {
+      try {
+        const { runSkillOpt } = await import("../skillopt/skillOptRunner");
+        const { join } = await import("path");
+        // Run all three instruction sets sequentially
+        const sets = ["claim_extraction", "evidence_lookup", "confidence_scoring"] as const;
+        const results = [];
+        for (const instructionSet of sets) {
+          const gtPath = join(
+            process.cwd(),
+            "server",
+            "skillopt",
+            "ground_truth",
+            `${instructionSet}.jsonl`
+          );
+          results.push(
+            await runSkillOpt({ instructionSet, groundTruthPath: gtPath })
+          );
+        }
+        const result = { sets: results };
+        res.json({ ok: true, ...result });
+      } catch (err) {
+        console.error("[SkillOpt] Scheduled run failed:", err);
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    }
+  );
+
   registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
   registerSubmitClaimRoute(app);

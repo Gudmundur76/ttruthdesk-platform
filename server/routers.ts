@@ -5414,5 +5414,41 @@ Respond in this exact structure:
         return { ok: true, specId: input.specId, status, cliOutput };
       }),
   }),
+
+  skillopt: router({
+    /** Manually trigger a SkillOpt run for a specific instruction set */
+    triggerRun: protectedProcedure
+      .input(
+        z.object({
+          instructionSet: z.enum([
+            "claim_extraction",
+            "evidence_lookup",
+            "confidence_scoring",
+          ]),
+          groundTruthPath: z.string().optional(),
+          targetF1: z.number().min(0).max(1).optional(),
+          dryRun: z.boolean().default(false),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { runSkillOpt } = await import("./skillopt/skillOptRunner");
+        const { join } = await import("path");
+        const defaultGtPath = join(
+          process.cwd(),
+          "server",
+          "skillopt",
+          "ground_truth",
+          `${input.instructionSet}.jsonl`
+        );
+        return runSkillOpt({
+          instructionSet: input.instructionSet as "claim_extraction" | "evidence_lookup" | "confidence_scoring",
+          groundTruthPath: input.groundTruthPath ?? defaultGtPath,
+          targetF1: input.targetF1,
+          persist: !input.dryRun,
+        });
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;
