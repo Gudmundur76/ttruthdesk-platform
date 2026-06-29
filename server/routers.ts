@@ -3449,6 +3449,7 @@ Respond in this exact structure:
             hopNumber: citationEdges.hopNumber,
             targetPmid: citationEdges.targetPmid,
             targetTitle: citationEdges.targetTitle,
+            quantumProvenance: citationEdges.quantumProvenance,
           })
           .from(citationEdges)
           .where(eq(citationEdges.originalClaimId, input.claimId));
@@ -3459,14 +3460,7 @@ Respond in this exact structure:
             hopNumber: row.hopNumber,
             targetPmid: row.targetPmid ?? null,
             targetTitle: row.targetTitle ?? null,
-            quantumProvenance: null as {
-              vqe_score?: number;
-              vqe_hardware?: string;
-              gbs_similarity?: number;
-              gbs_hardware?: string;
-              provenance_type?: string;
-              provenance_status?: string;
-            } | null,
+            quantumProvenance: row.quantumProvenance ?? null,
           })),
         };
       }),

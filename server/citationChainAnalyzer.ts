@@ -16,7 +16,12 @@ import { getDb } from "./db";
 import { citationEdges } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { logger, errData } from "./logger";
+import { getCTCCitationMemory } from "./ctcCitationMemory";
+
 const log = logger("citationChainAnalyzer");
+
+// CTC citation memory — singleton, non-blocking writes
+const ctcMemory = getCTCCitationMemory();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -482,15 +487,46 @@ export async function analyzeCitationChain(params: {
         (a, b) => b[1] - a[1]
       )[0]?.[0] as DistortionType) ?? "unknown";
 
-    return {
+    const result: CitationChainResult = {
       sourcePmid,
       originalClaimText,
       hops,
       maxDistortionScore,
       dominantDistortionType,
     };
+
+    // Ingest into CTC citation memory (non-blocking — never stalls the pipeline)
+    ctcMemory
+      .ingestChain({
+        source_pmid: sourcePmid,
+        source_title: sourceTitle,
+        original_claim: originalClaimText,
+        hops: hops.map(h => ({
+          pmid: h.pmid,
+          title: h.title,
+          doi: h.doi,
+          hop_number: h.hopNumber,
+          distortion_score: h.distortionScore,
+          distortion_type: h.distortionType,
+          distortion_rationale: h.distortionRationale,
+          citing_claim_text: h.citingClaimText,
+        })),
+        max_distortion_score: maxDistortionScore,
+        dominant_distortion_type: dominantDistortionType,
+        analyzed_at: new Date().toISOString(),
+      })
+      .catch(e =>
+        log.warn("[CitationChain] CTC ingest error", {
+          err: (e as Error).message,
+        })
+      );
+
+    return result;
   } catch (err) {
     log.error("[CitationChain] Analysis failed:", errData(err));
     return null;
   }
 }
+
+// Export ctcMemory for use in citationSearchRoute and tRPC procedures
+export { ctcMemory };

@@ -22,7 +22,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import { getDb } from "../db";
-import { quantumVqeJobs } from "../../drizzle/schema";
+import { quantumVqeJobs, citationEdges } from "../../drizzle/schema";
 import { eq, inArray } from "drizzle-orm";
 import { ENV } from "../_core/env";
 
@@ -145,9 +145,22 @@ export async function runQuantumVqePoller(): Promise<{
         })
         .where(eq(quantumVqeJobs.id, job.id));
 
-      // TODO: update citation_edges.quantumProvenance JSON when citationEdgeId is set
-      // This requires a JSON_SET or re-serialization of the quantumProvenance column.
-      // Deferred to Phase 3 (Provenance page badge) which will read from quantum_vqe_jobs directly.
+      // Update citation_edges.quantumProvenance when the job has a linked edge
+      if (job.citationEdgeId) {
+        await database
+          .update(citationEdges)
+          .set({
+            quantumProvenance: {
+              vqe_energy_hartree: result.vqe_energy,
+              backend: result.backend ?? job.backend,
+              hardware: result.hardware,
+              job_id: job.jobId,
+              provenance_status: "quantum-hardware",
+              upgraded_at: new Date().toISOString(),
+            },
+          })
+          .where(eq(citationEdges.id, job.citationEdgeId));
+      }
 
       upgraded++;
     } else if (

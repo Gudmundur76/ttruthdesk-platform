@@ -2202,6 +2202,21 @@ export const citationEdges = mysqlTable(
     ])
       .default("pending")
       .notNull(),
+    /**
+     * Quantum provenance data — populated by quantumVqePoller when a linked
+     * quantum_vqe_jobs row completes. Null until quantum analysis runs.
+     */
+    quantumProvenance: json("quantumProvenance").$type<{
+      vqe_energy_hartree?: number;
+      backend?: string;
+      hardware?: string;
+      job_id?: string;
+      provenance_status:
+        | "quantum-hardware"
+        | "quantum-architecture"
+        | "pending";
+      upgraded_at?: string;
+    }>(),
   },
   t => ({
     sourceDocIdx: index("ce_source_doc_idx").on(t.sourceDocId),
