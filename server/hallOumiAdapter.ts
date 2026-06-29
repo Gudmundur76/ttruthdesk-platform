@@ -119,10 +119,11 @@ function extractEvidenceText(result: VerdictResult): string {
   if (result.evidenceUrl) parts.push(`Source: ${result.evidenceUrl}`);
   if (result.evidenceRaw) {
     try {
-      const raw = result.evidenceRaw as Record<string, unknown>;
+      const rawObj = result.evidenceRaw as Record<string, unknown> | null | undefined;
+      if (!rawObj || typeof rawObj !== "object") throw new Error("not an object");
       // Extract common text fields from evidence objects
       for (const key of ["abstract", "description", "title", "summary", "text", "content"]) {
-        const val = raw[key];
+        const val = rawObj[key];
         if (typeof val === "string" && val.length > 0) {
           parts.push(val.slice(0, 2000));
           break; // Use first available text field only
