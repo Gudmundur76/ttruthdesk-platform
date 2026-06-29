@@ -15,6 +15,7 @@
 
 import { getDb } from "../db";
 import { dreamEventQueue } from "../../drizzle/schema";
+import { sql } from "drizzle-orm";
 import type { DreamEvent, DreamPriority } from "./dreamTypes";
 import type { ConsolidationResult } from "./graphConsolidator";
 import type { PatternDetectionResult } from "./latentPatternDetector";
@@ -342,11 +343,11 @@ export async function getPendingDreamEventCount(): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
   try {
-    const [row] = await db.execute(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (db as any).sql`SELECT COUNT(*) AS cnt FROM dream_event_queue WHERE status = 'queued'`
+    const result = await db.execute(
+      sql`SELECT COUNT(*) AS cnt FROM dream_event_queue WHERE status = 'queued'`
     );
-    return Number((row as unknown as Record<string, unknown>)?.cnt ?? 0);
+    const rows = result[0] as unknown as Array<{ cnt: number }>;
+    return Number(rows[0]?.cnt ?? 0);
   } catch {
     return 0;
   }

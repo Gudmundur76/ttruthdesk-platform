@@ -322,11 +322,11 @@ export async function invokeMultiLLM(
   // to route all LLM calls through the locally hosted Ornith-1.0-9B model.
   // cortex.py exposes an OpenAI-compatible /v1/chat/completions endpoint.
   if (provider === "ornith_slm") {
-    const ornithUrl = process.env["ORNITH_SLM_URL"] ?? "http://localhost:8080";
-    const ornithModel = process.env["ORNITH_SLM_MODEL"] ?? "ornith-1.0-9b";
+    const ornithUrl = ENV.ornithSlmUrl;
+    const ornithModel = ENV.ornithSlmModel;
     const result = await callOpenAICompatible(
       ornithUrl,
-      process.env["ORNITH_SLM_API_KEY"] ?? "ornith-local",
+      ENV.ornithSlmApiKey,
       ornithModel,
       options
     );
@@ -382,7 +382,7 @@ export function getLLMHealthSummary(): {
       provider === "freellmapi"
         ? ENV.freeLLMApiUrl
         : provider === "ornith_slm"
-          ? (process.env["ORNITH_SLM_URL"] ?? "http://localhost:8080")
+          ? ENV.ornithSlmUrl
           : null,
   };
 }
