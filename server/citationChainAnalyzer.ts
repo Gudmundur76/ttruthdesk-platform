@@ -51,6 +51,8 @@ export interface ChainHop {
   distortionType: DistortionType;
   distortionRationale: string;
   citingClaimText?: string;
+  /** Ornith <think> reasoning trace for this hop's distortion scoring, when available. */
+  ornithReasoning?: string;
 }
 
 export interface CitationChainResult {
@@ -197,6 +199,8 @@ interface DistortionResult {
   score: number;
   type: DistortionType;
   rationale: string;
+  /** Ornith <think> reasoning trace, when LLM_PROVIDER=ornith_slm. */
+  ornithReasoning?: string;
 }
 
 async function scoreDistortion(
@@ -283,6 +287,7 @@ async function scoreDistortion(
       score: Math.max(0, Math.min(1, parsed.score ?? 0)),
       type: (parsed.type as DistortionType) ?? "unknown",
       rationale: parsed.rationale ?? "",
+      ornithReasoning: response._ornithReasoning,
     };
   } catch {
     return {
@@ -433,6 +438,7 @@ export async function analyzeCitationChain(params: {
           distortionType: distortion.type,
           distortionRationale: distortion.rationale,
           citingClaimText: citingClaimText || undefined,
+          ornithReasoning: distortion.ornithReasoning,
         };
 
         hops.push(hop);
@@ -510,6 +516,7 @@ export async function analyzeCitationChain(params: {
           distortion_type: h.distortionType,
           distortion_rationale: h.distortionRationale,
           citing_claim_text: h.citingClaimText,
+          ornith_reasoning: h.ornithReasoning,
         })),
         max_distortion_score: maxDistortionScore,
         dominant_distortion_type: dominantDistortionType,

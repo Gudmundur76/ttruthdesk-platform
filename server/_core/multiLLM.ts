@@ -76,6 +76,8 @@ export interface LLMResponse {
   };
   // Non-standard: which provider actually handled this request
   _provider?: string;
+  // Ornith <think> reasoning trace (stripped from visible content, stored here)
+  _ornithReasoning?: string;
 }
 
 // ─── Key rotation pool ────────────────────────────────────────────────────────
@@ -335,8 +337,7 @@ export async function invokeMultiLLM(
     const rawContent = result.choices?.[0]?.message?.content ?? "";
     const thinkMatch = rawContent.match(/<think>([\s\S]*?)<\/think>/);
     if (thinkMatch) {
-      (result as LLMResponse & { _ornithReasoning?: string })._ornithReasoning =
-        thinkMatch[1].trim();
+      result._ornithReasoning = thinkMatch[1].trim();
       result.choices[0].message.content = rawContent
         .replace(/<think>[\s\S]*?<\/think>\s*/g, "")
         .trim();
