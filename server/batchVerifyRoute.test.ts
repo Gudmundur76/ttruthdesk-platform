@@ -113,9 +113,7 @@ describe("POST /api/v2/verify/batch", () => {
       rawText: "text",
       userId: 1,
     });
-    mocks.mockRunAnalysisPipeline.mockRejectedValue(
-      new Error("pipeline error")
-    );
+    mocks.mockRunAnalysisPipeline.mockRejectedValue(new Error("pipeline error"));
     const app = makeApp();
     const res = await request(app)
       .post("/api/v2/verify/batch")
@@ -140,9 +138,7 @@ describe("POST /api/v2/verify/batch", () => {
       .send({ documentIds: [1, 2, 3] });
     expect(res.status).toBe(200);
     expect(res.body.data.total).toBe(3);
-    const statuses = res.body.data.results.map(
-      (r: { status: string }) => r.status
-    );
+    const statuses = res.body.data.results.map((r: { status: string }) => r.status);
     expect(statuses).toContain("queued");
     expect(statuses).toContain("not_found");
     expect(statuses).toContain("failed");
@@ -170,11 +166,7 @@ describe("POST /api/v2/verify/batch", () => {
     await request(app)
       .post("/api/v2/verify/batch")
       .send({ documentIds: [7] });
-    expect(mocks.mockRunAnalysisPipeline).toHaveBeenCalledWith(
-      7,
-      "some text",
-      99
-    );
+    expect(mocks.mockRunAnalysisPipeline).toHaveBeenCalledWith(7, "some text", 99);
   });
 
   it("handles null rawText and userId gracefully", async () => {

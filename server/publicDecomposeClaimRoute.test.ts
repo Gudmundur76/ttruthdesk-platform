@@ -32,9 +32,7 @@ function makeApp() {
   return app;
 }
 
-function makeDecomposeResult(
-  claims: Array<{ text: string; confidence?: number; method?: string }>
-) {
+function makeDecomposeResult(claims: Array<{ text: string; confidence?: number; method?: string }>) {
   return {
     input: "test input",
     claims: claims.map((c, i) => ({
@@ -51,23 +49,15 @@ function makeDecomposeResult(
 // ─── isVerifiable() ────────────────────────────────────────────────────────────
 describe("isVerifiable()", () => {
   it("returns true for a normal scientific claim", () => {
-    expect(
-      isVerifiable("Darunavir shows IC50 of 0.003 nM against HIV-1 protease")
-    ).toBe(true);
+    expect(isVerifiable("Darunavir shows IC50 of 0.003 nM against HIV-1 protease")).toBe(true);
   });
 
   it("returns false for predicted pIC50 claims", () => {
-    expect(
-      isVerifiable(
-        "Compound X shows predicted pIC50=8.7 against HIV-1 protease"
-      )
-    ).toBe(false);
+    expect(isVerifiable("Compound X shows predicted pIC50=8.7 against HIV-1 protease")).toBe(false);
   });
 
   it("returns false for in silico claims", () => {
-    expect(
-      isVerifiable("In silico docking shows binding energy of -9.2 kcal/mol")
-    ).toBe(false);
+    expect(isVerifiable("In silico docking shows binding energy of -9.2 kcal/mol")).toBe(false);
   });
 
   it("returns false for computational prediction claims", () => {
@@ -91,9 +81,7 @@ describe("isVerifiable()", () => {
   });
 
   it("returns true for experimental IC50 without 'predicted' prefix", () => {
-    expect(
-      isVerifiable("IC50 of 5 nM was measured by fluorescence assay")
-    ).toBe(true);
+    expect(isVerifiable("IC50 of 5 nM was measured by fluorescence assay")).toBe(true);
   });
 });
 
@@ -164,7 +152,9 @@ describe("POST /api/public/decompose-claim — single mode", () => {
 
   it("returns 400 when claim is missing", async () => {
     const app = makeApp();
-    const res = await request(app).post("/api/public/decompose-claim").send({});
+    const res = await request(app)
+      .post("/api/public/decompose-claim")
+      .send({});
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);
   });
@@ -188,10 +178,7 @@ describe("POST /api/public/decompose-claim — single mode", () => {
     const app = makeApp();
     const res = await request(app)
       .post("/api/public/decompose-claim")
-      .send({
-        claim:
-          "Darunavir has IC50 of 0.003 nM and is approved for HIV treatment",
-      });
+      .send({ claim: "Darunavir has IC50 of 0.003 nM and is approved for HIV treatment" });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.claims).toHaveLength(2);

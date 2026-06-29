@@ -138,12 +138,12 @@ export const FREE_MODEL_ROTATION: string[] = [
   "openai/gpt-oss-20b:free", // OpenAI open-weight — Apache 2.0
   "meta-llama/llama-3.3-70b-instruct:free", // Llama 3.3 70B — reliable extraction
   "google/gemma-4-31b-it:free", // Gemma 4 31B — 262k ctx
-  "moonshotai/kimi-k2.6:free", // Kimi K2.6 — scientific reasoning
+  "moonshotai/kimi-k2.7-code:free", // Kimi K2.7 Code — long-horizon coding + scientific reasoning
 ];
 
 /**
  * Returns the best free OpenRouter model for the given task tier.
- * "quality"  → Kimi K2.6 (best scientific reasoning)
+ * "quality"  → Kimi K2.7 Code (long-horizon coding + scientific reasoning, 256k ctx)
  * "draft"    → openrouter/free meta-router (auto-picks best available)
  * "fallback" → Gemma 4 31B (structured outputs)
  */
@@ -152,7 +152,7 @@ export function getOpenRouterModel(
 ): string {
   switch (tier) {
     case "quality":
-      return "moonshotai/kimi-k2.6:free";
+      return "moonshotai/kimi-k2.7-code:free";
     case "fallback":
       return "google/gemma-4-31b-it:free";
     case "draft":
@@ -309,13 +309,20 @@ export async function invokeMultiLLM(
     if (!ENV.kimiApiKey) {
       throw new Error("[multiLLM] KIMI_API_KEY is required for kimi provider");
     }
+    // K2.7 Code uses api.moonshot.ai/v1 (same key, new base URL)
+    // Model: kimi-k2.7-code (256k ctx, thinking always enabled)
+    const kimiBase = ENV.kimiBaseUrl.includes("moonshot.cn")
+      ? "https://api.moonshot.ai/v1"
+      : ENV.kimiBaseUrl;
     const result = await callOpenAICompatible(
-      "https://api.moonshot.cn/v1",
+      kimiBase,
       ENV.kimiApiKey,
-      "moonshot-v1-128k",
+      ENV.kimiModel.includes("k2.6") || ENV.kimiModel === "moonshot-v1-128k"
+        ? "kimi-k2.7-code"
+        : ENV.kimiModel,
       options
     );
-    result._provider = "kimi";
+    result._provider = "kimi:k2.7-code";
     return result;
   }
 

@@ -12,16 +12,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./db", () => ({ getDb: mocks.mockGetDb }));
 vi.mock("./claimExtractor", () => ({ extractClaims: mocks.mockExtractClaims }));
-vi.mock("./domainInference", () => ({
-  inferDomainFromText: mocks.mockInferDomainFromText,
-}));
+vi.mock("./domainInference", () => ({ inferDomainFromText: mocks.mockInferDomainFromText }));
 vi.mock("./logger", () => ({
-  logger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
+  logger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
   errData: vi.fn((e: unknown) => ({ err: String(e) })),
 }));
 
@@ -34,12 +27,7 @@ import {
 
 // ─── DB chain builder ─────────────────────────────────────────────────────────
 function makeDb(
-  zeroClaims: Array<{
-    id: number;
-    rawText: string | null;
-    verticalDomain: string | null;
-    title: string | null;
-  }> = [],
+  zeroClaims: Array<{ id: number; rawText: string | null; verticalDomain: string | null; title: string | null }> = [],
   existingClaims: Array<{ id: number }> = []
 ) {
   const db: Record<string, unknown> = {};
@@ -99,9 +87,7 @@ describe("backfillDomainClaims()", () => {
 
   it("returns zeros when DB is unavailable", async () => {
     mocks.mockGetDb.mockResolvedValue(null);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims();
     expect(result).toEqual({
       examined: 0,
@@ -116,26 +102,17 @@ describe("backfillDomainClaims()", () => {
   it("returns zeros when no zero-claim documents exist", async () => {
     const db = makeDb([]);
     mocks.mockGetDb.mockResolvedValue(db);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims();
     expect(result.examined).toBe(0);
     expect(result.extracted).toBe(0);
   });
 
   it("skips documents that already have claims", async () => {
-    const doc = {
-      id: 1,
-      rawText: "protein text",
-      verticalDomain: null,
-      title: null,
-    };
+    const doc = { id: 1, rawText: "protein text", verticalDomain: null, title: null };
     const db = makeDb([doc], [{ id: 100 }]); // existing claim found
     mocks.mockGetDb.mockResolvedValue(db);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims();
     expect(result.examined).toBe(1);
     expect(result.alreadyHasClaims).toBe(1);
@@ -143,12 +120,7 @@ describe("backfillDomainClaims()", () => {
   });
 
   it("extracts and inserts claims for zero-claim documents", async () => {
-    const doc = {
-      id: 2,
-      rawText: "HIV protease inhibitor text",
-      verticalDomain: null,
-      title: null,
-    };
+    const doc = { id: 2, rawText: "HIV protease inhibitor text", verticalDomain: null, title: null };
     const db = makeDb([doc], []); // no existing claims
     mocks.mockGetDb.mockResolvedValue(db);
     mocks.mockInferDomainFromText.mockReturnValue("hiv_protease");
@@ -166,9 +138,7 @@ describe("backfillDomainClaims()", () => {
         ligand: "Darunavir",
       },
     ]);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims();
     expect(result.examined).toBe(1);
     expect(result.extracted).toBe(1);
@@ -177,19 +147,12 @@ describe("backfillDomainClaims()", () => {
   });
 
   it("skips document when extraction returns 0 claims", async () => {
-    const doc = {
-      id: 3,
-      rawText: "vague text",
-      verticalDomain: null,
-      title: null,
-    };
+    const doc = { id: 3, rawText: "vague text", verticalDomain: null, title: null };
     const db = makeDb([doc], []);
     mocks.mockGetDb.mockResolvedValue(db);
     mocks.mockInferDomainFromText.mockReturnValue("biomedical_general");
     mocks.mockExtractClaims.mockResolvedValue([]);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims();
     expect(result.examined).toBe(1);
     expect(result.extracted).toBe(0);
@@ -202,9 +165,7 @@ describe("backfillDomainClaims()", () => {
     mocks.mockGetDb.mockResolvedValue(db);
     mocks.mockInferDomainFromText.mockReturnValue("structural_biology");
     mocks.mockExtractClaims.mockRejectedValue(new Error("LLM timeout"));
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims();
     expect(result.examined).toBe(1);
     expect(result.errors).toBe(1);
@@ -212,32 +173,14 @@ describe("backfillDomainClaims()", () => {
   });
 
   it("dry-run mode does not insert claims", async () => {
-    const doc = {
-      id: 5,
-      rawText: "protein text",
-      verticalDomain: null,
-      title: null,
-    };
+    const doc = { id: 5, rawText: "protein text", verticalDomain: null, title: null };
     const db = makeDb([doc], []);
     mocks.mockGetDb.mockResolvedValue(db);
     mocks.mockInferDomainFromText.mockReturnValue("structural_biology");
     mocks.mockExtractClaims.mockResolvedValue([
-      {
-        claimText: "test",
-        claimType: "protein_name",
-        extractedValue: null,
-        domainFields: {},
-        pdbId: null,
-        proteinName: null,
-        experimentalMethod: null,
-        resolution: null,
-        organism: null,
-        ligand: null,
-      },
+      { claimText: "test", claimType: "protein_name", extractedValue: null, domainFields: {}, pdbId: null, proteinName: null, experimentalMethod: null, resolution: null, organism: null, ligand: null },
     ]);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims({ dryRun: true });
     expect(result.examined).toBe(1);
     // In dry-run, we track domain breakdown but don't insert
@@ -246,24 +189,15 @@ describe("backfillDomainClaims()", () => {
   });
 
   it("uses rawText for domain inference, falls back to title", async () => {
-    const doc = {
-      id: 6,
-      rawText: null,
-      verticalDomain: null,
-      title: "Clinical trial for drug X",
-    };
+    const doc = { id: 6, rawText: null, verticalDomain: null, title: "Clinical trial for drug X" };
     const db = makeDb([doc], []);
     mocks.mockGetDb.mockResolvedValue(db);
     mocks.mockInferDomainFromText.mockReturnValue("clinical_trial");
     mocks.mockExtractClaims.mockResolvedValue([]);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     await backfillDomainClaims();
     // inferDomainFromText should be called with the title since rawText is null
-    expect(mocks.mockInferDomainFromText).toHaveBeenCalledWith(
-      "Clinical trial for drug X"
-    );
+    expect(mocks.mockInferDomainFromText).toHaveBeenCalledWith("Clinical trial for drug X");
   });
 
   it("respects the limit option", async () => {
@@ -277,9 +211,7 @@ describe("backfillDomainClaims()", () => {
     mocks.mockGetDb.mockResolvedValue(db);
     mocks.mockInferDomainFromText.mockReturnValue("biomedical_general");
     mocks.mockExtractClaims.mockResolvedValue([]);
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims({ limit: 5 });
     expect(result.examined).toBe(5);
   });
@@ -288,12 +220,7 @@ describe("backfillDomainClaims()", () => {
     const docs = [
       { id: 10, rawText: "structural text", verticalDomain: null, title: null },
       { id: 11, rawText: "clinical text", verticalDomain: null, title: null },
-      {
-        id: 12,
-        rawText: "structural text 2",
-        verticalDomain: null,
-        title: null,
-      },
+      { id: 12, rawText: "structural text 2", verticalDomain: null, title: null },
     ];
     let selectCallCount = 0;
     const db: Record<string, unknown> = {};
@@ -324,23 +251,10 @@ describe("backfillDomainClaims()", () => {
       .mockReturnValueOnce("clinical_trial")
       .mockReturnValueOnce("structural_biology");
     mocks.mockExtractClaims.mockResolvedValue([
-      {
-        claimText: "claim",
-        claimType: "pdb_id",
-        extractedValue: null,
-        domainFields: {},
-        pdbId: null,
-        proteinName: null,
-        experimentalMethod: null,
-        resolution: null,
-        organism: null,
-        ligand: null,
-      },
+      { claimText: "claim", claimType: "pdb_id", extractedValue: null, domainFields: {}, pdbId: null, proteinName: null, experimentalMethod: null, resolution: null, organism: null, ligand: null },
     ]);
 
-    const { backfillDomainClaims } = await import(
-      "./backfillDomainClaimsRoute"
-    );
+    const { backfillDomainClaims } = await import("./backfillDomainClaimsRoute");
     const result = await backfillDomainClaims();
     expect(result.domainBreakdown["structural_biology"]).toBe(2);
     expect(result.domainBreakdown["clinical_trial"]).toBe(1);

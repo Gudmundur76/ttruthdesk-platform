@@ -21,7 +21,7 @@ export const ENV = {
   // Default is "manus_builtin" — the Manus-managed free LLM (no external proxy needed).
   // Set LLM_PROVIDER=openrouter + OPENROUTER_API_KEY for free OpenRouter models.
   // Set LLM_PROVIDER=freellmapi + FREELM_API_URL for a self-hosted free LLM proxy.
-  // Set LLM_PROVIDER=kimi + KIMI_API_KEY for the Kimi K2 quality re-pass.
+  // Set LLM_PROVIDER=kimi + KIMI_API_KEY for the Kimi K2.7 Code quality re-pass.
   llmProvider: (process.env.LLM_PROVIDER ?? "manus_builtin") as
     | "manus_builtin"
     | "freellmapi"
@@ -40,11 +40,10 @@ export const ENV = {
   freeLLMApiUrl: process.env.FREELM_API_URL ?? "http://localhost:3001/v1",
   freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
   kimiApiKey: process.env.KIMI_API_KEY ?? "",
-  // Kimi for Coding plan (kimi.com) uses api.kimi.com/coding/v1 with model kimi-for-coding
-  // Moonshot Open Platform (platform.moonshot.ai) uses api.moonshot.ai/v1 with model kimi-k2.6
-  kimiBaseUrl: process.env.KIMI_BASE_URL ?? "https://api.kimi.com/coding/v1",
-  // kimi-for-coding = Kimi K2.6 (262K ctx, reasoning, image/video in) via kimi.com plan
-  kimiModel: process.env.KIMI_MODEL ?? "kimi-for-coding",
+  // Moonshot Open Platform: api.moonshot.ai/v1 with model kimi-k2.7-code
+  // K2.7 Code: 256K ctx, thinking always enabled, +21.8% coding vs K2.6, same API key
+  kimiBaseUrl: process.env.KIMI_BASE_URL ?? "https://api.moonshot.ai/v1",
+  kimiModel: process.env.KIMI_MODEL ?? "kimi-k2.7-code",
   openRouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
   // Comma-separated pool of OpenRouter keys for round-robin rotation (multiplies free-tier throughput)
   openRouterApiKeys: process.env.OPENROUTER_API_KEYS ?? "",

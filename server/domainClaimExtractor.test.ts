@@ -60,9 +60,7 @@ describe("DOMAIN_EXTRACTOR_CONFIGS", () => {
 
   it("every config has required fields with non-empty values", () => {
     for (const [domain, cfg] of Object.entries(DOMAIN_EXTRACTOR_CONFIGS)) {
-      expect(isValidConfig(cfg), `Config for '${domain}' is invalid`).toBe(
-        true
-      );
+      expect(isValidConfig(cfg), `Config for '${domain}' is invalid`).toBe(true);
     }
   });
 
@@ -133,9 +131,7 @@ describe("DOMAIN_EXTRACTOR_CONFIGS", () => {
 
   it("each systemPrompt mentions the domain or claim types", () => {
     const cfg = DOMAIN_EXTRACTOR_CONFIGS.structural_biology;
-    expect(cfg.systemPrompt.toLowerCase()).toMatch(
-      /structural biology|pdb|molecular/
-    );
+    expect(cfg.systemPrompt.toLowerCase()).toMatch(/structural biology|pdb|molecular/);
   });
 
   it("energy config has energy-specific claim types", () => {
@@ -143,27 +139,21 @@ describe("DOMAIN_EXTRACTOR_CONFIGS", () => {
     expect(cfg.claimTypes.length).toBeGreaterThan(0);
     // Energy domain should have energy-related claim types
     const types = cfg.claimTypes.join(",").toLowerCase();
-    expect(types).toMatch(
-      /energy|power|capacity|emission|fuel|grid|renewable|fossil/
-    );
+    expect(types).toMatch(/energy|power|capacity|emission|fuel|grid|renewable|fossil/);
   });
 
   it("earth_science config has geoscience claim types", () => {
     const cfg = DOMAIN_EXTRACTOR_CONFIGS.earth_science;
     expect(cfg.claimTypes.length).toBeGreaterThan(0);
     const types = cfg.claimTypes.join(",").toLowerCase();
-    expect(types).toMatch(
-      /earthquake|seismic|magnitude|geologic|volcano|tectonic|climate|temperature/
-    );
+    expect(types).toMatch(/earthquake|seismic|magnitude|geologic|volcano|tectonic|climate|temperature/);
   });
 
   it("legal config has legal claim types", () => {
     const cfg = DOMAIN_EXTRACTOR_CONFIGS.legal;
     expect(cfg.claimTypes.length).toBeGreaterThan(0);
     const types = cfg.claimTypes.join(",").toLowerCase();
-    expect(types).toMatch(
-      /statute|regulation|case|ruling|compliance|penalty|contract|law/
-    );
+    expect(types).toMatch(/statute|regulation|case|ruling|compliance|penalty|contract|law/);
   });
 });
 

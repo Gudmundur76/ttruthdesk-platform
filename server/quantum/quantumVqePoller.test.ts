@@ -26,13 +26,7 @@ vi.mock("../_core/env", () => ({
 }));
 
 vi.mock("../../drizzle/schema", () => ({
-  quantumVqeJobs: {
-    id: "id",
-    jobId: "jobId",
-    status: "status",
-    citationEdgeId: "citationEdgeId",
-    backend: "backend",
-  },
+  quantumVqeJobs: { id: "id", jobId: "jobId", status: "status", citationEdgeId: "citationEdgeId", backend: "backend" },
   citationEdges: { id: "id", quantumProvenance: "quantumProvenance" },
 }));
 
@@ -92,13 +86,7 @@ describe("runQuantumVqePoller()", () => {
 
   it("upgrades a job when VQE completes successfully", async () => {
     const pendingJobs = [
-      {
-        id: 1,
-        jobId: "job-abc",
-        backend: "WK_C180_2",
-        citationEdgeId: 10,
-        status: "pending",
-      },
+      { id: 1, jobId: "job-abc", backend: "WK_C180_2", citationEdgeId: 10, status: "pending" },
     ];
     const { db, updateChain } = makeDb();
     const selectChain: Record<string, unknown> = {};
@@ -130,13 +118,7 @@ describe("runQuantumVqePoller()", () => {
 
   it("marks a job as failed when vqeScorer returns error", async () => {
     const pendingJobs = [
-      {
-        id: 2,
-        jobId: "job-fail",
-        backend: "WK_C180_2",
-        citationEdgeId: null,
-        status: "pending",
-      },
+      { id: 2, jobId: "job-fail", backend: "WK_C180_2", citationEdgeId: null, status: "pending" },
     ];
     const { db } = makeDb();
     const selectChain: Record<string, unknown> = {};
@@ -164,13 +146,7 @@ describe("runQuantumVqePoller()", () => {
 
   it("counts still-pending jobs when status is computing", async () => {
     const pendingJobs = [
-      {
-        id: 3,
-        jobId: "job-computing",
-        backend: "WK_C180_2",
-        citationEdgeId: null,
-        status: "computing",
-      },
+      { id: 3, jobId: "job-computing", backend: "WK_C180_2", citationEdgeId: null, status: "computing" },
     ];
     const { db } = makeDb();
     const selectChain: Record<string, unknown> = {};
@@ -196,13 +172,7 @@ describe("runQuantumVqePoller()", () => {
 
   it("handles spawn parse error gracefully (marks as failed)", async () => {
     const pendingJobs = [
-      {
-        id: 4,
-        jobId: "job-parse-err",
-        backend: "WK_C180_2",
-        citationEdgeId: null,
-        status: "pending",
-      },
+      { id: 4, jobId: "job-parse-err", backend: "WK_C180_2", citationEdgeId: null, status: "pending" },
     ];
     const { db } = makeDb();
     const selectChain: Record<string, unknown> = {};
@@ -224,13 +194,7 @@ describe("runQuantumVqePoller()", () => {
 
   it("handles spawn error event gracefully", async () => {
     const pendingJobs = [
-      {
-        id: 5,
-        jobId: "job-spawn-err",
-        backend: "WK_C180_2",
-        citationEdgeId: null,
-        status: "pending",
-      },
+      { id: 5, jobId: "job-spawn-err", backend: "WK_C180_2", citationEdgeId: null, status: "pending" },
     ];
     const { db } = makeDb();
     const selectChain: Record<string, unknown> = {};
@@ -243,10 +207,7 @@ describe("runQuantumVqePoller()", () => {
       const proc = new EventEmitter() as EventEmitter & {
         stdout: EventEmitter;
         stderr: EventEmitter;
-        stdin: {
-          write: ReturnType<typeof vi.fn>;
-          end: ReturnType<typeof vi.fn>;
-        };
+        stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
         kill: ReturnType<typeof vi.fn>;
       };
       proc.stdout = new EventEmitter();
@@ -266,13 +227,7 @@ describe("runQuantumVqePoller()", () => {
 
   it("skips citation edge update when citationEdgeId is null", async () => {
     const pendingJobs = [
-      {
-        id: 6,
-        jobId: "job-no-edge",
-        backend: "WK_C180_2",
-        citationEdgeId: null,
-        status: "pending",
-      },
+      { id: 6, jobId: "job-no-edge", backend: "WK_C180_2", citationEdgeId: null, status: "pending" },
     ];
     const { db } = makeDb();
     const selectChain: Record<string, unknown> = {};
@@ -301,13 +256,7 @@ describe("runQuantumVqePoller()", () => {
     vi.doMock("../_core/env", () => ({ ENV: { originqApiKey: "" } }));
 
     const pendingJobs = [
-      {
-        id: 7,
-        jobId: "job-no-key",
-        backend: "WK_C180_2",
-        citationEdgeId: null,
-        status: "pending",
-      },
+      { id: 7, jobId: "job-no-key", backend: "WK_C180_2", citationEdgeId: null, status: "pending" },
     ];
     const { db } = makeDb();
     const selectChain: Record<string, unknown> = {};
@@ -326,13 +275,7 @@ describe("runQuantumVqePoller()", () => {
     vi.doMock("../db", () => ({ getDb: mocks.mockGetDb }));
     vi.doMock("child_process", () => ({ spawn: spawnMockFn }));
     vi.doMock("../../drizzle/schema", () => ({
-      quantumVqeJobs: {
-        id: "id",
-        jobId: "jobId",
-        status: "status",
-        citationEdgeId: "citationEdgeId",
-        backend: "backend",
-      },
+      quantumVqeJobs: { id: "id", jobId: "jobId", status: "status", citationEdgeId: "citationEdgeId", backend: "backend" },
       citationEdges: { id: "id", quantumProvenance: "quantumProvenance" },
     }));
 

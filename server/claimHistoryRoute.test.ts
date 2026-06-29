@@ -71,10 +71,7 @@ describe("GET /api/v2/claims/:id/history", () => {
   });
 
   it("returns 200 with empty history arrays when no history exists", async () => {
-    mocks.mockGetClaimById.mockResolvedValue({
-      id: 5,
-      claimText: "test claim",
-    });
+    mocks.mockGetClaimById.mockResolvedValue({ id: 5, claimText: "test claim" });
     const db = makeDbChain([]);
     mocks.mockGetDb.mockResolvedValue(db);
     const app = makeApp();
@@ -87,10 +84,7 @@ describe("GET /api/v2/claims/:id/history", () => {
   });
 
   it("returns 200 with populated history arrays", async () => {
-    mocks.mockGetClaimById.mockResolvedValue({
-      id: 7,
-      claimText: "protein claim",
-    });
+    mocks.mockGetClaimById.mockResolvedValue({ id: 7, claimText: "protein claim" });
     const scoreRows = [
       { claimId: 7, score: 0.9, snapshotAt: new Date("2024-01-02") },
       { claimId: 7, score: 0.7, snapshotAt: new Date("2024-01-01") },
@@ -105,9 +99,9 @@ describe("GET /api/v2/claims/:id/history", () => {
       const chain: Record<string, unknown> = {};
       chain.from = vi.fn().mockReturnValue(chain);
       chain.where = vi.fn().mockReturnValue(chain);
-      chain.orderBy = vi
-        .fn()
-        .mockResolvedValue(callCount === 1 ? scoreRows : confRows);
+      chain.orderBy = vi.fn().mockResolvedValue(
+        callCount === 1 ? scoreRows : confRows
+      );
       return chain;
     });
     mocks.mockGetDb.mockResolvedValue(db);
@@ -145,9 +139,9 @@ describe("GET /api/v2/claims/:id/history", () => {
       const chain: Record<string, unknown> = {};
       chain.from = vi.fn().mockReturnValue(chain);
       chain.where = vi.fn().mockReturnValue(chain);
-      chain.orderBy = vi
-        .fn()
-        .mockResolvedValue(callCount === 1 ? scoreRows : []);
+      chain.orderBy = vi.fn().mockResolvedValue(
+        callCount === 1 ? scoreRows : []
+      );
       return chain;
     });
     mocks.mockGetDb.mockResolvedValue(db);

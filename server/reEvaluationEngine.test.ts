@@ -63,8 +63,12 @@ import { getCitationChainStats } from "./citationChainAnalyzer";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeDb(executeResult: unknown[] = []) {
+  const onDuplicateKeyUpdate = vi.fn().mockResolvedValue(undefined);
+  const values = vi.fn().mockReturnValue({ onDuplicateKeyUpdate });
+  const insert = vi.fn().mockReturnValue({ values });
   return {
     execute: vi.fn().mockResolvedValue(executeResult),
+    insert,
   };
 }
 
