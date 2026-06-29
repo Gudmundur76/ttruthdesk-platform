@@ -54,6 +54,71 @@ function buildFilingUrl(adsh: string, cik: string): string {
   return `https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${accessionNoDashes}/`;
 }
 
+/** Fetch the EDGAR EFTS search response, returning null on HTTP error. */
+async function fetchEdgarSearch(
+  query: string
+): Promise<EdgarSearchResponse | null> {
+  const searchUrl =
+    `https://efts.sec.gov/LATEST/search-index` +
+    `?q=${encodeURIComponent(query)}` +
+    `&dateRange=custom&startdt=2020-01-01` +
+    `&forms=10-K,10-Q,8-K`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+  const response = await fetch(searchUrl, {
+    signal: controller.signal,
+    headers: {
+      "User-Agent": "citation-engine/1.0 (citation-engine@citation.is)",
+      Accept: "application/json",
+    },
+  });
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    log.error(`SEC EFTS search failed: HTTP ${response.status}`);
+    return null;
+  }
+  return (await response.json()) as EdgarSearchResponse;
+}
+
+/** Build an EvidenceResult from the first EDGAR hit. */
+function buildEdgarEvidence(
+  hit: EdgarHit,
+  totalResults: number
+): EvidenceResult {
+  const src = hit._source ?? {};
+  const adsh = src.adsh ?? hit._id ?? null;
+  const cik = src.ciks?.[0] ?? null;
+  const filingUrl = adsh && cik ? buildFilingUrl(adsh, cik) : null;
+  const entityName =
+    src.display_names?.[0]?.split("(")[0]?.trim() ?? cik ?? "Unknown";
+  const formType = src.form ?? src.root_forms?.[0] ?? "Filing";
+  const fileDate = src.file_date ?? "";
+  const sourceId = adsh ?? `${entityName} ${formType} ${fileDate}`.trim();
+
+  return {
+    found: true,
+    sourceId,
+    sourceUrl:
+      filingUrl ??
+      `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=${formType}&dateb=&owner=include&count=10`,
+    evidenceRaw: {
+      adsh,
+      cik,
+      entity_name: entityName,
+      form_type: formType,
+      file_date: fileDate,
+      period_ending: src.period_ending,
+      biz_location: src.biz_locations?.[0],
+      file_description: src.file_description,
+      total_results: totalResults,
+    },
+    confidenceScore: 0.92,
+    confidenceFlags: ["official_sec_filing"],
+  };
+}
+
 const edgarSecAdapter: VerticalAdapter = {
   domainKey: "edgar_sec",
   displayName: "EDGAR SEC filings",
@@ -66,43 +131,23 @@ const edgarSecAdapter: VerticalAdapter = {
     claimText: string;
     extractedValue: string | null;
   }): Promise<EvidenceResult> {
-    // Prefer extractedValue (LLM-extracted ticker/CIK), fall back to raw claim text
     const query = claim.extractedValue?.trim() || claim.claimText.slice(0, 200);
 
-    const searchUrl =
-      `https://efts.sec.gov/LATEST/search-index` +
-      `?q=${encodeURIComponent(query)}` +
-      `&dateRange=custom&startdt=2020-01-01` +
-      `&forms=10-K,10-Q,8-K`;
-
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10_000);
+      const data = await fetchEdgarSearch(query);
 
-      const response = await fetch(searchUrl, {
-        signal: controller.signal,
-        headers: {
-          "User-Agent": "citation-engine/1.0 (citation-engine@citation.is)",
-          Accept: "application/json",
-        },
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        log.error(`SEC EFTS search failed: HTTP ${response.status}`);
+      if (!data) {
         return {
           found: false,
           sourceId: null,
           sourceUrl: null,
-          evidenceRaw: { error: `HTTP ${response.status}` },
+          evidenceRaw: { error: "HTTP error from SEC EFTS" },
           confidenceScore: 0.1,
           confidenceFlags: ["network_error"],
         };
       }
 
-      const data = (await response.json()) as EdgarSearchResponse;
       const hits = data?.hits?.hits ?? [];
-
       if (hits.length === 0) {
         return {
           found: false,
@@ -114,41 +159,10 @@ const edgarSecAdapter: VerticalAdapter = {
         };
       }
 
-      const first = hits[0];
-      const src = first?._source ?? {};
-
-      // Build accession number and canonical filing URL
-      const adsh = src.adsh ?? first._id ?? null;
-      const cik = src.ciks?.[0] ?? null;
-      const filingUrl = adsh && cik ? buildFilingUrl(adsh, cik) : null;
-
-      // Human-readable source ID: "APPLE INC 10-K 2023-11-03"
-      const entityName =
-        src.display_names?.[0]?.split("(")[0]?.trim() ?? cik ?? "Unknown";
-      const formType = src.form ?? src.root_forms?.[0] ?? "Filing";
-      const fileDate = src.file_date ?? "";
-      const sourceId = adsh ?? `${entityName} ${formType} ${fileDate}`.trim();
-
-      return {
-        found: true,
-        sourceId,
-        sourceUrl:
-          filingUrl ??
-          `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=${formType}&dateb=&owner=include&count=10`,
-        evidenceRaw: {
-          adsh,
-          cik,
-          entity_name: entityName,
-          form_type: formType,
-          file_date: fileDate,
-          period_ending: src.period_ending,
-          biz_location: src.biz_locations?.[0],
-          file_description: src.file_description,
-          total_results: data?.hits?.total?.value ?? hits.length,
-        },
-        confidenceScore: 0.92,
-        confidenceFlags: ["official_sec_filing"],
-      };
+      return buildEdgarEvidence(
+        hits[0]!,
+        data?.hits?.total?.value ?? hits.length
+      );
     } catch (error: unknown) {
       log.error("Error during SEC EFTS lookup:", errData(error));
       return {
