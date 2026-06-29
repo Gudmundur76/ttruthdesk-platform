@@ -17,8 +17,11 @@ import { getDb } from "../db";
 import { frontierDirectives } from "../../drizzle/schema";
 import { publishEvent } from "../autonomousLoop/eventBus";
 import { logger, errData } from "../logger";
+import { CTCDecisionMemory } from "../ctcDecisionMemory";
 
 const log = logger("selfPrompt/directivePublisher");
+// MRAgent CTC decision memory — singleton, non-blocking
+const ctcDecision = new CTCDecisionMemory();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,7 +156,7 @@ export async function publishFrontierDirective(
     `[DirectivePublisher] Issued directive ${directiveId} type=${req.directiveType} confidence=${req.confidence}`
   );
 
-  return {
+  const result: FrontierDirectiveResult = {
     directiveId,
     directiveType: req.directiveType,
     targetGapId: req.targetGapId,
@@ -165,6 +168,26 @@ export async function publishFrontierDirective(
     issuedByCycleId: req.issuedByCycleId,
     dbRowId,
   };
+
+  // MRAgent CTC: ingest directive as episodic decision memory
+  void ctcDecision.ingestDirective({
+    directive_id: result.directiveId,
+    directive_type:
+      result.directiveType as import("../ctcDecisionMemory").DirectiveType,
+    reason: result.reason,
+    confidence: result.confidence,
+    target_gap_id: result.targetGapId ?? undefined,
+    target_entity_id: result.targetEntityId ?? undefined,
+    issued_by_cycle_id:
+      result.issuedByCycleId !== undefined
+        ? String(result.issuedByCycleId)
+        : undefined,
+    issued_at: new Date().toISOString(),
+    expires_at: result.expiresAt.toISOString(),
+    ttl_minutes: result.ttlMinutes,
+  });
+
+  return result;
 }
 
 /**

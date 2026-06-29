@@ -83,6 +83,13 @@ export const documents = mysqlTable(
     wikiCompiledAt: timestamp("wikiCompiledAt"),
     /** FrictionEngine pre-submission scan result stored at submission time */
     preflightResult: json("preflightResult"),
+    // ─── MRAgent FactCheck fields (migration 0063) ────────────────────────────
+    /** Introductory context paragraph for the fact-check report (FactCheckAssembler) */
+    factCheckPreamble: text("factCheckPreamble"),
+    /** Top-level verdict label e.g. "Mostly False", "True", "Misleading" */
+    overallVerdict: varchar("overallVerdict", { length: 64 }),
+    /** JSON array of relevance notes per claim [{claimId, relevance, note}] */
+    relevanceAnalysis: json("relevanceAnalysis"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -189,6 +196,9 @@ export const claims = mysqlTable(
       "Out of Scope",
       "Needs Expert Review",
     ]),
+    // ─── MRAgent FactCheck fields (migration 0063) ────────────────────────────
+    /** JSON array of {pmid,doi,title,url} source references for FactCheckAssembler */
+    sourceRefs: json("sourceRefs"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

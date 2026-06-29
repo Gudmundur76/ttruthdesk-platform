@@ -11,13 +11,12 @@
  * Results are stored in the citation_edges table for UI rendering and SIA evaluation.
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeMultiLLM } from "./_core/multiLLM";
 import { getDb } from "./db";
 import { citationEdges } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { logger, errData } from "./logger";
 const log = logger("citationChainAnalyzer");
-
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +58,7 @@ export interface CitationChainResult {
 
 // ─── PubMed elink: find papers that cite a given PMID ─────────────────────────
 
-  // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
+// eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function fetchCitingPapers(
   pmid: string,
   maxResults = 10
@@ -158,7 +157,8 @@ async function extractCitingClaim(
   if (!citingAbstract) return "";
 
   try {
-    const response = await invokeLLM({
+    // Use invokeMultiLLM — routes to Kimi K2 (quality) when LLM_PROVIDER=kimi
+    const response = await invokeMultiLLM({
       messages: [
         {
           role: "system",
@@ -208,7 +208,8 @@ async function scoreDistortion(
   }
 
   try {
-    const response = await invokeLLM({
+    // Use invokeMultiLLM — routes to Kimi K2 (quality) when LLM_PROVIDER=kimi
+    const response = await invokeMultiLLM({
       messages: [
         {
           role: "system",

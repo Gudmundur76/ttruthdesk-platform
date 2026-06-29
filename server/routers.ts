@@ -148,7 +148,8 @@ export const appRouter = router({
             }
           }
         }
-        const inferredDomain = input.verticalDomain ?? inferDomainFromText(input.text);
+        const inferredDomain =
+          input.verticalDomain ?? inferDomainFromText(input.text);
         const docId = await createDocument({
           userId: ctx.user.id,
           title: input.title,
@@ -209,7 +210,8 @@ export const appRouter = router({
             }
           }
         }
-        const inferredDomain = input.verticalDomain ?? inferDomainFromText(input.rawText);
+        const inferredDomain =
+          input.verticalDomain ?? inferDomainFromText(input.rawText);
         const docId = await createDocument({
           userId: ctx.user.id,
           title: input.title,
@@ -482,6 +484,60 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const { runPreflightScan } = await import("./frictionEngine");
         return runPreflightScan(input.text);
+      }),
+
+    /**
+     * Assemble a structured fact-check document for a completed analysis.
+     * Uses Kimi K2 (via invokeMultiLLM quality tier) to generate:
+     *   - factCheckPreamble: context, scope, and methodology
+     *   - per-claim sourceRefs: 1–3 key source references per claim
+     *   - overallVerdict: composite verdict with confidence score
+     *   - relevanceAnalysis: how claims relate to the broader topic
+     * Persists results to the documents and claims tables.
+     */
+    assembleFactCheck: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const doc = await getDocumentById(input.documentId);
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
+        if (doc.status !== "complete")
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Document analysis must be complete before assembling a fact-check.",
+          });
+        const { factCheckAssembler } = await import("./factCheckAssembler");
+        return factCheckAssembler.assemble(input.documentId);
+      }),
+
+    /**
+     * Get the assembled fact-check for a document (if it exists).
+     * Returns null if assembleFactCheck has not been called yet.
+     */
+    getFactCheck: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const doc = await getDocumentById(input.documentId);
+        if (!doc || doc.userId !== ctx.user.id)
+          throw new TRPCError({ code: "NOT_FOUND" });
+        if (!doc.overallVerdict) return null;
+        const claimRows = await getClaimsByDocument(input.documentId);
+        return {
+          documentId: input.documentId,
+          title: doc.title,
+          factCheckPreamble: doc.factCheckPreamble,
+          overallVerdict: doc.overallVerdict,
+          relevanceAnalysis: doc.relevanceAnalysis,
+          assembledAt: doc.updatedAt,
+          claims: claimRows.map(c => ({
+            id: c.id,
+            claimText: c.claimText,
+            verdict: c.verdict,
+            confidenceScore: c.confidenceScore,
+            sourceRefs: c.sourceRefs,
+          })),
+        };
       }),
   }),
 
@@ -1521,7 +1577,8 @@ Respond in this exact structure:
             message: "Owner or admin access required",
           });
         }
-        const { getAllCompletedDocuments, updateDocumentStatus, getDb } = await import("./db");
+        const { getAllCompletedDocuments, updateDocumentStatus, getDb } =
+          await import("./db");
         const docs = await getAllCompletedDocuments(input.limit);
         // Only re-process documents whose domain was the old hard-coded default
         const targets = docs.filter(
@@ -1569,7 +1626,10 @@ Respond in this exact structure:
             doc.rawText,
             doc.userId ?? ctx.user.id
           ).catch(err =>
-            log.error(`[backfillDomains] Pipeline error for doc ${doc.id}:`, err)
+            log.error(
+              `[backfillDomains] Pipeline error for doc ${doc.id}:`,
+              err
+            )
           );
           queued++;
         }
@@ -3394,7 +3454,7 @@ Respond in this exact structure:
           .where(eq(citationEdges.originalClaimId, input.claimId));
         return {
           claimId: input.claimId,
-          edges: rows.map((row) => ({
+          edges: rows.map(row => ({
             id: row.id,
             hopNumber: row.hopNumber,
             targetPmid: row.targetPmid ?? null,
@@ -3936,7 +3996,9 @@ Respond in this exact structure:
     /** Build3: /health/frontier — circuit breaker state + metrics snapshot (FR-L3-33) */
     health: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      const { frontierCircuitBreaker } = await import(
+        "./frontier/circuitBreaker"
+      );
       const { directiveStore } = await import("./frontier/directiveStore");
       const { getFrontierMetrics } = await import("./frontier/frontierEngine");
       const [cbState, metrics] = await Promise.all([
@@ -3963,7 +4025,12 @@ Respond in this exact structure:
     addDirective: protectedProcedure
       .input(
         z.object({
-          type: z.enum(["focus_gap", "skip_mapping", "prioritize_hypotheses", "deep_dive_entity"]),
+          type: z.enum([
+            "focus_gap",
+            "skip_mapping",
+            "prioritize_hypotheses",
+            "deep_dive_entity",
+          ]),
           /** For focus_gap: the gap ID to focus on */
           targetGapId: z.string().optional(),
           /** For deep_dive_entity: the entity ID to deep-dive on */
@@ -3973,7 +4040,8 @@ Respond in this exact structure:
         })
       )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (ctx.user.role !== "admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
         const { directiveStore } = await import("./frontier/directiveStore");
         const directiveId = `${input.type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         directiveStore.add({
@@ -3990,11 +4058,12 @@ Respond in this exact structure:
     /** Build3: Reset the circuit breaker (admin override) */
     resetCircuitBreaker: protectedProcedure.mutation(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      const { frontierCircuitBreaker } = await import("./frontier/circuitBreaker");
+      const { frontierCircuitBreaker } = await import(
+        "./frontier/circuitBreaker"
+      );
       frontierCircuitBreaker.reset();
       return { reset: true, state: frontierCircuitBreaker.getState() };
     }),
-
   }),
 
   // ─── Override Audit Log ────────────────────────────────────────────────────
@@ -5209,7 +5278,9 @@ Respond in this exact structure:
     list: protectedProcedure
       .input(
         z.object({
-          status: z.enum(["pending", "computing", "done", "failed", "all"]).default("all"),
+          status: z
+            .enum(["pending", "computing", "done", "failed", "all"])
+            .default("all"),
           limit: z.number().int().min(1).max(200).default(50),
           offset: z.number().int().min(0).default(0),
         })
@@ -5222,20 +5293,38 @@ Respond in this exact structure:
         if (!db) return { jobs: [], total: 0 };
         const baseQuery = db.select().from(quantumVqeJobs);
         const rows = await (input.status === "all"
-          ? baseQuery.orderBy(desc(quantumVqeJobs.submittedAt)).limit(input.limit).offset(input.offset)
+          ? baseQuery
+              .orderBy(desc(quantumVqeJobs.submittedAt))
+              .limit(input.limit)
+              .offset(input.offset)
           : baseQuery
-              .where(eq(quantumVqeJobs.status, input.status as "pending" | "computing" | "done" | "failed"))
+              .where(
+                eq(
+                  quantumVqeJobs.status,
+                  input.status as "pending" | "computing" | "done" | "failed"
+                )
+              )
               .orderBy(desc(quantumVqeJobs.submittedAt))
               .limit(input.limit)
               .offset(input.offset));
         const countRows = await (input.status === "all"
           ? db.select({ count: quantumVqeJobs.id }).from(quantumVqeJobs)
-          : db.select({ count: quantumVqeJobs.id }).from(quantumVqeJobs).where(eq(quantumVqeJobs.status, input.status as "pending" | "computing" | "done" | "failed")));
+          : db
+              .select({ count: quantumVqeJobs.id })
+              .from(quantumVqeJobs)
+              .where(
+                eq(
+                  quantumVqeJobs.status,
+                  input.status as "pending" | "computing" | "done" | "failed"
+                )
+              ));
         return { jobs: rows, total: countRows.length };
       }),
     /** Manually trigger the VQE poller (admin) */
     triggerPoll: protectedProcedure.mutation(async () => {
-      const { runQuantumVqePoller } = await import("./quantum/quantumVqePoller");
+      const { runQuantumVqePoller } = await import(
+        "./quantum/quantumVqePoller"
+      );
       const result = await runQuantumVqePoller();
       return result;
     }),
@@ -5245,7 +5334,9 @@ Respond in this exact structure:
   selfDirect: router({
     /** List all specs (admin only) */
     listSpecs: protectedProcedure
-      .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+      .input(
+        z.object({ limit: z.number().min(1).max(200).default(50) }).optional()
+      )
       .query(async ({ input }) => {
         const { getAllSpecs } = await import("./selfDirectWebhook");
         return getAllSpecs(input?.limit ?? 50);
@@ -5259,10 +5350,12 @@ Respond in this exact structure:
 
     /** Approve or reject a spec — triggers self-direct CLI */
     decide: protectedProcedure
-      .input(z.object({
-        specId: z.string().min(1),
-        decision: z.enum(["approve", "reject"]),
-      }))
+      .input(
+        z.object({
+          specId: z.string().min(1),
+          decision: z.enum(["approve", "reject"]),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
@@ -5275,7 +5368,11 @@ Respond in this exact structure:
         const execAsync = promisify(exec);
 
         const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        if (!db)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "DB unavailable",
+          });
 
         const status = input.decision === "approve" ? "approved" : "rejected";
         const result = await db
@@ -5284,25 +5381,37 @@ Respond in this exact structure:
           .where(eq(selfDirectSpecs.specId, input.specId));
 
         if (!result[0] || result[0].affectedRows === 0) {
-          throw new TRPCError({ code: "NOT_FOUND", message: `Spec ${input.specId} not found` });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Spec ${input.specId} not found`,
+          });
         }
 
-        const cliCmd = input.decision === "approve"
-          ? `pnpm --prefix /home/ubuntu/self-direct meta:apply ${input.specId}`
-          : `pnpm --prefix /home/ubuntu/self-direct meta:reject ${input.specId}`;
+        const cliCmd =
+          input.decision === "approve"
+            ? `pnpm --prefix /home/ubuntu/self-direct meta:apply ${input.specId}`
+            : `pnpm --prefix /home/ubuntu/self-direct meta:reject ${input.specId}`;
 
         let cliOutput = "";
         try {
-          const { stdout, stderr } = await execAsync(cliCmd, { timeout: 60_000 });
+          const { stdout, stderr } = await execAsync(cliCmd, {
+            timeout: 60_000,
+          });
           cliOutput = (stdout + stderr).trim().slice(0, 500);
         } catch (err: unknown) {
-          cliOutput = `CLI error: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200);
+          cliOutput =
+            `CLI error: ${err instanceof Error ? err.message : String(err)}`.slice(
+              0,
+              200
+            );
         }
 
-        const verb = input.decision === "approve" ? "approved ✅" : "rejected ❌";
+        const verb =
+          input.decision === "approve" ? "approved ✅" : "rejected ❌";
         await notifyOwner({
           title: `self-direct: Spec ${verb} — ${input.specId}`,
-          content: `Spec \`${input.specId}\` has been **${verb}** via admin UI.\n\n` +
+          content:
+            `Spec \`${input.specId}\` has been **${verb}** via admin UI.\n\n` +
             (input.decision === "approve"
               ? `Fix is being applied.\n\n\`\`\`\n${cliOutput}\n\`\`\``
               : "No changes made. self-direct continues watching."),

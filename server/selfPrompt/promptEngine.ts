@@ -10,7 +10,7 @@
  */
 
 import { z } from "zod";
-import { invokeLLM } from "../_core/llm";
+import { invokeMultiLLM } from "../\_core/multiLLM";
 import type { SystemState } from "./stateCollector";
 import { logger, errData } from "../logger";
 const log = logger("selfPrompt/promptEngine");
@@ -311,15 +311,18 @@ export async function runSelfPrompt(state: SystemState): Promise<SelfPrompt> {
     // T034: 30s AbortController timeout on the LLM call
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-    let response: Awaited<ReturnType<typeof invokeLLM>>;
+    let response: import("../_core/multiLLM").LLMResponse;
     const llmStart = Date.now();
     try {
-      response = await invokeLLM({
+      // invokeMultiLLM routes to Kimi K2 (quality tier) when LLM_PROVIDER=kimi,
+      // or to ornith_slm when LLM_PROVIDER=ornith_slm. Falls back to manus_builtin.
+      response = await invokeMultiLLM({
         messages,
         response_format: {
           type: "json_schema",
           json_schema: {
             name: "self_prompt_response",
+            strict: true,
             schema: {
               type: "object",
               properties: {

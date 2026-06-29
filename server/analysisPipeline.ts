@@ -66,6 +66,7 @@ import { recordModelUsage } from "./llmProviderQuality";
 import { runSelfPromptCycle } from "./selfPrompt/engine";
 import { runInversePromptForEntity } from "./inversePrompt/inversePromptEngine";
 import { analyzeCitationChain } from "./citationChainAnalyzer";
+import { CTCCitationMemory } from "./ctcCitationMemory";
 import { computeCompositeTruth } from "./compositeTruthEngine";
 import { openCitationsEnrichClaim } from "./openCitationsEnricher";
 import {
@@ -75,6 +76,9 @@ import {
 import { setCitationGraphEnriched } from "./db";
 import { logger, errData } from "./logger";
 const log = logger("analysisPipeline");
+
+// MRAgent CTC citation memory — singleton, non-blocking
+const ctcCitation = new CTCCitationMemory();
 
 // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 export async function runAnalysisPipeline(
@@ -845,7 +849,7 @@ export async function runAnalysisPipeline(
         const firstClaim = chainClaims[0];
         if (!firstClaim) return;
 
-        await analyzeCitationChain({
+        const chainResult = await analyzeCitationChain({
           documentId,
           sourcePmid,
           sourceTitle: chainDoc?.title ?? undefined,
@@ -853,6 +857,26 @@ export async function runAnalysisPipeline(
           originalClaimText: firstClaim.claimText,
           maxHops: 10,
         });
+
+        // MRAgent CTC: ingest chain result as episodic memory
+        if (chainResult) {
+          void ctcCitation.ingestChain({
+            source_pmid: chainResult.sourcePmid,
+            original_claim: chainResult.originalClaimText,
+            hops: chainResult.hops.map((h, idx) => ({
+              pmid: h.pmid,
+              title: h.title ?? "",
+              hop_number: idx + 1,
+              distortion_score: h.distortionScore,
+              distortion_type: h.distortionType,
+              distortion_rationale: h.distortionRationale ?? undefined,
+              citing_claim_text: h.citingClaimText ?? undefined,
+            })),
+            max_distortion_score: chainResult.maxDistortionScore,
+            dominant_distortion_type: chainResult.dominantDistortionType,
+            analyzed_at: new Date().toISOString(),
+          });
+        }
 
         log.info(
           `[CitationChain] Chain analysis complete for doc ${documentId} (PMID ${sourcePmid})`

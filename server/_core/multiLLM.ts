@@ -1,11 +1,12 @@
 /**
  * multiLLM.ts — Unified LLM router for the two-pass corpus strategy.
  *
- * Routes LLM calls to one of four providers based on ENV.llmProvider:
+ * Routes LLM calls to one of five providers based on ENV.llmProvider:
  *   - "manus_builtin"  → invokeLLM() from ./llm (default, Manus-managed)
  *   - "openrouter"     → OpenRouter free models with key rotation + openrouter/free meta-router
  *   - "freellmapi"     → Self-hosted Ollama/Gemma 4 (or any OpenAI-compatible server)
  *   - "kimi"           → Moonshot AI Kimi K2 direct API (premium quality pass)
+ *   - "ornith_slm"     → Self-hosted Ornith-1.0-9B via slm-infra-deploy cortex.py (OpenAI-compatible)
  *
  * OpenRouter free model pool (June 2026):
  *   Tier "quality":  moonshotai/kimi-k2.6:free  (262k ctx, best scientific reasoning)
@@ -86,7 +87,10 @@ export interface LLMResponse {
 function buildKeyPool(): string[] {
   const multi = process.env.OPENROUTER_API_KEYS ?? "";
   if (multi.trim()) {
-    return multi.split(",").map(k => k.trim()).filter(Boolean);
+    return multi
+      .split(",")
+      .map(k => k.trim())
+      .filter(Boolean);
   }
   const single = ENV.openRouterApiKey;
   return single ? [single] : [];
@@ -101,7 +105,9 @@ const _keyPool: string[] = buildKeyPool();
  */
 export function getNextOpenRouterKey(): string {
   if (_keyPool.length === 0) {
-    throw new Error("[multiLLM] No OpenRouter API keys configured. Set OPENROUTER_API_KEY or OPENROUTER_API_KEYS.");
+    throw new Error(
+      "[multiLLM] No OpenRouter API keys configured. Set OPENROUTER_API_KEY or OPENROUTER_API_KEYS."
+    );
   }
   const key = _keyPool[_keyPoolIndex % _keyPool.length];
   _keyPoolIndex++;
@@ -123,14 +129,14 @@ export function getKeyPoolSize(): number {
  * the best available free model automatically.
  */
 export const FREE_MODEL_ROTATION: string[] = [
-  "openrouter/free",                          // meta-router (always available)
-  "baidu/ernie-4.5-21b-a3b:free",            // Baidu ERNIE 4.5 — strong structured output
-  "z-ai/glm-4.5-air:free",                   // GLM 4.5 Air — MoE, thinking mode
-  "nvidia/nemotron-3-super-120b-a12b:free",  // NVIDIA 120B MoE — 1M context
-  "openai/gpt-oss-20b:free",                 // OpenAI open-weight — Apache 2.0
-  "meta-llama/llama-3.3-70b-instruct:free",  // Llama 3.3 70B — reliable extraction
-  "google/gemma-4-31b-it:free",              // Gemma 4 31B — 262k ctx
-  "moonshotai/kimi-k2.6:free",               // Kimi K2.6 — scientific reasoning
+  "openrouter/free", // meta-router (always available)
+  "baidu/ernie-4.5-21b-a3b:free", // Baidu ERNIE 4.5 — strong structured output
+  "z-ai/glm-4.5-air:free", // GLM 4.5 Air — MoE, thinking mode
+  "nvidia/nemotron-3-super-120b-a12b:free", // NVIDIA 120B MoE — 1M context
+  "openai/gpt-oss-20b:free", // OpenAI open-weight — Apache 2.0
+  "meta-llama/llama-3.3-70b-instruct:free", // Llama 3.3 70B — reliable extraction
+  "google/gemma-4-31b-it:free", // Gemma 4 31B — 262k ctx
+  "moonshotai/kimi-k2.6:free", // Kimi K2.6 — scientific reasoning
 ];
 
 /**
@@ -139,12 +145,17 @@ export const FREE_MODEL_ROTATION: string[] = [
  * "draft"    → openrouter/free meta-router (auto-picks best available)
  * "fallback" → Gemma 4 31B (structured outputs)
  */
-export function getOpenRouterModel(tier: "quality" | "draft" | "fallback" = "draft"): string {
+export function getOpenRouterModel(
+  tier: "quality" | "draft" | "fallback" = "draft"
+): string {
   switch (tier) {
-    case "quality":  return "moonshotai/kimi-k2.6:free";
-    case "fallback": return "google/gemma-4-31b-it:free";
+    case "quality":
+      return "moonshotai/kimi-k2.6:free";
+    case "fallback":
+      return "google/gemma-4-31b-it:free";
     case "draft":
-    default:         return "openrouter/free"; // meta-router
+    default:
+      return "openrouter/free"; // meta-router
   }
 }
 
@@ -152,9 +163,13 @@ export function getOpenRouterModel(tier: "quality" | "draft" | "fallback" = "dra
  * Builds the full model priority list for a given tier.
  * Primary model first, then the full rotation list (deduplicated).
  */
-export function buildModelPriorityList(tier: "quality" | "draft" | "fallback"): string[] {
+export function buildModelPriorityList(
+  tier: "quality" | "draft" | "fallback"
+): string[] {
   const primary = getOpenRouterModel(tier);
-  return [primary, ...FREE_MODEL_ROTATION].filter((m, i, arr) => arr.indexOf(m) === i);
+  return [primary, ...FREE_MODEL_ROTATION].filter(
+    (m, i, arr) => arr.indexOf(m) === i
+  );
 }
 
 // ─── Provider name helper ─────────────────────────────────────────────────────
@@ -206,6 +221,7 @@ async function callOpenAICompatible(
  * OpenRouter path uses key rotation + full model fallback list so that
  * rate limits on any single model/key are transparently bypassed.
  */
+// eslint-disable-next-line complexity -- provider routing requires branching per provider
 export async function invokeMultiLLM(
   options: LLMOptions,
   openRouterTier: "quality" | "draft" | "fallback" = "draft",
@@ -218,7 +234,9 @@ export async function invokeMultiLLM(
   if (provider === "openrouter") {
     const keyPool = _keyPool;
     if (keyPool.length === 0) {
-      throw new Error("[multiLLM] OPENROUTER_API_KEY is required for openrouter provider");
+      throw new Error(
+        "[multiLLM] OPENROUTER_API_KEY is required for openrouter provider"
+      );
     }
 
     const modelList = buildModelPriorityList(openRouterTier);
@@ -228,9 +246,11 @@ export async function invokeMultiLLM(
     for (let i = 0; i < modelList.length; i++) {
       const model = modelList[i];
       // Rotate key per model attempt for maximum throughput
-      const apiKey = keyPool[((_keyPoolIndex + i) % keyPool.length)];
+      const apiKey = keyPool[(_keyPoolIndex + i) % keyPool.length];
       try {
-        console.log(`[multiLLM] OpenRouter → ${model} (key ${((_keyPoolIndex + i) % keyPool.length) + 1}/${keyPool.length})`);
+        console.log(
+          `[multiLLM] OpenRouter → ${model} (key ${((_keyPoolIndex + i) % keyPool.length) + 1}/${keyPool.length})`
+        );
         const result = await callOpenAICompatible(
           "https://openrouter.ai/api/v1",
           apiKey,
@@ -243,8 +263,15 @@ export async function invokeMultiLLM(
         return result;
       } catch (err) {
         const msg = String(err);
-        if (msg.includes("429") || msg.includes("rate-limited") || msg.includes("temporarily") || msg.includes("overloaded")) {
-          console.warn(`[multiLLM] OpenRouter ${model} rate-limited, trying next model...`);
+        if (
+          msg.includes("429") ||
+          msg.includes("rate-limited") ||
+          msg.includes("temporarily") ||
+          msg.includes("overloaded")
+        ) {
+          console.warn(
+            `[multiLLM] OpenRouter ${model} rate-limited, trying next model...`
+          );
           lastError = err instanceof Error ? err : new Error(msg);
           await new Promise(r => setTimeout(r, 500)); // brief pause before retry
           continue;
@@ -252,14 +279,18 @@ export async function invokeMultiLLM(
         throw err; // Non-rate-limit errors bubble up immediately
       }
     }
-    throw lastError ?? new Error("[multiLLM] All OpenRouter models rate-limited");
+    throw (
+      lastError ?? new Error("[multiLLM] All OpenRouter models rate-limited")
+    );
   }
 
   // ── Self-hosted Ollama / Gemma 4 / FreeLLMAPI ────────────────────────────
   if (provider === "freellmapi") {
     const model = process.env.FREELM_MODEL ?? "auto";
     if (!ENV.freeLLMApiKey && model === "auto") {
-      console.warn("[multiLLM] FREELM_API_KEY not set, using empty key for FreeLLMAPI/Ollama");
+      console.warn(
+        "[multiLLM] FREELM_API_KEY not set, using empty key for FreeLLMAPI/Ollama"
+      );
     }
     const result = await callOpenAICompatible(
       ENV.freeLLMApiUrl,
@@ -283,6 +314,33 @@ export async function invokeMultiLLM(
       options
     );
     result._provider = "kimi";
+    return result;
+  }
+
+  // ── Ornith-1.0 SLM (self-hosted via slm-infra-deploy cortex.py) ────────────
+  // Set LLM_PROVIDER=ornith_slm and ORNITH_SLM_URL=http://<slm-host>:8080
+  // to route all LLM calls through the locally hosted Ornith-1.0-9B model.
+  // cortex.py exposes an OpenAI-compatible /v1/chat/completions endpoint.
+  if (provider === "ornith_slm") {
+    const ornithUrl = process.env["ORNITH_SLM_URL"] ?? "http://localhost:8080";
+    const ornithModel = process.env["ORNITH_SLM_MODEL"] ?? "ornith-1.0-9b";
+    const result = await callOpenAICompatible(
+      ornithUrl,
+      process.env["ORNITH_SLM_API_KEY"] ?? "ornith-local",
+      ornithModel,
+      options
+    );
+    result._provider = `ornith_slm:${ornithModel}`;
+    // Extract Ornith <think> reasoning trace if present and strip from visible content
+    const rawContent = result.choices?.[0]?.message?.content ?? "";
+    const thinkMatch = rawContent.match(/<think>([\s\S]*?)<\/think>/);
+    if (thinkMatch) {
+      (result as LLMResponse & { _ornithReasoning?: string })._ornithReasoning =
+        thinkMatch[1].trim();
+      result.choices[0].message.content = rawContent
+        .replace(/<think>[\s\S]*?<\/think>\s*/g, "")
+        .trim();
+    }
     return result;
   }
 
@@ -317,8 +375,14 @@ export function getLLMHealthSummary(): {
     provider,
     keyPoolSize: _keyPool.length,
     freeModelCount: FREE_MODEL_ROTATION.length,
-    primaryModel: provider === "openrouter" ? getOpenRouterModel("draft") : provider,
+    primaryModel:
+      provider === "openrouter" ? getOpenRouterModel("draft") : provider,
     modelRotation: provider === "openrouter" ? FREE_MODEL_ROTATION : [],
-    selfHostedUrl: provider === "freellmapi" ? ENV.freeLLMApiUrl : null,
+    selfHostedUrl:
+      provider === "freellmapi"
+        ? ENV.freeLLMApiUrl
+        : provider === "ornith_slm"
+          ? (process.env["ORNITH_SLM_URL"] ?? "http://localhost:8080")
+          : null,
   };
 }

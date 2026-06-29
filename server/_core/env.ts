@@ -27,11 +27,16 @@ export const ENV = {
     | "freellmapi"
     | "kimi"
     | "openrouter"
-    | "nvidia_nim",
+    | "nvidia_nim"
+    | "ornith_slm",
   // NVIDIA NIM (nemotron reasoning) — required when LLM_PROVIDER=nvidia_nim
   nvidiaApiKey: process.env.NVIDIA_API_KEY ?? "",
-  nvidiaModel: process.env.NVIDIA_MODEL ?? "nvidia/llama-3.3-nemotron-super-49b-v1",
-  nvidiaReasoningBudget: parseInt(process.env.NVIDIA_REASONING_BUDGET ?? "2048", 10),
+  nvidiaModel:
+    process.env.NVIDIA_MODEL ?? "nvidia/llama-3.3-nemotron-super-49b-v1",
+  nvidiaReasoningBudget: parseInt(
+    process.env.NVIDIA_REASONING_BUDGET ?? "2048",
+    10
+  ),
   freeLLMApiUrl: process.env.FREELM_API_URL ?? "http://localhost:3001/v1",
   freeLLMApiKey: process.env.FREELM_API_KEY ?? "",
   kimiApiKey: process.env.KIMI_API_KEY ?? "",
