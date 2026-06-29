@@ -123,4 +123,15 @@ export const ENV = {
   ornithSlmUrl: process.env.ORNITH_SLM_URL ?? "http://localhost:8080",
   ornithSlmModel: process.env.ORNITH_SLM_MODEL ?? "ornith-1.0-9b",
   ornithSlmApiKey: process.env.ORNITH_SLM_API_KEY ?? "ornith-local",
+  // HallOumi-8B claim verification augmentation (oumi-ai/HallOumi-8B)
+  // Set HALLOUMI_ENABLED=true and HALLOUMI_URL=http://<host>:8001
+  // to enable HallOumi as a secondary confidence signal for ambiguous verdicts.
+  // When enabled, claims with verdict "Ambiguous" or "Insufficient Evidence"
+  // are re-evaluated by HallOumi; results stored as hallOumiSupported /
+  // hallOumiConfidence on the claim record (non-blocking, does not overwrite
+  // the deterministic verdict).
+  // Start the server: slm-infra-deploy/scripts/start-halloumi-cpu.sh
+  hallOumiEnabled: process.env.HALLOUMI_ENABLED === "true",
+  hallOumiUrl: process.env.HALLOUMI_URL ?? "http://localhost:8001",
+  hallOumiModel: process.env.HALLOUMI_MODEL ?? "halloumi-8b",
 };

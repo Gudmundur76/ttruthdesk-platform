@@ -75,6 +75,7 @@ import {
 } from "./sourcePaperAdapter";
 import { setCitationGraphEnriched } from "./db";
 import { logger, errData } from "./logger";
+import { ENV } from "./_core/env";
 const log = logger("analysisPipeline");
 
 // MRAgent CTC citation memory — singleton, non-blocking
@@ -545,6 +546,28 @@ export async function runAnalysisPipeline(
                   )
                 );
             }
+          }
+          // ── HallOumi-8B: Ambiguous/Insufficient Evidence Augmentation ─────
+          // When HALLOUMI_ENABLED=true and the deterministic verdict is
+          // "Ambiguous" or "Insufficient Evidence", HallOumi-8B provides a
+          // secondary confidence signal. Results are stored non-destructively
+          // (hallOumiSupported + hallOumiConfidence) and do not overwrite the
+          // deterministic verdict. Non-blocking — failures are silently logged.
+          if (
+            ENV.hallOumiEnabled &&
+            (auditedVerdict === "Ambiguous" ||
+              auditedVerdict === "Insufficient Evidence")
+          ) {
+            import("./hallOumiAdapter")
+              .then(({ augmentWithHallOumi }) =>
+                augmentWithHallOumi(claim.id, claim.claimText, result)
+              )
+              .catch(e =>
+                log.warn(
+                  "[HallOumi] Augmentation failed (non-fatal):",
+                  e
+                )
+              );
           }
         })
       );

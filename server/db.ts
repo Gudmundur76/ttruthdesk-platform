@@ -416,6 +416,10 @@ export async function updateClaimVerdict(
     compositeTruthLabel?: string | null;
     // Phase NIM: NVIDIA Nemotron chain-of-thought reasoning
     modelReasoning?: string | null;
+    // HallOumi-8B secondary signal
+    hallOumiSupported?: boolean | null;
+    hallOumiConfidence?: number | null;
+    hallOumiRationale?: string | null;
   }
 ) {
   const db = await getDb();
@@ -457,6 +461,12 @@ export async function updateClaimVerdict(
     setData.compositeTruthScore = update.compositeTruthScore;
   if (update.compositeTruthLabel !== undefined)
     setData.compositeTruthLabel = update.compositeTruthLabel;
+  if (update.hallOumiSupported !== undefined)
+    setData.hallOumiSupported = update.hallOumiSupported;
+  if (update.hallOumiConfidence !== undefined)
+    setData.hallOumiConfidence = update.hallOumiConfidence;
+  if (update.hallOumiRationale !== undefined)
+    setData.hallOumiRationale = update.hallOumiRationale;
   if (Object.keys(setData).length > 0) {
     await db
       .update(claims)

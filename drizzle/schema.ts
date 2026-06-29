@@ -199,6 +199,13 @@ export const claims = mysqlTable(
     // ─── MRAgent FactCheck fields (migration 0063) ────────────────────────────
     /** JSON array of {pmid,doi,title,url} source references for FactCheckAssembler */
     sourceRefs: json("sourceRefs"),
+    // ─── HallOumi-8B secondary verification signal ────────────────────────────
+    // Populated by hallOumiAdapter.ts when HALLOUMI_ENABLED=true and the
+    // deterministic verdict is "Ambiguous" or "Insufficient Evidence".
+    // Does NOT overwrite the deterministic verdict — stored as a secondary signal.
+    hallOumiSupported: boolean("hallOumiSupported"),
+    hallOumiConfidence: float("hallOumiConfidence"), // 0.0–1.0
+    hallOumiRationale: text("hallOumiRationale"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
