@@ -144,9 +144,10 @@ describe("runSkillOpt", () => {
     expect(result.instructionSet).toBe("confidence_scoring");
   });
 
-  it("durationMs is a positive number", async () => {
+  it("durationMs is a non-negative number", async () => {
     writeGroundTruth("gt.jsonl", 5);
     const result = await runSkillOpt(baseConfig({ maxIterations: 1 }));
-    expect(result.durationMs).toBeGreaterThan(0);
+    // In fast CI environments Date.now() delta may be 0 — allow >= 0
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 });
