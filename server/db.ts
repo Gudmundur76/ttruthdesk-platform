@@ -394,6 +394,43 @@ export async function getClaimsByDocument(documentId: number) {
   return db.select().from(claims).where(eq(claims.documentId, documentId));
 }
 
+/** Builds the setData object for updateClaimVerdict — extracted to reduce complexity */
+function buildClaimVerdictSetData(
+  update: {
+    verdict?: string;
+    verdictRationale?: string;
+    pdbEvidenceUrl?: string;
+    pdbEvidenceRaw?: unknown;
+    pdbEvidenceCheckedAt?: Date;
+    verdictMethod?: string;
+    sourceCompletenessScore?: number;
+    sourcePassage?: string | null;
+    passageConfidence?: number | null;
+    passageStartChar?: number | null;
+    passageEndChar?: number | null;
+    misrepresentationType?: string | null;
+    compositeTruthScore?: number | null;
+    compositeTruthLabel?: string | null;
+    modelReasoning?: string | null;
+    hallOumiSupported?: boolean | null;
+    hallOumiConfidence?: number | null;
+    hallOumiRationale?: string | null;
+  }
+): Record<string, unknown> {
+  const d: Record<string, unknown> = {};
+  const scalar = [
+    "verdict", "verdictRationale", "pdbEvidenceUrl", "pdbEvidenceRaw",
+    "pdbEvidenceCheckedAt", "verdictMethod", "sourceCompletenessScore",
+    "sourcePassage", "passageConfidence", "passageStartChar", "passageEndChar",
+    "misrepresentationType", "compositeTruthScore", "compositeTruthLabel",
+    "modelReasoning", "hallOumiSupported", "hallOumiConfidence", "hallOumiRationale",
+  ] as const;
+  for (const key of scalar) {
+    if (update[key] !== undefined) d[key] = update[key];
+  }
+  return d;
+}
+
 export async function updateClaimVerdict(
   claimId: number,
   update: {
@@ -424,49 +461,7 @@ export async function updateClaimVerdict(
 ) {
   const db = await getDb();
   if (!db) return;
-  const {
-    verdict,
-    verdictRationale,
-    pdbEvidenceUrl,
-    pdbEvidenceRaw,
-    pdbEvidenceCheckedAt,
-    verdictMethod,
-    sourceCompletenessScore,
-    sourcePassage,
-    passageConfidence,
-    passageStartChar,
-    passageEndChar,
-  } = update;
-  const setData: Record<string, unknown> = {};
-  if (verdict !== undefined) setData.verdict = verdict;
-  if (verdictRationale !== undefined)
-    setData.verdictRationale = verdictRationale;
-  if (pdbEvidenceUrl !== undefined) setData.pdbEvidenceUrl = pdbEvidenceUrl;
-  if (pdbEvidenceRaw !== undefined) setData.pdbEvidenceRaw = pdbEvidenceRaw;
-  if (pdbEvidenceCheckedAt !== undefined)
-    setData.pdbEvidenceCheckedAt = pdbEvidenceCheckedAt;
-  if (verdictMethod !== undefined) setData.verdictMethod = verdictMethod;
-  if (sourceCompletenessScore !== undefined)
-    setData.sourceCompletenessScore = sourceCompletenessScore;
-  if (sourcePassage !== undefined) setData.sourcePassage = sourcePassage;
-  if (passageConfidence !== undefined)
-    setData.passageConfidence = passageConfidence;
-  if (passageStartChar !== undefined)
-    setData.passageStartChar = passageStartChar;
-  if (passageEndChar !== undefined) setData.passageEndChar = passageEndChar;
-  if (update.modelReasoning !== undefined) setData.modelReasoning = update.modelReasoning;
-  if (update.misrepresentationType !== undefined)
-    setData.misrepresentationType = update.misrepresentationType;
-  if (update.compositeTruthScore !== undefined)
-    setData.compositeTruthScore = update.compositeTruthScore;
-  if (update.compositeTruthLabel !== undefined)
-    setData.compositeTruthLabel = update.compositeTruthLabel;
-  if (update.hallOumiSupported !== undefined)
-    setData.hallOumiSupported = update.hallOumiSupported;
-  if (update.hallOumiConfidence !== undefined)
-    setData.hallOumiConfidence = update.hallOumiConfidence;
-  if (update.hallOumiRationale !== undefined)
-    setData.hallOumiRationale = update.hallOumiRationale;
+  const setData = buildClaimVerdictSetData(update);
   if (Object.keys(setData).length > 0) {
     await db
       .update(claims)
