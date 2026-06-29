@@ -12,7 +12,7 @@ vi.mock("./autonomousLoop/eventBus", () => ({
 vi.mock("child_process", async () => {
   const { EventEmitter } = await import("events");
   function makeMockProc() {
-    const proc: any = new EventEmitter(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const proc: any = new EventEmitter();
     proc.stdout = new EventEmitter();
     proc.stderr = new EventEmitter();
     proc.stdin = { write: vi.fn(), end: vi.fn() };
