@@ -10,6 +10,7 @@ import {
   parseHallOumiResponse,
   augmentWithHallOumi,
   type HallOumiResult,
+  type HallOumiVerdictInput,
 } from "./hallOumiAdapter";
 
 // ── Mock ENV ──────────────────────────────────────────────────────────────────
@@ -41,9 +42,9 @@ vi.mock("./logger", () => ({
 }));
 
 // ── Helper ────────────────────────────────────────────────────────────────────
-function makeVerdictResult(overrides: Record<string, unknown> = {}) {
+function makeVerdictResult(overrides: Partial<HallOumiVerdictInput> = {}): HallOumiVerdictInput {
   return {
-    verdict: "Ambiguous" as const,
+    verdict: "Ambiguous",
     rationale: "Evidence is conflicting.",
     evidenceUrl: "https://pubmed.ncbi.nlm.nih.gov/12345",
     evidenceRaw: { abstract: "This study found mixed results." },

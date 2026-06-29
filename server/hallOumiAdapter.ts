@@ -33,7 +33,19 @@
 import { ENV } from "./_core/env";
 import { updateClaimVerdict } from "./db";
 import { logger } from "./logger";
-import type { VerdictResult } from "./pdbAdapter";
+import type { PdbEntry } from "./pdbAdapter";
+
+/**
+ * Minimal shape of a verdict result that hallOumiAdapter needs.
+ * Intentionally loose so it works with both pdbAdapter.VerdictResult
+ * and the broader EvidenceResult from verticalAdapters/types.ts.
+ */
+export interface HallOumiVerdictInput {
+  verdict: string;
+  rationale: string;
+  evidenceUrl: string | null;
+  evidenceRaw: PdbEntry | Record<string, unknown> | unknown;
+}
 
 const log = logger("hallOumiAdapter");
 
@@ -110,20 +122,20 @@ export function parseHallOumiResponse(raw: string): HallOumiResult {
 }
 
 /**
- * Extract a plain-text evidence string from a VerdictResult.
+ * Extract a plain-text evidence string from a HallOumiVerdictInput.
  * Used to build the HallOumi context window.
  */
-function extractEvidenceText(result: VerdictResult): string {
+function extractEvidenceText(result: HallOumiVerdictInput): string {
   const parts: string[] = [];
   if (result.rationale) parts.push(result.rationale);
   if (result.evidenceUrl) parts.push(`Source: ${result.evidenceUrl}`);
   if (result.evidenceRaw) {
     try {
-      const rawObj = result.evidenceRaw as Record<string, unknown> | null | undefined;
+      const rawObj = result.evidenceRaw as Record<string, unknown>;
       if (!rawObj || typeof rawObj !== "object") throw new Error("not an object");
       // Extract common text fields from evidence objects
       for (const key of ["abstract", "description", "title", "summary", "text", "content"]) {
-        const val = rawObj[key];
+        const val = (rawObj as Record<string, unknown>)[key];
         if (typeof val === "string" && val.length > 0) {
           parts.push(val.slice(0, 2000));
           break; // Use first available text field only
@@ -186,7 +198,7 @@ async function callHallOumiServer(
 export async function augmentWithHallOumi(
   claimId: number,
   claimText: string,
-  result: VerdictResult
+  result: HallOumiVerdictInput
 ): Promise<void> {
   if (!ENV.hallOumiEnabled) return;
 
@@ -197,7 +209,7 @@ export async function augmentWithHallOumi(
     const raw = await callHallOumiServer(claimText, evidenceText);
     hallOumiResult = parseHallOumiResponse(raw);
   } catch (err) {
-    log.warn("[HallOumi] Server call failed:", err);
+    log.warn("[HallOumi] Server call failed", { err: String(err) });
     return;
   }
 
@@ -212,6 +224,6 @@ export async function augmentWithHallOumi(
         `(confidence=${hallOumiResult.confidence.toFixed(2)})`
     );
   } catch (err) {
-    log.warn("[HallOumi] Failed to persist augmentation result:", err);
+    log.warn("[HallOumi] Failed to persist augmentation result", { err: String(err) });
   }
 }
