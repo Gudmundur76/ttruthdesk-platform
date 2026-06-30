@@ -30,6 +30,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { ingestVerifiedClaim } from "./mrAgentClient";
+import { emitVerdictEvent } from "./trainingBridge";
 import { logger, errData } from "./logger";
 import { ENV } from "./_core/env";
 
@@ -48,7 +49,7 @@ export interface TrainingExportParams {
 
 export interface TrainingExportResult {
   exported: boolean;
-  channels: ("mrAgent" | "clfCorpus")[];
+  channels: ("mrAgent" | "clfCorpus" | "trainingBridge")[];
   skippedReason?: string;
 }
 
@@ -78,7 +79,7 @@ export async function exportHighConfidenceVerdict(
     };
   }
 
-  const channels: ("mrAgent" | "clfCorpus")[] = [];
+  const channels: ("mrAgent" | "clfCorpus" | "trainingBridge")[] = [];
   const episodeText = `VERDICT: ${verdict}\nCLAIM: ${claimText}`;
   const episodeId = `claim-${claimId}-${Date.now()}`;
 
@@ -137,12 +138,35 @@ export async function exportHighConfidenceVerdict(
     }
   }
 
+  // ── Channel 3: trainingBridge (emitVerdictEvent) ────────────────────────────────
+  // Route through the established trainingBridge pipeline so the CLF LoRA
+  // training loop receives the verdict via the same path as processQueryResults.
+  try {
+    emitVerdictEvent({
+      claimText,
+      verdict,
+      rationale: `Confidence: ${confidenceScore.toFixed(3)}`,
+      sourceUrl: citation || undefined,
+      domain,
+    });
+    channels.push("trainingBridge");
+    log.info(`[TrainingExporter] Claim ${claimId} emitted to trainingBridge`, {
+      verdict,
+      domain,
+    });
+  } catch (err) {
+    log.warn(
+      `[TrainingExporter] trainingBridge emit failed for claim ${claimId} (non-fatal)`,
+      errData(err)
+    );
+  }
+
   if (channels.length === 0) {
     return {
       exported: false,
       channels: [],
       skippedReason:
-        "no export channels available (mrAgent disabled, no clfCorpusPath)",
+        "no export channels available (mrAgent disabled, no clfCorpusPath, trainingBridge failed)",
     };
   }
 

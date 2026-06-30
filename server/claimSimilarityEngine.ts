@@ -16,6 +16,8 @@
 import { getDb } from "./db";
 import { claims, documents } from "../drizzle/schema";
 import { desc, eq, and, isNotNull } from "drizzle-orm";
+import { querySimilarVerdicts } from "./mrAgentClient";
+import { ENV } from "./_core/env";
 
 // ─── Stopwords ────────────────────────────────────────────────────────────────
 
@@ -142,6 +144,12 @@ export interface SimilarityOptions {
   topK?: number;
   /** Exclude claims from the same document. Default true */
   excludeSameDocument?: boolean;
+  /**
+   * Gap C: when true, also query MRAgent episodic memory for recently
+   * verified similar claims and merge them into the results.
+   * Defaults to ENV.mrAgentEnabled — set false to skip even when MRAgent is on.
+   */
+  includeMrAgentEpisodic?: boolean;
 }
 
 /**
@@ -173,7 +181,16 @@ export async function findSimilarClaims(
     .orderBy(desc(claims.id))
     .limit(5000);
 
-  if (rows.length === 0) return [];
+  // ── Gap C: MRAgent episodic pass (runs even when DB corpus is empty) ──────
+  const useMrAgent =
+    options.includeMrAgentEpisodic !== undefined
+      ? options.includeMrAgentEpisodic
+      : ENV.mrAgentEnabled;
+
+  if (rows.length === 0) {
+    if (!useMrAgent) return [];
+    // DB is empty but MRAgent may have episodic results — fall through to merge
+  }
 
   // Build corpus tokens
   const corpusTokens = rows.map((r) => processText(r.claimText ?? ""));
@@ -207,7 +224,47 @@ export async function findSimilarClaims(
 
   // Sort by similarity descending, take top-K
   scored.sort((a, b) => b._score - a._score);
-  return scored.slice(0, topK).map(({ _score: _s, ...rest }) => rest);
+  const dbResults = scored.slice(0, topK).map(({ _score: _s, ...rest }) => rest);
+
+  if (!useMrAgent) return dbResults;
+
+  try {
+    const episodes = await querySimilarVerdicts(queryText, topK);
+    if (!episodes || episodes.length === 0) return dbResults;
+
+    const existingIds = new Set(dbResults.map(r => r.claimId));
+    for (const ep of episodes) {
+      // Episode text format: "VERDICT: <verdict>\nCLAIM: <claimText>"
+      // Use [\s\S]+ instead of dotAll flag (s) for ES2017 compat
+      const match = ep.text?.match(/^VERDICT:\s*(\S+)\nCLAIM:\s*([\s\S]+)$/);
+      if (!match) continue;
+      const episodicVerdict = match[1];
+      const episodicText = match[2]?.trim();
+      if (!episodicText) continue;
+
+      // Parse origin claimId from episodeId (format: "claim-<id>-<ts>")
+      const idMatch = ep.episode_id?.match(/^claim-(\d+)-/);
+      const episodicClaimId = idMatch ? parseInt(idMatch[1], 10) : -1;
+      if (existingIds.has(episodicClaimId)) continue;
+
+      dbResults.push({
+        claimId: episodicClaimId,
+        documentId: -1, // episodic — not from a document in this DB
+        documentTitle: "[episodic memory]",
+        claimText: episodicText,
+        verdict: episodicVerdict,
+        confidenceScore: ep.score ?? null,
+        similarity: ep.score ?? 0,
+      });
+    }
+
+    // Re-sort after merge and return top-K
+    dbResults.sort((a, b) => b.similarity - a.similarity);
+    return dbResults.slice(0, topK);
+  } catch {
+    // MRAgent unavailable — return DB-only results
+    return dbResults;
+  }
 }
 
 /**

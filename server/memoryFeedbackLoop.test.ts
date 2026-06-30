@@ -15,6 +15,11 @@ import * as os from "os";
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
 // Mock ENV so we can toggle mrAgentEnabled without env vars
+vi.mock("./trainingBridge", () => ({
+  emitVerdictEvent: vi.fn(),
+  getPipelineStats: vi.fn(),
+}));
+
 vi.mock("./_core/env", () => ({
   ENV: {
     mrAgentEnabled: true,
@@ -567,10 +572,15 @@ describe("trainingExporter", () => {
     expect(result.skippedReason).toContain("0.700");
   });
 
-  it("skips export when both channels unavailable", async () => {
+  it("skips export when all channels unavailable", async () => {
     const { ENV } = await import("./_core/env");
     (ENV as Record<string, unknown>).mrAgentEnabled = false;
     (ENV as Record<string, unknown>).clfCorpusPath = "";
+    // Also make trainingBridge throw so Channel 3 fails too
+    const { emitVerdictEvent } = await import("./trainingBridge");
+    vi.mocked(emitVerdictEvent).mockImplementationOnce(() => {
+      throw new Error("trainingBridge unavailable");
+    });
     const { exportHighConfidenceVerdict } = await import("./trainingExporter");
     const result = await exportHighConfidenceVerdict({
       claimId: 1,
@@ -583,6 +593,7 @@ describe("trainingExporter", () => {
     expect(result.exported).toBe(false);
     expect(result.skippedReason).toContain("no export channels");
     (ENV as Record<string, unknown>).mrAgentEnabled = true;
+    vi.mocked(emitVerdictEvent).mockReset();
   });
 
   it("exports to MRAgent when enabled and confidence is sufficient", async () => {
