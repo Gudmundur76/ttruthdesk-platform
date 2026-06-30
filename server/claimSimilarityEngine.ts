@@ -153,6 +153,55 @@ export interface SimilarityOptions {
 }
 
 /**
+ * Parse a single MRAgent episode into a SimilarClaim, or null if malformed.
+ * Episode text format: "VERDICT: <verdict>\nCLAIM: <claimText>"
+ */
+function parseEpisodeToClaim(
+  ep: { episode_id?: string; text?: string; score?: number }
+): SimilarClaim | null {
+  const match = ep.text?.match(/^VERDICT:\s*(\S+)\nCLAIM:\s*([\s\S]+)$/);
+  if (!match) return null;
+  const episodicVerdict = match[1];
+  const episodicText = match[2]?.trim();
+  if (!episodicText) return null;
+  const idMatch = ep.episode_id?.match(/^claim-(\d+)-/);
+  const episodicClaimId = idMatch ? parseInt(idMatch[1], 10) : -1;
+  return {
+    claimId: episodicClaimId,
+    documentId: -1,
+    documentTitle: "[episodic memory]",
+    claimText: episodicText,
+    verdict: episodicVerdict,
+    confidenceScore: ep.score ?? null,
+    similarity: ep.score ?? 0,
+  };
+}
+
+/**
+ * Merge MRAgent episodic results into DB results, deduplicate, re-sort, slice.
+ */
+async function mergeEpisodicResults(
+  dbResults: SimilarClaim[],
+  queryText: string,
+  topK: number
+): Promise<SimilarClaim[]> {
+  try {
+    const episodes = await querySimilarVerdicts(queryText, topK);
+    if (!episodes || episodes.length === 0) return dbResults;
+    const existingIds = new Set(dbResults.map(r => r.claimId));
+    for (const ep of episodes) {
+      const claim = parseEpisodeToClaim(ep);
+      if (!claim || existingIds.has(claim.claimId)) continue;
+      dbResults.push(claim);
+    }
+    dbResults.sort((a, b) => b.similarity - a.similarity);
+    return dbResults.slice(0, topK);
+  } catch {
+    return dbResults;
+  }
+}
+
+/**
  * Find claims similar to the given query text across the entire corpus.
  * Loads up to 5,000 recent claims for the TF-IDF corpus.
  */
@@ -227,44 +276,7 @@ export async function findSimilarClaims(
   const dbResults = scored.slice(0, topK).map(({ _score: _s, ...rest }) => rest);
 
   if (!useMrAgent) return dbResults;
-
-  try {
-    const episodes = await querySimilarVerdicts(queryText, topK);
-    if (!episodes || episodes.length === 0) return dbResults;
-
-    const existingIds = new Set(dbResults.map(r => r.claimId));
-    for (const ep of episodes) {
-      // Episode text format: "VERDICT: <verdict>\nCLAIM: <claimText>"
-      // Use [\s\S]+ instead of dotAll flag (s) for ES2017 compat
-      const match = ep.text?.match(/^VERDICT:\s*(\S+)\nCLAIM:\s*([\s\S]+)$/);
-      if (!match) continue;
-      const episodicVerdict = match[1];
-      const episodicText = match[2]?.trim();
-      if (!episodicText) continue;
-
-      // Parse origin claimId from episodeId (format: "claim-<id>-<ts>")
-      const idMatch = ep.episode_id?.match(/^claim-(\d+)-/);
-      const episodicClaimId = idMatch ? parseInt(idMatch[1], 10) : -1;
-      if (existingIds.has(episodicClaimId)) continue;
-
-      dbResults.push({
-        claimId: episodicClaimId,
-        documentId: -1, // episodic — not from a document in this DB
-        documentTitle: "[episodic memory]",
-        claimText: episodicText,
-        verdict: episodicVerdict,
-        confidenceScore: ep.score ?? null,
-        similarity: ep.score ?? 0,
-      });
-    }
-
-    // Re-sort after merge and return top-K
-    dbResults.sort((a, b) => b.similarity - a.similarity);
-    return dbResults.slice(0, topK);
-  } catch {
-    // MRAgent unavailable — return DB-only results
-    return dbResults;
-  }
+  return mergeEpisodicResults(dbResults, queryText, topK);
 }
 
 /**
