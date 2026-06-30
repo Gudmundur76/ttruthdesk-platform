@@ -81,6 +81,8 @@ All variables are read from `server/_core/env.ts`. The server **hard-fails at st
 | `MANUS_API_KEY` | Manus platform API key (task spawning) |
 | `VITE_APP_URL` | Public base URL, e.g. `https://truthdesk.claims` |
 | `JWKS_PRIVATE_KEY` | RSA-2048 PKCS#8 PEM for JWT signing (JWKS endpoint) |
+| `MR_AGENT_ENABLED` | `true` to enable evolva-mragent memory server (episodic pre-flight context) |
+| `MR_AGENT_URL` | evolva-mragent base URL (default: `http://localhost:8002`) |
 
 ---
 
