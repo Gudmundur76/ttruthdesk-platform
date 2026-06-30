@@ -161,12 +161,43 @@ export async function exportHighConfidenceVerdict(
     );
   }
 
+  // ── Channel 4: GitHub bus → manus-persistent-drive/bus/slm/corpus/ ────────────────────
+  // Cross-session bridge to slm-infra-deploy's LoRA training pipeline.
+  // Works even when direct HTTP between Manus services is unavailable.
+  // slm-infra polls bus/slm/corpus/ for new .json files and ingests them.
+  const busRepoPath = process.env.BUS_REPO_PATH ??
+    path.join(__dirname, '../../../manus-persistent-drive');
+  const busCorpusDir = path.join(busRepoPath, 'bus/slm/corpus');
+  if (fs.existsSync(busCorpusDir)) {
+    try {
+      const batchId = `corpus_${Date.now()}_claim_${claimId}`;
+      const busEntry = {
+        batchId,
+        source: 'ttruthdesk',
+        exportedAt: new Date().toISOString(),
+        entries: [{
+          instruction: 'Verify the following scientific claim and provide a verdict with reasoning.',
+          input: claimText,
+          output: `VERDICT: ${verdict}\nCONFIDENCE: ${confidenceScore.toFixed(3)}\nCITATION: ${citation}\nDOMAIN: ${domain}`,
+        }],
+      };
+      const busFile = path.join(busCorpusDir, `${batchId}.json`);
+      fs.writeFileSync(busFile, JSON.stringify(busEntry, null, 2), 'utf8');
+      log.info(`[TrainingExporter] Claim ${claimId} written to GitHub bus corpus`, { busFile });
+    } catch (err) {
+      log.warn(
+        `[TrainingExporter] GitHub bus corpus write failed for claim ${claimId} (non-fatal)`,
+        errData(err)
+      );
+    }
+  }
+
   if (channels.length === 0) {
     return {
       exported: false,
       channels: [],
       skippedReason:
-        "no export channels available (mrAgent disabled, no clfCorpusPath, trainingBridge failed)",
+        "no export channels available (mrAgent disabled, no clfCorpusPath, trainingBridge failed, bus unavailable)",
     };
   }
 
