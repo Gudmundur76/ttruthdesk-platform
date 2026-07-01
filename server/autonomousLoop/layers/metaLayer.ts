@@ -15,14 +15,16 @@ import { spawnDevTask } from "../../manusOrchestrator";
 import { getDb } from "../../db";
 import { metaAgentChecks } from "../../../drizzle/schema";
 import { sql, desc } from "drizzle-orm";
-import {
-  emitLayerStart,
-  emitLayerEnd,
-} from "../../telemetryCollector";
+import { emitLayerStart, emitLayerEnd } from "../../telemetryCollector";
 
 // Track last known health score to detect changes
 let _lastPublishedHealthScore: number | null = null;
 const HEALTH_CHANGE_THRESHOLD = 60; // Publish event when score drops below this
+
+// Cooldown for system_capability_required to prevent alert storms
+// Only fire once per hour regardless of how many loop events arrive
+let _lastCapabilityRequiredAt: number | null = null;
+const CAPABILITY_REQUIRED_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
 export interface MetaLayerResult {
   actions: LoopAction[];
@@ -99,8 +101,15 @@ export async function runMetaLayer(
     });
   }
 
-  // When health is critical (≤30), fire system_capability_required and spawn a dev repair task
-  if (healthScore <= 30) {
+  // When health is critical (≤30), fire system_capability_required and spawn a dev repair task.
+  // Cooldown: only fire once per hour to prevent runaway alert storms when critical checks
+  // accumulate in meta_agent_checks (e.g., pipeline invariant failures).
+  const nowMs = Date.now();
+  const capabilityRequiredOnCooldown =
+    _lastCapabilityRequiredAt !== null &&
+    nowMs - _lastCapabilityRequiredAt < CAPABILITY_REQUIRED_COOLDOWN_MS;
+  if (healthScore <= 30 && !capabilityRequiredOnCooldown) {
+    _lastCapabilityRequiredAt = nowMs;
     try {
       const criticalCheck = await getLatestCriticalCheck();
       const adapterName = criticalCheck?.checkType ?? "unknown";
@@ -169,11 +178,14 @@ async function getLatestHealthScore(): Promise<number> {
     const db = await getDb();
     if (!db) return 100;
 
-    // Derive health score from recent check severities:
+    // Derive health score from recent check severities (last 6 hours only).
+    // Stale critical rows from previous runs should not permanently suppress the score.
     // critical → 30, warning → 70, info → 100
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
     const [row] = await db
       .select({ severity: metaAgentChecks.severity })
       .from(metaAgentChecks)
+      .where(sql`${metaAgentChecks.createdAt} >= ${sixHoursAgo.toISOString()}`)
       .orderBy(sql`${metaAgentChecks.createdAt} DESC`)
       .limit(1);
 
