@@ -8,8 +8,8 @@
  *   - backfillDomainClaims(opts): queries completed documents with claimCount=0,
  *     infers the correct domain from their rawText, re-runs extractClaims() with
  *     the domain-aware prompt, and inserts the resulting claims.
- *   - registerBackfillDomainClaimsRoute(app, requireOwnerOrAdmin): wires
- *     POST /api/admin/backfill-domain-claims as an admin-only endpoint.
+ *   - registerBackfillDomainClaimsRoute(app, requireCronOrAdmin): wires
+ *     POST /api/admin/backfill-domain-claims as a cron/admin endpoint.
  *
  * Design principles:
  *   - Idempotent: skips documents that already have claims after re-check.
@@ -82,16 +82,15 @@ export async function backfillDomainClaims(
     })
     .from(documents)
     .where(
-      and(
-        eq(documents.status, "complete"),
-        sql`${documents.claimCount} = 0`
-      )
+      and(eq(documents.status, "complete"), sql`${documents.claimCount} = 0`)
     )
     .orderBy(sql`${documents.createdAt} ASC`)
     .limit(limit);
 
   result.examined = zeroClaims.length;
-  log.info(`backfillDomainClaims: examining ${zeroClaims.length} zero-claim documents`);
+  log.info(
+    `backfillDomainClaims: examining ${zeroClaims.length} zero-claim documents`
+  );
 
   for (const doc of zeroClaims) {
     try {
@@ -121,7 +120,9 @@ export async function backfillDomainClaims(
         (result.domainBreakdown[inferredDomain] ?? 0) + 1;
 
       if (dryRun) {
-        log.info(`[dry-run] doc ${doc.id}: would extract with domain '${inferredDomain}'`);
+        log.info(
+          `[dry-run] doc ${doc.id}: would extract with domain '${inferredDomain}'`
+        );
         continue;
       }
 
@@ -129,7 +130,9 @@ export async function backfillDomainClaims(
       const extracted = await extractClaims(rawText, undefined, inferredDomain);
 
       if (extracted.length === 0) {
-        log.info(`doc ${doc.id}: re-extraction returned 0 claims (domain: ${inferredDomain})`);
+        log.info(
+          `doc ${doc.id}: re-extraction returned 0 claims (domain: ${inferredDomain})`
+        );
         continue;
       }
 
@@ -137,7 +140,7 @@ export async function backfillDomainClaims(
       const claimRows = extracted.map(c => ({
         documentId: doc.id,
         claimText: c.claimText,
-        claimType: c.claimType,  // varchar(64) after Sprint 40 migration
+        claimType: c.claimType, // varchar(64) after Sprint 40 migration
         extractedValue: c.extractedValue ?? null,
         pdbId: c.pdbId ?? null,
         proteinName: c.proteinName ?? null,
@@ -171,17 +174,20 @@ export async function backfillDomainClaims(
     }
   }
 
-  log.info("backfillDomainClaims complete", result as unknown as Record<string, unknown>);
+  log.info(
+    "backfillDomainClaims complete",
+    result as unknown as Record<string, unknown>
+  );
   return result;
 }
 
 export function registerBackfillDomainClaimsRoute(
   app: Express,
-  requireOwnerOrAdmin: RequestHandler
+  requireCronOrAdmin: RequestHandler
 ): void {
   app.post(
     "/api/admin/backfill-domain-claims",
-    requireOwnerOrAdmin,
+    requireCronOrAdmin,
     async (req: Request, res: Response) => {
       const limit = Number(req.body?.limit ?? DEFAULT_BATCH_SIZE);
       const dryRun = req.body?.dryRun === true || req.body?.dryRun === "true";
@@ -191,7 +197,9 @@ export function registerBackfillDomainClaimsRoute(
         return;
       }
 
-      log.info(`POST /api/admin/backfill-domain-claims limit=${limit} dryRun=${dryRun}`);
+      log.info(
+        `POST /api/admin/backfill-domain-claims limit=${limit} dryRun=${dryRun}`
+      );
 
       const result = await backfillDomainClaims({ limit, dryRun });
       res.json({ ok: true, dryRun, ...result });

@@ -40,6 +40,7 @@ import { registerBackfillWikiRoute } from "../backfillWikiRoute";
 import { registerDreamStagingRoute } from "../dreamStagingRoute";
 import { registerBackfillEmbeddingsRoute } from "../backfillEmbeddingsRoute";
 import { registerBackfillDomainClaimsRoute } from "../backfillDomainClaimsRoute";
+import { registerResetStuckDocumentsRoute } from "../resetStuckDocumentsRoute";
 import { createCoordRouter } from "../coordApi/index";
 import { createApiV2Router } from "../apiV2Router";
 import { createExportRouter } from "../exportRouter";
@@ -660,7 +661,10 @@ async function startServer() {
           claims: {
             type: "array",
             maxItems: 50,
-            items: { type: "string", description: "A scientific claim text to verify" },
+            items: {
+              type: "string",
+              description: "A scientific claim text to verify",
+            },
             description: "Array of 1-50 claim strings to verify",
           },
           concurrency: {
@@ -668,11 +672,13 @@ async function startServer() {
             minimum: 1,
             maximum: 5,
             default: 5,
-            description: "Number of claims to process in parallel (1-5). Lower values reduce peak load on the free model pool.",
+            description:
+              "Number of claims to process in parallel (1-5). Lower values reduce peak load on the free model pool.",
           },
           vertical: {
             type: "string",
-            description: "Optional research domain hint (e.g. structural_biology, sports_nutrition, clinical_trial).",
+            description:
+              "Optional research domain hint (e.g. structural_biology, sports_nutrition, clinical_trial).",
           },
         },
         required: ["claims"],
@@ -686,11 +692,24 @@ async function startServer() {
               type: "object",
               properties: {
                 claim: { type: "string" },
-                verdict: { type: "string", enum: ["Supported", "Contradicted", "Ambiguous", "Insufficient Evidence", "Out of Scope", "Needs Expert Review"] },
+                verdict: {
+                  type: "string",
+                  enum: [
+                    "Supported",
+                    "Contradicted",
+                    "Ambiguous",
+                    "Insufficient Evidence",
+                    "Out of Scope",
+                    "Needs Expert Review",
+                  ],
+                },
                 confidenceScore: { type: "number" },
                 rationale: { type: "string" },
                 evidenceUrl: { type: "string" },
-                error: { type: "string", description: "Present only if this individual claim failed" },
+                error: {
+                  type: "string",
+                  description: "Present only if this individual claim failed",
+                },
               },
             },
           },
@@ -709,17 +728,30 @@ async function startServer() {
       input_schema: {
         type: "object",
         properties: {
-          claim: { type: "string", description: "Molecular entity or scientific claim to verify" },
-          context: { type: "string", description: "Optional context hint (e.g. molecular_evolution)" },
+          claim: {
+            type: "string",
+            description: "Molecular entity or scientific claim to verify",
+          },
+          context: {
+            type: "string",
+            description: "Optional context hint (e.g. molecular_evolution)",
+          },
         },
         required: ["claim"],
       },
       output_schema: {
         type: "object",
         properties: {
-          verdict: { type: "string", enum: ["Supported", "Contradicted", "Ambiguous"] },
+          verdict: {
+            type: "string",
+            enum: ["Supported", "Contradicted", "Ambiguous"],
+          },
           confidenceScore: { type: "number", minimum: 0, maximum: 1 },
-          sources: { type: "array", items: { type: "string" }, description: "e.g. ['pubmed:12345678', 'pdb:1ABC']" },
+          sources: {
+            type: "array",
+            items: { type: "string" },
+            description: "e.g. ['pubmed:12345678', 'pdb:1ABC']",
+          },
         },
       },
     },
@@ -1408,7 +1440,11 @@ async function startServer() {
       const raw = (req.body as Buffer)?.toString("utf8") ?? "";
       req.rawBody = raw;
       // express.raw() consumes the stream; parse manually so req.body is a JS object
-      try { req.body = JSON.parse(raw); } catch { req.body = {}; }
+      try {
+        req.body = JSON.parse(raw);
+      } catch {
+        req.body = {};
+      }
       next();
     },
     (req, res) => void handleSpecReady(req, res)
@@ -1960,36 +1996,36 @@ async function startServer() {
   app.post("/api/scheduled/ingestion-alerts", ingestionAlertHandler);
 
   // SkillOpt — prompt optimisation loop (weekly, Sunday 02:00 UTC)
-  app.post(
-    "/api/scheduled/skillopt",
-    requireCronOrAdmin,
-    async (_req, res) => {
-      try {
-        const { runSkillOpt } = await import("../skillopt/skillOptRunner");
-        const { join } = await import("path");
-        // Run all three instruction sets sequentially
-        const sets = ["claim_extraction", "evidence_lookup", "confidence_scoring"] as const;
-        const results = [];
-        for (const instructionSet of sets) {
-          const gtPath = join(
-            process.cwd(),
-            "server",
-            "skillopt",
-            "ground_truth",
-            `${instructionSet}.jsonl`
-          );
-          results.push(
-            await runSkillOpt({ instructionSet, groundTruthPath: gtPath })
-          );
-        }
-        const result = { sets: results };
-        res.json({ ok: true, ...result });
-      } catch (err) {
-        console.error("[SkillOpt] Scheduled run failed:", err);
-        res.status(500).json({ ok: false, error: (err as Error).message });
+  app.post("/api/scheduled/skillopt", requireCronOrAdmin, async (_req, res) => {
+    try {
+      const { runSkillOpt } = await import("../skillopt/skillOptRunner");
+      const { join } = await import("path");
+      // Run all three instruction sets sequentially
+      const sets = [
+        "claim_extraction",
+        "evidence_lookup",
+        "confidence_scoring",
+      ] as const;
+      const results = [];
+      for (const instructionSet of sets) {
+        const gtPath = join(
+          process.cwd(),
+          "server",
+          "skillopt",
+          "ground_truth",
+          `${instructionSet}.jsonl`
+        );
+        results.push(
+          await runSkillOpt({ instructionSet, groundTruthPath: gtPath })
+        );
       }
+      const result = { sets: results };
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      console.error("[SkillOpt] Scheduled run failed:", err);
+      res.status(500).json({ ok: false, error: (err as Error).message });
     }
-  );
+  });
 
   registerMcpServer(app);
   // Public claim submission endpoint (Lovable site, MCP tools, external agents)
@@ -2019,7 +2055,8 @@ async function startServer() {
   registerBackfillWikiRoute(app, requireOwnerOrAdmin);
   registerDreamStagingRoute(app, requireOwnerOrAdmin);
   registerBackfillEmbeddingsRoute(app, requireCronOrAdmin);
-  registerBackfillDomainClaimsRoute(app, requireOwnerOrAdmin);
+  registerBackfillDomainClaimsRoute(app, requireCronOrAdmin); // Sprint 41: cron-callable for pipeline fix
+  registerResetStuckDocumentsRoute(app, requireCronOrAdmin); // Sprint 41: reset stuck documents to pending
   // Phase 118-120: claim history, provenance, and batch verify
   registerClaimHistoryRoute(app);
   registerClaimProvenanceRoute(app);
