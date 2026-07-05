@@ -141,7 +141,7 @@ function VerdictChart({ dist }: { dist: DashboardSnapshot["verdictDistribution"]
       tooltip: {
         callbacks: {
           label: (ctx: TooltipItem<"bar">) =>
-            ` ${ctx.label}: ${fmt(ctx.parsed.y)}`,
+            ` ${ctx.label}: ${fmt(ctx.parsed.y ?? 0)}`,
         },
       },
     },
