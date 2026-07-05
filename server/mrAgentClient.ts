@@ -1,22 +1,62 @@
 /**
  * mrAgentClient.ts
- * Sprint 38 — MRAgent memory integration for citation.is verification pipeline.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * HTTP client for the evolva-mragent Strands memory server.
  *
- * Provides two functions:
- *   queryMRAgent  — pre-check: look up a claim in MRAgent memory before hitting PubMed.
- *                   Returns a cached verdict if a high-confidence match (score ≥ 0.88) exists.
- *   ingestMRAgent — post-ingest: store a new verdict in MRAgent memory after verification.
- *                   Fire-and-forget — never blocks the HTTP response.
+ * Exports (original contract — do NOT change signatures):
+ *   fetchPriorContext()     — reconstruct context from episodic memory
+ *   querySimilarVerdicts()  — query top-K similar episodes
+ *   ingestVerifiedClaim()   — store a new verified claim episode
+ *   getMemoryStats()        — fetch memory server statistics
+ *   MemoryEpisode           — episode type used by contradiction check
  *
- * Both functions are safe to call when MRAGENT_URL is not set (returns { hit: false } / void).
- * All errors are swallowed — MRAgent is an optional acceleration layer, not a hard dependency.
+ * Sprint 38 additions (new exports for verifyClaimRoute.ts):
+ *   queryMRAgent()          — high-level pre-check: returns cached verdict on hit
+ *   ingestMRAgent()         — fire-and-forget post-ingest after new verdict
+ *   MRAgentResult           — union type for queryMRAgent return value
+ *
+ * All functions are safe no-ops when ENV.mrAgentEnabled is false.
+ * All errors are silently swallowed — MRAgent is an optional acceleration
+ * layer, not a hard dependency.
  */
 
-const MRAGENT_URL = process.env.MRAGENT_URL ?? null;
-const MRAGENT_TIMEOUT_QUERY = 3000;   // 3 s — must not slow down verification
-const MRAGENT_TIMEOUT_INGEST = 5000;  // 5 s — fire-and-forget, but give it a chance
-const CACHE_HIT_THRESHOLD = 0.88;     // cosine similarity threshold for a cache hit
+import { ENV } from "./_core/env";
+import { logger } from "./logger";
 
+const log = logger("mrAgentClient");
+
+// ─── Timeouts ─────────────────────────────────────────────────────────────────
+const TIMEOUT_QUERY = 3000;    // 3 s — must not slow down verification
+const TIMEOUT_INGEST = 5000;   // 5 s — fire-and-forget, but give it a chance
+const TIMEOUT_STATS  = 4000;   // 4 s
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface MemoryEpisode {
+  episode_id: string;
+  text: string;
+  origin?: string;
+  score: number;
+  citation?: string;
+}
+
+export interface IngestParams {
+  claimText: string;
+  verdict: string;
+  confidenceScore: number;
+  rationale: string;
+  evidenceUrl: string | null;
+  pmids: string[];
+  claimId?: number | null;
+  domain?: string;
+}
+
+export interface MemoryStats {
+  total_episodes: number;
+  [key: string]: unknown;
+}
+
+// Sprint 38 — high-level cache result types
 export interface MRAgentHit {
   hit: true;
   verdict: string;
@@ -32,107 +72,229 @@ export interface MRAgentMiss {
 
 export type MRAgentResult = MRAgentHit | MRAgentMiss;
 
-/**
- * Query MRAgent memory for a cached verdict on the given claim.
- * Returns a hit with the stored verdict if a sufficiently similar episode exists,
- * or a miss if MRAgent is unavailable, the memory is empty, or no episode scores
- * above the CACHE_HIT_THRESHOLD.
- */
-export async function queryMRAgent(claim: string): Promise<MRAgentResult> {
-  if (!MRAGENT_URL) return { hit: false };
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function baseUrl(): string {
+  return ENV.mrAgentUrl ?? "http://localhost:8002";
+}
+
+async function safeFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response | null> {
   try {
-    const res = await fetch(`${MRAGENT_URL}/v1/memory/query`, {
+    const res = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return res;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Original API (preserved exactly) ────────────────────────────────────────
+
+/**
+ * Reconstruct prior context for a claim from episodic memory.
+ * Returns a context string if relevant episodes exist, null otherwise.
+ * Used by analysisPipeline.ts for pre-flight context injection.
+ */
+export async function fetchPriorContext(claim: string): Promise<string | null> {
+  if (!ENV.mrAgentEnabled) return null;
+
+  const res = await safeFetch(
+    `${baseUrl()}/v1/memory/reconstruct`,
+    {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ claim, top_k: 5 }),
-      signal: AbortSignal.timeout(MRAGENT_TIMEOUT_QUERY),
-    });
+      body: JSON.stringify({ question: claim }),
+    },
+    TIMEOUT_QUERY
+  );
 
-    if (!res.ok) return { hit: false };
+  if (!res || !res.ok) return null;
 
+  try {
     const data = await res.json() as {
-      episodes?: Array<{ episode_id: string; text: string; score: number }>;
-      total_in_memory?: number;
+      answer?: string;
+      episodes_used?: number;
+      error?: string;
     };
-
-    const episodes = data.episodes ?? [];
-    if (episodes.length === 0) return { hit: false };
-
-    const top = episodes[0];
-    if (!top || top.score < CACHE_HIT_THRESHOLD) return { hit: false };
-
-    // The stored episode text is a JSON-encoded verdict record
-    let stored: {
-      claim?: string;
-      verdict?: string;
-      confidence?: number;
-      rationale?: string;
-      evidenceUrl?: string | null;
-    };
-    try {
-      stored = JSON.parse(top.text);
-    } catch {
-      return { hit: false };
-    }
-
-    if (!stored.verdict) return { hit: false };
-
-    return {
-      hit: true,
-      verdict: stored.verdict,
-      confidence: stored.confidence ?? 0.9,
-      rationale: stored.rationale ?? `Recalled from verified memory (similarity ${top.score.toFixed(3)}).`,
-      evidenceUrl: stored.evidenceUrl ?? null,
-      source: "mragent_cache",
-    };
+    if (data.error || !data.episodes_used || data.episodes_used === 0) return null;
+    return data.answer ?? null;
   } catch {
-    // Network error, timeout, or parse failure — treat as miss
-    return { hit: false };
+    return null;
   }
 }
 
 /**
- * Ingest a new verified claim into MRAgent memory.
- * Fire-and-forget — do NOT await this function in the request handler.
- * Errors are silently swallowed.
+ * Query MRAgent for top-K episodes semantically similar to the claim.
+ * Returns an empty array on any error.
+ * Used by claimSimilarityEngine.ts and mrAgentContradictionCheck.ts.
+ */
+export async function querySimilarVerdicts(
+  claim: string,
+  topK = 5
+): Promise<MemoryEpisode[]> {
+  if (!ENV.mrAgentEnabled) return [];
+
+  const res = await safeFetch(
+    `${baseUrl()}/v1/memory/query`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ claim, top_k: topK }),
+    },
+    TIMEOUT_QUERY
+  );
+
+  if (!res || !res.ok) return [];
+
+  try {
+    const data = await res.json() as { episodes?: MemoryEpisode[] };
+    return data.episodes ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Ingest a verified claim into MRAgent episodic memory.
+ * Requires a citation — the MRAgent server blocks ingestion without one.
+ * Used by trainingExporter.ts.
+ */
+export async function ingestVerifiedClaim(params: IngestParams): Promise<void> {
+  if (!ENV.mrAgentEnabled) return;
+
+  const citation =
+    params.pmids.length > 0
+      ? params.pmids.map(p => `PMID:${p}`).join(", ")
+      : (params.evidenceUrl ?? "citation.is internal verification");
+
+  const episodeText = JSON.stringify({
+    claimText: params.claimText,
+    verdict: params.verdict,
+    confidenceScore: params.confidenceScore,
+    rationale: params.rationale,
+    evidenceUrl: params.evidenceUrl,
+    claimId: params.claimId ?? null,
+  });
+
+  const res = await safeFetch(
+    `${baseUrl()}/v1/memory/ingest`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: episodeText,
+        citation,
+        domain: params.domain ?? "citation",
+        confidence: params.confidenceScore,
+      }),
+    },
+    TIMEOUT_INGEST
+  );
+
+  if (!res || !res.ok) {
+    log.warn("[MRAgent] ingestVerifiedClaim failed", { status: res?.status });
+  }
+}
+
+/**
+ * Fetch memory server statistics.
+ * Returns null on any error.
+ */
+export async function getMemoryStats(): Promise<MemoryStats | null> {
+  if (!ENV.mrAgentEnabled) return null;
+
+  const res = await safeFetch(
+    `${baseUrl()}/v1/memory/stats`,
+    { method: "GET" },
+    TIMEOUT_STATS
+  );
+
+  if (!res || !res.ok) return null;
+
+  try {
+    return await res.json() as MemoryStats;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Sprint 38 additions ──────────────────────────────────────────────────────
+
+// Minimum cosine similarity for a cache hit in the verifyClaimRoute pre-check
+const CACHE_HIT_THRESHOLD = 0.88;
+
+/**
+ * High-level pre-check for verifyClaimRoute.ts (Sprint 38).
+ * Queries episodic memory and returns a cached verdict if a high-confidence
+ * match exists (cosine similarity ≥ 0.88), avoiding a PubMed round-trip.
+ * Returns a miss if MRAgent is disabled, memory is empty, or no episode
+ * scores above the threshold.
+ */
+export async function queryMRAgent(claim: string): Promise<MRAgentResult> {
+  if (!ENV.mrAgentEnabled) return { hit: false };
+
+  const episodes = await querySimilarVerdicts(claim, 5);
+  if (episodes.length === 0) return { hit: false };
+
+  const top = episodes[0];
+  if (!top || top.score < CACHE_HIT_THRESHOLD) return { hit: false };
+
+  let stored: {
+    claimText?: string;
+    verdict?: string;
+    confidenceScore?: number;
+    rationale?: string;
+    evidenceUrl?: string | null;
+  };
+  try {
+    stored = JSON.parse(top.text);
+  } catch {
+    return { hit: false };
+  }
+
+  if (!stored.verdict) return { hit: false };
+
+  return {
+    hit: true,
+    verdict: stored.verdict,
+    confidence: stored.confidenceScore ?? 0.9,
+    rationale:
+      stored.rationale ??
+      `Recalled from verified memory (similarity ${top.score.toFixed(3)}).`,
+    evidenceUrl: stored.evidenceUrl ?? null,
+    source: "mragent_cache",
+  };
+}
+
+/**
+ * Fire-and-forget post-ingest for verifyClaimRoute.ts (Sprint 38).
+ * Stores a new verdict in MRAgent episodic memory after verification.
+ * DO NOT await this function — it must never block the HTTP response.
  */
 export function ingestMRAgent(
-  claim: string,
+  claimText: string,
   verdict: string,
-  confidence: number,
+  confidenceScore: number,
   rationale: string,
   evidenceUrl: string | null,
   pmids: string[]
 ): void {
-  if (!MRAGENT_URL) return;
-
-  // Build a citation string from PMIDs or fall back to the evidence URL
-  const citation =
-    pmids.length > 0
-      ? pmids.map((p) => `PMID:${p}`).join(", ")
-      : (evidenceUrl ?? "citation.is internal verification");
-
-  const episodeText = JSON.stringify({
-    claim,
+  // Delegate to ingestVerifiedClaim — fire-and-forget
+  ingestVerifiedClaim({
+    claimText,
     verdict,
-    confidence,
+    confidenceScore,
     rationale,
     evidenceUrl,
-  });
-
-  // Fire-and-forget — intentionally not awaited
-  fetch(`${MRAGENT_URL}/v1/memory/ingest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: episodeText,
-      citation,
-      domain: "citation",
-      confidence,
-    }),
-    signal: AbortSignal.timeout(MRAGENT_TIMEOUT_INGEST),
+    pmids,
+    domain: "citation",
   }).catch(() => {
-    // Silently ignore — MRAgent ingest failure must never affect the response
+    // Silently ignore — ingest failure must never affect the response
   });
 }
