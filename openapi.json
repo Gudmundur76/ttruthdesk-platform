@@ -1,0 +1,340 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "citation.is Public API",
+    "version": "1.0.0",
+    "description": "The citation.is API provides programmatic access to the verified scientific claims corpus. Ground any AI-generated claim in deterministic, source-backed verdicts.\n\n**Authentication:** All endpoints require a Bearer token in the `Authorization` header. Request an API key at https://citation.is/developers.\n\n**Rate limits:** 60 requests/minute on the free tier, 600 requests/minute on Pro.",
+    "contact": {
+      "name": "citation.is",
+      "url": "https://citation.is/contact"
+    },
+    "license": {
+      "name": "CC BY 4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://ttruthdesk.claims",
+      "description": "Production"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/v1/verify": {
+      "post": {
+        "operationId": "verifyClaim",
+        "summary": "Verify a scientific claim",
+        "description": "Submit a natural language claim, SMILES string, protein sequence, or gene name. Returns a deterministic verdict backed by PubMed, PDB, and UniProt sources.",
+        "tags": ["Verification"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["claim"],
+                "properties": {
+                  "claim": {
+                    "type": "string",
+                    "description": "The claim to verify. Can be natural language, a SMILES string, a protein sequence, or a gene name.",
+                    "example": "HIV protease contains a catalytic dyad at Asp25 and Asp25'"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "Optional domain hint to route to the correct vertical adapter.",
+                    "enum": ["structural_biology", "clinical_trial", "pharmacology", "genomics_genetics", "food_safety", "biomedical_general"],
+                    "example": "structural_biology"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                },
+                "example": {
+                  "verdict": "Supported",
+                  "confidenceScore": 0.91,
+                  "sources": ["pubmed:10592235", "pubmed:19399780", "pdb:1HHP"],
+                  "citedPmids": ["10592235", "19399780"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid claim",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Bearer token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable — API key not configured",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "searchClaims",
+        "summary": "Search the verified claims corpus",
+        "description": "Full-text search across 8,800+ verified claims. Returns paginated results with verdicts, confidence scores, and source citations.",
+        "tags": ["Corpus"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query string",
+            "schema": { "type": "string", "example": "aspirin cardiovascular" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number (1-indexed)",
+            "schema": { "type": "integer", "default": 1, "minimum": 1 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Results per page (max 50)",
+            "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 50 }
+          },
+          {
+            "name": "verdict",
+            "in": "query",
+            "required": false,
+            "description": "Filter by verdict",
+            "schema": {
+              "type": "string",
+              "enum": ["Supported", "Contradicted", "Insufficient Evidence"]
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "description": "Filter by domain slug",
+            "schema": { "type": "string", "example": "structural_biology" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing query parameter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Bearer token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/stats": {
+      "get": {
+        "operationId": "getStats",
+        "summary": "Get corpus statistics",
+        "description": "Returns live statistics about the verified claims corpus. No authentication required.",
+        "tags": ["Status"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Corpus statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/corpus-dashboard": {
+      "get": {
+        "operationId": "getCorpusDashboard",
+        "summary": "Get full corpus dashboard data",
+        "description": "Returns detailed metrics including verdict distribution, vertical breakdown, SIA self-improvement stats, and MRAgent memory stats. No authentication required.",
+        "tags": ["Status"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Dashboard data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key obtained from https://citation.is/developers"
+      }
+    },
+    "schemas": {
+      "VerifyResponse": {
+        "type": "object",
+        "required": ["verdict", "confidenceScore", "sources"],
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": ["Supported", "Contradicted", "Ambiguous"],
+            "description": "The deterministic verdict for the claim"
+          },
+          "confidenceScore": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence score from 0.0 to 1.0"
+          },
+          "sources": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Source citations in 'pubmed:PMID' or 'pdb:ID' format"
+          },
+          "citedPmids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Raw PMID strings for evidence graph construction"
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": ["query", "page", "limit", "total", "results"],
+        "properties": {
+          "query": { "type": "string" },
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "claim": { "type": "string" },
+                "verdict": { "type": "string" },
+                "confidenceScore": { "type": "number" },
+                "domain": { "type": "string" },
+                "sources": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "verifiedAt": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "properties": {
+          "totalClaims": { "type": "integer" },
+          "verifiedClaims": { "type": "integer" },
+          "totalDocuments": { "type": "integer" },
+          "graphNodes": { "type": "integer" },
+          "siaGeneration": { "type": "integer" }
+        }
+      },
+      "DashboardResponse": {
+        "type": "object",
+        "properties": {
+          "globalStats": { "$ref": "#/components/schemas/StatsResponse" },
+          "verdictDistribution": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" }
+          },
+          "topVerticals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "domain": { "type": "string" },
+                "total": { "type": "integer" },
+                "supported": { "type": "integer" }
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error", "code"],
+        "properties": {
+          "error": { "type": "string" },
+          "code": { "type": "string" }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Verification",
+      "description": "Submit claims for deterministic verification against authoritative databases"
+    },
+    {
+      "name": "Corpus",
+      "description": "Search and browse the verified claims corpus"
+    },
+    {
+      "name": "Status",
+      "description": "System health and corpus statistics"
+    }
+  ]
+}
