@@ -33,7 +33,7 @@
  */
 import type { Express, Request, Response } from "express";
 import { ENV } from "./_core/env";
-import { db } from "./_core/db";
+import { query } from "./_core/db";
 
 // ─── Auth guard (same pattern as publicV1VerifyRoute) ─────────────────────────
 function checkAuth(req: Request, res: Response): boolean {
@@ -97,14 +97,14 @@ export function registerV1SearchRoute(app: Express): void {
       }
 
       // Count total
-      const countResult = await db.query(
+      const countResult = await query(
         `SELECT COUNT(*) as total FROM claims c ${whereClause}`,
         params
       );
       const total = parseInt(countResult.rows[0]?.total ?? "0", 10);
 
       // Fetch page
-      const rows = await db.query(
+      const rows = await query(
         `SELECT c.id, c.claim_text, c.verdict, c.confidence_score, c.domain,
                 c.pmid_list, c.pdb_id, c.verified_at
          FROM claims c
