@@ -62,6 +62,7 @@ import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
 import { registerHostingerWebhookRoute } from "../hostingerWebhook";
 import { registerGithubPushWebhookRoute } from "../githubPushWebhook";
+import { registerCorpusDashboardRoute } from "../corpusDashboardRoute";
 import { handleSpecReady, handleDecision } from "../selfDirectWebhook";
 import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 import { detailedHealthHandler } from "../detailedHealthRoute";
@@ -2059,6 +2060,7 @@ async function startServer() {
   registerHostingerWebhookRoute(app);
   // GitHub push webhook — triggers git pull + pm2 restart on the persistent VM
   registerGithubPushWebhookRoute(app);
+  registerCorpusDashboardRoute(app);
   // self-direct decision endpoint (spec-ready is registered before global json middleware above)
   app.post(
     "/api/self-direct/decision",
