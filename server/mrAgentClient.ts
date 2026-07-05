@@ -59,7 +59,10 @@ export interface IngestParams {
 }
 
 export interface MemoryStats {
-  total_episodes: number;
+  episode_count?: number;
+  total_episodes?: number;
+  key_node_count?: number;
+  link_count?: number;
   [key: string]: unknown;
 }
 
@@ -144,8 +147,8 @@ export async function fetchPriorContext(claim: string): Promise<string | null> {
 export async function querySimilarVerdicts(
   claim: string,
   topK = 5
-): Promise<MemoryEpisode[]> {
-  if (!ENV.mrAgentEnabled) return [];
+): Promise<MemoryEpisode[] | null> {
+  if (!ENV.mrAgentEnabled) return null;
 
   const res = await safeFetch(
     `${baseUrl()}/v1/memory/query`,
@@ -157,13 +160,15 @@ export async function querySimilarVerdicts(
     TIMEOUT_QUERY
   );
 
-  if (!res || !res.ok) return [];
+  if (!res) return null;
+  if (!res.ok) return null;
 
   try {
-    const data = await res.json() as { episodes?: MemoryEpisode[] };
+    const data = await res.json() as { episodes?: MemoryEpisode[]; error?: string };
+    if (data.error) return null;
     return data.episodes ?? [];
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -272,7 +277,7 @@ export async function queryMRAgent(claim: string): Promise<MRAgentResult> {
   if (!ENV.mrAgentEnabled) return { hit: false };
 
   const episodes = await querySimilarVerdicts(claim, 5);
-  if (episodes.length === 0) return { hit: false };
+  if (!episodes || episodes.length === 0) return { hit: false };
 
   const top = episodes[0];
   if (!top || top.score < CACHE_HIT_THRESHOLD) return { hit: false };
