@@ -85,7 +85,7 @@ export function registerV1SearchRoute(app: Express): void {
         verdict: verdictFilter,
       });
 
-      const results = rows.map((row: any) => {
+      const results = rows.map((row: Record<string, unknown>) => {
         const pmids = Array.isArray(row.pmid_list)
           ? (row.pmid_list as string[]).map((p: string) => `pubmed:${p}`)
           : [];
