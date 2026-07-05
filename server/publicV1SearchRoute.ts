@@ -33,7 +33,7 @@
  */
 import type { Express, Request, Response } from "express";
 import { ENV } from "./_core/env";
-import { query } from "./_core/db";
+import { query } from "./db";
 
 // ─── Auth guard (same pattern as publicV1VerifyRoute) ─────────────────────────
 function checkAuth(req: Request, res: Response): boolean {
