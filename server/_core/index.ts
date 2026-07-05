@@ -53,6 +53,7 @@ import { registerPublicBatchVerifyRoute } from "../publicBatchVerifyRoute";
 import { registerPublicDecomposeClaimRoute } from "../publicDecomposeClaimRoute";
 import { registerV1VerifyRoute } from "../publicV1VerifyRoute";
 import { registerPublicV1SearchRoute } from "../publicV1SearchRoute"; // cognitive-loop-framework integration
+import { registerPublicV1ClaimRoute } from "../publicV1ClaimRoute";
 import { registerCountryDeskIcelandicRoute } from "../countryDeskIcelandicRoute";
 import { registerExternalPublicRoutes } from "../externalPublicRouter";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
@@ -1443,7 +1444,11 @@ async function startServer() {
     (req: express.Request & { rawBody?: string }, _res, next) => {
       const raw = (req.body as Buffer)?.toString("utf8") ?? "";
       req.rawBody = raw;
-      try { req.body = JSON.parse(raw); } catch { /* leave as buffer */ }
+      try {
+        req.body = JSON.parse(raw);
+      } catch {
+        /* leave as buffer */
+      }
       next();
     }
   );
@@ -2083,6 +2088,7 @@ async function startServer() {
   registerPublicDecomposeClaimRoute(app); // POST /api/public/decompose-claim — Sprint 39
   registerV1VerifyRoute(app); // POST /v1/verify — cognitive-loop-framework integration
   registerPublicV1SearchRoute(app);
+  registerPublicV1ClaimRoute(app); // GET /v1/claim/:id — public claim fetch
   registerCountryDeskIcelandicRoute(app); // GET /v1/search — public corpus search
   // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
   registerExternalPublicRoutes(app);
