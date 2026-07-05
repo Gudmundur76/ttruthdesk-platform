@@ -33,7 +33,7 @@
  */
 import type { Express, Request, Response } from "express";
 import { ENV } from "./_core/env";
-import { db } from "./db";
+import { getPaginatedPublicClaims } from "./db";
 
 // ─── Auth guard (same pattern as publicV1VerifyRoute) ─────────────────────────
 function checkAuth(req: Request, res: Response): boolean {
@@ -76,57 +76,28 @@ export function registerV1SearchRoute(app: Express): void {
     const domainFilter = (req.query.domain as string | undefined)?.trim();
 
     try {
-      // Search the claims corpus using the existing searchEngine
-      const offset = (page - 1) * limit;
+      // Use the existing DB function to get paginated results
+      const { data, total } = await getPaginatedPublicClaims({
+        page,
+        limit,
+        searchQuery: query,
+        domain: domainFilter,
+        verdict: verdictFilter,
+      });
 
-      // Build a parameterised query against the claims table
-      // Uses LIKE for broad compatibility; the full-text index is used on the VM
-      let whereClause = `WHERE (c.claim_text ILIKE $1 OR c.claim_text ILIKE $2)`;
-      const params: (string | number)[] = [`%${query}%`, `% ${query.split(' ')[0]}%`];
-      let paramIdx = 3;
-
-      if (verdictFilter) {
-        whereClause += ` AND c.verdict = $${paramIdx}`;
-        params.push(verdictFilter);
-        paramIdx++;
-      }
-      if (domainFilter) {
-        whereClause += ` AND c.domain = $${paramIdx}`;
-        params.push(domainFilter);
-        paramIdx++;
-      }
-
-      // Count total
-      const countResult = await db.query(
-        `SELECT COUNT(*) as total FROM claims c ${whereClause}`,
-        params
-      );
-      const total = parseInt(countResult.rows[0]?.total ?? "0", 10);
-
-      // Fetch page
-      const rows = await db.query(
-        `SELECT c.id, c.claim_text, c.verdict, c.confidence_score, c.domain,
-                c.pmid_list, c.pdb_id, c.verified_at
-         FROM claims c
-         ${whereClause}
-         ORDER BY c.confidence_score DESC, c.verified_at DESC
-         LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-        [...params, limit, offset]
-      );
-
-      const results = rows.rows.map((row: Record<string, unknown>) => {
+      const results = data.map((row) => {
         const pmids = Array.isArray(row.pmid_list)
           ? (row.pmid_list as string[]).map((p: string) => `pubmed:${p}`)
           : [];
         const pdb = row.pdb_id ? [`pdb:${row.pdb_id}`] : [];
         return {
-          id: row.id as string,
-          claim: row.claim_text as string,
-          verdict: row.verdict as string,
-          confidenceScore: parseFloat((row.confidence_score as string) ?? "0"),
-          domain: (row.domain as string) ?? "unknown",
+          id: row.id.toString(),
+          claim: row.claim_text,
+          verdict: row.verdict ?? "Unknown",
+          confidenceScore: parseFloat(row.confidence_score ?? "0"),
+          domain: row.domain ?? "unknown",
           sources: [...pmids, ...pdb],
-          verifiedAt: row.verified_at as string,
+          verifiedAt: row.verified_at ? new Date(row.verified_at).toISOString() : new Date().toISOString(),
         };
       });
 
