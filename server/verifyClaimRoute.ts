@@ -62,6 +62,7 @@ import { verificationEventStore } from "./verificationEventStore";
 import { fireVerdictWebhook, buildVerdictPayload } from "./verdictWebhookRoute";
 import { decomposeQuestion, buildPubMedQuery } from "./questionDecomposer";
 import { classifyClaims, getPrimaryRoute } from "./domainClassifier";
+import { queryMRAgent, ingestMRAgent } from "./mrAgentClient";
 const log = logger("verifyClaimRoute");
 
 // ─── NCBI E-utilities adapter (Sprint 25 Phase 3 — replaces EuropePMC) ──────
@@ -456,6 +457,39 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
   const processedAt = new Date().toISOString();
 
   try {
+    // ── Step 0: MRAgent memory pre-check (Sprint 38) ──────────────────────────
+    // Query the MRAgent episodic memory before hitting PubMed.
+    // If a high-confidence match exists (cosine similarity ≥ 0.88), return
+    // the cached verdict immediately — no PubMed call needed.
+    const memResult = await queryMRAgent(claimText);
+    if (memResult.hit) {
+      log.info("[VerifyClaim] MRAgent cache hit", { claim: claimText.slice(0, 80), verdict: memResult.verdict });
+      res.json({
+        ok: true,
+        claim: claimText,
+        vertical: vertical ?? "general",
+        verdict: memResult.verdict,
+        rationale: memResult.rationale,
+        evidenceUrl: memResult.evidenceUrl,
+        claimType: "mragent_recall",
+        pdbId: null,
+        proteinName: null,
+        signalDensity: 0,
+        confidenceScore: memResult.confidence,
+        claimText,
+        claimId: null,
+        spo: null,
+        contradictions: [],
+        pubmedResults: [],
+        translatedClaims: [],
+        domainRouting: [],
+        processedAt,
+        source: "mragent_cache",
+        apiVersion: "1.4",
+      });
+      return;
+    }
+
     const signalDensity = computeSignalDensity(claimText);
 
     // ── Step 1: Try structured extraction (works for PDB/accession-rich text) ──
@@ -679,6 +713,18 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       signalDensity
     );
 
+    // ── Step 5: MRAgent post-ingest (Sprint 38) ────────────────────────────
+    // Store this verified claim in MRAgent episodic memory so future identical
+    // or semantically similar claims can be served from cache (fire-and-forget).
+    ingestMRAgent(
+      claimText,
+      bestVerdictResult!.verdict,
+      confidenceScore,
+      bestVerdictResult!.rationale,
+      bestVerdictResult!.evidenceUrl ?? null,
+      allPubMedResults.slice(0, 3).map(p => p.pmid)
+    );
+
     res.json({
       ok: true,
       claim: claimText,
@@ -746,3 +792,4 @@ export function registerVerifyClaimRoute(app: Express): void {
   });
   app.post("/api/public/verify-claim", handleVerifyClaim);
 }
+
