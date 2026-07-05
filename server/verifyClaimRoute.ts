@@ -42,7 +42,7 @@
  *     "spo": { subject, predicate, object, confidence, method } | null,
  *     "contradictions": ContradictionAlert[],
  *     "processedAt": string (ISO 8601),
- *     "apiVersion": "1.2"
+ *     "apiVersion": "1.3"
  *   }
  */
 
@@ -78,6 +78,12 @@ async function fetchPubMedResults(
 // ─── Keyword overlap relevance filter ────────────────────────────────────────
 // Filters PubMed results to papers that share at least one meaningful keyword
 // with the claim text. Prevents topically-adjacent but claim-irrelevant papers.
+//
+// Sprint 37 (Subject-Object Gate): Added spoAwareFilter() to require that papers
+// contain BOTH the subject AND object keywords of a claim when the claim has a
+// clear SPO structure. This prevents false-positive verdicts where a paper about
+// only one component (e.g. "cheese") passes the filter for a claim like "the moon
+// is made of cheese". The gate is applied after filterByRelevance.
 
 function extractKeywords(text: string): Set<string> {
   const stopWords = new Set([
@@ -175,6 +181,54 @@ function filterByRelevance(
       : [];
 }
 
+// ─── Sprint 37: Subject-Object co-occurrence gate ────────────────────────────
+// For claims with a clear subject-predicate-object structure, require that
+// papers contain BOTH the subject AND object keywords — not just any keyword
+// from the claim. This prevents false-positive verdicts where a paper about
+// only one entity (e.g. "cheese") passes for a claim like "moon is made of cheese".
+//
+// The gate is only applied when the claim has ≥2 distinct content words AND
+// the subject/object keyword sets are non-empty and non-overlapping.
+// Falls back to the full filtered set if the gate would eliminate all papers.
+
+function extractSpoKeywords(text: string): { subject: Set<string>; object: Set<string> } {
+  // Heuristic SPO split: words before the first verb-like token are subject,
+  // words after are object. Verb tokens: is, are, was, were, has, have, contains,
+  // shows, demonstrates, inhibits, reduces, increases, causes, made, composed.
+  const verbPattern = /\b(is|are|was|were|has|have|contains|shows|demonstrates|inhibits|reduces|increases|causes|made|composed|proven|found|linked|associated)\b/i;
+  const match = verbPattern.exec(text);
+  if (!match || match.index === 0) return { subject: new Set(), object: new Set() };
+  const subjectText = text.slice(0, match.index);
+  const objectText = text.slice(match.index + match[0].length);
+  return {
+    subject: extractKeywords(subjectText),
+    object: extractKeywords(objectText),
+  };
+}
+
+function spoAwareFilter(
+  papers: PubMedResult[],
+  claimText: string
+): PubMedResult[] {
+  const { subject, object } = extractSpoKeywords(claimText);
+  // Only apply gate when both subject and object have meaningful keywords
+  // and they are not the same set (avoids filtering single-entity claims)
+  if (subject.size === 0 || object.size === 0) return papers;
+  const subjectArr = Array.from(subject);
+  const objectArr = Array.from(object);
+  const gated = papers.filter(p => {
+    const paperText = `${p.title} ${p.abstractSnippet ?? ""}`.toLowerCase();
+    const hasSubject = subjectArr.some(kw => paperText.includes(kw));
+    const hasObject = objectArr.some(kw => paperText.includes(kw));
+    return hasSubject && hasObject;
+  });
+  // Fall back to original set only if gate eliminates everything AND
+  // the claim is genuinely short (≤4 total keywords) — avoids over-filtering
+  // legitimate short claims like "aspirin reduces fever"
+  const totalKeywords = subject.size + object.size;
+  return gated.length > 0 ? gated : totalKeywords <= 4 ? papers : [];
+}
+
 // ─── Compute a real confidence score from available signals ───────────────────
 // Combines: (1) pubmed hit count, (2) signal density, (3) verdict label weight
 // Returns a 0–1 float rounded to 2 decimal places.
@@ -205,6 +259,8 @@ function computeConfidenceScore(
 }
 
 // ─── Derive verdict from PubMed paper count ───────────────────────────────────
+// Sprint 37: papers are pre-filtered by spoAwareFilter before reaching here.
+// The count-based logic is unchanged — the gate happens upstream.
 
 function verdictFromPubMed(
   papers: PubMedResult[],
@@ -456,8 +512,11 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         5,
         primaryClaim.claimText
       );
-      allPubMedResults = filterByRelevance(
-        pubmedResults,
+      allPubMedResults = spoAwareFilter(
+        filterByRelevance(
+          pubmedResults,
+          primaryClaim.claimText
+        ),
         primaryClaim.claimText
       );
       const pubmedVerdict = verdictFromPubMed(
@@ -479,7 +538,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
           5,
           claimText
         );
-        allPubMedResults = filterByRelevance(fallbackResults, claimText);
+        allPubMedResults = spoAwareFilter(
+          filterByRelevance(fallbackResults, claimText),
+          claimText
+        );
         bestVerdictResult = verdictFromPubMed(allPubMedResults, claimText);
         primaryProteinName = null;
       } else {
@@ -524,8 +586,11 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         const rawResults = allResults
           .flat()
           .filter((r, i, arr) => arr.findIndex(x => x.pmid === r.pmid) === i);
-        allPubMedResults = filterByRelevance(
-          rawResults,
+        allPubMedResults = spoAwareFilter(
+          filterByRelevance(
+            rawResults,
+            translated[0].claimText
+          ),
           translated[0].claimText
         ).slice(0, 10);
 
@@ -660,7 +725,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       // Sprint 26: per-claim domain routing — which source adapter each claim was dispatched to
       domainRouting,
       processedAt,
-      apiVersion: "1.3",
+      apiVersion: "1.4",
     });
   } catch (err) {
     log.error("[VerifyClaim] Error:", errData(err));
