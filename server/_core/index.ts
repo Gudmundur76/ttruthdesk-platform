@@ -2081,7 +2081,8 @@ async function startServer() {
   registerPublicBatchVerifyRoute(app); // POST /api/public/batch-verify — agent-callable batch claim verification
   registerPublicDecomposeClaimRoute(app); // POST /api/public/decompose-claim — Sprint 39
   registerV1VerifyRoute(app); // POST /v1/verify — cognitive-loop-framework integration
-  registerPublicV1SearchRoute(app); // GET /v1/search — public corpus search
+  registerPublicV1SearchRoute(app);
+  registerCountryDeskIcelandicRoute(app); // GET /v1/search — public corpus search
   // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
   registerExternalPublicRoutes(app);
   // self-direct integration: /api/telemetry/summary — verification.completed event feed
