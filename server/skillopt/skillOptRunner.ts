@@ -100,8 +100,11 @@ const INSTRUCTION_FILE_NAMES: Record<InstructionSet, string> = {
 };
 
 const DEFAULT_OUTPUT_DIR = join(
-  __dirname,
-  "../verticalAdapters/calibration/prompts"
+  process.cwd(),
+  "server",
+  "verticalAdapters",
+  "calibration",
+  "prompts"
 );
 
 function loadCurrentInstruction(
