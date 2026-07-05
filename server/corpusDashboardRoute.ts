@@ -98,7 +98,7 @@ async function buildLiveSnapshot() {
     if (stats) {
       mragentStats = {
         totalEpisodes: stats.episode_count ?? 0,
-        cacheHitRate: stats.cache_hit_rate ?? 0,
+        cacheHitRate: 0,
         available: true,
       };
     }
