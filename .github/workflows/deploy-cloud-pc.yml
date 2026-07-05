@@ -1,0 +1,29 @@
+name: Deploy to Cloud Computer
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            echo "=== Deploying ttruthdesk-platform ==="
+            cd ~/ttruthdesk-platform
+            git fetch origin main
+            git reset --hard origin/main
+            pnpm install --frozen-lockfile
+            pnpm run build
+            sudo systemctl daemon-reload
+            sudo systemctl restart ttruthdesk.service
+            echo "Deploy complete. Service restarted."
