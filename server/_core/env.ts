@@ -115,6 +115,12 @@ export const ENV = {
   // share it with the cognitive-loop-framework CITATION_API_KEY env var.
   // If unset, the /v1/verify endpoint returns 503 Service Unavailable.
   citationApiKey: process.env.CITATION_API_KEY ?? "",
+  // GitHub push webhook HMAC secret.
+  // Set GITHUB_PUSH_WEBHOOK_SECRET to the same value configured in
+  // GitHub → ttruthdesk-platform → Settings → Webhooks → Secret.
+  // When set, POST /api/github/push runs: git pull origin main && npm run build && pm2 restart
+  // Leave empty to disable auto-deploy on push (safe default).
+  githubPushWebhookSecret: process.env.GITHUB_PUSH_WEBHOOK_SECRET ?? "",
   // Ornith-1.0-9B self-hosted inference via slm-infra-deploy (ornith-vllm service).
   // Set LLM_PROVIDER=ornith_slm and ORNITH_SLM_URL=http://<slm-host>:8080
   // ORNITH_SLM_MODEL defaults to ornith-1.0-9b (the vLLM model ID served by cortex.py)
