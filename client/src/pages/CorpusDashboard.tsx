@@ -17,6 +17,8 @@ import {
   BarElement,
   Tooltip,
   Legend,
+  type ChartOptions,
+  type TooltipItem,
 } from "chart.js";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
@@ -132,13 +134,13 @@ function VerdictChart({ dist }: { dist: DashboardSnapshot["verdictDistribution"]
     ],
   };
 
-  const options = {
+  const options: ChartOptions<"bar"> = {
     responsive: true,
     plugins: {
       legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (ctx: { parsed: { y: number }; label: string }) =>
+          label: (ctx: TooltipItem<"bar">) =>
             ` ${ctx.label}: ${fmt(ctx.parsed.y)}`,
         },
       },
