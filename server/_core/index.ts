@@ -51,7 +51,8 @@ import { registerClaimProvenanceRoute } from "../claimProvenanceRoute";
 import { registerBatchVerifyRoute } from "../batchVerifyRoute";
 import { registerPublicBatchVerifyRoute } from "../publicBatchVerifyRoute";
 import { registerPublicDecomposeClaimRoute } from "../publicDecomposeClaimRoute";
-import { registerV1VerifyRoute } from "../publicV1VerifyRoute"; // cognitive-loop-framework integration
+import { registerV1VerifyRoute } from "../publicV1VerifyRoute";
+import { registerV1SearchRoute } from "../publicV1SearchRoute"; // cognitive-loop-framework integration
 import { registerExternalPublicRoutes } from "../externalPublicRouter";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
@@ -2080,6 +2081,7 @@ async function startServer() {
   registerPublicBatchVerifyRoute(app); // POST /api/public/batch-verify — agent-callable batch claim verification
   registerPublicDecomposeClaimRoute(app); // POST /api/public/decompose-claim — Sprint 39
   registerV1VerifyRoute(app); // POST /v1/verify — cognitive-loop-framework integration
+  registerV1SearchRoute(app); // GET /v1/search — public corpus search
   // Phase 131: /api/external/public/* alias routes (third-pass audit fix)
   registerExternalPublicRoutes(app);
   // self-direct integration: /api/telemetry/summary — verification.completed event feed
