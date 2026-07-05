@@ -61,6 +61,7 @@ import { runWikiLint } from "../wikiLinter";
 import { wikiEngineLintJobHandler } from "../wikiLintJob";
 import { ENV } from "./env";
 import { registerHostingerWebhookRoute } from "../hostingerWebhook";
+import { registerGithubPushWebhookRoute } from "../githubPushWebhook";
 import { handleSpecReady, handleDecision } from "../selfDirectWebhook";
 import { registerTranslateAndSearchApi } from "../translateAndSearchApi";
 import { detailedHealthHandler } from "../detailedHealthRoute";
@@ -1432,6 +1433,17 @@ async function startServer() {
     "/api/webhook",
     express.raw({ type: "application/json", limit: "1mb" })
   );
+  // GitHub push webhook raw body capture (MUST be before global express.json for HMAC verification)
+  app.post(
+    "/api/github/push",
+    express.raw({ type: "application/json", limit: "1mb" }),
+    (req: express.Request & { rawBody?: string }, _res, next) => {
+      const raw = (req.body as Buffer)?.toString("utf8") ?? "";
+      req.rawBody = raw;
+      try { req.body = JSON.parse(raw); } catch { /* leave as buffer */ }
+      next();
+    }
+  );
   // self-direct raw body capture (MUST be before global express.json so rawBody is populated)
   app.post(
     "/api/self-direct/spec-ready",
@@ -2045,6 +2057,8 @@ async function startServer() {
   registerEmbedRoutes(app);
   // Hostinger inbound signed webhook — receives events from all Hostinger-hosted sites
   registerHostingerWebhookRoute(app);
+  // GitHub push webhook — triggers git pull + pm2 restart on the persistent VM
+  registerGithubPushWebhookRoute(app);
   // self-direct decision endpoint (spec-ready is registered before global json middleware above)
   app.post(
     "/api/self-direct/decision",
