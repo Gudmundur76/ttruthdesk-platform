@@ -53,6 +53,7 @@ import { registerPublicBatchVerifyRoute } from "../publicBatchVerifyRoute";
 import { registerPublicDecomposeClaimRoute } from "../publicDecomposeClaimRoute";
 import { registerV1VerifyRoute } from "../publicV1VerifyRoute";
 import { registerPublicV1SearchRoute } from "../publicV1SearchRoute"; // cognitive-loop-framework integration
+import { registerCountryDeskIcelandicRoute } from "../countryDeskIcelandicRoute";
 import { registerExternalPublicRoutes } from "../externalPublicRouter";
 import { qualityScorerJobHandler } from "../qualityScorerJob";
 import { generatePdfReport } from "../pdfReportGenerator";
