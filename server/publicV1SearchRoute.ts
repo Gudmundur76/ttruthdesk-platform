@@ -77,15 +77,15 @@ export function registerV1SearchRoute(app: Express): void {
 
     try {
       // Use the existing DB function to get paginated results
-      const { data, total } = await getPaginatedPublicClaims({
+      const { rows, total } = await getPaginatedPublicClaims({
         page,
-        limit,
-        searchQuery: query,
-        domain: domainFilter,
+        pageSize: limit,
+        q: query,
+        vertical: domainFilter,
         verdict: verdictFilter,
       });
 
-      const results = data.map((row) => {
+      const results = rows.map((row: any) => {
         const pmids = Array.isArray(row.pmid_list)
           ? (row.pmid_list as string[]).map((p: string) => `pubmed:${p}`)
           : [];
