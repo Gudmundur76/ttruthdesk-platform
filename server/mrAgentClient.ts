@@ -41,12 +41,19 @@ export interface MemoryEpisode {
 }
 
 export interface IngestParams {
-  claimText: string;
-  verdict: string;
-  confidenceScore: number;
-  rationale: string;
-  evidenceUrl: string | null;
-  pmids: string[];
+  // Fields used by trainingExporter.ts
+  episodeId?: string;
+  text?: string;
+  origin?: string;
+  tags?: string[];
+  citation?: string;
+  // Fields used by verifyClaimRoute.ts (Sprint 38 additions)
+  claimText?: string;
+  verdict?: string;
+  confidenceScore?: number;
+  rationale?: string;
+  evidenceUrl?: string | null;
+  pmids?: string[];
   claimId?: number | null;
   domain?: string;
 }
@@ -163,42 +170,67 @@ export async function querySimilarVerdicts(
 /**
  * Ingest a verified claim into MRAgent episodic memory.
  * Requires a citation — the MRAgent server blocks ingestion without one.
- * Used by trainingExporter.ts.
+ * Used by trainingExporter.ts and verifyClaimRoute.ts.
+ *
+ * Returns { success: true, episode_id: string } on success, or null on failure.
+ * Supports two call shapes:
+ *   1. trainingExporter.ts style: { episodeId, text, origin, tags, citation }
+ *   2. verifyClaimRoute.ts style: { claimText, verdict, confidenceScore, rationale, evidenceUrl, pmids }
  */
-export async function ingestVerifiedClaim(params: IngestParams): Promise<void> {
-  if (!ENV.mrAgentEnabled) return;
+export async function ingestVerifiedClaim(
+  params: IngestParams
+): Promise<{ success: boolean; episode_id?: string } | null> {
+  if (!ENV.mrAgentEnabled) return null;
 
+  // Resolve text — support both call shapes
+  const episodeText =
+    params.text ??
+    JSON.stringify({
+      claimText: params.claimText,
+      verdict: params.verdict,
+      confidenceScore: params.confidenceScore,
+      rationale: params.rationale,
+      evidenceUrl: params.evidenceUrl,
+      claimId: params.claimId ?? null,
+    });
+
+  // Resolve citation — support both call shapes
   const citation =
-    params.pmids.length > 0
+    params.citation ??
+    (params.pmids && params.pmids.length > 0
       ? params.pmids.map(p => `PMID:${p}`).join(", ")
-      : (params.evidenceUrl ?? "citation.is internal verification");
+      : (params.evidenceUrl ?? "citation.is internal verification"));
 
-  const episodeText = JSON.stringify({
-    claimText: params.claimText,
-    verdict: params.verdict,
-    confidenceScore: params.confidenceScore,
-    rationale: params.rationale,
-    evidenceUrl: params.evidenceUrl,
-    claimId: params.claimId ?? null,
-  });
+  const body: Record<string, unknown> = {
+    text: episodeText,
+    citation,
+    domain: params.domain ?? "citation",
+  };
+  if (params.episodeId) body.episode_id = params.episodeId;
+  if (params.origin) body.origin = params.origin;
+  if (params.tags) body.tags = params.tags;
+  if (params.confidenceScore !== undefined) body.confidence = params.confidenceScore;
 
   const res = await safeFetch(
     `${baseUrl()}/v1/memory/ingest`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: episodeText,
-        citation,
-        domain: params.domain ?? "citation",
-        confidence: params.confidenceScore,
-      }),
+      body: JSON.stringify(body),
     },
     TIMEOUT_INGEST
   );
 
   if (!res || !res.ok) {
     log.warn("[MRAgent] ingestVerifiedClaim failed", { status: res?.status });
+    return null;
+  }
+
+  try {
+    const data = await res.json() as { success?: boolean; episode_id?: string };
+    return { success: data.success ?? true, episode_id: data.episode_id };
+  } catch {
+    return { success: true };
   }
 }
 
