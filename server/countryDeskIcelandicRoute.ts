@@ -281,8 +281,8 @@ export function registerCountryDeskIcelandicRoute(app: Router): void {
           claim: claimText,
           verdict: cached.verdict,
           confidence: cached.confidence,
-          evidence: cached.evidence,
-          sources: cached.sources,
+          evidence: cached.rationale ? [cached.rationale] : [],
+          sources: cached.evidenceUrl ? [{ id: "mragent", title: "MRAgent Cache", url: cached.evidenceUrl, owner: "MRAgent", reuseClass: "green" }] : [],
           cached: true,
           vertical: "countrydesk-iceland",
         });
@@ -340,7 +340,7 @@ export function registerCountryDeskIcelandicRoute(app: Router): void {
 
     // 3. Ingest into MRAgent memory
     if (ENV.mrAgentEnabled && ENV.mrAgentUrl && verdict === "Supported") {
-      await ingestMRAgent(claimText, verdict, confidence, matchedSources.map((s) => s.url), "countrydesk-iceland");
+      ingestMRAgent(claimText, verdict, confidence, `CountryDesk Iceland verdict: ${verdict}`, matchedSources[0]?.url ?? null, matchedSources.map((s) => s.url));
     }
 
     res.json({
@@ -357,5 +357,6 @@ export function registerCountryDeskIcelandicRoute(app: Router): void {
   });
 
   // Mount under /api/public/countrydesk/iceland
-  (app as unknown as import("express").Application).use("/api/public/countrydesk/iceland", router);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (app as any).use("/api/public/countrydesk/iceland", router);
 }
