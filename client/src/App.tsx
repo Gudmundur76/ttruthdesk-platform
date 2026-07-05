@@ -94,6 +94,7 @@ const SavedResearch = lazy(() => import("@/pages/SavedResearch"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
 const Agent = lazy(() => import("@/pages/Agent"));
+const CountryDeskIceland = lazy(() => import('./pages/CountryDeskIceland'));
 
 function Router() {
   return (
