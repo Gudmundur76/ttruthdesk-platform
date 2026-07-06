@@ -19,6 +19,8 @@ export default defineConfig({
     // These are test-only values and are never used in production.
     env: {
       JWT_SECRET: "test-jwt-secret-for-vitest-only",
+      // Minimum 32-char HMAC key required by selfDirectWebhook.test.ts
+      SELF_DIRECT_WEBHOOK_SECRET: "test-self-direct-webhook-secret-32ch",
     },
     coverage: {
       provider: "v8",
