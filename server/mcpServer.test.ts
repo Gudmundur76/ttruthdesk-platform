@@ -619,7 +619,8 @@ describe("ask_question tool", () => {
       ],
       loopTriggered: false,
       processedAt: "2024-06-13T00:00:00.000Z",
-    });
+      domainClassification: { domain: "biology", confidence: 0.9 },
+    } as any);
 
     const handler = TOOLS["ask_question"].handler;
     const result = (await handler(

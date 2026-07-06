@@ -87,7 +87,7 @@ describe("processQuestion", () => {
     // Mock the DB search returning a verified claim
     const { searchClaims } = await import("./searchEngine");
     const { getClaimWithDocument } = await import("./db");
-    
+
     vi.mocked(searchClaims).mockResolvedValueOnce([
       {
         id: 99,
@@ -98,9 +98,9 @@ describe("processQuestion", () => {
         documentTitle: "Source Document",
         verticalDomain: "structural_biology",
         relevanceScore: 0.9,
-      }
+      },
     ]);
-    
+
     vi.mocked(getClaimWithDocument).mockResolvedValueOnce({
       claim: {
         id: 99,
@@ -114,41 +114,29 @@ describe("processQuestion", () => {
         organism: null,
         ligand: null,
         confidenceScore: 0.85,
-        verdict: "supported",
-        verdictMethod: "llm_eval",
-        verdictRationale: "The PDB entry for 1LYZ reports a resolution of 2.0 Å as determined by X-ray crystallography.",
+        verdict: "Supported",
+        verdictMethod: "fallback",
+        verdictRationale:
+          "The PDB entry for 1LYZ reports a resolution of 2.0 Å as determined by X-ray crystallography.",
         compositeTruthScore: 0.85,
-        compositeTruthLabel: "supported",
-        verticalDomain: "structural_biology",
-        mragentName: null,
+        compositeTruthLabel: "verified_faithful",
         pdbEvidenceUrl: "https://www.rcsb.org/structure/1LYZ",
         createdAt: new Date(),
         updatedAt: new Date(),
-        verifiedAt: new Date(),
-        verificationAttempts: 1,
-        lastError: null,
-        status: "verified",
-      },
+      } as any,
       document: {
         id: 1,
         title: "Crystal structure of lysozyme",
-        abstract: null,
-        authors: null,
-        journal: null,
-        publicationDate: null,
-        pmid: "12345678",
-        doi: null,
-        pmcid: null,
-        sourceType: "pubmed",
+        sourceType: "upload",
+        originalFileName: null,
+        storageKey: null,
+        rawText: null,
         storageUrl: "https://pubmed.ncbi.nlm.nih.gov/12345678/",
-        storagePath: null,
-        importBatchId: null,
+        userId: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
-        processedAt: new Date(),
-        status: "processed",
-        errorLog: null,
-      }
+        status: "complete",
+      } as any,
     });
 
     const result = await processQuestion(
@@ -162,7 +150,9 @@ describe("processQuestion", () => {
     expect(result.confidence).toBe(0.85);
     expect(result.loopTriggered).toBe(false);
     expect(result.sources).toHaveLength(2); // Document + PDB Evidence
-    expect(result.sources[0].url).toBe("https://pubmed.ncbi.nlm.nih.gov/12345678/");
+    expect(result.sources[0].url).toBe(
+      "https://pubmed.ncbi.nlm.nih.gov/12345678/"
+    );
     expect(result.sources[1].url).toBe("https://www.rcsb.org/structure/1LYZ");
     expect(invokeLLM).not.toHaveBeenCalled();
   });
@@ -170,7 +160,7 @@ describe("processQuestion", () => {
   it("returns structured result when LLM succeeds", async () => {
     const { searchClaims } = await import("./searchEngine");
     vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
-    
+
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -181,8 +171,7 @@ describe("processQuestion", () => {
           message: {
             role: "assistant" as const,
             content: JSON.stringify({
-              derivedClaim:
-                "Lysozyme (PDB 1LYZ) has a resolution of 2.0 Å.",
+              derivedClaim: "Lysozyme (PDB 1LYZ) has a resolution of 2.0 Å.",
               verdict: "supported",
               confidence: 0.85,
               rationale:
@@ -515,8 +504,7 @@ describe("loopOrchestrator — coverage_gap routing", () => {
     // Read the loopOrchestrator source to verify coverage_gap is in the L2 condition
     const fs = await import("fs");
     const src = fs.readFileSync(
-      new URL("./autonomousLoop/loopOrchestrator.ts", import.meta.url)
-        .pathname,
+      new URL("./autonomousLoop/loopOrchestrator.ts", import.meta.url).pathname,
       "utf8"
     );
     expect(src).toContain('"coverage_gap"');

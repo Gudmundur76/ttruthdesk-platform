@@ -89,9 +89,8 @@ IMPORTANT: Never return "out_of_scope". If you cannot assess the claim, return v
  * Convert a natural language question to a verifiable claim and assess it.
  * Returns a structured answer with verdict, confidence, and source citations.
  */
-export async function processQuestion(
-  questionText: string
-): Promise<Omit<AnswerQuestionResult, "questionId">> {
+// eslint-disable-next-line complexity
+export async function processQuestion(questionText: string) {
   const processedAt = new Date().toISOString();
 
   let derivedClaim = questionText;
@@ -106,34 +105,39 @@ export async function processQuestion(
     // This grounds the Q&A in the actual citation graph.
     const declarative = questionToDeclarative(questionText);
     const searchResults = await searchClaims(declarative, { limit: 3 });
-    
+
     // Filter for verified claims with high confidence
-    const bestMatch = searchResults.find(r => 
-      r.verdict && 
-      r.verdict !== "insufficient_evidence" && 
-      r.verdict !== "ambiguous" &&
-      r.confidenceScore !== null && 
-      r.confidenceScore >= 0.7
+    const bestMatch = searchResults.find(
+      r =>
+        r.verdict &&
+        r.verdict !== "insufficient_evidence" &&
+        r.verdict !== "ambiguous" &&
+        r.confidenceScore !== null &&
+        r.confidenceScore >= 0.7
     );
 
     if (bestMatch) {
-      log.info(`[QuestionRouter] Found verified DB match for: "${questionText}" -> Claim #${bestMatch.id}`);
-      
+      log.info(
+        `[QuestionRouter] Found verified DB match for: "${questionText}" -> Claim #${bestMatch.id}`
+      );
+
       // Get full document provenance
       const fullClaim = await getClaimWithDocument(bestMatch.id);
-      
+
       derivedClaim = bestMatch.claimText;
       verdict = bestMatch.verdict ?? "supported";
       confidence = bestMatch.confidenceScore ?? 0.8;
-      rationale = fullClaim?.claim.verdictRationale ?? `Verified by ${fullClaim?.claim.verdictMethod || 'the citation graph'}.`;
-      
+      rationale =
+        fullClaim?.claim.verdictRationale ??
+        `Verified by ${fullClaim?.claim.verdictMethod || "the citation graph"}.`;
+
       if (fullClaim?.document) {
         sources.push({
           title: fullClaim.document.title ?? "Source Document",
           url: fullClaim.document.storageUrl ?? undefined,
         });
       }
-      
+
       // Add PDB/DOI evidence if available
       if (fullClaim?.claim.pdbEvidenceUrl) {
         sources.push({
@@ -141,7 +145,7 @@ export async function processQuestion(
           url: fullClaim.claim.pdbEvidenceUrl,
         });
       }
-      
+
       // Skip the LLM call entirely since we have a verified answer
       const domainClassification = classifyClaim({
         text: derivedClaim,
@@ -149,7 +153,7 @@ export async function processQuestion(
         confidence,
         index: 0,
       });
-      
+
       return {
         questionText,
         derivedClaim,
@@ -162,9 +166,11 @@ export async function processQuestion(
         domainClassification,
       };
     }
-    
+
     // No DB match found — fall back to the LLM (which will likely trigger the loop)
-    log.info(`[QuestionRouter] No DB match found, falling back to LLM for: "${questionText}"`);
+    log.info(
+      `[QuestionRouter] No DB match found, falling back to LLM for: "${questionText}"`
+    );
 
     const response = await invokeLLM({
       messages: [
