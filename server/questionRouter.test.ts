@@ -21,6 +21,11 @@ vi.mock("./_core/llm", () => ({
 vi.mock("./db", () => ({
   insertQuestion: vi.fn().mockResolvedValue(42),
   getQuestion: vi.fn().mockResolvedValue(null),
+  getClaimWithDocument: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("./searchEngine", () => ({
+  searchClaims: vi.fn().mockResolvedValue([]),
 }));
 
 // ─── Mock event bus ───────────────────────────────────────────────────────────
@@ -78,7 +83,94 @@ describe("processQuestion", () => {
     vi.clearAllMocks();
   });
 
+  it("returns DB match without calling LLM when a verified claim is found", async () => {
+    // Mock the DB search returning a verified claim
+    const { searchClaims } = await import("./searchEngine");
+    const { getClaimWithDocument } = await import("./db");
+    
+    vi.mocked(searchClaims).mockResolvedValueOnce([
+      {
+        id: 99,
+        claimText: "Lysozyme (PDB 1LYZ) has a resolution of 2.0 Å.",
+        verdict: "supported",
+        confidenceScore: 0.85,
+        documentId: 1,
+        documentTitle: "Source Document",
+        verticalDomain: "structural_biology",
+        relevanceScore: 0.9,
+      }
+    ]);
+    
+    vi.mocked(getClaimWithDocument).mockResolvedValueOnce({
+      claim: {
+        id: 99,
+        documentId: 1,
+        claimText: "Lysozyme (PDB 1LYZ) has a resolution of 2.0 Å.",
+        claimType: "declarative",
+        extractedValue: null,
+        pdbId: "1LYZ",
+        proteinName: "Lysozyme",
+        experimentalMethod: "X-ray",
+        organism: null,
+        ligand: null,
+        confidenceScore: 0.85,
+        verdict: "supported",
+        verdictMethod: "llm_eval",
+        verdictRationale: "The PDB entry for 1LYZ reports a resolution of 2.0 Å as determined by X-ray crystallography.",
+        compositeTruthScore: 0.85,
+        compositeTruthLabel: "supported",
+        verticalDomain: "structural_biology",
+        mragentName: null,
+        pdbEvidenceUrl: "https://www.rcsb.org/structure/1LYZ",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        verifiedAt: new Date(),
+        verificationAttempts: 1,
+        lastError: null,
+        status: "verified",
+      },
+      document: {
+        id: 1,
+        title: "Crystal structure of lysozyme",
+        abstract: null,
+        authors: null,
+        journal: null,
+        publicationDate: null,
+        pmid: "12345678",
+        doi: null,
+        pmcid: null,
+        sourceType: "pubmed",
+        storageUrl: "https://pubmed.ncbi.nlm.nih.gov/12345678/",
+        storagePath: null,
+        importBatchId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        processedAt: new Date(),
+        status: "processed",
+        errorLog: null,
+      }
+    });
+
+    const result = await processQuestion(
+      "What is the resolution of lysozyme in PDB 1LYZ?"
+    );
+
+    expect(result.derivedClaim).toBe(
+      "Lysozyme (PDB 1LYZ) has a resolution of 2.0 Å."
+    );
+    expect(result.verdict).toBe("supported");
+    expect(result.confidence).toBe(0.85);
+    expect(result.loopTriggered).toBe(false);
+    expect(result.sources).toHaveLength(2); // Document + PDB Evidence
+    expect(result.sources[0].url).toBe("https://pubmed.ncbi.nlm.nih.gov/12345678/");
+    expect(result.sources[1].url).toBe("https://www.rcsb.org/structure/1LYZ");
+    expect(invokeLLM).not.toHaveBeenCalled();
+  });
+
   it("returns structured result when LLM succeeds", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
+    
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -125,6 +217,8 @@ describe("processQuestion", () => {
   });
 
   it("triggers loop when confidence < 0.6", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -154,6 +248,8 @@ describe("processQuestion", () => {
   });
 
   it("triggers loop when verdict is insufficient_evidence", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -183,6 +279,8 @@ describe("processQuestion", () => {
   });
 
   it("does NOT trigger loop when confidence >= 0.6 and verdict is not insufficient_evidence", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -211,6 +309,8 @@ describe("processQuestion", () => {
   });
 
   it("gracefully degrades when LLM throws", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockRejectedValueOnce(new Error("LLM timeout"));
 
     const result = await processQuestion("What is the structure of collagen?");
@@ -222,6 +322,8 @@ describe("processQuestion", () => {
   });
 
   it("gracefully degrades when LLM returns malformed JSON", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -246,6 +348,8 @@ describe("processQuestion", () => {
   });
 
   it("clamps confidence to [0, 1]", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -274,6 +378,8 @@ describe("processQuestion", () => {
   });
 
   it("returns empty sources array when LLM omits sources", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),
@@ -302,6 +408,8 @@ describe("processQuestion", () => {
   });
 
   it("returns questionText unchanged", async () => {
+    const { searchClaims } = await import("./searchEngine");
+    vi.mocked(searchClaims).mockResolvedValueOnce([]); // No DB match
     vi.mocked(invokeLLM).mockResolvedValueOnce({
       id: "mock-id",
       created: Date.now(),

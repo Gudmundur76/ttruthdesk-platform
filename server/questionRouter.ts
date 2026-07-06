@@ -23,7 +23,8 @@
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
-import { insertQuestion, getQuestion } from "./db";
+import { insertQuestion, getQuestion, getClaimWithDocument } from "./db";
+import { searchClaims } from "./searchEngine";
 import { logger, errData } from "./logger";
 import { classifyClaim } from "./domainClassifier";
 import type { ClassificationResult } from "./domainClassifier";
@@ -100,6 +101,71 @@ export async function processQuestion(
   let sources: SourceCitation[] = [];
 
   try {
+    // ── SIA Integration (Sprint 45) ──
+    // Before hallucinating an answer via LLM, check the verified claims DB.
+    // This grounds the Q&A in the actual citation graph.
+    const declarative = questionToDeclarative(questionText);
+    const searchResults = await searchClaims(declarative, { limit: 3 });
+    
+    // Filter for verified claims with high confidence
+    const bestMatch = searchResults.find(r => 
+      r.verdict && 
+      r.verdict !== "insufficient_evidence" && 
+      r.verdict !== "ambiguous" &&
+      r.confidenceScore !== null && 
+      r.confidenceScore >= 0.7
+    );
+
+    if (bestMatch) {
+      log.info(`[QuestionRouter] Found verified DB match for: "${questionText}" -> Claim #${bestMatch.id}`);
+      
+      // Get full document provenance
+      const fullClaim = await getClaimWithDocument(bestMatch.id);
+      
+      derivedClaim = bestMatch.claimText;
+      verdict = bestMatch.verdict ?? "supported";
+      confidence = bestMatch.confidenceScore ?? 0.8;
+      rationale = fullClaim?.claim.verdictRationale ?? `Verified by ${fullClaim?.claim.verdictMethod || 'the citation graph'}.`;
+      
+      if (fullClaim?.document) {
+        sources.push({
+          title: fullClaim.document.title ?? "Source Document",
+          url: fullClaim.document.storageUrl ?? undefined,
+        });
+      }
+      
+      // Add PDB/DOI evidence if available
+      if (fullClaim?.claim.pdbEvidenceUrl) {
+        sources.push({
+          title: "Primary Evidence (PDB/DOI)",
+          url: fullClaim.claim.pdbEvidenceUrl,
+        });
+      }
+      
+      // Skip the LLM call entirely since we have a verified answer
+      const domainClassification = classifyClaim({
+        text: derivedClaim,
+        method: "passthrough",
+        confidence,
+        index: 0,
+      });
+      
+      return {
+        questionText,
+        derivedClaim,
+        verdict,
+        confidence,
+        rationale,
+        sources,
+        loopTriggered: false, // DB hits don't trigger the loop
+        processedAt,
+        domainClassification,
+      };
+    }
+    
+    // No DB match found — fall back to the LLM (which will likely trigger the loop)
+    log.info(`[QuestionRouter] No DB match found, falling back to LLM for: "${questionText}"`);
+
     const response = await invokeLLM({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
