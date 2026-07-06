@@ -63,7 +63,22 @@ export async function getDb(): Promise<ReturnType<typeof drizzle> | null> {
   if (!_dbInitPromise && process.env.DATABASE_URL) {
     _dbInitPromise = (async () => {
       try {
-        _db = drizzle(process.env.DATABASE_URL!);
+        // mysql2 v3+ requires ssl to be an object, not a boolean string.
+        // Strip ?ssl=true from the URL and pass ssl as an explicit option.
+        // Use mysql2 (not mysql2/promise) so the Pool type matches drizzle-orm.
+        const mysql2 = await import("mysql2");
+        const rawUrl = process.env.DATABASE_URL!;
+        const cleanUrl = rawUrl.replace(/[?&]ssl=true/i, "").replace(/\?$/, "");
+        const pool = mysql2.createPool({
+          uri: cleanUrl,
+          ssl: { rejectUnauthorized: true },
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+        });
+        // drizzle-orm/mysql2 accepts the raw Pool (not pool.promise())
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        _db = drizzle(pool as any);
         return _db;
       } catch (error) {
         log.warn("[Database] Failed to connect:", errData(error));
