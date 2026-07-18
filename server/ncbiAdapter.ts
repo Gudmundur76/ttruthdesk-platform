@@ -188,3 +188,115 @@ export async function fetchNcbiResults(
 
 /** Exported for testing only */
 export { lruGet, lruSet };
+
+// ─── 3-rung relaxation ladder ─────────────────────────────────────────────────
+
+export interface LadderResult {
+  results: PubMedResult[];
+  /** Which rung produced the results (1=mechanism, 2=entity, 3=MeSH) */
+  query_rung: 1 | 2 | 3;
+  queries_tried: string[];
+}
+
+const MECHANISM_VERBS = new Set([
+  "catalyzes", "catalyze", "converts", "inhibits", "activates", "binds",
+  "phosphorylates", "cleaves", "mediates", "regulates", "promotes", "suppresses",
+  "encodes", "expresses", "transcribes", "translates", "synthesizes", "degrades",
+  "undergoes", "performs", "enables", "facilitates", "triggers", "induces",
+  "integrates", "replicates", "infects", "enters", "exits", "releases",
+]);
+const RUNG_STOP = new Set([
+  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+  "have", "has", "had", "do", "does", "did", "will", "would", "could",
+  "should", "may", "might", "shall", "can", "this", "that", "these",
+  "those", "with", "for", "from", "into", "onto", "upon", "through",
+  "by", "at", "in", "on", "of", "to", "and", "or", "but", "not",
+  "which", "when", "where", "how", "what", "who", "its", "their",
+  "single", "stranded", "double", "specific", "primary", "secondary",
+  "process", "mechanism", "pathway", "reaction", "activity", "function",
+  "via", "using", "used", "also", "both", "each", "other", "than",
+]);
+
+function buildEntityQuery(claim: string): string {
+  const words = claim
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !RUNG_STOP.has(w) && !MECHANISM_VERBS.has(w));
+  const sorted = [...new Set(words)].sort((a, b) => b.length - a.length).slice(0, 4);
+  return sorted.join(" ");
+}
+
+function buildMeshQuery(claim: string): string {
+  const words = claim
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !RUNG_STOP.has(w) && !MECHANISM_VERBS.has(w));
+  const unique = [...new Set(words)].sort((a, b) => b.length - a.length);
+  if (unique.length === 0) return "";
+  return unique.slice(0, 2).map(w => `${w}[MeSH Terms]`).join(" AND ");
+}
+
+async function _fetchWithCache(query: string, claim: string, limit: number): Promise<PubMedResult[]> {
+  const cacheKey = `${query}|||${claim}|||${limit}`;
+  const cached = lruGet(cacheKey);
+  if (cached) return cached;
+  let pmids: string[];
+  try {
+    pmids = await esearch(query, limit);
+  } catch {
+    return [];
+  }
+  if (pmids.length === 0) return [];
+  const records = await efetchBatch(pmids);
+  const results = records
+    .filter(r => r.abstract.length > 0)
+    .map(r => ({
+      pmid: r.pmid,
+      title: r.title,
+      abstractSnippet: bestSentence(r.abstract, claim),
+      citationUrl: `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`,
+      authors: r.authors,
+      journal: r.journal,
+      year: r.year,
+    }));
+  lruSet(cacheKey, results);
+  return results;
+}
+
+/**
+ * Fetch PubMed results with 3-rung relaxation ladder.
+ * Stops at the first rung that returns >=2 results (or >=1 at rung 3).
+ */
+export async function fetchNcbiResultsWithLadder(
+  query: string,
+  claim: string,
+  limit = 5
+): Promise<LadderResult> {
+  const queries_tried: string[] = [];
+
+  // Rung 1: original query (mechanism-level)
+  const r1 = await _fetchWithCache(query, claim, limit);
+  queries_tried.push(query);
+  if (r1.length >= 2) return { results: r1, query_rung: 1, queries_tried };
+
+  // Rung 2: entity-level keywords
+  const entityQuery = buildEntityQuery(claim);
+  if (entityQuery && entityQuery !== query) {
+    const r2 = await _fetchWithCache(entityQuery, claim, limit);
+    queries_tried.push(entityQuery);
+    if (r2.length >= 2) return { results: r2, query_rung: 2, queries_tried };
+    if (r1.length === 0 && r2.length === 1) return { results: r2, query_rung: 2, queries_tried };
+  }
+
+  // Rung 3: MeSH-qualified terms
+  const meshQuery = buildMeshQuery(claim);
+  if (meshQuery) {
+    const r3 = await _fetchWithCache(meshQuery, claim, limit);
+    queries_tried.push(meshQuery);
+    if (r3.length >= 1) return { results: r3, query_rung: 3, queries_tried };
+  }
+
+  return { results: r1, query_rung: 1, queries_tried };
+}

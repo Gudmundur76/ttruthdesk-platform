@@ -66,7 +66,7 @@ import { queryMRAgent, ingestMRAgent } from "./mrAgentClient";
 const log = logger("verifyClaimRoute");
 
 // ─── NCBI E-utilities adapter (Sprint 25 Phase 3 — replaces EuropePMC) ──────
-import { fetchNcbiResults } from "./ncbiAdapter";
+import { fetchNcbiResults, fetchNcbiResultsWithLadder } from "./ncbiAdapter";
 // Thin wrapper: keeps all call-sites identical; claimText drives sentence scoring
 async function fetchPubMedResults(
   query: string,
@@ -338,6 +338,7 @@ const VERDICT_RANK: Record<string, number> = {
   "Needs Expert Review": 3,
   "Insufficient Evidence": 2,
   "Out of Scope": 1,
+  Contradicted: 7,
 };
 
 function bestVerdict(a: VerdictResult, b: VerdictResult): VerdictResult {
@@ -390,6 +391,7 @@ setInterval(
 const ALLOWED_ORIGINS = new Set([
   "https://notus.is",
   "https://citation.manus.space",
+  "https://citation.is",
   "http://localhost:3000",
   "http://localhost:5173",
 ]);
@@ -485,7 +487,7 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         domainRouting: [],
         processedAt,
         source: "mragent_cache",
-        apiVersion: "1.4",
+        apiVersion: "1.5",
       });
       return;
     }
@@ -497,13 +499,16 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
 
     // ── Step 2: If no structured claims, translate natural language → claims ──
     let translatedClaims: string[] = [];
-    let allPubMedResults: PubMedResult[] = [];
-    let bestVerdictResult: VerdictResult | null = null;
-    let _primaryClaimText = claimText;
-    let primaryClaimType = "general_molecular";
-    let primaryPdbId: string | null = null;
-    let primaryProteinName: string | null = null;
-    // Sprint 26: domain routing per decomposed claim (populated in NL path)
+  let allPubMedResults: PubMedResult[] = [];
+  let bestVerdictResult: VerdictResult | null = null;
+  let _primaryClaimText = claimText;
+  let primaryClaimType = "general_molecular";
+  let primaryPdbId: string | null = null;
+  let primaryProteinName: string | null = null;
+  // Sprint v1.1: relaxation ladder telemetry
+  let queryRung: 1 | 2 | 3 = 1;
+  const queriesTried: string[] = [];
+  // Sprint 26: domain routing per decomposed claim (populated in NL path)
     const domainRouting: Array<{
       claim: string;
       domain: string;
@@ -541,11 +546,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       }
 
       // Also search PubMed to enrich with literature evidence
-      const pubmedResults = await fetchPubMedResults(
-        primaryClaim.claimText,
-        5,
-        primaryClaim.claimText
-      );
+      const ladderR = await fetchNcbiResultsWithLadder(primaryClaim.claimText, primaryClaim.claimText, 5);
+      const pubmedResults = ladderR.results;
+      queryRung = ladderR.query_rung;
+      queriesTried.push(...ladderR.queries_tried);
       allPubMedResults = spoAwareFilter(
         filterByRelevance(
           pubmedResults,
@@ -567,11 +571,10 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
 
       if (translated.length === 0) {
         // Absolute fallback: search PubMed with the raw text
-        const fallbackResults = await fetchPubMedResults(
-          claimText,
-          5,
-          claimText
-        );
+        const fallbackLadder = await fetchNcbiResultsWithLadder(claimText, claimText, 5);
+        const fallbackResults = fallbackLadder.results;
+        queryRung = fallbackLadder.query_rung;
+        queriesTried.push(...fallbackLadder.queries_tried);
         allPubMedResults = spoAwareFilter(
           filterByRelevance(fallbackResults, claimText),
           claimText
@@ -614,9 +617,17 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
           .slice(0, 3);
         // Search PubMed for each query in parallel
         const searchPromises = allSearchQueries.map(q =>
-          fetchPubMedResults(q, 4, translated[0]?.claimText ?? claimText)
+          fetchNcbiResultsWithLadder(q, translated[0]?.claimText ?? claimText, 4)
         );
-        const allResults = await Promise.all(searchPromises);
+        const allLadderResults = await Promise.all(searchPromises);
+        // Use the best rung across all parallel queries
+        const bestRung = allLadderResults.reduce((best, lr) =>
+          lr.results.length > 0 && lr.query_rung < best ? lr.query_rung : best,
+          3 as 1 | 2 | 3
+        );
+        queryRung = bestRung;
+        allLadderResults.forEach(lr => queriesTried.push(...lr.queries_tried));
+        const allResults = allLadderResults.map(lr => lr.results);
         const rawResults = allResults
           .flat()
           .filter((r, i, arr) => arr.findIndex(x => x.pmid === r.pmid) === i);
@@ -636,6 +647,45 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
         _primaryClaimText = translated[0].claimText;
         primaryProteinName = translated[0].proteinName;
         primaryClaimType = "general_molecular";
+      }
+    }
+
+    // ── Step 2b: Affirmative-evidence REFUTED check (Sprint v1.1) ─────────────
+    // Absence of supporting evidence → UNVERIFIED, not REFUTED.
+    // REFUTED requires affirmative contradicting evidence from PubMed.
+    if (bestVerdictResult?.verdict === "Insufficient Evidence") {
+      // Build entity-keyword query: extract the 2-3 most meaningful words from the claim
+      // then combine with debunking/retraction terms
+      const entityWords = claimText
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter(w => w.length >= 4 && !["this","that","with","from","have","been","were","they","their","which","when","what","will","would","could","should","does","about","more","than","also","into"].includes(w))
+        .slice(0, 4)
+        .join(" ");
+      const negationQuery = `(${entityWords}) AND (retracted OR debunked OR "no evidence" OR disproven OR myth OR fraud OR misinformation OR controversy OR incorrect OR false)`;
+      try {
+        const negResults = await fetchPubMedResults(negationQuery, 3, claimText);
+        const refutingPapers = negResults.filter(p => {
+          const t = (p.title ?? "").toLowerCase();
+          return /retract|myth|debunk|incorrect|false|refut|no evidence|disprove|fraud|misinformation|controversy|hesitancy|wakefield|pseudoscience|mislead/.test(t);
+        });
+        if (refutingPapers.length >= 1) {
+          const pmid = refutingPapers[0].pmid;
+          bestVerdictResult = {
+            verdict: "Contradicted",
+            rationale: `Affirmative contradicting evidence found. PMID:${pmid}: "${refutingPapers[0].title}". This claim is contradicted by peer-reviewed literature.`,
+            evidenceUrl: refutingPapers[0].citationUrl ?? null,
+            evidenceRaw: undefined as never,
+          };
+          // Add refuting papers to the results set for transparency
+          allPubMedResults = [...allPubMedResults, ...refutingPapers].filter(
+            (r, i, arr) => arr.findIndex(x => x.pmid === r.pmid) === i
+          );
+        }
+      } catch (negErr) {
+        // Non-blocking: if negation search fails, keep original verdict
+        console.error("[v1.1 negation] error:", negErr instanceof Error ? negErr.message : String(negErr));
       }
     }
 
@@ -770,8 +820,11 @@ async function handleVerifyClaim(req: Request, res: Response): Promise<void> {
       translatedClaims,
       // Sprint 26: per-claim domain routing — which source adapter each claim was dispatched to
       domainRouting,
+      // Sprint v1.1: relaxation ladder telemetry
+      query_rung: queryRung,
+      queries_tried: queriesTried,
       processedAt,
-      apiVersion: "1.4",
+      apiVersion: "1.5",
     });
   } catch (err) {
     log.error("[VerifyClaim] Error:", errData(err));
@@ -792,4 +845,3 @@ export function registerVerifyClaimRoute(app: Express): void {
   });
   app.post("/api/public/verify-claim", handleVerifyClaim);
 }
-
