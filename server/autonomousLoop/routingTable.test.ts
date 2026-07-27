@@ -10,7 +10,7 @@ import {
 } from "./routingTable";
 
 describe("ROUTING_TABLE", () => {
-  it("contains all 34 LoopEventType entries", () => {
+  it("contains all 35 LoopEventType entries", () => {
     expect(Object.keys(ROUTING_TABLE)).toHaveLength(35);
   });
 
