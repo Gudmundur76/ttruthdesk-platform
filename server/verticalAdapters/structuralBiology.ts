@@ -14,7 +14,9 @@ const PDB_ID_RE = /\b([1-9][A-Z0-9]{3})\b/gi;
 
 async function lookupPdb(pdbId: string): Promise<EvidenceResult> {
   try {
-    const res = await fetch(`https://data.rcsb.org/rest/v1/core/entry/${pdbId.toUpperCase()}`);
+    const res = await fetch(`https://data.rcsb.org/rest/v1/core/entry/${pdbId.toUpperCase()}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) {
       return {
         found: false,

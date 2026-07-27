@@ -61,13 +61,20 @@ interface S2Paper {
 // eslint-disable-next-line complexity -- TODO(phase-131): extract helpers to reduce complexity
 async function lookupByIdentifier(identifier: string): Promise<EvidenceResult> {
   try {
-    const res = await fetch(
-      `${S2_BASE}/paper/${encodeURIComponent(identifier)}?fields=${PAPER_FIELDS}`,
-      {
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
+    // Retry up to 2 times on 429 rate-limit responses with exponential backoff
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 1500));
+      res = await fetch(
+        `${S2_BASE}/paper/${encodeURIComponent(identifier)}?fields=${PAPER_FIELDS}`,
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(10_000),
+        }
+      );
+      if (res.status !== 429) break;
+    }
+    if (!res) res = { ok: false, status: 0, json: async () => ({}) } as unknown as Response;
     if (!res.ok) {
       return {
         found: false,

@@ -131,7 +131,9 @@ const edgarSecAdapter: VerticalAdapter = {
     claimText: string;
     extractedValue: string | null;
   }): Promise<EvidenceResult> {
-    const query = claim.extractedValue?.trim() || claim.claimText.slice(0, 200);
+    const rawQuery = claim.extractedValue?.trim() || claim.claimText.slice(0, 200);
+    // Wrap in quotes for exact-match precision — prevents e.g. "Apple Inc" matching "Apple Hospitality REIT"
+    const query = rawQuery.includes('"') ? rawQuery : `"${rawQuery}"`;
 
     try {
       const data = await fetchEdgarSearch(query);
