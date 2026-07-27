@@ -22,6 +22,9 @@
 import { getDb } from "./db";
 import { claims, documents } from "../drizzle/schema";
 import { eq, sql } from "drizzle-orm";
+import { invokeLargeContextLLMJson } from "./_core/llmLargeContext.js";
+import { logger } from "./logger";
+const log = logger("claimQualityScorer");
 
 // ─── Scoring constants ────────────────────────────────────────────────────────
 
@@ -548,11 +551,6 @@ export async function runQualityScorerJob(): Promise<{
 }
 
 // ─── LLM-enhanced scoring (Kimi large-context) ───────────────────────────────
-
-import { invokeLargeContextLLMJson } from "./_core/llmLargeContext.js";
-import { logger } from "./logger";
-const log = logger("claimQualityScorer");
-
 
 /**
  * LLM-enhanced quality score for a single claim.

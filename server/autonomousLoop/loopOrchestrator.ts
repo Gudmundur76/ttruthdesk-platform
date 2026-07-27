@@ -237,7 +237,7 @@ export async function processEvent(event: LoopEvent): Promise<LoopRunResult> {
               createdAt: Date.now(),
             });
           }
-          await publishEvent("dream_hypothesis_staged" as never, {
+          await publishEvent("dream_hypothesis_staged", {
             sessionEventId: event.id,
             confidence,
           });

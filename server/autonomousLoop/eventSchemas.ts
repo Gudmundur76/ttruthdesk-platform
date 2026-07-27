@@ -260,6 +260,11 @@ export const DreamCompletePayload = z.object({
   durationMs: z.number().int().nonnegative().optional(),
 });
 
+
+export const DreamHypothesisStagedPayload = z.object({
+  sessionEventId: z.number().int().positive(),
+  confidence: z.number().min(0).max(1),
+});
 // ─── Schema Registry ──────────────────────────────────────────────────────────
 // Maps every LoopEventType (including new build1 types) to its Zod schema.
 // publishEvent() uses this to validate payloads at runtime.
@@ -287,7 +292,8 @@ export type ExtendedLoopEventType =
   | "frontier_complete"
   | "dream_session_request"
   | "dream_session_approved"
-  | "dream_complete";
+  | "dream_complete"
+  | "dream_hypothesis_staged";
 
 export const EVENT_PAYLOAD_SCHEMAS: Record<
   ExtendedLoopEventType,
@@ -316,6 +322,7 @@ export const EVENT_PAYLOAD_SCHEMAS: Record<
   dream_session_request: DreamSessionRequestPayload,
   dream_session_approved: DreamSessionApprovedPayload,
   dream_complete: DreamCompletePayload,
+  dream_hypothesis_staged: DreamHypothesisStagedPayload,
 };
 
 /**

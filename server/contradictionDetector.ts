@@ -562,17 +562,34 @@ export async function scanLocalContradictions(
           : [edge.targetClaimId, edge.sourceClaimId];
 
       try {
-        await db
-          .insert(contradictionAlerts)
-          .values({
+        const existing = await db
+          .select({ id: contradictionAlerts.id, status: contradictionAlerts.status })
+          .from(contradictionAlerts)
+          .where(
+            and(
+              eq(contradictionAlerts.claimAId, aId),
+              eq(contradictionAlerts.claimBId, bId)
+            )
+          )
+          .limit(1);
+        if (existing.length > 0) {
+          // Skip resolved/dismissed — human decision must not be overwritten
+          if (existing[0].status !== "resolved" && existing[0].status !== "dismissed") {
+            await db
+              .update(contradictionAlerts)
+              .set({ severity })
+              .where(eq(contradictionAlerts.id, existing[0].id));
+          }
+        } else {
+          await db.insert(contradictionAlerts).values({
             claimAId: aId,
             claimBId: bId,
             severity,
             status: "open",
             detectedAt: new Date(),
-          })
-          .onDuplicateKeyUpdate({ set: { severity, status: "open" } });
-        newAlerts++;
+          });
+          newAlerts++;
+        }
       } catch {
         // Ignore duplicate key errors — alert already exists
       }
