@@ -1719,6 +1719,7 @@ export const eventQueue = mysqlTable(
       "l0_scan_completed",
       "l0_scan_failed",
       "frontier_directive",
+      "dream_hypothesis_staged",
     ]).notNull(),
     payload: json("payload").$type<Record<string, unknown>>().notNull(),
     status: mysqlEnum("status", [
