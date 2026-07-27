@@ -203,6 +203,11 @@ export const ROUTING_TABLE: Record<LoopEventType, RouteEntry> = {
     priority: 3,
     description: "Build3: L3 Frontier directive from Self-Prompt engine (FR-L3-23)",
   },
+  dream_hypothesis_staged: {
+    layers: ["L5"],
+    priority: 5,
+    description: "Dream hypothesis staged — dream layer hypothesis ready for promotion",
+  },
 };
 
 /**
