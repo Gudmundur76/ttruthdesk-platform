@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: deploy-cloud-pc
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
