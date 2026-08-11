@@ -30,6 +30,8 @@ export interface ExtractedClaim {
   resolution: number | null;
   organism: string | null;
   ligand: string | null;
+  /** Verbatim sentence/passage from the source document this claim comes from */
+  sourcePassage: string | null;
 }
 
 /**
@@ -65,6 +67,7 @@ export async function extractClaims(
       enum: config.claimTypes,
     },
     extractedValue: { type: ["string", "null"] },
+    sourcePassage: { type: ["string", "null"] },
     ...config.extraSchemaProperties,
   };
 
@@ -72,6 +75,7 @@ export async function extractClaims(
     "claimText",
     "claimType",
     "extractedValue",
+    "sourcePassage",
     ...config.extraRequired,
   ];
 
@@ -161,6 +165,8 @@ function normaliseRawClaim(raw: unknown): ExtractedClaim {
     resolution: typeof rest.resolution === "number" ? rest.resolution : null,
     organism: typeof rest.organism === "string" ? rest.organism : null,
     ligand: typeof rest.ligand === "string" ? rest.ligand : null,
+    sourcePassage:
+      typeof rest.sourcePassage === "string" ? rest.sourcePassage : null,
   };
 }
 
