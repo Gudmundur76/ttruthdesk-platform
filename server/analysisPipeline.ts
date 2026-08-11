@@ -75,6 +75,7 @@ import {
 } from "./sourcePaperAdapter";
 import { setCitationGraphEnriched } from "./db";
 import { logger, errData } from "./logger";
+import { inferDomainFromText } from "./domainInference";
 import { ENV } from "./_core/env";
 import { fetchPriorContext } from "./mrAgentClient";
 import { checkMrAgentContradiction } from "./mrAgentContradictionCheck";
@@ -116,7 +117,7 @@ export async function runAnalysisPipeline(
     const docForDomain = await getDocumentById(documentId);
     const extractionDomain: string =
       ((docForDomain as Record<string, unknown>)?.verticalDomain as string) ??
-      "structural_biology";
+      inferDomainFromText(rawText);
     // ── Pre-flight: MRAgent context injection ──────────────────────────────
     // Fetch prior verification context from the evolva-mragent memory server.
     // Non-blocking: if the server is unavailable, priorContext is null and
@@ -155,6 +156,7 @@ export async function runAnalysisPipeline(
       resolution: c.resolution,
       organism: c.organism,
       ligand: c.ligand,
+      sourcePassage: c.sourcePassage ?? null,
     }));
     await insertClaims(claimInserts as never);
     await updateDocumentStatus(documentId, "validating", {
