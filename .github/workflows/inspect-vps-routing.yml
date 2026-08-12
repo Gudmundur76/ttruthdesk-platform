@@ -55,6 +55,12 @@ jobs:
             sudo docker exec coolify-proxy sh -c 'wget -S -O- -T 10 http://172.17.0.1:3001/api/v2/health/detailed 2>&1 | head -30' || true
             echo '=== Traefik container host mapping ==='
             sudo docker inspect coolify-proxy --format '{{json .HostConfig.ExtraHosts}} {{json .NetworkSettings.Networks}}'
+            echo '=== ttruthdesk listener binding ==='
+            sudo ss -ltnp '( sport = :3001 )' || true
+            sudo grep -E '^(HOST|PORT|VITE_APP_URL)=' ~/ttruthdesk-platform/.env || true
+            echo '=== host-side reachability ==='
+            curl -sS -m 8 -o /dev/null -w '127.0.0.1:%{http_code}\n' http://127.0.0.1:3001/api/v2/health/detailed || true
+            curl -sS -m 8 -o /dev/null -w '10.0.0.1:%{http_code}\n' http://10.0.0.1:3001/api/v2/health/detailed || true
 
   route-main-domain:
     if: ${{ inputs.apply_main_domain_routing == 'true' }}
