@@ -63,6 +63,9 @@ jobs:
             curl -sS -m 8 -o /dev/null -w '10.0.0.1:%{http_code}\n' http://10.0.0.1:3001/api/v2/health/detailed || true
             echo '=== detailed local health response ==='
             curl -sS -i -m 12 http://127.0.0.1:3001/api/v2/health/detailed || true
+            echo '=== live auto_ingested_papers schema ==='
+            cd ~/ttruthdesk-platform
+            node -e 'require("dotenv").config(); const mysql=require("mysql2/promise"); (async()=>{const c=await mysql.createConnection(process.env.DATABASE_URL); const [rows]=await c.query("SHOW COLUMNS FROM auto_ingested_papers"); console.log(JSON.stringify(rows.map(r=>({Field:r.Field,Type:r.Type,Null:r.Null,Key:r.Key,Default:r.Default})),null,2)); await c.end();})().catch(e=>{console.error(e.message);process.exit(1);});' || true
             echo '=== recent ttruthdesk logs ==='
             sudo journalctl -u ttruthdesk.service -n 80 --no-pager || true
 
