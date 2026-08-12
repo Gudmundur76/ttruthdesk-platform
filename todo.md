@@ -1860,12 +1860,12 @@
 
 ## Production Domain Routing — citation.is Main API
 
-- [ ] Inspect citation.is DNS, TLS, proxy, and application routing.
-- [ ] Diagnose the remote shell and privilege context used by the GitHub deploy key.
-- [ ] Set citation.is as the canonical public API origin and retire the api.citation.is dependency.
+- [x] Inspect citation.is DNS, TLS, proxy, and application routing.
+- [x] Diagnose the remote shell and privilege context used by the GitHub deploy key.
+- [x] Set citation.is as the canonical public API origin and retire the api.citation.is dependency.
 - [ ] Verify public API responses, TLS, and canonical discovery metadata at citation.is.
 - [ ] Diagnose the conflicting external HTTPS responder serving legacy Nginx responses despite the local Traefik route.
-- [ ] Diagnose and repair the Traefik-to-ttruthdesk upstream path returning HTTP 504 on local HTTPS requests.
-- [ ] Back up and migrate auto_ingested_papers.pmid from varchar(32) to varchar(128) to restore detailed health checks.
-- [ ] Make database TLS conditional so the local MySQL service is not forced to use unsupported TLS.
+- [x] Diagnose and repair the Traefik-to-ttruthdesk upstream path returning HTTP 504 on local HTTPS requests.
+- [x] Back up and migrate auto_ingested_papers.pmid from varchar(32) to varchar(128) to restore detailed health checks.
+- [x] Make database TLS conditional so the local MySQL service is not forced to use unsupported TLS.
 - [ ] Record the final endpoint and any required DNS action.
