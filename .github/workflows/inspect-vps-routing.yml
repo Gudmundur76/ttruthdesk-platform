@@ -11,6 +11,14 @@ on:
         options:
           - 'false'
           - 'true'
+      apply_ingestion_schema_repair:
+        description: Back up and repair the live auto_ingested_papers pmid column
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   contents: read
@@ -103,4 +111,26 @@ jobs:
             sleep 8
             echo '=== Local endpoint verification ==='
             curl -fsS --resolve citation.is:443:127.0.0.1 https://citation.is/api/v2/health/detailed
+            echo
+
+
+  repair-ingestion-schema:
+    if: ${{ inputs.apply_ingestion_schema_repair == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Back up and repair auto_ingested_papers pmid schema
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            cd ~/ttruthdesk-platform
+            echo '=== Backing up and migrating auto_ingested_papers ==='
+            node -e 'const fs=require("fs"); require("dotenv").config(); const mysql=require("mysql2/promise"); (async()=>{const db=await mysql.createConnection(process.env.DATABASE_URL); const [[col]]=await db.query("SHOW COLUMNS FROM auto_ingested_papers LIKE \"pmid\""); const [[ddl]]=await db.query("SHOW CREATE TABLE auto_ingested_papers"); const [rows]=await db.query("SELECT * FROM auto_ingested_papers"); const stamp=new Date().toISOString().replace(/[:.]/g,"-"); fs.mkdirSync("backups",{recursive:true}); const backup=`backups/auto_ingested_papers-${stamp}.json`; fs.writeFileSync(backup,JSON.stringify({capturedAt:new Date().toISOString(),schema:ddl,rows},null,2)); if(!col)throw new Error("pmid column not found"); if(col.Type==="varchar(32)")await db.query("ALTER TABLE auto_ingested_papers MODIFY COLUMN pmid varchar(128) NOT NULL"); else if(col.Type!=="varchar(128)")throw new Error(`unexpected pmid type ${col.Type}`); const [[verified]]=await db.query("SHOW COLUMNS FROM auto_ingested_papers LIKE \"pmid\""); console.log(JSON.stringify({backup,previousType:col.Type,currentType:verified.Type,rowCount:rows.length})); await db.end();})().catch(e=>{console.error(e.stack||e.message);process.exit(1);});'
+            echo '=== Restarting ttruthdesk after schema repair ==='
+            sudo systemctl restart ttruthdesk.service
+            sleep 6
+            curl -fsS http://127.0.0.1:3001/api/v2/health/detailed
             echo
