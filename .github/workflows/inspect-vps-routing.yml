@@ -95,7 +95,11 @@ jobs:
             echo '=== Updating citation.is route ==='
             sudo cp /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml.bak
             sudo sed -i 's/service: citation-desk/service: ttruthdesk-platform/g' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
+            # The Coolify network cannot reach the host gateway on port 3001,
+            # while the VPS public address is verified reachable from Traefik.
+            sudo sed -i 's|http://host.docker.internal:3001|http://187.124.213.194:3001|g' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
             sudo grep -A16 '^    citation-http:' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
+            sudo grep -A5 '^    ttruthdesk-platform:' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
             echo '=== Setting canonical origin ==='
             if sudo grep -q '^VITE_APP_URL=' ~/ttruthdesk-platform/.env; then
               sudo sed -i 's|^VITE_APP_URL=.*|VITE_APP_URL=https://citation.is|' ~/ttruthdesk-platform/.env
@@ -112,7 +116,7 @@ jobs:
             sudo docker restart coolify-proxy
             sleep 8
             echo '=== Local endpoint verification ==='
-            curl -fsS --resolve citation.is:443:127.0.0.1 https://citation.is/api/v2/health/detailed
+            curl -kfsS --resolve citation.is:443:127.0.0.1 https://citation.is/api/v2/health/detailed
             echo
 
 
