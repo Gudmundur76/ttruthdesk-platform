@@ -34,6 +34,20 @@ jobs:
             else
               echo 'nginx is not installed; inspecting Docker/Traefik instead.'
               sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+              echo '=== Traefik dynamic configuration files ==='
+              sudo find /data/coolify/proxy /etc/traefik /opt/coolify -maxdepth 4 -type f \
+                \( -name '*.yml' -o -name '*.yaml' -o -name '*.toml' \) 2>/dev/null | while read -r conf; do
+                if sudo grep -Eq 'citation\.is|api\.citation\.is|3001' "${conf}"; then
+                  echo "=== BEGIN ${conf} ==="
+                  sudo sed -n '1,320p' "${conf}"
+                  echo "=== END ${conf} ==="
+                fi
+              done
+              echo '=== ttruthdesk service definition ==='
+              sudo systemctl cat ttruthdesk.service
+              echo '=== ttruthdesk public-origin environment ==='
+              sudo systemctl show ttruthdesk.service --property=Environment --no-pager | \
+                tr ' ' '\n' | grep -E 'VITE_APP_URL|APP_URL|SITE_ORIGIN' || true
               echo '=== containers with Traefik or citation.is labels ==='
               for container in $(sudo docker ps -q); do
                 labels=$(sudo docker inspect -f '{{range $key,$value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}' "${container}")
