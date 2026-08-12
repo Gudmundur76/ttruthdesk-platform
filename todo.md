@@ -1861,6 +1861,7 @@
 ## Production Domain Routing — citation.is Main API
 
 - [ ] Inspect citation.is DNS, TLS, proxy, and application routing.
+- [ ] Diagnose the remote shell and privilege context used by the GitHub deploy key.
 - [ ] Set citation.is as the canonical public API origin and retire the api.citation.is dependency.
 - [ ] Verify public API responses, TLS, and canonical discovery metadata at citation.is.
 - [ ] Record the final endpoint and any required DNS action.

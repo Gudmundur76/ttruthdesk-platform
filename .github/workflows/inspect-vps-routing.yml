@@ -18,6 +18,16 @@ jobs:
           key: ${{ secrets.DEPLOY_KEY }}
           script: |
             set -e
+            echo '=== remote execution context ==='
+            echo "shell=$0"
+            whoami
+            id
+            command -v sudo
+            sudo -n true && echo 'passwordless sudo=available'
+            test -f /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml && echo 'routing file=present'
+            sudo test -r /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml && echo 'routing file=readable'
+            sudo test -w /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml && echo 'routing file=writable'
+            sudo sh -c 'echo privileged shell=working'
             echo '=== ttruthdesk service ==='
             sudo systemctl is-active ttruthdesk.service
             sudo systemctl show ttruthdesk.service --property=ActiveState --property=SubState --no-pager
