@@ -57,6 +57,38 @@ import { ENV } from "./_core/env";
 let _db: ReturnType<typeof drizzle> | null = null;
 let _dbInitPromise: Promise<ReturnType<typeof drizzle> | null> | null = null;
 
+const LOCAL_MYSQL_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "mysql",
+  "ttruthdesk-mysql",
+]);
+
+/**
+ * Decide whether mysql2 should negotiate TLS. Local Docker/MySQL services do
+ * not expose TLS, while managed remote databases retain the secure default.
+ * DATABASE_SSL provides an explicit operational override.
+ */
+export function shouldUseDatabaseTls(
+  databaseUrl: string,
+  databaseSsl = process.env.DATABASE_SSL
+): boolean {
+  const explicit = databaseSsl?.trim().toLowerCase();
+  if (explicit === "true") return true;
+  if (explicit === "false") return false;
+
+  try {
+    const parsed = new URL(databaseUrl);
+    const sslParam = parsed.searchParams.get("ssl")?.toLowerCase();
+    if (sslParam === "true") return true;
+    if (sslParam === "false") return false;
+    return !LOCAL_MYSQL_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return true;
+  }
+}
+
 export async function getDb(): Promise<ReturnType<typeof drizzle> | null> {
   if (_db) return _db;
   // Prevent concurrent initializations from creating multiple connections
@@ -64,14 +96,17 @@ export async function getDb(): Promise<ReturnType<typeof drizzle> | null> {
     _dbInitPromise = (async () => {
       try {
         // mysql2 v3+ requires ssl to be an object, not a boolean string.
-        // Strip ?ssl=true from the URL and pass ssl as an explicit option.
+        // Strip the URL flag and pass TLS explicitly only when it is needed.
         // Use mysql2 (not mysql2/promise) so the Pool type matches drizzle-orm.
         const mysql2 = await import("mysql2");
         const rawUrl = process.env.DATABASE_URL!;
-        const cleanUrl = rawUrl.replace(/[?&]ssl=true/i, "").replace(/\?$/, "");
+        const useTls = shouldUseDatabaseTls(rawUrl);
+        const cleanUrl = rawUrl
+          .replace(/[?&]ssl=(true|false)/i, "")
+          .replace(/\?$/, "");
         const pool = mysql2.createPool({
           uri: cleanUrl,
-          ssl: { rejectUnauthorized: true },
+          ...(useTls ? { ssl: { rejectUnauthorized: true } } : {}),
           waitForConnections: true,
           connectionLimit: 10,
           queueLimit: 0,
