@@ -2,6 +2,15 @@ name: Inspect VPS Routing
 
 on:
   workflow_dispatch:
+    inputs:
+      apply_main_domain_routing:
+        description: Apply the citation.is → ttruthdesk API routing change
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   contents: read
@@ -10,7 +19,7 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect citation.is Nginx routing and ttruthdesk service
+      - name: Inspect citation.is proxy routing and ttruthdesk service
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -31,39 +40,43 @@ jobs:
             echo '=== ttruthdesk service ==='
             sudo systemctl is-active ttruthdesk.service
             sudo systemctl show ttruthdesk.service --property=ActiveState --property=SubState --no-pager
-            echo '=== citation.is Nginx configuration files ==='
-            sudo grep -RslE 'server_name.*(citation\\.is|api\\.citation\\.is)' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null || true
-            for conf in $(sudo grep -RslE 'server_name.*(citation\\.is|api\\.citation\\.is)' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null || true); do
-              echo "=== BEGIN ${conf} ==="
-              sudo sed -n '1,260p' "${conf}"
-              echo "=== END ${conf} ==="
-            done
-            echo '=== proxy runtime ==='
-            if command -v nginx >/dev/null 2>&1; then
-              sudo nginx -t
+            echo '=== citation.is proxy configuration ==='
+            sudo sed -n '1,220p' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
+            echo '=== ttruthdesk public-origin environment ==='
+            sudo grep -E '^VITE_APP_URL=' ~/ttruthdesk-platform/.env || true
+
+  route-main-domain:
+    if: ${{ inputs.apply_main_domain_routing == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Route citation.is to ttruthdesk API
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          command_timeout: 15m
+          script: |
+            set -e
+            echo '=== Updating citation.is route ==='
+            sudo cp /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml.bak
+            sudo sed -i 's/service: citation-desk/service: ttruthdesk-platform/g' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
+            sudo grep -A16 '^    citation-http:' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
+            echo '=== Setting canonical origin ==='
+            if sudo grep -q '^VITE_APP_URL=' ~/ttruthdesk-platform/.env; then
+              sudo sed -i 's|^VITE_APP_URL=.*|VITE_APP_URL=https://citation.is|' ~/ttruthdesk-platform/.env
             else
-              echo 'nginx is not installed; inspecting Docker/Traefik instead.'
-              sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
-              echo '=== Traefik dynamic configuration files ==='
-              sudo find /data/coolify/proxy /etc/traefik /opt/coolify -maxdepth 4 -type f \
-                \( -name '*.yml' -o -name '*.yaml' -o -name '*.toml' \) 2>/dev/null | while read -r conf; do
-                if sudo grep -Eq 'citation\.is|api\.citation\.is|3001' "${conf}"; then
-                  echo "=== BEGIN ${conf} ==="
-                  sudo sed -n '1,320p' "${conf}"
-                  echo "=== END ${conf} ==="
-                fi
-              done
-              echo '=== ttruthdesk service definition ==='
-              sudo systemctl cat ttruthdesk.service
-              echo '=== ttruthdesk public-origin environment ==='
-              sudo systemctl show ttruthdesk.service --property=Environment --no-pager | \
-                tr ' ' '\n' | grep -E 'VITE_APP_URL|APP_URL|SITE_ORIGIN' || true
-              echo '=== containers with Traefik or citation.is labels ==='
-              for container in $(sudo docker ps -q); do
-                labels=$(sudo docker inspect -f '{{range $key,$value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}' "${container}")
-                if echo "${labels}" | grep -Eqi 'traefik|citation\.is'; then
-                  echo "--- $(sudo docker inspect -f '{{.Name}}' "${container}") ---"
-                  echo "${labels}" | grep -Ei 'traefik|citation\.is' || true
-                fi
-              done
+              echo 'VITE_APP_URL=https://citation.is' | sudo tee -a ~/ttruthdesk-platform/.env >/dev/null
             fi
+            echo '=== Building and restarting ttruthdesk ==='
+            cd ~/ttruthdesk-platform
+            pnpm install --frozen-lockfile
+            pnpm run build
+            sudo systemctl restart ttruthdesk.service
+            sudo systemctl is-active ttruthdesk.service
+            echo '=== Reloading Traefik ==='
+            sudo docker restart coolify-proxy
+            sleep 8
+            echo '=== Local endpoint verification ==='
+            curl -fsS --resolve citation.is:443:127.0.0.1 https://citation.is/api/v2/health/detailed
+            echo
