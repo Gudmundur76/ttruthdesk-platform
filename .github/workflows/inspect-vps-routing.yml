@@ -61,6 +61,10 @@ jobs:
             echo '=== host-side reachability ==='
             curl -sS -m 8 -o /dev/null -w '127.0.0.1:%{http_code}\n' http://127.0.0.1:3001/api/v2/health/detailed || true
             curl -sS -m 8 -o /dev/null -w '10.0.0.1:%{http_code}\n' http://10.0.0.1:3001/api/v2/health/detailed || true
+            echo '=== detailed local health response ==='
+            curl -sS -i -m 12 http://127.0.0.1:3001/api/v2/health/detailed || true
+            echo '=== recent ttruthdesk logs ==='
+            sudo journalctl -u ttruthdesk.service -n 80 --no-pager || true
 
   route-main-domain:
     if: ${{ inputs.apply_main_domain_routing == 'true' }}
