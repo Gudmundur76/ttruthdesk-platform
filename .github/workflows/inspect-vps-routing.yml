@@ -61,6 +61,8 @@ jobs:
             sudo docker exec coolify-proxy getent hosts host.docker.internal || true
             sudo docker exec coolify-proxy sh -c 'wget -S -O- -T 10 http://host.docker.internal:3001/api/v2/health/detailed 2>&1 | head -30' || true
             sudo docker exec coolify-proxy sh -c 'wget -S -O- -T 10 http://172.17.0.1:3001/api/v2/health/detailed 2>&1 | head -30' || true
+            sudo docker exec coolify-proxy sh -c 'wget -S -O- -T 10 http://10.0.1.1:3001/api/v2/health/detailed 2>&1 | head -30' || true
+            sudo docker exec coolify-proxy sh -c 'wget -S -O- -T 10 http://187.124.213.194:3001/api/v2/health/detailed 2>&1 | head -30' || true
             echo '=== Traefik container host mapping ==='
             sudo docker inspect coolify-proxy --format '{{json .HostConfig.ExtraHosts}} {{json .NetworkSettings.Networks}}'
             echo '=== ttruthdesk listener binding ==='
