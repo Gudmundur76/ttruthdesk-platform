@@ -44,6 +44,11 @@ jobs:
             sudo sed -n '1,220p' /data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
             echo '=== ttruthdesk public-origin environment ==='
             sudo grep -E '^VITE_APP_URL=' ~/ttruthdesk-platform/.env || true
+            echo '=== local HTTPS port owner ==='
+            sudo ss -ltnp '( sport = :443 )' || true
+            echo '=== local Traefik citation.is response ==='
+            curl -ksS -D - --resolve citation.is:443:127.0.0.1 https://citation.is/api/v2/health/detailed -o /tmp/citation-local-body.txt || true
+            head -c 1200 /tmp/citation-local-body.txt; echo
 
   route-main-domain:
     if: ${{ inputs.apply_main_domain_routing == 'true' }}
