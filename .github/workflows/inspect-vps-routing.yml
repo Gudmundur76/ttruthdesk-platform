@@ -28,5 +28,18 @@ jobs:
               sudo sed -n '1,260p' "${conf}"
               echo "=== END ${conf} ==="
             done
-            echo '=== Nginx syntax ==='
-            sudo nginx -t
+            echo '=== proxy runtime ==='
+            if command -v nginx >/dev/null 2>&1; then
+              sudo nginx -t
+            else
+              echo 'nginx is not installed; inspecting Docker/Traefik instead.'
+              sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+              echo '=== containers with Traefik or citation.is labels ==='
+              for container in $(sudo docker ps -q); do
+                labels=$(sudo docker inspect -f '{{range $key,$value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}' "${container}")
+                if echo "${labels}" | grep -Eqi 'traefik|citation\.is'; then
+                  echo "--- $(sudo docker inspect -f '{{.Name}}' "${container}") ---"
+                  echo "${labels}" | grep -Ei 'traefik|citation\.is' || true
+                fi
+              done
+            fi
