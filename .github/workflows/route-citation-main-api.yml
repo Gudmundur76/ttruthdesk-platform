@@ -28,50 +28,11 @@ jobs:
             sudo cp "${ROUTING_FILE}" "${ROUTING_FILE}.bak-$(date -u +%Y%m%dT%H%M%SZ)"
 
             echo '=== Updating Traefik main-domain service ==='
-            sudo python3 - <<'PY'
-            from pathlib import Path
-            path = Path('/data/coolify/proxy/dynamic/ttruthdesk-routing.yaml')
-            text = path.read_text()
-            old = '''    # ─── citation.is → citation-desk (port 3002) ───────────────────────────────
-            citation-http:
-              entryPoints:
-                - http
-              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
-              middlewares:
-                - redirect-to-https
-              service: citation-desk
-              priority: 10
-            citation-https:
-              entryPoints:
-                - https
-              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
-              service: citation-desk
-              tls:
-                certResolver: letsencrypt
-              priority: 10
-'''
-            new = '''    # ─── citation.is → ttruthdesk-platform (port 3001) ─────────────────────────
-            citation-http:
-              entryPoints:
-                - http
-              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
-              middlewares:
-                - redirect-to-https
-              service: ttruthdesk-platform
-              priority: 10
-            citation-https:
-              entryPoints:
-                - https
-              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
-              service: ttruthdesk-platform
-              tls:
-                certResolver: letsencrypt
-              priority: 10
-'''
-            if old not in text:
-                raise SystemExit('Expected citation.is router block was not found; no routing change applied.')
-            path.write_text(text.replace(old, new))
-            PY
+            sudo sed -i \
+              -e 's/citation\.is → citation-desk (port 3002)/citation.is → ttruthdesk-platform (port 3001)/' \
+              -e 's/service: citation-desk/service: ttruthdesk-platform/g' \
+              "${ROUTING_FILE}"
+            sudo grep -A16 -E '^    citation-http:' "${ROUTING_FILE}"
 
             echo '=== Setting canonical public API origin ==='
             ENV_FILE=$(sudo systemctl show ttruthdesk.service -p EnvironmentFiles --value | sed -E 's/^[-]//; s/ .*//')
@@ -96,10 +57,10 @@ jobs:
             sudo docker restart coolify-proxy
             sleep 8
             sudo docker ps --filter name=^/coolify-proxy$ --format '{{.Names}} {{.Status}}'
-            sudo docker logs --tail 80 coolify-proxy 2>&1 | grep -Eqi 'error|fatal' && {
+            if sudo docker logs --tail 80 coolify-proxy 2>&1 | grep -Eqi 'error|fatal'; then
               echo 'Traefik reported an error after reload.'
               exit 1
-            } || true
+            fi
 
             echo '=== Local proxy verification ==='
             curl --fail --silent --show-error --resolve citation.is:443:127.0.0.1 \
