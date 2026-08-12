@@ -1,0 +1,107 @@
+name: Route citation.is to Truth Desk API
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: citation-main-domain-routing
+  cancel-in-progress: false
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Route main domain to ttruthdesk and set canonical origin
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            ROUTING_FILE=/data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
+            test -f "${ROUTING_FILE}"
+            sudo cp "${ROUTING_FILE}" "${ROUTING_FILE}.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+
+            echo '=== Updating Traefik main-domain service ==='
+            sudo python3 - <<'PY'
+            from pathlib import Path
+            path = Path('/data/coolify/proxy/dynamic/ttruthdesk-routing.yaml')
+            text = path.read_text()
+            old = '''    # ─── citation.is → citation-desk (port 3002) ───────────────────────────────
+            citation-http:
+              entryPoints:
+                - http
+              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
+              middlewares:
+                - redirect-to-https
+              service: citation-desk
+              priority: 10
+            citation-https:
+              entryPoints:
+                - https
+              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
+              service: citation-desk
+              tls:
+                certResolver: letsencrypt
+              priority: 10
+'''
+            new = '''    # ─── citation.is → ttruthdesk-platform (port 3001) ─────────────────────────
+            citation-http:
+              entryPoints:
+                - http
+              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
+              middlewares:
+                - redirect-to-https
+              service: ttruthdesk-platform
+              priority: 10
+            citation-https:
+              entryPoints:
+                - https
+              rule: "Host(`citation.is`) || Host(`www.citation.is`)"
+              service: ttruthdesk-platform
+              tls:
+                certResolver: letsencrypt
+              priority: 10
+'''
+            if old not in text:
+                raise SystemExit('Expected citation.is router block was not found; no routing change applied.')
+            path.write_text(text.replace(old, new))
+            PY
+
+            echo '=== Setting canonical public API origin ==='
+            ENV_FILE=$(sudo systemctl show ttruthdesk.service -p EnvironmentFiles --value | sed -E 's/^[-]//; s/ .*//')
+            test -n "${ENV_FILE}"
+            test -f "${ENV_FILE}"
+            if sudo grep -q '^VITE_APP_URL=' "${ENV_FILE}"; then
+              sudo sed -i 's|^VITE_APP_URL=.*|VITE_APP_URL=https://citation.is|' "${ENV_FILE}"
+            else
+              echo 'VITE_APP_URL=https://citation.is' | sudo tee -a "${ENV_FILE}" >/dev/null
+            fi
+
+            echo '=== Rebuilding ttruthdesk with canonical origin ==='
+            SERVICE_DIR=$(sudo systemctl show ttruthdesk.service -p WorkingDirectory --value)
+            cd "${SERVICE_DIR}"
+            pnpm install --frozen-lockfile
+            pnpm run build
+            sudo systemctl daemon-reload
+            sudo systemctl restart ttruthdesk.service
+            sudo systemctl is-active --quiet ttruthdesk.service
+
+            echo '=== Reloading Traefik dynamic configuration ==='
+            sudo docker restart coolify-proxy
+            sleep 8
+            sudo docker ps --filter name=^/coolify-proxy$ --format '{{.Names}} {{.Status}}'
+            sudo docker logs --tail 80 coolify-proxy 2>&1 | grep -Eqi 'error|fatal' && {
+              echo 'Traefik reported an error after reload.'
+              exit 1
+            } || true
+
+            echo '=== Local proxy verification ==='
+            curl --fail --silent --show-error --resolve citation.is:443:127.0.0.1 \
+              https://citation.is/api/v2/health/detailed | head -c 1000
+            echo
