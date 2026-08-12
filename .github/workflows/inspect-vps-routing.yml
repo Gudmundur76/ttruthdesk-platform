@@ -54,6 +54,10 @@ jobs:
             sudo grep -E '^VITE_APP_URL=' ~/ttruthdesk-platform/.env || true
             echo '=== local HTTPS port owner ==='
             sudo ss -ltnp '( sport = :443 )' || true
+            echo '=== active proxy containers ==='
+            sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
+            echo '=== Traefik active citation routers ==='
+            sudo docker exec coolify-proxy sh -c 'wget -qO- http://127.0.0.1:8080/api/http/routers 2>/dev/null | tr "}" "}\n" | grep -i -C 2 "citation\.is"' || true
             echo '=== local Traefik citation.is response ==='
             curl -ksS -D - --resolve citation.is:443:127.0.0.1 https://citation.is/api/v2/health/detailed -o /tmp/citation-local-body.txt || true
             head -c 1200 /tmp/citation-local-body.txt; echo
