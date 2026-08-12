@@ -1,0 +1,32 @@
+name: Inspect VPS Routing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect citation.is Nginx routing and ttruthdesk service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            echo '=== ttruthdesk service ==='
+            sudo systemctl is-active ttruthdesk.service
+            sudo systemctl show ttruthdesk.service --property=ActiveState --property=SubState --no-pager
+            echo '=== citation.is Nginx configuration files ==='
+            sudo grep -RslE 'server_name.*(citation\\.is|api\\.citation\\.is)' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null || true
+            for conf in $(sudo grep -RslE 'server_name.*(citation\\.is|api\\.citation\\.is)' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null || true); do
+              echo "=== BEGIN ${conf} ==="
+              sudo sed -n '1,260p' "${conf}"
+              echo "=== END ${conf} ==="
+            done
+            echo '=== Nginx syntax ==='
+            sudo nginx -t

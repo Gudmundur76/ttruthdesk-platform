@@ -1857,3 +1857,10 @@
 - [x] dreamLayer.ts — L5 adapter (dream_cycle_started / dream_pattern_detected → runDreamSession)
 - [x] Null-safe sessionResult handling
 - [x] Wake protocol integration via wakeProtocolResult
+
+## Production Domain Routing — citation.is Main API
+
+- [ ] Inspect citation.is DNS, TLS, proxy, and application routing.
+- [ ] Set citation.is as the canonical public API origin and retire the api.citation.is dependency.
+- [ ] Verify public API responses, TLS, and canonical discovery metadata at citation.is.
+- [ ] Record the final endpoint and any required DNS action.
