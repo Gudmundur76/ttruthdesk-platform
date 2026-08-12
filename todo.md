@@ -1865,4 +1865,5 @@
 - [ ] Set citation.is as the canonical public API origin and retire the api.citation.is dependency.
 - [ ] Verify public API responses, TLS, and canonical discovery metadata at citation.is.
 - [ ] Diagnose the conflicting external HTTPS responder serving legacy Nginx responses despite the local Traefik route.
+- [ ] Diagnose and repair the Traefik-to-ttruthdesk upstream path returning HTTP 504 on local HTTPS requests.
 - [ ] Record the final endpoint and any required DNS action.

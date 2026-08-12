@@ -49,6 +49,12 @@ jobs:
             echo '=== local Traefik citation.is response ==='
             curl -ksS -D - --resolve citation.is:443:127.0.0.1 https://citation.is/api/v2/health/detailed -o /tmp/citation-local-body.txt || true
             head -c 1200 /tmp/citation-local-body.txt; echo
+            echo '=== Traefik upstream reachability ==='
+            sudo docker exec coolify-proxy getent hosts host.docker.internal || true
+            sudo docker exec coolify-proxy sh -c 'wget -S -O- -T 10 http://host.docker.internal:3001/api/v2/health/detailed 2>&1 | head -30' || true
+            sudo docker exec coolify-proxy sh -c 'wget -S -O- -T 10 http://172.17.0.1:3001/api/v2/health/detailed 2>&1 | head -30' || true
+            echo '=== Traefik container host mapping ==='
+            sudo docker inspect coolify-proxy --format '{{json .HostConfig.ExtraHosts}} {{json .NetworkSettings.Networks}}'
 
   route-main-domain:
     if: ${{ inputs.apply_main_domain_routing == 'true' }}
