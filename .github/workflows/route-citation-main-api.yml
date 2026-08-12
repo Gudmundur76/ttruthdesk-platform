@@ -22,7 +22,7 @@ jobs:
           key: ${{ secrets.DEPLOY_KEY }}
           command_timeout: 15m
           script: |
-            set -eu
+            set -e
             ROUTING_FILE=/data/coolify/proxy/dynamic/ttruthdesk-routing.yaml
             test -f "${ROUTING_FILE}"
             sudo cp "${ROUTING_FILE}" "${ROUTING_FILE}.bak-$(date -u +%Y%m%dT%H%M%SZ)"
