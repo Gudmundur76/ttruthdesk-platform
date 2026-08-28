@@ -441,7 +441,7 @@ Claim types:
   vulnerability — specific vulnerability with affected versions
   general_security — other verifiable cybersecurity claims
 Return [] if none found.`,
-  userPrefix: "Extract all verifiable cybersecurity claims from this document:",
+  userPrefix: "Extract all verifiable cybersecurity standards claims from this document:",
   claimTypes: ["cve", "control", "algorithm", "compliance", "vulnerability", "general_security"],
   extraSchemaProperties: {
     cveId: { type: ["string", "null"] },
@@ -501,6 +501,11 @@ export const DOMAIN_EXTRACTOR_CONFIGS: Record<string, DomainClaimConfig> = {
  * Returns the extraction config for a given domain label.
  * Falls back to BIOMEDICAL_GENERAL for any unmapped domain.
  */
+const EXTRACTION_GROUNDING_RULES = `\nExtraction rules:
+- Extract only identifiers, accession codes, and numeric values that appear verbatim in the document text. Never recall accession codes or values from prior knowledge.
+- For every claim, set sourcePassage to the verbatim sentence or short passage (max 500 characters) from the document that the claim comes from.`;
+
 export function getDomainExtractorConfig(domain: string): DomainClaimConfig {
-  return DOMAIN_EXTRACTOR_CONFIGS[domain] ?? BIOMEDICAL_GENERAL;
+  const cfg = DOMAIN_EXTRACTOR_CONFIGS[domain] ?? BIOMEDICAL_GENERAL;
+  return { ...cfg, systemPrompt: cfg.systemPrompt + EXTRACTION_GROUNDING_RULES };
 }

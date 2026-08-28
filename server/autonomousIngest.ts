@@ -40,6 +40,7 @@ import { publishEvent } from "./autonomousLoop/eventBus";
 import { emitVerdictEvent, type IngestVerdictEvent } from "./trainingBridge";
 import { reportUrl } from "./seo/indexNow";
 import { logger, errData } from "./logger";
+import { inferDomainFromText } from "./domainInference";
 const log = logger("autonomousIngest");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -100,7 +101,7 @@ async function extractClaimsFromText(text: string): Promise<ExtractedClaim[]> {
         {
           role: "system" as const,
           content:
-            "You are a scientific claim extractor. Extract verifiable molecular biology claims from the provided text. Return a JSON array of claims. Each claim must have: claimText (full verifiable claim, max 300 chars), claimType (one of: protein_name, organism, pdb_id, general_molecular, ligand), proteinName (optional), organism (optional), pdbId (optional, 4-char format), extractedValue (optional). Extract 3-8 claims maximum. Focus on falsifiable, specific claims about proteins, structures, functions, or organisms. Return ONLY valid JSON, no markdown.",
+            "You are a scientific claim extractor. Extract verifiable molecular biology claims from the provided text. Return a JSON array of claims. Each claim must have: claimText (full verifiable claim, max 300 chars), claimType (one of: protein_name, organism, pdb_id, general_molecular, ligand), proteinName (optional), organism (optional), pdbId (optional, 4-char format), extractedValue (optional). Extract 3-8 claims maximum. Focus on falsifiable, specific claims about proteins, structures, functions, or organisms. Extract only identifiers, accession codes, and values that appear verbatim in the text — never recall them from prior knowledge. Return ONLY valid JSON, no markdown.",
         },
         {
           role: "user" as const,
@@ -264,7 +265,7 @@ export async function processQueryResults(
     query,
     pubmedResults = [],
     uniprotEntries = [],
-    vertical = "structural_biology",
+    vertical: verticalOverride,
   } = results;
 
   // Build combined text for claim extraction
@@ -291,6 +292,7 @@ export async function processQueryResults(
   if (textParts.length === 0) return; // Nothing to ingest
 
   const combinedText = textParts.join("\n");
+  const vertical = verticalOverride ?? inferDomainFromText(combinedText);
 
   // Extract claims from the combined text
   const extractedClaims = await extractClaimsFromText(combinedText);
